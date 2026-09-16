@@ -195,3 +195,8 @@ that removes reverse authorization rather than fixing it.
   mount has play. At the 105 engagement ticks of 2026-09-11, admitted clusters that
   were the robot itself: 0.30 m floor 1.0/0.0 percent, 0.15 m 31.4/4.6, 0.08 m
   87.6/5.5, per-bearing 86.7/1.3.
+- Across 256 scenarios every lap-0 stall sat within 0.35 m of a sign, and the
+  robot's corridor disagreed with that sign's in 85 to 94 percent of them.
+- The bare-minimum phantom was worth 30 runs on the 256-scenario Obstacles corpus.
+- On run_20260906_192424 the chassis read 0.125 m at -157 deg and 0.187 m at
+  -172 deg.

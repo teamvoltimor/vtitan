@@ -22,13 +22,13 @@ type Params struct {
 	RearSteerRatio      float64
 	// SpeedTauS is the first-order lag between a commanded speed and the
 	// achieved one (s), from RobotDrivetrain.SpeedResponseTauS. Zero
-	// disables the lag, reproducing the pre-2026-08-29 model.
+	// disables the lag, reproducing the pre-lag model. See
+	// adr:0086-simulator-realism.
 	SpeedTauS float64
 	// YawGain is the fraction of the modelled yaw rate the chassis
 	// actually delivers, from RobotDrivetrain.YawGain -- the tyre slip
-	// the zero-slip geometry above has no term for. Measured 0.55 on
-	// 2026-08-29; before it existed the sim cornered 1.83x harder than
-	// the car it modelled.
+	// the zero-slip geometry above has no term for. See
+	// adr:0086-simulator-realism.
 	YawGain float64
 	// Substeps is the number of sub-integration steps per Step call.
 	// DefaultSubsteps is used if this is <= 0.

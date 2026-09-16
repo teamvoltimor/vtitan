@@ -27,9 +27,10 @@
 // scan; the ambiguous flip this guards against does not typically repeat.
 //
 // The obvious third guard -- rejecting a winner whose cost margin over the
-// runner-up is thin -- was tried, committed, and REVERTED on 2026-08-05 after
-// replaying 22 real hardware runs (846 sampled ticks). Confirmed-bad and
-// genuinely correct matches had statistically indistinguishable cost and
-// margin distributions on real noisy scans. The signal it depended on exists
-// only in the clean simulator. Do not re-add it without new evidence.
+// runner-up is thin -- was tried, committed, and REVERTED after replaying
+// real hardware runs. Confirmed-bad and genuinely correct matches had
+// statistically indistinguishable cost and margin distributions on real
+// noisy scans. The signal it depended on exists only in the clean simulator.
+// Do not re-add it without new evidence. See
+// adr:0084-localizer-divergence-and-relocalization.
 package localization

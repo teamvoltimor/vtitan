@@ -196,3 +196,40 @@ infraction. The exit must be evaluated against the default contact model.
   against a 1 mm margin while its dead-reckoned pose is about 29 mm wrong, giving
   324 legs of 0.06 s in 39.3 s, 814 deg of rotation for 5.3 net and zero travel;
   trial 0.010-0.020 only with a hand on the chassis.
+- Low-arc ratchet cost: at arc 0.3 the ratchet shuffled 8.09 m for 0.03 m outward,
+  while arc 1.0 escaped in 127 ticks; the unlatched gate flapped about 600 times a
+  run, and the first cycle exit backed 6.5 cm onto the rear fin and held there for
+  174 ticks.
+- Shipping the real turn radius took the exit from 16/16 out (`72e7172b~1`) to 0/16
+  (`72e7172b`); the HOLD variant burned 267 forward and 272 reverse legs for 1 cm of
+  net progress, and commanding 0 between legs reached only 30.9 deg of the 85 deg
+  asked (36 percent of full lock).
+- Free-space exchange rate: the pocket grants about 0.032 m of along-wall slack each
+  way at a placement of `a <= 1.15 deg`, about 0.7 mm of the 78.6 mm that frees the
+  rotation; the guard reach back-solved to 0.0600 m on all six checked refusals with
+  residual 0.000000, and a clean raycast gives 0.215 m against a live pipeline
+  reading of 0.05-0.13 m, so gated on it the arc got one tick per cycle and turned
+  0.1 deg in 57 ticks.
+- First-leg distance bound: `BAY_EXIT_FORWARD_M` and `BAY_EXIT_CYCLE_REVERSE_M`
+  swept byte-identical at 0.02 and 0.04, and `rev_m` measured 0.041 against the 0.09
+  asked.
+- Releasing on rotation alone drove back into a marker 0.24-0.30 m every run; the
+  stale-plan handover showed the same, and `run_20260906_094342` returned only
+  self-detection at 0.050-0.052 m for seconds before dropping out for one tick.
+- `BAY_EXIT_MAX_FRAMES` (900, 45 s) fired in none of the 2026-09-06 hardware runs;
+  one run stood still 14.2 s of a 16.6 s exit.
+- Measured-coast stale baseline: `run_20260911_152714` and `_152819` rolled 12-34 mm
+  per commanded-zero settle, reported by the stale baseline as 0.24-0.68 m/s.
+- Direction latch: steering hold alone took the exit 0 to 187 of 256, and latching
+  the open side took it to 254 of 256; the inverted reverse-steer knob was refuted,
+  every non-zero value collapsing to 0.02 m.
+- Cycle turn radius (removed from `_cycle_command`, possibly 0013): at 85 deg lock
+  the radius is 17 mm and the chassis pivots about itself; at 45 deg it is about
+  0.19 m.
+- No-budget release: with `is_clear` as the only release the exit held for 600/600
+  ticks and `CoreNavigator` never stepped, so no escape was reachable from an in-bay
+  start; `run_20260906_112613` stopped without ever reporting clear, then drove
+  forward at 0.26 m/s into a wall 0.02 m away.
+- Settling guard: without it the in-bay probe travelled 0.33-14.06 m falling to
+  0.18 m and every run collided; leaving the bay-start state un-cleared made the
+  second and every later race of a session skip the in-bay start entirely.

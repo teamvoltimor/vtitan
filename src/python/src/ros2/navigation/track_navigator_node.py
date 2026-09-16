@@ -332,11 +332,12 @@ class TrackNavigator(Node, ResettableNode):
         # first success, so the budget is only consulted while still refusing.
         self._start_measurement_ticks_left = 0
         # Speed for the blind corridor-follow that runs before the travel
-        # direction settles. Named _creep_speed until 2026-08-09, which was
-        # doubly misleading: it is not the creep tier, and it never was --
-        # it read the slow tier. The medium tier is the closest match to the
-        # 0.150 m/s this phase actually ran at, so keeping it here avoids
-        # slowing every race start as a side effect of grading the ladder.
+        # direction settles. Once named _creep_speed, which was doubly
+        # misleading: it is not the creep tier, and it never was -- it read the
+        # slow tier. The medium tier is the closest match to the speed this
+        # phase actually ran at, so keeping it here avoids slowing every race
+        # start as a side effect of grading the ladder. See
+        # ``adr:0085-speed-envelope``.
         self._blind_follow_speed = tuning.speed.medium_mps
         # In-bay start. Checked once (see _resolve_direction) and driven by the
         # same nav-layer manoeuvre the simulator uses.
@@ -378,9 +379,9 @@ class TrackNavigator(Node, ResettableNode):
         # The parking lot sits in the corridor the robot started in, and that is
         # what lets the detection shape gate stop rejecting wide RED boxes in
         # corridors where no barrier can be. See detection_to_observation.
-        # MUST follow the gateway's construction -- it was set at the
-        # `_start_section` assignment above until 2026-09-06, which runs ~90
-        # lines earlier and crashed the node on startup with AttributeError.
+        # MUST follow the gateway's construction -- setting it at the
+        # `_start_section` assignment above, ~90 lines earlier, crashed the
+        # node on startup with AttributeError.
         self._gateway.set_parking_corridor(start_section)
         waypoints = self._plan(self._believed_geometry())
 
@@ -705,12 +706,12 @@ class TrackNavigator(Node, ResettableNode):
                 # An exit ALREADY IN PROGRESS holds. Handing this tick to normal
                 # driving abandons the manoeuvre silently -- `_exiting_bay` stays
                 # True, but nothing ever routes back to it -- and normal driving
-                # does not know it is in a pocket. Measured on
-                # run_20260906_112613: the exit stopped without ever reporting
-                # clear, and the chassis then drove FORWARD at 0.26 m/s into a
-                # wall 0.02 m away. Holding is the conservative answer: the
-                # manoeuvre reverses toward a fin, so guessing without sensing
-                # is the one thing it must not do.
+                # does not know it is in a pocket: the exit stopped without ever
+                # reporting clear, and the chassis then drove FORWARD into a
+                # wall. Holding is the conservative answer: the manoeuvre
+                # reverses toward a fin, so guessing without sensing is the one
+                # thing it must not do. See
+                # ``adr:0060-bay-exit-clearance-guard``.
                 self._gateway.publish_drive(DriveCommand(speed_mps=0.0, steering_norm=0.0))
                 self._latest_debug = NavigatorDebugSnapshot(
                     phase=NavigatorPhase.BAY_EXIT,
@@ -748,10 +749,9 @@ class TrackNavigator(Node, ResettableNode):
         # the robot was PLACED. Re-testing every tick lets it fire mid-creep at
         # a corner -- forward blocked, one side close, the other open reads the
         # same -- and settle the direction off geometry that is not a bay at
-        # all. Measured in the simulator, which has carried this guard since
-        # 2026-08-27: without it a parallel-start run went 22.40 m -> 3.42 m.
-        # This node re-tested every tick until 2026-08-31 and so carried that
-        # fault on hardware.
+        # all. The simulator carries this guard; this node once re-tested every
+        # tick and so carried that fault on hardware. See
+        # ``adr:0053-direction-inference-and-start-pose``.
         boxed = None
         if not self._bay_start_checked:
             self._bay_start_checked = True
@@ -948,23 +948,21 @@ class TrackNavigator(Node, ResettableNode):
     def _sample_start_corridor(self) -> None:
         """Measure the starting corridor while the robot is still stationary.
 
-        The width estimator starts from a narrow (60 cm) prior and only leaves
-        it after repeated agreeing measurements. In a 100 cm corridor that prior
-        is self-reinforcing on real hardware, and measurably so: believing the
-        corridor is 60 cm wide while sitting centred in a 100 cm one makes the
-        robot think it is badly off-centre, so it saturates steering to correct
-        toward a centre that is not there, ends up skewed against a wall, and
-        from that pose ``measure_corridor_width`` returns None -- so the belief
-        that caused the pose can never be corrected by it. Measured on the
-        track: 390 consecutive drive commands at full left lock, ending 14 cm
-        from a wall, with the belief still reading 60 cm.
+        The width estimator starts from a narrow prior and only leaves it after
+        repeated agreeing measurements. In a wide corridor that prior is
+        self-reinforcing on real hardware: believing the corridor is narrower
+        than it is while sitting centred makes the robot think it is badly
+        off-centre, so it saturates steering to correct toward a centre that is
+        not there, ends up skewed against a wall, and from that pose
+        ``measure_corridor_width`` returns None -- so the belief that caused the
+        pose can never be corrected by it.
 
         The one moment the robot is guaranteed to be well placed is before it
         has moved: an operator sets it down centred and square in a corridor.
-        That is exactly the geometry the measurement needs -- verified on
-        hardware, the same function returns None when the robot is skewed 24
-        degrees against a wall and 0.97 m when it is squarely placed in the same
-        1 m corridor.
+        That is exactly the geometry the measurement needs -- the same function
+        returns None when the robot is skewed against a wall and a clean width
+        when it is squarely placed in the same corridor. See
+        ``adr:0057-blind-corridor-follower-and-width``.
 
         Readings go into the same buffer the creep phase uses, so they are
         attributed to a section by the existing replay in _commit_direction
@@ -1158,14 +1156,13 @@ class TrackNavigator(Node, ResettableNode):
             # corridor_for_position classifies by the inner square (1.0-2.0 in
             # both axes). The marked starting squares sit at the corridor ends,
             # straddling that square's corner, so a measured start lands in the
-            # NEIGHBOURING corridor: all three real starts recorded on
-            # 2026-08-06 classify that way -- (2.099, 0.484) and (2.101, 0.487)
-            # as EAST, (0.656, 0.596) as WEST, none as the SOUTH they are gated
-            # to. Anchoring the line there makes the gate unsatisfiable however
-            # many laps are driven. Run 180154 crossed it four times, every
-            # crossing labelled east, and scored 0 laps; replayed against the
-            # assumed origin the same bag counts 4 (see
-            # scripts/bag/diag_bag_lap_origin.py).
+            # NEIGHBOURING corridor rather than the section it is gated to.
+            # Anchoring the line there makes the gate unsatisfiable however
+            # many laps are driven: the recorded runs crossed it repeatedly,
+            # every crossing labelled with the wrong section, and scored zero
+            # laps; replayed against the assumed origin the same bags count
+            # their laps (see scripts/bag/diag_bag_lap_origin.py). See
+            # ``adr:0053-direction-inference-and-start-pose``.
             #
             # Nothing is lost by not measuring here. The normal is the travel
             # direction, so the origin's cross-track component has no effect at
@@ -1394,14 +1391,14 @@ class TrackNavigator(Node, ResettableNode):
         state machine and every sensor node keep running and the OLED keeps
         showing a healthy state.
 
-        Measured on hardware 2026-08-31 across two button-restart pairs
-        (run_20260831_224647, run_20260831_225308): the SECOND race of each pair
-        published **zero** ``/nav_debug`` messages over 30 s and 4 s of RACING
-        respectively, against 261 and 132 in the first. ``/nav_debug`` is emitted
-        from ``_control_loop``'s ``finally``, so it appears on every tick the
-        loop runs at all -- none did. Meanwhile ``/scan``, ``/imu/data`` and
-        ``/robot_state`` all flowed normally, so the failure looked like "the
-        robot won't move" rather than "the navigator is gone".
+        On hardware a SECOND race of a button-restart pair published **zero**
+        ``/nav_debug`` messages over the whole race, against a full stream in
+        the first. ``/nav_debug`` is emitted from ``_control_loop``'s
+        ``finally``, so it appears on every tick the loop runs at all -- none
+        did. Meanwhile ``/scan``, ``/imu/data`` and ``/robot_state`` all flowed
+        normally, so the failure looked like "the robot won't move" rather than
+        "the navigator is gone". See
+        ``adr:0079-imu-6axis-and-yaw-reference``.
 
         Degrading to a logged error keeps the node alive and holding, which is
         both recoverable and visible. It does NOT paper over the fault: the
@@ -1470,13 +1467,14 @@ class TrackNavigator(Node, ResettableNode):
         self._start_measurement_ticks_left = 0
 
         # Where the robot was PLACED is a fact about this round, not the last
-        # one. None of this was cleared until 2026-09-06, so the second and
-        # every later race of a session skipped the in-bay start entirely:
+        # one. This used to be left un-cleared, so the second and every later
+        # race of a session skipped the in-bay start entirely:
         # `_bay_start_checked` was already True, and the placement test is
         # deliberately one-shot. The operator restarts with the button, not by
         # restarting the service, so this is the ordinary case rather than the
         # exotic one -- and it silently made the bay exit a first-run-only
-        # feature while looking like a manoeuvre that had stopped working.
+        # feature while looking like a manoeuvre that had stopped working. See
+        # ``adr:0060-bay-exit-clearance-guard``.
         #
         # The BayExit instance is REPLACED rather than reset: it accumulates
         # rotation from the placement heading, latches which side is open, and

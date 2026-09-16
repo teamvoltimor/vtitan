@@ -151,7 +151,8 @@ const (
 	DefaultLookaheadBlendStart = 0.70
 	DefaultSteerKp             = 1.2
 	DefaultMaxSteeringRate     = 1.2
-	// DefaultServoSlewRateRadS matches servo_slew_rate_rad_s, 2.4 (measured).
+	// DefaultServoSlewRateRadS matches servo_slew_rate_rad_s, the loaded
+	// bench value. See adr:0076-drivetrain-and-steering-hardware.
 	DefaultServoSlewRateRadS = 2.4
 	// DefaultTargetSearchSpanM matches target_search_span_m, 1.0 (ships on).
 	DefaultTargetSearchSpanM = 1.0
@@ -212,11 +213,11 @@ const (
 	// steering.max_wheel_angle_deg is deliberately required from an
 	// active hardware profile (see profile.RobotConfig's doc comment), so
 	// there is no true chassis-only default. 1.2252 rad (~70.2 deg) is
-	// cited in waypoints.toml's arc_radius comment as the measured value
-	// this codebase currently ships with; used here only as the literal
+	// cited in waypoints.toml's arc_radius comment as the value this
+	// codebase currently ships with; used here only as the literal
 	// fallback for a caller with no config root at all (see ConfigFor,
 	// which loads the real, profile-sourced value whenever a hardware
-	// profile is available).
+	// profile is available). See adr:0076-drivetrain-and-steering-hardware.
 	DefaultMaxSteeringAngleRad = 1.2252
 )
 

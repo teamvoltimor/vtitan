@@ -31,10 +31,10 @@ func TestCornerLatchStraightReturnsRawReading(t *testing.T) {
 	}
 }
 
-// 0.197 rad is what a NARROW corridor's corner actually previewed (measured
-// on run_20260830_013702). It is below the shipped threshold, so the latch
-// must not arm -- holding a signal that never armed would turn a threshold
-// question into a latch question and hide the real issue.
+// 0.197 rad is what a NARROW corridor's corner actually previewed. It is
+// below the shipped threshold, so the latch must not arm -- holding a signal
+// that never armed would turn a threshold question into a latch question and
+// hide the real issue. See adr:0052-pursuit-target-selection.
 func TestCornerLatchBelowThresholdNeverArms(t *testing.T) {
 	t.Parallel()
 	var latch CornerLatch
@@ -48,9 +48,9 @@ func TestCornerLatchBelowThresholdNeverArms(t *testing.T) {
 
 // The failure this exists for: armed on approach, decayed mid-corner.
 //
-// Sequence from run_20260830_014612's first corner (west -> south, 6.1 s),
-// where the raw signal ran 1.373 -> 0.980 -> 0.590 -> 0.197 -> 0.000 and the
-// lookahead went long two seconds BEFORE the corner.
+// In a recorded first corner (west -> south), the raw signal ran from its
+// peak down to zero and the lookahead went long seconds BEFORE the corner.
+// See adr:0052-pursuit-target-selection.
 func TestCornerLatchPreviewSurvivesDecayingToZero(t *testing.T) {
 	t.Parallel()
 	var latch CornerLatch

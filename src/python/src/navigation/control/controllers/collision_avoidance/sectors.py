@@ -119,9 +119,10 @@ def mask_mapped_obstacles(
     because a wrong association only costs the mask; EXTENT (cluster to ray) can
     stay tight because the cluster is measured, not believed. The cluster finder
     is the proposer's own ``find_clusters``, already in production inside the
-    gated range fusion and measured at 91% recall -- a free-standing run of
-    pillar width, bounded on both sides by a step, which a flat wall cannot
-    satisfy. See ``adr:0056-raw-and-masked-scan``.
+    gated range fusion, and it detects a free-standing run of pillar width,
+    bounded on both sides by a step, which a flat wall cannot satisfy. See
+    ``adr:0058-sign-discovery-range-and-barrier-belief`` and
+    ``adr:0056-raw-and-masked-scan``.
 
     Returns:
         A copy of ``lidar_ranges`` with attributed rays set to ``inf``. The input
@@ -144,14 +145,14 @@ def mask_mapped_obstacles(
     # the south straight reads as EAST. The corridor gate below then refuses to
     # mask the south sign it is in the middle of passing, the reactive layer
     # sees a routed sign as an unmapped frontal threat, and the escape fires
-    # into a forward/reverse limit cycle that never clears it. Measured over
-    # the 256-scenario corpus: every lap-0 stall sat within 0.35 m of a sign,
-    # and in 85-94% of them (both stacks, sighted and blind) the robot's
-    # corridor disagreed with that sign's.
+    # into a forward/reverse limit cycle that never clears it. Every lap-0 stall
+    # sat within a short distance of a sign, and in most of them (both stacks,
+    # sighted and blind) the robot's corridor disagreed with that sign's. See
+    # ``adr:0056-raw-and-masked-scan``.
     #
     # So the gate is only relaxed where the classification is genuinely
-    # ambiguous. Outside a corner it still applies in full -- measured
-    # identical to dropping it entirely, which is what says the gate never
+    # ambiguous. Outside a corner it still applies in full, where it is
+    # equivalent to dropping it entirely, which is what says the gate never
     # discriminated anywhere else.
     in_corner = (
         not TrackDimensions.CORNER_MIN <= robot_x <= TrackDimensions.CORNER_MAX
@@ -192,9 +193,8 @@ def robust_min_range(path: np.ndarray, window: int) -> float:
     The bare minimum over a forward cone is an extreme-value statistic, not a
     clearance: the sweep carries Gaussian range noise across ~500 rays, so the
     smallest of the few dozen inside the lane routinely sits two to three sigma
-    below the true nearest surface. On the 256-scenario Obstacles corpus that
-    phantom was worth 30 runs, a count the ADRs do not carry. See
-    ``adr:0056-raw-and-masked-scan``.
+    below the true nearest surface. See ``adr:0056-raw-and-masked-scan`` for the
+    corpus cost this phantom carried.
 
     A percentile over the whole cone would be the wrong shape -- a 0.05 m sign
     pillar subtends only about four rays at 1 m, and a percentile discards it
@@ -240,8 +240,8 @@ def _forward_path_ranges(
     lane -- it needs its own exclusion or a forward cone that is ENTIRELY
     no-return (grazing incidence off something very close, not "genuinely
     clear") reports as the single largest, safest-looking range in the path.
-    Measured on hardware 2026-08-28: this is what let ``assess_risk`` report
-    SAFE at the exact moment the chassis was closest to a wall.
+    On hardware this is what let ``assess_risk`` report SAFE at the exact moment
+    the chassis was closest to a wall. See ``adr:0056-raw-and-masked-scan``.
     """
     ranges, mask = _forward_path_selection(
         lidar_ranges, lidar_angles, path_half_width, min_valid_range_m, ahead_of_bumper
@@ -364,10 +364,10 @@ def chassis_exit_range_m(angles_rad: np.ndarray) -> np.ndarray:
 
     Why a scalar threshold cannot do this job: over the rear +/-45 deg sector the
     boundary runs from 0.137 m at the sector edges to 0.272 m straight back, a
-    factor of two. Measured on run_20260906_192424, the chassis showed up at
-    0.125 m near -157 deg AND at 0.187 m near -172 deg -- either side of any
-    single value, so one number either leaks the first or rejects real obstacles
-    around the second.
+    factor of two. The chassis was seen at a smaller range near one edge AND at
+    a larger one near the other -- either side of any single value, so one number
+    either leaks the first or rejects real obstacles around the second. See
+    ``adr:0056-raw-and-masked-scan``.
     """
     half_length = RobotSpecs.LENGTH / 2.0
     offset = RobotSpecs.LIDAR_MOUNT_X_OFFSET
@@ -396,30 +396,10 @@ def ranges_beyond_chassis(
     above the returns of interest or below the robot's own. ``chassis_exit_range_m``
     separates them per bearing, which is where the distinction actually lives.
 
-    Measured 2026-09-11 on the two Obstacles rounds, at the 105 ticks a contact
-    recovery engaged -- share whose committed belief found a cluster within
-    ``ESCAPE_MASK_CLUSTER_ASSOC_M``, and how many of the admitted clusters were
-    the robot seeing itself:
-
-    | floor | associated | self-returns | recovery STILL fires |
-    |---|---|---|---|
-    | none (control) | 1.0% | 0.0% | 79.0% |
-    | 0.30 m (the proposer's) | 1.0% | 0.0% | 71.4% |
-    | 0.15 m (the first shipped) | 31.4% | 4.6% | 81.9% |
-    | 0.08 m | 87.6% | 5.5% | 13.3% |
-    | **this, per bearing** | **86.7%** | **1.3%** | **11.4%** |
-
-    It dominates every scalar on BOTH intermediate axes at once: it associates
-    55 points more often than the 0.15 m floor it replaces while admitting fewer
-    self-returns than that floor did. The outcome column is the one that matters
-    -- the 0.15 m floor left the recovery firing on 81.9% of those ticks, no
-    better than masking NOTHING, so the mask shipped earlier the same day was
-    inert exactly where the rounds were being lost.
-
-    Read the control row first. Every tick counted DID engage on the robot, so
-    79.0% is the replay's own ceiling and the other rows are differences against
-    it, not absolutes; the 21% shortfall is the replay seeing only the committed
-    belief and default tuning rather than the deployed overlay.
+    It dominates every scalar floor on BOTH intermediate axes at once: it
+    associates more often than the floor it replaces while admitting fewer
+    self-returns than that floor did. See ``adr:0056-raw-and-masked-scan`` for
+    the per-floor comparison and the recovery-fires outcome that decided it.
 
     ``inf`` rather than a large finite range so a consumer filtering on
     ``isfinite`` drops these as "no measurement outside the body along this
@@ -480,11 +460,11 @@ def sector_ranges(
         blind_wedge_right_min_rad: Start bearing of the right rear blind wedge
             (radians).
         blind_wedge_right_max_rad: End bearing of the right rear blind wedge
-            (radians). These cover the two rear-corner mount-occlusion wedges
-            measured 2026-08-04, where self-collision reads as a real close range
-            at every distance -- a distance threshold can't separate that from a
-            genuine close obstacle at the same bearing, so this is filtered by
-            angle instead. Always applied (not gated behind ``filter_self_detection``):
+            (radians). These cover the two rear-corner mount-occlusion wedges,
+            where self-collision reads as a real close range at every distance --
+            a distance threshold can't separate that from a genuine close
+            obstacle at the same bearing, so this is filtered by angle instead.
+            Always applied (not gated behind ``filter_self_detection``):
             the pure-forward bearing never overlaps these rear wedges, so there's
             no case where a real forward contact would be discarded by them.
         apply_blind_wedge_mask: Set False to skip the wedge exclusion -- used by

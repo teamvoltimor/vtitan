@@ -18,10 +18,11 @@ var laneTestParams = signrouter.SignLaneParams{LateralOffsetM: 0.28, RampM: 0.70
 
 // laneCCW pins these lane assertions to COUNTERCLOCKWISE, matching
 // test_sign_lane.py's _CCW: they were all written under the
-// pre-2026-09-03 absolute rule, which is the counterclockwise answer --
+// absolute rule, which is the counterclockwise answer --
 // so pinning CCW here keeps every expected geometry below valid.
 // Clockwise is the mirror image and is covered by
-// routing_test.go/router_test.go.
+// routing_test.go/router_test.go. See
+// adr:0059-pass-side-travel-relative-and-scorer-independence.
 var laneCCW = trackmodel.Counterclockwise
 
 // southStraight builds evenly spaced centerline waypoints spanning the

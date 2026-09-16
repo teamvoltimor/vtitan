@@ -6,7 +6,8 @@ driven. "Right" is a vehicle-relative rule that names opposite world axes
 depending on which way the round is driven, so the per-(corridor, direction)
 polarity lives in ``ROUTING_TABLE`` and is looked up with the committed
 direction, never assumed direction-agnostic -- an absolute outward/inward
-rule was the bug corrected on 2026-09-03.
+rule was the bug corrected earlier:
+``adr:0059-pass-side-travel-relative-and-scorer-independence``.
 
 Pure Python -- no ROS2 dependencies. Designed to be unit-tested independently.
 

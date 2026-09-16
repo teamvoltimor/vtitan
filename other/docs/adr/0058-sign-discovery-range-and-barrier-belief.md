@@ -305,3 +305,6 @@ cannot score it because it never emits a magenta detection.
   0.45 m away, and the aggregate cannot see the west fin, which is the thing that
   ends rounds. Narrowing the merge/suppression radius to 0.22 or 0.18 alongside the
   span moves back down the same benefit/cost curve rather than off it.
+- The barrier arrived as a RED detection at 60 percent in one round and 4 to 9
+  percent in two others, located from the lot's own LIDAR cluster; the rate ships
+  at 0.0 because 4 to 60 percent is a range, not a rate.

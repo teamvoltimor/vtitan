@@ -24,9 +24,7 @@ type Config struct {
 	// reverses the sensor's apparent spin direction in the robot's top-down
 	// frame, so decoded angles must be mirrored (negated), not rotated by a
 	// constant -- see correctAngleDeg (frame_classic.go) for why a plain
-	// +180 offset is wrong (hardware-verified 2026-08-31: an 8-bearing
-	// object placement test found front/back swapped while left/right
-	// read correctly with a +180 offset, a pattern only a mirror explains).
+	// +180 offset is wrong (see adr:0080-lidar-mount-and-scan-plane).
 	Inverted bool
 	// YawOffsetDeg is the residual mount miscalibration (degrees) applied
 	// after Inverted's mirroring, not a replacement for it. Applied in
@@ -44,8 +42,9 @@ type Config struct {
 	// nav gateway came to apply no correction at all (scanToLidarScan
 	// expanded angle_min/angle_increment untouched) while telemetry
 	// applied a constant rotation -- the form correctAngleDeg's comment
-	// records as refuted on hardware 2026-08-31. Correcting once, at the
-	// source, is what makes those two unable to disagree again.
+	// records as refuted (see adr:0080-lidar-mount-and-scan-plane).
+	// Correcting once, at the source, is what makes those two unable to
+	// disagree again.
 	YawOffsetDeg float64
 }
 
@@ -97,20 +96,20 @@ const (
 	// the next request. The RPLIDAR C1 reboots its core on RESET, which takes
 	// far longer than the protocol's typical few-ms stop settle — sending the
 	// scan request during the reboot is silently ignored and the descriptor
-	// never arrives (verified on hardware 2026-08-31: a 2ms delay hung/failed,
-	// ~1s succeeds). 1s is conservative but well within the serial read
+	// never arrives (see adr:0080-lidar-mount-and-scan-plane). 1s is
+	// conservative but well within the serial read
 	// timeout, so Connect still fails fast if the device is truly unresponsive.
 	resetSettleDelay = 1 * time.Second
 	// motorSpinupDelay is how long Connect waits after starting the motor
 	// before requesting the scan. The C1 ignores the Express Scan request
 	// (and so never returns its descriptor) until the motor is actually
 	// spinning; an ~800ms spin-up window matches the validated sllidar/Python
-	// flow and the hardware probe that first got the C1 streaming
-	// (2026-08-31).
+	// flow that first got the C1 streaming (see
+	// adr:0080-lidar-mount-and-scan-plane).
 	motorSpinupDelay = 800 * time.Millisecond
 	// scanReadTimeout is the per-read silence tolerance used while streaming
 	// scan data. The RPLIDAR C1 Express/Dense stream emits one scan then
-	// pauses ~2.1s before the next (measured on hardware 2026-08-31); this
+	// pauses before the next (see adr:0080-lidar-mount-and-scan-plane); this
 	// must exceed that gap so a healthy scan assembles, while still bounding a
 	// truly stalled device.
 	scanReadTimeout = 4 * time.Second

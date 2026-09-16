@@ -70,6 +70,8 @@ correct robot-frame angles.
   enabled. It is deliberately small because `corridor_estimator` files every
   width reading by heading: a large blend would move the heading that decides
   which corridor a reading belongs to.
+- A gyro-scale perturbation of 0.5 percent drops the fixture tally from 28/28
+  to 25/28, gauging how tight the gyro scale error is as an axis.
 
 ## History
 

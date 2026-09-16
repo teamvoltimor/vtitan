@@ -40,12 +40,12 @@ func encodeDensePacketForTest(startAngleDeg float64, startOfScan bool, distMM ui
 }
 
 // TestDenseSerialDriverReadScan_DiscardsPartialFirstScan reproduces the
-// hardware finding of 2026-08-31: the C1 sets S=true only on the stream's
-// very first packet, wherever the motor happens to be. When that lands near
-// the sweep end (359deg here), a scan closed on the first wrap drop would
-// return only the tail of the rotation (~40 points). readScan must discard
-// that partial first scan and keep collecting until a full revolution is
-// covered.
+// hardware finding that the C1 sets S=true only on the stream's very first
+// packet, wherever the motor happens to be (see
+// adr:0080-lidar-mount-and-scan-plane). When that lands near the sweep end
+// (359deg here), a scan closed on the first wrap drop would return only the
+// tail of the rotation. readScan must discard that partial first scan and
+// keep collecting until a full revolution is covered.
 func TestDenseSerialDriverReadScan_DiscardsPartialFirstScan(t *testing.T) {
 	t.Parallel()
 

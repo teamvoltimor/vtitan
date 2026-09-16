@@ -22,9 +22,9 @@ type Decoder struct {
 // edge -- "4x decoding", four counts per full A/B cycle.
 //
 // This matters because counts_per_rev is BENCH-CALIBRATED against the
-// decoder that produced it (60 counts/rev, live-verified 2026-08-29
-// against gpiozero's RotaryEncoder), not derived from the encoder's
-// datasheet. If gpiozero counts at a different rate than 4x, distance from
+// decoder that produced it (see adr:0076-drivetrain-and-steering-hardware),
+// not derived from the encoder's datasheet. If gpiozero counts at a
+// different rate than 4x, distance from
 // this driver is off by exactly that ratio. Re-run
 // src/python/scripts/hardware/calibrate_encoder.py against THIS driver
 // before trusting its distance on hardware -- the value is a measurement of

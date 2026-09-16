@@ -271,12 +271,12 @@ def pure_pursuit_steer(
     :class:`~src.navigation.maneuvers.parking.ParkController` -- both used to carry
     their own copy of this, and ``WaypointController``'s copy was a bare
     ``steer_kp * angle_error`` P-term instead, which is what produced the
-    2026-08-03 real-hardware full-lock steering oscillation (see
+    real-hardware full-lock steering oscillation (see
     ``adr:0052-pursuit-target-selection``).
 
     ``L_eff`` is the wheelbase HALVED, not the wheelbase: this chassis steers both
-    axles in opposite directions by the same amount (confirmed on hardware
-    2026-07-25), which pivots it about its centre instead of the rear axle and
+    axles in opposite directions by the same amount (confirmed on hardware),
+    which pivots it about its centre instead of the rear axle and
     doubles the yaw rate for a given steering angle. Using the full wheelbase asks
     for twice the steering angle each curvature actually needs.
 

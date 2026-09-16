@@ -138,10 +138,11 @@ func (g *Gateway) observe(msg *visionv1.Detections) {
 //
 // LIDAR range fusion is deliberately never wired in from this package: it
 // ships OFF in the Python original (SIGN_LIDAR_PROPOSE defaults false, and
-// the per-detection fusion flag is documented there as measured WORSE, not
-// merely unused -- see sign_discovery.py's LIDAR_RANGE_FUSION comment), so
-// the pinhole-only estimate DetectionToObservation falls back to with nil
-// ranges/angles already matches shipped behavior.
+// the per-detection fusion flag is documented there as harmful, not merely
+// unused -- see sign_discovery.py's LIDAR_RANGE_FUSION comment and
+// adr:0058-sign-discovery-range-and-barrier-belief), so the pinhole-only
+// estimate DetectionToObservation falls back to with nil ranges/angles
+// already matches shipped behavior.
 func convert(det *visionv1.Detection) (signrouter.BoundingBox, bool) {
 	var color signrouter.SignColor
 	switch det.GetClassName() {

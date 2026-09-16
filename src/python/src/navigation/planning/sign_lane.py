@@ -3,7 +3,7 @@
 ``SignRouter.deform_waypoint`` nudges only the pure-pursuit carrot, so
 ``cross_track_error`` (the controller's own error signal and the input
 ``select_lookahead`` gates on) stays near zero and the offset closes only
-asymptotically. Seven levers on that chase measured flat or worse. This module
+asymptotically. Tuning levers on that chase measured flat or worse. This module
 changes the maneuver instead of its tuning: it rewrites the corridor's
 straight-segment waypoints onto a pass-side LANE, so crosstrack, the lookahead
 gate and the target search all agree the lane is the path, and the lateral
@@ -151,10 +151,10 @@ def _in_lane_span(wp: Waypoint, corridor: Section, axis: Axis, corner_entry_m: f
 
     A variant that widened the lateral test too (out to the far edge of the
     corner square, gated to only apply at a sign's own plateau depth) was tried
-    and measured catastrophically WORSE on the full 256-scenario corpus, then
-    reverted; a widened lateral bound at that depth pulls in swaths of the
-    NEIGHBOURING corridor's own arc points too. Do not re-try without bounding
-    the widened window far more tightly. See ``adr:0051-sign-lane-planner``.
+    and measured WORSE, then reverted; a widened lateral bound at that depth
+    pulls in swaths of the NEIGHBOURING corridor's own arc points too. Do not
+    re-try without bounding the widened window far more tightly. See
+    ``adr:0051-sign-lane-planner``.
     """
     lateral, depth = _axis_coords(wp, axis)
     low, high = _lane_span(corner_entry_m)
@@ -215,17 +215,15 @@ def _control_points(
         if params.split_overlap:
             # A plateau nested inside another one puts a HOLE in the enclosing
             # sign's hold window: the profile dips to the neighbour's target
-            # exactly where the robot is abeam this sign. Traced on a WEST
-            # corridor holding three specs -- our plateau ran 2.15..2.65 at
-            # lateral 0.781 while a neighbour's endpoints sat inside it at 2.22
-            # and 2.24 at 0.325, and the plan passed the sign on that dip.
+            # exactly where the robot is abeam this sign, and the plan passes
+            # the sign on that dip.
             #
             # Legal WRO geometry cannot produce this: a section holds at most
             # two signs and they sit 1.00 m apart, against a 0.50 m plateau. The
             # overlaps come from DISCOVERY emitting several specs per physical
-            # sign (measured 2.50x). Splitting the overlap at the midpoint gives
-            # each sign the half nearer itself, so every sign keeps a flat hold
-            # over the stretch where it is actually passed.
+            # sign. Splitting the overlap at the midpoint gives each sign the
+            # half nearer itself, so every sign keeps a flat hold over the
+            # stretch where it is actually passed.
             if index > 0:
                 low = max(low, (plateaux[index - 1][0] + sign_depth) / 2.0)
             if index + 1 < len(plateaux):

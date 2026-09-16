@@ -96,11 +96,11 @@ func TestComputeSteering_ForwardTargetUsesCurvatureNotGain(t *testing.T) {
 
 // TestSelectTargetPoint_WrapsPastTheEndOfTheLap ports
 // TestSelectTargetPointWrapsAndStaysAhead.test_wraps_past_the_end_of_the_lap_instead_of_going_dry:
-// 2026-08-03, select_target_point used to be handed a pre-sliced remainder
-// and searched it by distance alone, ignoring heading. Near the end of a lap
-// that slice could run dry instead of continuing around the loop --
-// measured on real hardware as steering pinned near zero for tens of
-// seconds while heading drifted 85+ degrees.
+// select_target_point once was handed a pre-sliced remainder and searched it
+// by distance alone, ignoring heading. Near the end of a lap that slice could
+// run dry instead of continuing around the loop, which on real hardware left
+// steering pinned near zero while heading drifted. See
+// adr:0052-pursuit-target-selection.
 func TestSelectTargetPoint_WrapsPastTheEndOfTheLap(t *testing.T) {
 	t.Parallel()
 
@@ -131,7 +131,8 @@ func TestSelectTargetPoint_WrapsPastTheEndOfTheLap(t *testing.T) {
 // ports test_skips_a_behind_candidate_even_when_it_is_farther_by_distance:
 // index 1 is far enough by pure distance but behind the chassis; index 2 is
 // closer but ahead. A distance-only, array-order search would have returned
-// index 1 first -- measured as a wrong-direction turn on real hardware.
+// index 1 first -- a wrong-direction turn on real hardware. See
+// adr:0052-pursuit-target-selection.
 func TestSelectTargetPoint_SkipsABehindCandidateEvenWhenFartherByDistance(t *testing.T) {
 	t.Parallel()
 
@@ -147,8 +148,9 @@ func TestSelectTargetPoint_SkipsABehindCandidateEvenWhenFartherByDistance(t *tes
 
 // TestSelectTargetPoint_FallsBackToNearestAheadWhenNothingReachesLookahead
 // ports test_falls_back_to_nearest_ahead_when_nothing_reaches_lookahead:
-// 2026-08-04, was "farthest ahead", which starved the curvature formula on
-// real hardware and got reversed to nearest.
+// the fallback was once "farthest ahead", which starved the curvature formula
+// on real hardware and was reversed to nearest. See
+// adr:0052-pursuit-target-selection.
 func TestSelectTargetPoint_FallsBackToNearestAheadWhenNothingReachesLookahead(t *testing.T) {
 	t.Parallel()
 
@@ -486,10 +488,9 @@ func TestSelectLookahead_OmittingTheTurnPreservesTheOldBehaviour(t *testing.T) {
 
 // -- TestLookaheadRampsRatherThanSwitching: the switch used to be a step,
 // and both arming signals sit near their thresholds in normal driving, so
-// it flipped long/short on consecutive ticks (hardware
-// run_20260829_104641: 0.320, 0.160, 0.320, 0.160 at ~2.5Hz). Curvature is
+// it flipped long/short on consecutive ticks on hardware, and curvature is
 // 2y/L**2, so each flip swung the command by 4x and the chassis drew a
-// visible zigzag.
+// visible zigzag. See adr:0052-pursuit-target-selection.
 
 func rampController(t *testing.T) *controllers.WaypointController {
 	t.Helper()

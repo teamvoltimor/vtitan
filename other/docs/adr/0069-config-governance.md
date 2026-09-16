@@ -130,3 +130,6 @@ hand-synced xacro are the accepted cost of reading TOML at runtime.
   reading a key it needs. Print the production loader's resolved value before any
   A/B, and use `profile.Load` rather than `LoadRobotConfig` for robot.toml-only
   reads.
+- The fail-loud loader check is justified by a native corpus sweep given a config
+  root but no hardware profiles: it scored 640 of 640 STUCK at max speed 0.000,
+  reading as a navigation failure rather than a config error.

@@ -5,7 +5,7 @@ in the same section. Getting OUT of the pocket is a different problem from
 getting in -- :mod:`src.navigation.maneuvers.parking` drives the entry, and this
 drives the exit.
 
-Lived in ``ScenarioSimulator`` until 2026-08-31, where it published drive
+Lived in ``ScenarioSimulator``, where it published drive
 commands straight to the gateway and so bypassed the navigation stack
 completely. That made every in-bay simulation result a statement about the
 simulator rather than about the robot, and left the real robot with no bay-exit
@@ -44,9 +44,9 @@ _EFFECTIVE_WHEELBASE_M = RobotSpecs.WHEELBASE / (1.0 + RobotSpecs.REAR_STEER_RAT
 The rear axle steers counter-phase, so the instantaneous centre sits between
 the axles: ``wheelbase / (1 + rear_steer_ratio)``, which at the shipped ratio of
 1.0 is HALF the wheelbase. Paired with ``YAW_GAIN``, the fraction of the
-geometric yaw rate the real chassis achieves (0.55, calibrated against bag data
-2026-08-29). A plain bicycle model understates the yaw by ~10% here, and the
-clearance guard integrates that error over every tick it dead-reckons.
+geometric yaw rate the real chassis achieves (0.55). A plain bicycle model
+understates the yaw here, and the clearance guard integrates that error over
+every tick it dead-reckons. See ``adr:0086-simulator-realism``.
 """
 
 _LEG_STALL_EPSILON_M = 1e-4
@@ -63,7 +63,7 @@ def _bicycle_yaw_step(step_m: float, wheel_rad: float) -> float:
     The curvature is FLOORED by ``RobotSpecs.MIN_TURN_RADIUS_M``, exactly as
     ``AckermannKinematics`` floors it: the two are the same physical model and
     had already drifted apart, and an unfloored bicycle term gives a radius far
-    below the chassis's measured saturation. While only the kinematics honoured
+    below the chassis's saturation. While only the kinematics honoured
     the floor, this manoeuvre's dead reckoning believed it was ratcheting out
     far faster than it was, which fed ``_wall_feasible_yaw_rad`` a released wall
     and vetoed legs that were in fact clear. See
@@ -121,7 +121,7 @@ def _fin_rects() -> list[list[tuple[float, float]]]:
 
     Known without sensing: these are fixed by the rules, and the manoeuvre is
     only ever entered from a placement the judges made. The pocket cannot be
-    measured from inside it -- a forward cone reads 0.05-0.13 m and fluctuates
+    measured from inside it -- a forward cone reads a near range and fluctuates
     every tick -- so a guard that needed to see the fins could not work.
     """
     half_spacing = ParkingLotSpecs.BLOCK_SPACING_FACTOR * RobotSpecs.LENGTH / 2.0
@@ -434,22 +434,19 @@ class BayExit:
         else:
             self._dr_yaw += _bicycle_yaw_step(step, self._dr_wheel_rad)
             # The wall behind the pocket CLIPS the rotation, and dead reckoning
-            # cannot see it -- measured 4.5x high. Unclamped, the guard bounds a
-            # pose the chassis can never reach: on the first arc it predicts ~19
-            # deg where 1.15 is available, takes the swept extent of that
-            # fantasy, finds it inside a fin and ends the leg -- every tick, so
-            # the manoeuvre never moves. Measured 2026-09-04 over 16 corpus
-            # scenarios: total travel 0.05-0.06 m whether the arc was 0.02 or
-            # 0.3, i.e. the arc was INERT because the guard rejected the leg
-            # before its value could matter.
+            # cannot see it. Unclamped, the guard bounds a pose the chassis can
+            # never reach: it predicts a large rotation where only a tiny one is
+            # available, takes the swept extent of that fantasy, finds it inside
+            # a fin and ends the leg -- every tick, so the manoeuvre never moves.
+            # The arc was INERT because the guard rejected the leg before its
+            # value could matter.
             #
             # It is also a SELF-FULFILLING PROPHECY, which is why the measured
             # yaw skips it rather than being clamped by it: the limit is a
             # function of `_dr_out`, and `_dr_out` grows only by
-            # `step * sin(_dr_yaw)`, so at the placement's 1.15 deg the model
-            # earns outward travel at 2% of what it drives and can never relax
-            # its own bound. Measured 2026-09-10: the chassis turned 13.1 deg
-            # while this read about 2.
+            # `step * sin(_dr_yaw)`, so at the placement's small angle the model
+            # earns outward travel at a fraction of what it drives and can never
+            # relax its own bound. See ``adr:0060-bay-exit-clearance-guard``.
             limit = _wall_feasible_yaw_rad(self._dr_out)
             self._dr_yaw = clamp(self._dr_yaw, -limit, limit)
         # Bounded for the same reason the yaw is: a modelled pose the pocket
@@ -543,8 +540,8 @@ class BayExit:
         manoeuvre the wrong swing, and so the wrong standstill.
         """
         swing_rad = abs(to_norm - from_norm) * math.radians(RobotSpecs.MAX_WHEEL_ANGLE_DEG)
-        # The SERVO's rate, not the command rate limiter. They were one field
-        # until 2026-09-11 and pull opposite ways: the limiter is a cornering
+        # The SERVO's rate, not the command rate limiter. They were once one
+        # field and pull opposite ways: the limiter is a cornering
         # policy deliberately held low, while this budget wastes 2.5 s per
         # reversal whenever it sits below the truth. See SERVO_SLEW_RATE_RAD_S.
         per_tick_rad = tuning.pursuit.servo_slew_rate_rad_s / tuning.control.control_hz
@@ -576,13 +573,12 @@ class BayExit:
         on it is not incidental here but the entire mechanism.
 
         Why bounding the DISTANCE instead cannot work: the swept extent along
-        the wall is ``(L cos t + W sin t) / 2`` -- 0.150 m square, 0.177 m at 25
-        degrees. Against 0.215 m to a fin face, yaw alone consumes most of the
-        slack before any leg bound applies. (``BAY_EXIT_FORWARD_M`` and
-        ``BAY_EXIT_CYCLE_REVERSE_M`` sweeping byte-identical was long read as
-        confirming this. It was not: their bound was DEAD -- see the falsy-zero
-        note in ``_cycle_command``. A flat sweep meant an unreachable code path,
-        not a refuted idea.)
+        the wall is ``(L cos t + W sin t) / 2``, and against the fin face yaw
+        alone consumes most of the slack before any leg bound applies.
+        (``BAY_EXIT_FORWARD_M`` and ``BAY_EXIT_CYCLE_REVERSE_M`` sweeping
+        byte-identical was long read as confirming this. It was not: their bound
+        was DEAD -- see the falsy-zero note in ``_cycle_command``. A flat sweep
+        meant an unreachable code path, not a refuted idea.)
 
         FREE SPACE CANNOT DO IT, and that is arithmetic rather than tuning. At
         constant steering magnitude the shuffle is a closed cycle:
@@ -592,9 +588,9 @@ class BayExit:
         the net is ``L (1 - cos a) (1/tan(d_fwd) - 1/tan(d_rev))`` -- but it
         buys outward displacement at a fixed exchange rate of ``a / 2`` per
         metre travelled ALONG the wall, in the same direction every cycle. The
-        pocket grants ~0.032 m of along-wall slack each way against
-        ``a <= 1.15 deg`` at the judges' placement, which is ~0.7 mm of the
-        78.6 mm that frees the rotation. No leg schedule closes that gap.
+        pocket grants only a sliver of along-wall slack each way at the judges'
+        placement, a tiny fraction of the travel that frees the rotation. No leg
+        schedule closes that gap.
 
         The wall does. It CLIPS the yaw (``_wall_feasible_yaw_rad``) while
         leaving the translation free, which is exactly what ``allowed_step``
@@ -605,44 +601,40 @@ class BayExit:
         settles at ``-theta_max`` and gains ``|ds| sin(theta_max)`` outward
         again, while the along-wall excursion cancels between them. The yaw won
         relaxes the clip for the next cycle -- ``d(out)/d(travel) =
-        tan(theta_max(out))``, exponential with a 0.15 m length scale, free
-        rotation after roughly half a metre of shuffling.
+        tan(theta_max(out))``, exponential, free rotation after enough
+        shuffling.
 
         Reaching ``-theta_max`` is why the reverse HOLDS the forward lock rather
         than reversing it. Backing with the wheels where they are swings the
         nose the other way, so yaw crosses zero and pins against the far side of
-        the clip. Opposite lock -- what this did until 2026-09-04 -- drives yaw
-        the SAME sense on both legs, so it saturates at one side of the clip and
-        never reaches the side the reverse leg's gain lives on. It also charges
-        a full servo swing at every leg change, ~25 ticks of standstill against
-        an ~11-tick leg, so most of the manoeuvre was spent stationary. Holding
-        costs nothing, for the same reason ``BAY_EXIT_HOLD_STEER`` was worth
-        0 -> 187 of 256 on the older exit.
+        the clip. Opposite lock drives yaw the SAME sense on both legs, so it
+        saturates at one side of the clip and never reaches the side the reverse
+        leg's gain lives on. It also charges a full servo swing at every leg
+        change, most of the leg spent stationary. Holding costs nothing, which is
+        what made ``BAY_EXIT_HOLD_STEER`` worth shipping on the older exit.
 
         The crossing between the two sides of the clip is DEAD DISTANCE -- the
         outward gain over it cancels by symmetry -- so what the steering angle
         buys is how cheaply the yaw gets across, which is the reverse of what
         this manoeuvre wanted when it arced through free space. It costs
-        ``2 theta_max L / (tan(delta) YAW_GAIN)``: 14.5 mm at
-        ``BAY_EXIT_ARC_STEER_NORM`` 0.3, 0.6 mm at full lock, against a leg the
-        fin clearance bounds to 12-20 mm. At 0.3 the crossing IS the leg and
-        nothing is ever pinned, which is why the ratchet measured 8.09 m of
-        shuffling for 0.03 m of outward travel there and escaped in 127 ticks at
-        1.0. Both bay-exit constants moved on 2026-09-04 for this reason; see
-        their fields for the numbers.
+        ``2 theta_max L / (tan(delta) YAW_GAIN)``, a small fraction of the fin
+        clearance that bounds the leg at full lock. At a low arc the crossing IS
+        the leg and nothing is ever pinned, which is why the ratchet shuffled
+        for almost no outward travel there and escaped quickly at full lock.
+        Both bay-exit constants moved for this reason; see their fields for the
+        numbers.
         """
         follower = tuning.corridor_follower
-        # MEASURED 2026-09-10 on run_20260910_212129: the guard refuses on a
-        # PREDICTED gap of ~4 mm against a 1 mm margin, while the pose it
-        # predicts from is dead-reckoned and ~29 mm wrong. It is arbitrating an
-        # order of magnitude below its own model's error, so the refusals are
-        # noise, and each one FLIPS the leg and pays a full servo swing: 324
-        # legs of 0.06 s in 39.3 s, 814 deg of rotation for 5.3 net, zero
-        # travel. Subtracting a tolerance lets the guard refuse only where the
-        # model is confidently -- not marginally -- inside a fin. The physical
-        # wall is what stops the chassis, and the operator reports the real
-        # exit is made by LEANING on it, which is exactly what a 1 mm margin on
-        # a 29 mm model forbids.
+        # The guard refuses on a PREDICTED gap far below the margin, while the
+        # pose it predicts from is dead-reckoned and much less accurate than
+        # that. It is arbitrating below its own model's error, so the refusals
+        # are noise, and each one FLIPS the leg and pays a full servo swing,
+        # spending rotation for no travel. Subtracting a tolerance lets the
+        # guard refuse only where the model is confidently -- not marginally --
+        # inside a fin. The physical wall is what stops the chassis, and the
+        # operator reports the real exit is made by LEANING on it, which is
+        # exactly what a tight margin on a loose model forbids. See
+        # ``adr:0060-bay-exit-clearance-guard``.
         margin = follower.bay_exit_clearance_margin_m - follower.bay_exit_clearance_tolerance_m
         sign = 1.0 if open_is_left else -1.0
         arc = clamp(follower.bay_exit_arc_steer_norm, 0.0, 1.0)
@@ -655,13 +647,13 @@ class BayExit:
         # different manoeuvre with a different sign convention.
         # HOLDING the lock only rotates the chassis if a forward arc and the
         # reverse that follows it do not retrace one another. That was true
-        # while the model turned inside 0.015 m; against the MEASURED 0.29 m
+        # under an earlier model with no turn-radius floor; against the real
         # floor it is false -- same lock, same radius, opposite direction is the
-        # same arc walked backwards, and the net rotation is zero. Measured with
-        # `diag_bay_start.py`: 16/16 out of the bay at 72e7172b~1 against 0/16
-        # at 72e7172b, which shipped the radius, the manoeuvre burning 267
-        # forward and 272 reverse legs for 1 cm of net progress. See
-        # `chassis_has_a_minimum_turn_radius`.
+        # same arc walked backwards, and the net rotation is zero. The shipped
+        # radius change turned the manoeuvre from out-of-the-bay to burning
+        # hundreds of legs for a centimetre of net progress. See
+        # `chassis_has_a_minimum_turn_radius` and
+        # ``adr:0060-bay-exit-clearance-guard``.
         #
         # MIRRORING the reverse is the parallel-parking exit, and it accumulates
         # rotation at ANY radius because the two arcs curve opposite ways. It
@@ -699,20 +691,16 @@ class BayExit:
             # differenced travel across 2.5 s of commanded zero and called the
             # result a leg speed.
             #
-            # That is not a small error, it is the whole feature. Measured on
-            # run_20260911_152714 and _152819: the chassis rolls 12-34 mm during
-            # each commanded-zero settle, which the stale baseline reports as
-            # 0.24-0.68 m/s -- all of them at or above the commanded 0.15, so
+            # That is not a small error, it is the whole feature. The chassis
+            # rolls during each commanded-zero settle, which the stale baseline
+            # reports as a speed at or above the commanded value, so
             # ``min(speed, max(...))`` returned the command and
-            # ``BAY_EXIT_GUARD_MEASURED_COAST`` was INERT on every refusal tick
-            # of every run. Solved back out of the published gap, the guard's
-            # reach was 0.0600 m on all six checked refusals, residual 0.000000
-            # -- exactly step + command-based coast.
+            # ``BAY_EXIT_GUARD_MEASURED_COAST`` was INERT on every refusal tick.
             #
-            # And a 5-tick window against 3-5 tick legs means one poisoned
-            # sample owns ``max()`` for the entire leg. Delivered speed in those
-            # legs is 0.004-0.015 m/s, so an honest reach is ~12 mm against a
-            # 65 mm along-wall slack rather than 60 mm of it.
+            # And a short window against short legs means one poisoned sample
+            # owns ``max()`` for the entire leg, so an honest reach is a fraction
+            # of the slack the command-based estimate claims. See
+            # ``adr:0060-bay-exit-clearance-guard``.
             self._guard_prev_travelled_m = travelled_m
             self._dead_reckon(travelled_m, wheel_norm, tuning, measured_yaw)
             return DriveCommand(speed_mps=0.0, steering_norm=wheel_norm * sign)
@@ -755,21 +743,18 @@ class BayExit:
         step = (-speed if self._leg_is_reverse else speed) / tuning.control.control_hz
         # Look a STOPPING DISTANCE ahead, not a single tick. Commanding zero
         # does not stop the chassis -- the drivetrain decays with
-        # ``SPEED_RESPONSE_TAU_S``, so it coasts a further ``v * tau``, 40 mm at
-        # creep against an along-wall budget of 31-57 mm. A one-tick guard
+        # ``SPEED_RESPONSE_TAU_S``, so it coasts a further ``v * tau``, which is
+        # a meaningful fraction of the along-wall budget. A one-tick guard
         # therefore ends the leg with the fin already inside the coast, which is
         # how a manoeuvre that never predicted a touch still measured one.
         # ``BAY_EXIT_SPEED_SCALE`` is the lever on this, and it only became one
         # once the settle above stopped the slew competing with the leg.
-        # MEASURED 2026-09-10 on run_20260910_2105*: at a commanded 0.15 the
-        # wheel never stalls (0.0% against 56.1% at the shipped 0.10) but
-        # DELIVERS p50 0.027 -- 18% -- because the leg runs at |steer| 1.00,
-        # where the load is largest. Budgeting the coast from the COMMAND
-        # therefore over-reads it 5.5x (52.5 mm against a real 9.5 mm) on an
-        # along-wall budget of 31-57 mm, and the guard vetoed 39-71% of ticks:
-        # 306 and 195 reversals, zero net travel, never out of the bay. The
-        # manoeuvre is squeezed between a command too low to move the wheel and
-        # a command high enough that the guard forbids using it.
+        # Budgeting the coast from the COMMAND over-reads it against a real leg
+        # running near full lock, where the load is largest, and the guard then
+        # vetoes most ticks: reversals, zero net travel, never out of the bay.
+        # The manoeuvre is squeezed between a command too low to move the wheel
+        # and a command high enough that the guard forbids using it. See
+        # ``adr:0060-bay-exit-clearance-guard``.
         #
         # `min` with the command, never `max`: this may only make the estimate
         # SLOWER than commanded, never faster, so it cannot approve a step the
@@ -797,9 +782,9 @@ class BayExit:
         # is negative at EVERY reach -- it takes the `min` over both fins, so a
         # fin the manoeuvre is moving AWAY from vetoes the leg just as hard as
         # the one ahead -- and both legs are refused. Nothing moves, so the pose
-        # never changes, so the refusal is permanent. Measured on
-        # run_20260906_192358: 285 consecutive zero-speed ticks, 14.2 s of a
-        # 16.6 s exit, frozen at a 44 mm overlap with both legs blocked.
+        # never changes, so the refusal is permanent. On hardware the exit spent
+        # most of its life frozen at an overlap with both legs blocked. See
+        # ``adr:0060-bay-exit-clearance-guard``.
         #
         # Reachable from inside the fault, the admissible leg is the one that
         # IMPROVES the gap rather than the one that clears the margin. That is
@@ -811,7 +796,7 @@ class BayExit:
         if gap <= margin and not recovering:
             # End the leg on the PREDICTION -- nothing has been touched -- and
             # pay the servo swing before the next one moves. Flipping the flag
-            # inline, as this did until 2026-09-04, skipped ``_begin_leg``
+            # inline, as an earlier version did, skipped ``_begin_leg``
             # entirely: no standstill was budgeted, ``_leg_start_m`` was never
             # re-origined, and the new leg inherited the old leg's lock.
             self._begin_leg(
@@ -863,13 +848,13 @@ class BayExit:
         cycle nets outward displacement in free space -- no contact required.
 
         Moderate steering, not full lock, for the same reason the pocket needs:
-        at 85 deg the turn radius is 17 mm and the chassis pivots about itself,
-        translating nothing. Around 45 deg it is ~0.19 m, which actually moves
+        at full lock the turn radius is tiny and the chassis pivots about itself,
+        translating nothing. A moderate lock has a radius that actually moves
         the body sideways.
 
         Legs are latched, and that is not incidental. The previous gate compared
         ``reverse_start - travelled`` against a threshold that the FORWARD leg
-        drives back down, so it flapped between two opposed commands ~600 times
+        drives back down, so it flapped between two opposed commands many times
         a run. Transitions here are one-way within a cycle: forward until the
         way ahead closes, reverse a bounded distance, repeat.
         """
@@ -886,9 +871,9 @@ class BayExit:
         # ``travelled_m - (None or travelled_m)`` == 0 and could never fire. The
         # opening leg was therefore unbounded by distance and could only end on
         # `stalled` -- that is, on CONTACT with a fin, which ends the round under
-        # 9.24.7. It is also why BAY_EXIT_FORWARD_M and BAY_EXIT_CYCLE_REVERSE_M
-        # swept byte-identical at 0.02 and 0.04, and why `rev_m` measured 0.041
-        # against the 0.09 asked for. And once it IS set, the old
+        # 9.24.7. It is also why the two leg-distance constants swept
+        # byte-identical, and why the travelled distance fell short of the
+        # distance asked for. And once it IS set, the old
         # ``self._leg_start_m or travelled_m`` idiom still discarded it whenever
         # it was 0.0 -- which is exactly what the first leg of a round starts
         # from, since odometry is zeroed at the start line. A float that can
@@ -909,11 +894,11 @@ class BayExit:
 
         # Stall is the primary leg-end signal, not distance. Wheel odometry
         # stops accumulating exactly when the chassis is blocked, so any leg
-        # bounded only by distance runs FOREVER once it jams -- measured on the
-        # first version of this manoeuvre: the reverse leg backed 6.5 cm onto
-        # the rear fin and then held there for 174 ticks, because the 0.05 m it
-        # was waiting for could no longer arrive. The previous manoeuvre failed
-        # the same way from the other side. Counted only on ticks that COMMAND
+        # bounded only by distance runs FOREVER once it jams -- on the first
+        # version of this manoeuvre: the reverse leg backed onto the rear fin and
+        # then held there, because the distance it was waiting for could no
+        # longer arrive. The previous manoeuvre failed the same way from the
+        # other side. Counted only on ticks that COMMAND
         # motion -- the settle above returns first, so a deliberate standstill
         # is never mistaken for a jam.
         if abs(travelled_m - self._last_travelled_m) < _LEG_STALL_EPSILON_M:
@@ -943,10 +928,10 @@ class BayExit:
             # both legs and heading accumulates twice as fast.
             #
             # Opposite lock is not free: it asks the servo for a full swing
-            # between legs, 2 x the arc angle, and at MAX_STEERING_RATE that
-            # takes ~25 ticks against a leg lasting ~11 at creep. If a sweep of
-            # this value comes back flat, that is the slew clipping every
-            # setting to the same reachable angle -- the same trap that made
+            # between legs, 2 x the arc angle, which at MAX_STEERING_RATE takes
+            # longer than a creep leg lasts. If a sweep of this value comes back
+            # flat, that is the slew clipping every setting to the same reachable
+            # angle -- the same trap that made
             # BAY_EXIT_STEER_NORM read as inert -- not the idea failing.
             return DriveCommand(
                 speed_mps=-_leg_speed(creep_speed_mps, follower, reverse=True),
@@ -955,13 +940,13 @@ class BayExit:
 
         self._forward_ticks += 1
         # Bounded by GEOMETRY plus a stall backstop, NOT by forward clearance.
-        # Sensing does not work in here: a clean raycast at the bay pose gives
-        # 0.215 m, but the live pipeline reads 0.05-0.13 m and fluctuates tick
-        # to tick -- the chassis sits 0.1 m from one wall and 3 mm from the
-        # other, so a forward-cone minimum is dominated by its surroundings and
-        # by noise. Gated on it, the arc got ONE tick per cycle and the chassis
-        # turned 0.1 deg in 57 ticks. This is the same reason the reverse leg
-        # above is bounded by the lot's own dimensions rather than measured.
+        # Sensing does not work in here: a clean raycast at the bay pose is
+        # nothing like the live pipeline, which fluctuates tick to tick -- the
+        # chassis sits centimetres from one wall and millimetres from the other,
+        # so a forward-cone minimum is dominated by its surroundings and by
+        # noise. Gated on it, the arc got almost no ticks per cycle. This is the
+        # same reason the reverse leg above is bounded by the lot's own
+        # dimensions rather than measured.
         leg_start = travelled_m if self._leg_start_m is None else self._leg_start_m
         if stalled or travelled_m - leg_start >= follower.bay_exit_forward_m:
             self._begin_leg(
@@ -986,18 +971,17 @@ class BayExit:
         what rebuilds the path for the committed direction and calls
         ``replace_path``, and skipping it hands the planner a stale plan still
         pointing at waypoint 0 while the robot has driven out of the bay.
-        Measured: it drove straight back into a marker, 0.24-0.30 m every run.
+        Without that, it drove straight back into a marker.
 
         A forward arc with NO valid returns reads as BLOCKED, not clear.
         ``_forward_clearance`` reports ``inf`` when nothing in the arc survives
         ``MIN_VALID_RANGE_M``, which compares as clear against any threshold --
-        and in a parking pocket that is exactly backwards. Measured on
-        run_20260906_094342: the forward arc returned nothing but self-detection
-        at 0.050-0.052 m for seconds (the nose was inside the sensor's minimum
-        range, hard against the wall), then dropped out entirely for one tick.
-        That tick ended the manoeuvre mid-reverse with the nose still pointed at
-        the wall, which is what the operator watched happen. Same failure class
-        as the escape path's whole-cone no-return, fixed there 2026-08-28.
+        and in a parking pocket that is exactly backwards. On hardware the
+        forward arc returned nothing but self-detection for seconds (the nose was
+        inside the sensor's minimum range, hard against the wall), then dropped
+        out entirely for one tick. That tick ended the manoeuvre mid-reverse with
+        the nose still pointed at the wall. Same failure class as the escape
+        path's whole-cone no-return. See ``adr:0060-bay-exit-clearance-guard``.
 
         The caller must bound how long this can hold -- see
         ``BAY_EXIT_MAX_FRAMES``. Refusing to release on no evidence is only safe
@@ -1049,10 +1033,9 @@ class BayExit:
         if self._open_is_left is None:
             # Vote before latching. A latch taken on tick 1 is decided by the
             # very first scan the node ever receives, which is also the one no
-            # bag can show: on run_20260906_192315 and _192424 recording started
-            # 2.6 s and 1.9 s AFTER the exit did, so the deciding tick is absent
-            # from both. A handful of ticks costs half a second and removes the
-            # dependence on a single frame entirely.
+            # bag can show: recording began after the exit did on both runs that
+            # were inspected, so the deciding tick is absent from them. A handful
+            # of ticks removes the dependence on a single frame entirely.
             self._open_votes_left += 1 if open_is_left else 0
             self._open_votes_right += 0 if open_is_left else 1
             votes = self._open_votes_left + self._open_votes_right
@@ -1080,34 +1063,31 @@ class BayExit:
         Pivoting straight from a centred placement does not work: the pocket is
         0.45 m along the wall against a 0.30 m chassis, so there is only ~7.5 cm
         of slack at each end, and the nose reaches the marker before it has
-        rotated clear. Measured -- the pivot alone escaped some scenarios and
-        clipped a fin in most.
+        rotated clear. The pivot alone escaped some scenarios and clipped a fin
+        in most.
 
         So reverse first, to double the room ahead, then turn hard. The reverse
-        was straight until 2026-09-02, on the reasoning that a steered reverse
-        sweeps the tail across the pocket it is trying to leave. True as far as
+        was once straight, on the reasoning that a steered reverse sweeps the
+        tail across the pocket it is trying to leave. True as far as
         it goes, and outweighed: centring the wheels every reverse throws away
         the servo's slew and the turn never reaches its angle at all. See
-        ``BAY_EXIT_HOLD_STEER``, which measured 0 -> 187 of 256 on its own.
+        ``BAY_EXIT_HOLD_STEER``.
 
         The reverse is bounded by GEOMETRY, not measured: the bound is the slack
         the lot is guaranteed to have by its own dimensions. That was originally
         forced -- there was no rear sensing on this mount at all. The rear slot
-        came back on 2026-08-31 (~40 deg at +/-160..180), so backing until
-        something appears IS now available and this bound is a deliberate
-        holdover rather than a constraint. Changing it is a behaviour change and
-        wants its own measurement; the move out of the simulator deliberately
-        changed nothing.
+        has since come back, so backing until something appears IS now available
+        and this bound is a deliberate holdover rather than a constraint.
+        Changing it is a behaviour change and wants its own measurement; the move
+        out of the simulator deliberately changed nothing.
 
         Which way to turn is not a guess either. The lot is always against the
         OUTER wall, so its opening faces the inner block, and a lap always turns
         toward the inner block -- open side, inner side and corner-turn side are
         the same side by track design. It is the LEFT of a counterclockwise lap
-        and the RIGHT of a clockwise one, verified 64/64 against geometry in
-        both directions. Being a fact about the layout, it is read once and
-        latched rather than re-derived every tick: 0 -> 254 of 256 together with
-        the steering hold, 187 -> 254 on top of it. See
-        ``BAY_EXIT_LATCH_DIRECTION``.
+        and the RIGHT of a clockwise one, verified against geometry in both
+        directions. Being a fact about the layout, it is read once and latched
+        rather than re-derived every tick. See ``BAY_EXIT_LATCH_DIRECTION``.
 
         Args:
             ranges_m: LIDAR ranges.
@@ -1136,12 +1116,12 @@ class BayExit:
         # held. Back straight off first, then let the normal legs resume with
         # room to rotate in.
         #
-        # Measured on run_20260906_112613: the forward arc fell to 0.052 m
+        # On hardware the forward arc fell to a range inside the sensor's noise
         # (returns below MIN_VALID_RANGE_M are dropped, so a wall closer than
-        # 5 cm reads as NOTHING AT ALL), then to zero valid rays for every
+        # that reads as NOTHING AT ALL), then to zero valid rays for every
         # remaining tick of the round. Until now that blindness ended the
-        # manoeuvre by the back door and normal driving -- which does not know
-        # it is in a pocket -- drove FORWARD into the wall at 0.26 m/s.
+        # manoeuvre by the back door and normal driving -- which does not know it
+        # is in a pocket -- drove FORWARD into the wall.
         #
         # Straight, not steered: a steered reverse sweeps the tail across the
         # pocket, and the point of this leg is to buy room, not heading. The
@@ -1161,8 +1141,8 @@ class BayExit:
 
         # Turned far enough. Past BAY_EXIT_TARGET_YAW_DEG the chassis lies along
         # the parking walls rather than across them, and every further degree
-        # carries the nose back toward the outer wall -- run_20260906_112613
-        # rotated well past this and ended up pointing at it. Drive STRAIGHT out
+        # carries the nose back toward the outer wall -- a hardware run rotated
+        # well past this and ended up pointing at it. Drive STRAIGHT out
         # and let the caller release; continuing to steer is what over-rotates.
         #
         # AFTER the contact check, not before: a chassis that has turned far
@@ -1174,10 +1154,10 @@ class BayExit:
         # Rotation alone is NOT enough to drive out on. 70 deg is where the
         # chassis stops lying across the pocket, not where it is guaranteed to
         # be aimed down the corridor -- the placement heading and the lot's
-        # geometry decide that. Measured on run_20260906_145909: the exit
-        # released and normal driving then took forward clearance from 0.54 m
-        # to 0.08 m in three seconds, nose into the outer wall, because nothing
-        # asked whether the way out was actually open. Turned AND clear, or
+        # geometry decide that. On hardware the exit released and normal driving
+        # then drove forward clearance down to a near-contact, nose into the
+        # outer wall, because nothing asked whether the way out was actually
+        # open. Turned AND clear, or
         # keep ratcheting -- the next reverse buys more angle, which is the
         # cheap way to be wrong.
         if self.rotation_complete(tuning) and self.is_clear(ranges_m, angles_rad, tuning):
@@ -1189,12 +1169,12 @@ class BayExit:
         # The clearance guard supersedes both contact-bounded exits, so it is
         # answered before their fallback bookkeeping runs at all -- but only
         # while it is still BOUNDING legs rather than refusing every one of
-        # them. Answering it unconditionally, as this did until 2026-09-06, put
+        # them. Answering it unconditionally, as an earlier version did, put
         # the guard above the fallback switch AND above
         # ``BAY_EXIT_FALLBACK_FRAMES``, which ships at 0: a guard that trapped
-        # itself had no way out at any budget, and ``BAY_EXIT_MAX_FRAMES``
-        # (900, 45 s) fired in none of the 2026-09-06 hardware runs. One of
-        # them stood still for 14.2 s of a 16.6 s exit.
+        # itself had no way out at any budget, and ``BAY_EXIT_MAX_FRAMES`` fired
+        # in none of the hardware runs. One of them stood still for most of its
+        # exit.
         #
         # A guard doing its job alternates block and motion, so a long UNBROKEN
         # run of blocks is the signature that separates the two. Past it the
@@ -1209,9 +1189,9 @@ class BayExit:
             return self._guarded_command(travelled_m, creep_speed_mps, tuning, open_is_left)
 
         # Which exit is driving. After BAY_EXIT_FALLBACK_FRAMES the OTHER one
-        # takes over, once: the two are complementary (each 254/256 under the
-        # contact model where the other is 0/256) and which one the real robot
-        # needs is unknown, so covering both beats betting on one.
+        # takes over, once: the two are complementary under the contact model
+        # (where one leaves the bay the other does not) and which one the real
+        # robot needs is unknown, so covering both beats betting on one.
         use_cycle = follower.bay_exit_cycle
         if follower.bay_exit_fallback_frames and self._ticks > follower.bay_exit_fallback_frames:
             use_cycle = not use_cycle
@@ -1223,10 +1203,9 @@ class BayExit:
 
         # Wheel distance is SIGNED -- comparing current-minus-start gives a
         # negative that is below any positive threshold forever, which reversed
-        # until the tail hit the rear fin. Measured before the fix: every
-        # BAY_EXIT_STEER_NORM from 0.0 to 1.0 and every BAY_EXIT_REVERSE_M from
-        # 0.001 to 0.20 produced byte-identical runs, because the turn was
-        # unreachable in all of them.
+        # until the tail hit the rear fin. Before the fix, every
+        # BAY_EXIT_STEER_NORM and every BAY_EXIT_REVERSE_M produced
+        # byte-identical runs, because the turn was unreachable in all of them.
         self._reverse_progress_m = self._reverse_start_m - travelled_m
         if follower.bay_exit_latch_reverse and self._reverse_progress_m >= follower.bay_exit_reverse_m:
             # One-shot once latching is on. The forward leg drives this same
@@ -1248,24 +1227,25 @@ class BayExit:
             if follower.bay_exit_hold_steer:
                 # Hold the FORWARD leg's angle instead of returning to centre.
                 #
-                # The servo slews at MAX_STEERING_RATE = 1.2 rad/s, so reaching
-                # full lock takes 1.24 s = 25 ticks, while a stroke bounded by
-                # BAY_EXIT_REVERSE_M = 0.05 m lasts about 9. Commanding 0 here
-                # slews the wheels back to centre every cycle, so the angle is
-                # never reached: measured 30.9 deg of the 85 deg asked for, 36%
-                # of full lock, ramping up for 9 ticks and straight back down
-                # for 11. That also explains why BAY_EXIT_STEER_NORM swept
-                # byte-identical at 0.4/0.6/0.8/1.0 -- every command at or above
-                # 0.364 is clipped to the same achievable angle, and only 0.2
-                # (17 deg, reachable inside a stroke) behaved differently.
+                # The servo slews at MAX_STEERING_RATE, so reaching full lock
+                # takes many ticks, while a stroke bounded by
+                # BAY_EXIT_REVERSE_M lasts far fewer. Commanding 0 here slews the
+                # wheels back to centre every cycle, so the angle is never
+                # reached: the chassis saw well under half of full lock, ramping
+                # up and straight back down. That also explains why
+                # BAY_EXIT_STEER_NORM swept byte-identical over its upper range
+                # -- every command at or above a threshold is clipped to the same
+                # achievable angle, and only a low command (reachable inside a
+                # stroke) behaved differently.
                 #
                 # Lengthening the stroke instead is not available: the servo
-                # needs ~0.14 m of travel and the pocket has 7.5 cm of slack.
-                # Holding costs no travel at all.
+                # needs more travel than the pocket has slack. Holding costs no
+                # travel at all.
                 #
                 # NOT the same as BAY_EXIT_REVERSE_STEER_NORM, which applies the
                 # INVERTED sign and so slews even further, to opposite lock --
-                # refuted 2026-08-29, every non-zero value collapsing to 0.02 m.
+                # that does not work, every non-zero value collapsing the same
+                # way.
                 reverse_norm = clamp(follower.bay_exit_steer_norm, 0.0, 1.0) * (1.0 if open_is_left else -1.0)
             return DriveCommand(
                 speed_mps=-_leg_speed(creep_speed_mps, follower, reverse=True, exit_scale=False),
@@ -1273,9 +1253,9 @@ class BayExit:
             )
 
         # Magnitude is tuned, not pinned at full lock -- see BAY_EXIT_STEER_NORM.
-        # Full lock spins the chassis about its own centre (8 mm radius at the
-        # shipped 85 deg wheel angle) and the pocket has no room to rotate in;
-        # what gets the robot out is translation.
+        # Full lock spins the chassis about its own centre (a radius far too
+        # small to translate) and the pocket has no room to rotate in; what gets
+        # the robot out is translation.
         self._forward_ticks += 1
         magnitude = clamp(follower.bay_exit_steer_norm, 0.0, 1.0)
         return DriveCommand(

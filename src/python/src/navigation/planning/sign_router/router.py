@@ -856,16 +856,15 @@ class SignRouter:
             _dist2d(waypoint_wp, Waypoint(sign.x, sign.y)),
             _dist2d(robot_wp, Waypoint(sign.x, sign.y)),
         )
-        # This shape peaks the commanded offset AT the sign: at activation_dist
-        # 1.40 against passed_dist 1.60 the taper opens at 0.125, so avoidance
-        # asks for 3.5 cm where a mid-turn pass needs 20.4 cm. That looks like
-        # the reason the offset arrives late, and it is not. Holding full offset
-        # from activation and fading only on the way out was measured over the
-        # 256-scenario corpus at ramps of 0.20/0.40/0.70 m: byte-identical
-        # without the depth pin (182 collisions at every value), and slightly
-        # WORSE with it (137 -> 135 in-time). The lateral clamp saturates before
-        # the taper ever binds, so the ramp has nothing to give. Do not re-try
-        # it without new information; see adr:0051-sign-lane-planner.
+        # This shape peaks the commanded offset AT the sign: near the activation
+        # distance the taper has cut the offset to a fraction of what a mid-turn
+        # pass needs. That looks like the reason the offset arrives late, and it
+        # is not. Holding full offset from activation and fading only on the way
+        # out was measured over the corpus at several ramp distances: unchanged
+        # without the depth pin, and slightly WORSE with it. The lateral clamp
+        # saturates before the taper ever binds, so the ramp has nothing to give.
+        # Do not re-try it without new information; see
+        # adr:0051-sign-lane-planner.
         taper = max(0.0, 1.0 - influence_dist / self._config.passed_dist)
         effective_offset = self._lateral_offset * taper
 
@@ -903,13 +902,10 @@ class SignRouter:
         routine -- that jump IS the crossing, and it is issued with whatever
         runway happens to be left.
 
-        MEASURED on the four 2026-09-14 rounds, 41 passes: starting a pass on
-        the WRONG side of the sign makes a graze 4.8x more likely (23.8%
-        against 5.0%) and a wrong-side finish 2.9x more likely (14.3% against
-        5.0%). Five of the six sub-30 mm grazes were crossings. And the runway
-        is not there to spend: commitment lands at p50 0.498 m where the
-        crossing needs about 0.614 m, because publication costs 0.317 m and the
-        commit criteria another 0.266 m out of the 1.081 m the camera gives.
+        Starting a pass on the WRONG side of the sign makes a graze and a
+        wrong-side finish far more likely, and the runway is not there to
+        spend: commitment lands short of the distance the crossing needs. The
+        figures are in ``adr:0051-sign-lane-planner``.
 
         So this moves the lateral target CONTINUOUSLY across the handoff
         instead of stepping it: once the committed sign is behind the chassis,
@@ -970,8 +966,7 @@ class SignRouter:
         is already committed, and the commanded lateral line jumps from one
         sign's required value to the other's in a single tick. Both lines are
         legal; the damage is switching between them with no runway left to
-        track the new one. Measured over the 256-scenario corpus, 28 of 229
-        collisions had the winner change during the fatal approach.
+        track the new one.
 
         So a sign that is still an applicable candidate holds its claim. This
         is deliberately hysteresis on SELECTION only - the deformation math and

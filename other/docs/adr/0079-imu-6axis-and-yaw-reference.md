@@ -49,6 +49,10 @@ complementary filter against the Manhattan walls (see 0054).
 - 84974f88 and 67041694 2026-08-04: re-seed position on reset, and clear
   `_yaw_correction` on the heading reset.
 - f6b46da9 2026-08-28: Go UART-RVC driver.
+- 2026-08-31: the second race of a button-restart pair published zero
+  `/nav_debug` messages over 30 s and 4 s of RACING against 261 and 132 in the
+  first (`run_20260831_224647`, `run_20260831_225308`); the fault was an
+  exception escaping the state subscription reset, not IMU yaw itself.
 - c426ca1e 2026-09-04: port the IMU error model and start-pose error to sim.
 - ac2b6637 2026-09-14: run the corpus on the measured sensor error budget.
 

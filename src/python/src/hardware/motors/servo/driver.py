@@ -1,12 +1,12 @@
 """RC servo steering driver (single servo, counter-phase four-wheel steering).
 
 One servo drives both axles through the linkage: the rear wheels turn by the
-same amount as the front but in the OPPOSITE direction (confirmed on hardware
-2026-07-25 -- this was previously documented as "parallel/crab steering",
-which is the opposite geometry). The consequence for anything reasoning about
-motion is that the chassis pivots about its centre, not the rear axle, and
-yaws twice as fast as a front-steer car at the same angle -- see
-src/simulation/kinematics.py.
+same amount as the front but in the OPPOSITE direction (confirmed on hardware;
+see ``adr:0076-drivetrain-and-steering-hardware``). This was previously
+documented as "parallel/crab steering", which is the opposite geometry. The
+consequence for anything reasoning about motion is that the chassis pivots
+about its centre, not the rear axle, and yaws twice as fast as a front-steer
+car at the same angle -- see src/simulation/kinematics.py.
 
 Implements the ``SteeringDriver`` port for a hobby RC servo driven by a 50 Hz
 PWM signal, using the kernel's **hardware** PWM peripheral via
@@ -17,9 +17,10 @@ Why sysfs and not gpiozero: gpiozero's ``PWMOutputDevice`` under the pin
 factory the Pi Zero actually uses (``LGPIOFactory``) generates the pulse train
 in *software*, so kernel scheduling jitter lands directly on the servo's pulse
 width and the servo visibly twitches even while holding a fixed angle.
-Measured on hardware 2026-07-25: the twitching persisted with a single command
-and no PWM rewrites at all, and on a fresh battery, which ruled out both
-command traffic and supply sag. The hardware peripheral is immune to CPU load.
+On hardware the twitching persisted with a single command and no PWM rewrites
+at all, and on a fresh battery, which ruled out both command traffic and supply
+sag. The hardware peripheral is immune to CPU load. See
+``adr:0076-drivetrain-and-steering-hardware``.
 
 This requires the PWM overlay to be mapped onto the servo's pin. On this
 robot (servo on GPIO 12) that is::

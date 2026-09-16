@@ -162,3 +162,8 @@ verdict.
   travel with roughly 0.5 m to spare; `go_open_0020` sat at zero speed for 400
   ticks with the wall 0.13 m away and the round expired, so stopping is not an
   option there.
+- Measured in the ring on the 2026-09-12 bags, the two beta radii are 0.3968
+  (wide, the tighter) and 0.446 (narrow).
+- The inversion is the first link in the Open zigzag chain: tighter arc, then a
+  shorter straight, then the short lookahead spans 82 percent of straight ticks,
+  for a loop gain of x2.25.

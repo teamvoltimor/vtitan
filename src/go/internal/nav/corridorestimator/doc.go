@@ -10,9 +10,9 @@
 //
 // It exploits the one thing the rules DO guarantee: each corridor is either
 // 0.6 m or 1.0 m. The robot never has to measure a width, only decide between
-// two values 0.4 m apart -- against a 0.03 m LIDAR sigma, a better-than-4-
-// sigma call. Measured over all 28 Open Challenge fixtures: 100%
-// classification accuracy on 14839 usable ticks, mean error +0.03 cm.
+// two values far enough apart to be a call rather than a measurement, given
+// the LIDAR's own sigma. See
+// adr:0057-blind-corridor-follower-and-width.
 //
 // # Why NARROW is the safe default, and where it is not
 //
@@ -25,10 +25,10 @@
 //
 // The Obstacles Challenge is not that round. Its corridors are all 1.0 m by
 // RULE, so assuming narrow there is not conservative, it is known to be wrong
-// for every corridor -- and it cost real runs: of the 16 obstacles fixtures,
-// 9 of 16 blind collisions happened in a corridor still held at the narrow
-// default, because the robot met a sign before MinSamples readings had
-// accumulated to correct it. WithFixedWidth exists for exactly that case.
+// for every corridor -- and it cost real runs, because the robot met a sign
+// before MinSamples readings had accumulated to correct the default.
+// WithFixedWidth exists for exactly that case. See
+// adr:0057-blind-corridor-follower-and-width.
 //
 // # Why attribution is by heading, not position
 //

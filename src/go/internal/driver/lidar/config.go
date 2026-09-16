@@ -26,7 +26,8 @@ const DefaultPort = "/dev/ttyUSB0"
 // robot-frame bearings and no downstream consumer applies its own
 // correction; publishing raw bearings and leaving each consumer to correct
 // them is what let the nav gateway apply nothing at all while telemetry
-// applied a rotation that the 2026-08-31 bearing test had already refuted.
+// applied a rotation that the bearing test had already refuted (see
+// adr:0080-lidar-mount-and-scan-plane).
 func ConfigFor(logger *slog.Logger, configRoot string) Config {
 	cfg := Config{Port: DefaultPort, BaudRate: DefaultBaudRate}
 	if configRoot == "" {

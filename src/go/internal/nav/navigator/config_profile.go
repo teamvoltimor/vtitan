@@ -176,10 +176,11 @@ func ConfigFor(logger *slog.Logger, configRoot string, hardwareProfileNames []st
 	// unconditionally, so a missing key lands as 0 rather than leaving the
 	// default in place -- and DrivetrainMaxSpeedMPS=0 makes every
 	// Config.*SpeedMPS() method return min(tier, 0), i.e. a robot that
-	// cannot move at all. Measured: a native corpus sweep given a config
-	// root but no profiles scored 640/640 STUCK at max speed 0.000, which
-	// reads as a navigation failure rather than as the config error it is.
-	// LoadRobotConfig fails loudly on exactly those keys instead.
+	// cannot move at all. A native corpus sweep given a config root but no
+	// profiles scores every scenario STUCK at max speed 0.000, which reads as
+	// a navigation failure rather than as the config error it is.
+	// LoadRobotConfig fails loudly on exactly those keys instead. See
+	// adr:0069-config-governance.
 	robotPath := filepath.Join(configRoot, profile.DefaultRobotTOMLPath)
 	if loaded, err := profile.LoadRobotConfig(robotPath, hardwareProfileNames); err != nil {
 		logger.Warn("navigator: loading robot.toml, falling back to defaults", "error", err)

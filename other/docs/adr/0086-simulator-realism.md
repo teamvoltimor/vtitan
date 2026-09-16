@@ -35,9 +35,12 @@ The measured sensor error budget (`sensor_start_pos_error_m = 0.05`,
 `sensor_gyro_scale_error = 0.005`, `sensor_imu_noise_rad = 0.005`) is on by
 default. The camera gets the hardware's detection rate and latency
 (`vision_latency_s = 0.85`, `vision_frame_miss_rate = 0.79`, emulated 11.0 percent
-of ticks against hardware's 11.6 percent); `vision_color_flip_rate = 0.0` ships at
-an honest zero because it is unmeasured, and the magenta-barrier failure cannot be
-emitted by the simulator at all. The LIDAR models chassis occlusion (two blind
+of ticks against hardware's 11.6 percent); `vision_color_flip_rate = 0.051` now
+ships the measured marginal colour-flip rate (111 of 2,162 detections, 5.1
+percent, 2026-09-15), applied i.i.d. even though the
+real errors are concentrated per pillar; it was 0.0 while unmeasured when this ADR
+was written, and the magenta-barrier failure still cannot be emitted by the
+simulator at all. The LIDAR models chassis occlusion (two blind
 front-corner bands, `lidar_occlusion_min_deg = 25`, `max 60`, with measured
 dropout and self-return) and `lidar_invalid_ray_rate = 0.095`. A blocked
 translation slides along the surface (`contact_slides_along_surfaces = true`)
@@ -104,3 +107,27 @@ deg approach.
   rear sector measured nothing" because `compute_rear_clearance` fails open, then
   falls through to a full-lock pivot at an 8 mm radius, which is correct geometry
   (`0.095 / tan(85 deg)` from counter-phase 4WS, `L_eff = wheelbase/2`).
+- A control tick can act on a scan one period old, up to 1.6 cm of travel at full
+  speed at a 20 Hz loop.
+- The steering servo delivers 2.84 N-m (29 kg-cm at 5 V), which is 35 to 70x the
+  moment to scrub a wheel in place and 10 to 30x the force to slide the 1.5 kg
+  chassis sideways, in a pocket whose entire margin is 6 mm; `scrub_yaw_gain` is
+  only the suspected gap.
+- The all-or-nothing contact refusal left a robot commanding 0.15 m/s with 0.76 m
+  clear ahead travelling 0.00 m for the round; narrow-corridor middle-band starts
+  failed 23/23, and 6 mm of lateral clearance allowed only 2.3 deg of yaw.
+- Effective against model radius: 66.0/41.7 cm at 15 to 30 deg (1.6x), 38.2/22.5
+  at 30 to 45 deg (1.7x), 28.9/2.3 at 75 to 90 deg (12.7x); over 33 bags the
+  achieved radius was 0.105 m at 0.025 m/s, 0.298 at 0.132 m/s, and 0.43 above
+  0.22 m/s.
+- Inside the occlusion bands 68.9 percent of rays are non-finite; self-returns
+  have p50 0.0207 m and p5-p95 0.0108-0.0280 m; dropout outside the bands is 9.5
+  percent; the +-3 sigma self-return envelope is 0.0051-0.0363 m against a real
+  0.0047-0.0435 m.
+- `vision_color_flip_rate` reconciliation: the ADR originally recorded the knob
+  shipping at 0.0 because unmeasured; the shipped config now carries 0.051 (111
+  of 2,162 detections, 5.1 percent, measured 2026-09-15) and the emulator applies
+  it i.i.d. per observation. The measured errors are concentrated (most pillars
+  near 0 percent, one at 47 percent), so the marginal rate is honest but its
+  structure is not; detections matching no pillar within 0.35 m are excluded, so
+  the magenta barrier remains unscreenable.

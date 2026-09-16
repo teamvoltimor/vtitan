@@ -122,11 +122,11 @@ func IsWallParallel(robotYaw float64, zone ParkZone, yawTolerance float64) bool 
 	return math.Min(yawErr, math.Pi-yawErr) <= yawTolerance
 }
 
-// ScorePark awards 15, 7, or 0 for a final pose, per the 2026 scoring table.
+// ScorePark awards 15, 7, or 0 for a final pose, per the scoring table.
 // Contact is checked FIRST and short-circuits: it is a veto, not a
-// deduction. Ruled 2026-09-03: touching the parking lot limitations stops
-// the robot and voids ALL parking points, so a run that grinds its way to a
-// perfect pose scores ZERO.
+// deduction. Touching the parking lot limitations stops the robot and voids
+// ALL parking points, so a run that grinds its way to a perfect pose scores
+// ZERO. See adr:0062-sim-contact-model-and-parking.
 func ScorePark(rx, ry, robotYaw float64, zone ParkZone, cfg Config) ParkScore {
 	scoringCfg := cfg
 	scoringCfg.WallStandoffM = scoringStandoffM

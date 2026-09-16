@@ -7,9 +7,8 @@ import (
 	"github.com/teamvoltimor/vtitan/src/go/internal/driver/encoder"
 )
 
-// shippedCountsPerRev is the live-verified 2026-08-29 calibration for the
-// current motor (60, not the earlier 86 -- the older value made the drive
-// ceiling read as ~0.45 m/s when it is ~0.58).
+// shippedCountsPerRev is the live-verified calibration for the current motor
+// (see adr:0076-drivetrain-and-steering-hardware).
 const shippedCountsPerRev = 60.0
 
 // shippedWheelDiameterM is robot.toml's wheel radius (0.035) doubled, the

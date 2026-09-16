@@ -27,8 +27,8 @@ against the surface rather than sliding along it."""
 _STEP_BISECTIONS = 8
 """Bisections used to find the largest fitting fraction of a step.
 
-Eight halvings resolve a 7.5 mm tick to ~0.03 mm, well under the 30 mm LIDAR
-noise the navigator is steering on, so more would be measuring nothing."""
+Eight halvings resolve a tick far below the LIDAR noise the navigator is
+steering on, so more would be measuring nothing."""
 
 
 def _slide_along(
@@ -110,11 +110,11 @@ def allowed_step(
 
     ``slide`` changes only the blocked-translation branch. Without it the move
     is scaled along the vector it already had, so a chassis leaning into a
-    surface loses the along-surface component too and barely advances --
-    measured at 20 deg of incidence, a 7.5 mm tick travels 0.125 mm where a
-    rubbing chassis would gain 7.05 mm, 56x less. With it, the translation is
-    decomposed and the surviving component kept, which is what contact with
-    friction-free sliding actually does.
+    surface loses the along-surface component too and barely advances; at a
+    shallow angle the loss is more than an order of magnitude (see
+    ``adr:0086-simulator-realism``). With it, the translation is decomposed and
+    the surviving component kept, which is what contact with friction-free
+    sliding actually does.
 
     The decomposition is per-AXIS rather than against a surface normal, because
     ``TrackModel`` reports which surface was touched but not its orientation.

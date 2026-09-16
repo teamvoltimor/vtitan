@@ -76,14 +76,15 @@ class ContactSurface(StrEnum):
     PARKING_LOT = "parking_lot"
     """A parking lot marker fin, which the rules do NOT let it touch at all.
 
-    Split from ``OBSTACLE`` on 2026-09-03. Both are boxes on the mat and were
-    modelled as one surface, so the fins inherited the traffic sign's leniency:
+    Split from ``OBSTACLE`` because both are boxes on the mat and were modelled
+    as one surface, so the fins inherited the traffic sign's leniency:
     ``_score_obstacle_contact`` downgrades a contact to a non-event while the
     object stays within its 85 mm placement circle, and a fin -- which cannot
     move at all -- always did. That is exactly inverted. 9.20 lets the vehicle
     "touch, move or knock down the traffic signs ... while the projection of the
     traffic sign is within the circle", whereas 9.24.7 ends the round outright
-    when "the robot touches the parking lot limitations".
+    when "the robot touches the parking lot limitations". See
+    ``adr:0062-sim-contact-model-and-parking``.
     """
 
 
@@ -390,10 +391,11 @@ class TrackModel:
         the pillar from its original cell while the robot was physically moving
         it, and the map stayed consistent with a track that no longer existed.
 
-        Measured on hardware 2026-09-15: accumulating the LIDAR returns PER LAP
-        instead of over the whole bag shows pillars marching monotonically, up
-        to 0.15 m over one round, with a stationary neighbour 0.4 cm away as the
-        control. The robot then plans against where the pillar WAS.
+        Measured on hardware: accumulating the LIDAR returns PER LAP instead
+        of over the whole bag shows pillars marching monotonically over one
+        round with a stationary neighbour as the control. The robot then plans
+        against where the pillar WAS. See
+        ``adr:0062-sim-contact-model-and-parking``.
 
         Moves the collision box, which is the same box the LIDAR raycasts
         against (``_lidar_sees_obstacles``), so one translation moves both what

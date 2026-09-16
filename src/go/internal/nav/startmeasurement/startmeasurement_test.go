@@ -56,8 +56,9 @@ func testConfig() startmeasurement.Config {
 
 // TestRecoversThePoseItWasTakenAt mirrors TestMeasuredPose's
 // test_recovers_the_pose_it_was_taken_at, including the two cases placed
-// OUTSIDE the marked starting square -- what actually happened on
-// 2026-08-05 -- which the measurement must not care about.
+// OUTSIDE the marked starting square -- what actually happened on the
+// hardware rounds -- which the measurement must not care about. See
+// adr:0053-direction-inference-and-start-pose.
 func TestRecoversThePoseItWasTakenAt(t *testing.T) {
 	t.Parallel()
 
@@ -109,9 +110,9 @@ func TestRecoversThePoseItWasTakenAt(t *testing.T) {
 }
 
 // TestReportsTheTrackActuallyLeftAhead is the number whose absence lost the
-// 2026-08-05 rounds: placed at 2.30 traveling counterclockwise there is
-// 0.70 m to the wall, not the ~1.5 m a pose assumed at the middle of the
-// side implies.
+// early hardware rounds: placed near the far end traveling counterclockwise
+// there is far less to the wall than the ~1.5 m a pose assumed at the middle
+// of the side implies. See adr:0053-direction-inference-and-start-pose.
 func TestReportsTheTrackActuallyLeftAhead(t *testing.T) {
 	t.Parallel()
 

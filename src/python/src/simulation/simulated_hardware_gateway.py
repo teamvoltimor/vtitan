@@ -143,9 +143,9 @@ class SimulatedHardwareGateway:
         # tick, so the navigator saw a fresh position fix at 20 Hz with no
         # age. Real scans arrive at half that rate and asynchronously, so
         # most control ticks act on a fix up to a scan period old -- during
-        # which the chassis has moved up to 1.6 cm at full speed. Pass rates
-        # measured against a perfectly fresh scan are optimistic by however
-        # much that staleness costs.
+        # which the chassis has moved. Pass rates taken against a perfectly
+        # fresh scan are optimistic by however much that staleness costs. See
+        # ``adr:0086-simulator-realism``.
         #
         # Set to 0 to restore the old always-fresh behaviour.
         lidar_hz: float = RobotSpecs.LIDAR_UPDATE_RATE,
@@ -221,12 +221,12 @@ class SimulatedHardwareGateway:
         self._barrier_rng = np.random.default_rng(seed_seq.spawn(1)[0])
         self._elapsed_s = 0.0
         # Detections that have been "captured" but have not yet finished the
-        # perception pipeline. The real one takes a MEASURED 0.85 s end to end
+        # perception pipeline. The real one has a non-zero end-to-end latency
         # (sign_discovery.toml vision_latency_s, which the hardware gateway
         # compensates by backing the pose up before projecting). This emulator
-        # reported from the CURRENT tick's true state until 2026-09-14, i.e.
-        # with zero lag, handing the planner ~0.26 m of anticipation at
-        # 0.3 m/s that it does not have on the mat.
+        # used to report from the CURRENT tick's true state, i.e. with zero
+        # lag, handing the planner anticipation it does not have on the mat.
+        # See ``adr:0072-vision-data-path``.
         self._vision_pipeline: deque[tuple[float, list[TrafficSignObservation]]] = deque()
         # Signed rotation the body has actually turned through, unwrapped, so
         # three laps of one-way cornering accumulate rather than cancel.
@@ -428,8 +428,9 @@ class SimulatedHardwareGateway:
         """The signs the camera actually resolves THIS frame.
 
         Off (the default) this is every sign, and the emulator's own
-        ``CAMERA_FAR_CLIP`` visibility check is the only range limit -- 10 m,
-        against a real detector whose measured median detection range is 0.70 m.
+        ``CAMERA_FAR_CLIP`` visibility check is the only range limit, against a
+        real detector that resolves signs only well inside it. See
+        ``adr:0072-vision-data-path``.
 
         On, each sign is drawn independently per frame against a logistic in its
         TRUE range, so a distant pillar is seen intermittently and a far one
@@ -441,11 +442,11 @@ class SimulatedHardwareGateway:
         sim = self.tuning.simulation
         # A residual detector miss, applied on TOP of the range model and
         # independently of it. The range model alone leaves the emulated camera
-        # carrying a detection on ~54.5% of ticks; hardware carries one on
-        # 11.6% (measured over 125 bags). That remaining gap is not explained by
-        # capture rate -- 15 fps against a 20 Hz control loop would account for
-        # about a quarter of it -- so it is modelled here as the detector simply
-        # failing to fire, which is what the bags show.
+        # carrying a detection far more often than hardware does. That remaining
+        # gap is not explained by capture rate -- the camera runs slower than the
+        # control loop, which accounts for only part of it -- so it is modelled
+        # here as the detector simply failing to fire, which is what the bags
+        # show. See ``adr:0072-vision-data-path``.
         miss = sim.vision_frame_miss_rate
         candidates = list(self._signs or [])
         if sim.vision_range_model:
@@ -488,9 +489,9 @@ class SimulatedHardwareGateway:
 
         Emitting it magenta is already not inert, because the discard path runs.
         But the failure that ENDS rounds is the fraction arriving as RED, which
-        reaches the sign map as a pillar -- measured 2026-09-15 at 60% in one
-        round and 4-9% in two others, by locating the lot from its own LIDAR
-        cluster. Ships at 0.0 because 4-60% is a range, not a rate.
+        reaches the sign map as a pillar; that fraction varies widely across
+        rounds, so the shipped rate is 0.0. See
+        ``adr:0058-sign-discovery-range-and-barrier-belief``.
 
         Uses its OWN rng stream: drawing from `_vision_rng` would shift every
         subsequent sign draw and silently change what the camera sees of the
@@ -520,22 +521,23 @@ class SimulatedHardwareGateway:
     ) -> list[TrafficSignObservation]:
         """Apply the camera errors the emulator otherwise has none of.
 
-        Two of them, both MEASURED 2026-09-15 against the operator's stated
-        layout on the three rounds whose pillar map reconstructs to it:
+        Two of them, both measured against the operator's stated layout on the
+        rounds whose pillar map reconstructs to it:
 
-        * **Colour** -- 111 of 2,162 detections carry the opposite colour, 5.1%.
-          The emulator copies ground-truth colour, so without this the biggest
-          real perception failure (the magenta parking barrier arriving as a RED
-          pillar) cannot be screened here at all and the aspect-gate defence
-          built against it is dead code. NOTE the real errors are CONCENTRATED
-          -- most pillars near 0%, one at 47% -- while this flip is i.i.d.; the
-          marginal rate is honest, its structure is not.
-        * **Bearing** -- sigma 0.232 rad (13.3 deg), from an interquartile range
-          of -9.36 to +8.59 deg over 2,588 detections. The emulator projects
-          from the TRUE bearing, so the only angular error a simulated run
-          carried was the pose estimate's ~1.7 deg. At 1.5 m the real scatter is
-          0.35 m of lateral miss, WIDER than the radii meant to contain it
-          (association_dist_m 0.25, detection_match_dist_m 0.30).
+        * **Colour** -- a small fraction of detections carry the opposite
+          colour. The emulator copies ground-truth colour, so without this the
+          biggest real perception failure (the magenta parking barrier arriving
+          as a RED pillar) cannot be screened here at all and the aspect-gate
+          defence built against it is dead code. NOTE the real errors are
+          CONCENTRATED -- most pillars near 0%, a few high -- while this flip is
+          i.i.d.; the marginal rate is honest, its structure is not. See
+          ``adr:0072-vision-data-path``.
+        * **Bearing** -- a zero-mean angular scatter. The emulator projects
+          from the TRUE bearing, so without this the only angular error a
+          simulated run carries is the pose estimate's. At range the real
+          scatter is WIDER than the radii meant to contain it
+          (association_dist_m, detection_match_dist_m). See
+          ``adr:0058-sign-discovery-range-and-barrier-belief``.
 
         Bearing is applied FIRST and colour second: they are independent
         failures of the same frame, and rotating an already-flipped observation
@@ -567,25 +569,24 @@ class SimulatedHardwareGateway:
         return observations
 
     def _sample_confidence(self, quantiles: Sequence[float], levels: Sequence[float]) -> float:
-        """Draw a detection confidence from the MEASURED distribution.
+        """Draw a detection confidence from the measured distribution.
 
-        Piecewise-linear inverse-CDF interpolation at ``levels``, so
-        five numbers in a TOML reproduce the shape of 3,315 real detections
-        without fitting a parametric family the data does not obviously have
-        (it is skewed and bounded near 0.96).
+        Piecewise-linear inverse-CDF interpolation at ``levels``, so a handful
+        of numbers in a TOML reproduce the shape of the real detections without
+        fitting a parametric family the data does not obviously have (it is
+        skewed and bounded near 1.0). See ``adr:0072-vision-data-path``.
 
         The levels are NOT evenly spaced, and assuming they were is a silent
-        error rather than a loud one: with [0, .25, .5, .75, 1] the sampler
-        still returns the median exactly while reading p10 as 0.477 against a
-        measured 0.515 and p90 as 0.942 against 0.917. It looks calibrated at
-        the one point anybody checks.
+        error rather than a loud one: evenly spaced levels still return the
+        median exactly while misreading both tails, so the sampler looks
+        calibrated at the one point anybody checks.
 
         The emulator otherwise stamps a CONSTANT, which sits at the real p90 --
         every frame one of its best. That matters less for
         `sign_router.min_confidence`, which rejects nothing at either value,
         than for `_SignTrack`: it weights its colour vote by confidence, so a
-        constant makes every vote equal where the robot makes a 0.45 detection
-        count half of a 0.95 one.
+        constant makes every vote equal where the robot lets a low-confidence
+        detection count for a fraction of a high-confidence one.
         """
         if len(quantiles) != len(levels) or len(levels) < 2:
             # A length the levels do not describe cannot be interpolated
@@ -624,11 +625,12 @@ class SimulatedHardwareGateway:
     def _through_vision_pipeline(
         self, fresh: list[TrafficSignObservation]
     ) -> list[TrafficSignObservation]:
-        """Delay a capture by the measured end-to-end perception latency.
+        """Delay a capture by the configured end-to-end perception latency.
 
         Returns the most recent capture that has finished the pipeline, and
         ``[]`` while none has -- which is the honest answer for the opening
-        0.85 s of a run, during which a real robot has seen nothing yet.
+        interval of a run, during which a real robot has seen nothing yet. See
+        ``adr:0072-vision-data-path``.
         """
         latency = self.tuning.simulation.vision_latency_s
         if latency <= 0.0:
@@ -690,11 +692,11 @@ class SimulatedHardwareGateway:
 
         The kinematic model has ``yaw`` scaling with ``v``, so a stationary
         chassis rotates by exactly zero however hard the servo pushes. That is
-        wrong on this robot by a wide margin: the steering servo delivers
-        2.84 N-m (29 kg-cm at 5 V), which is 35-70x the moment needed to scrub a
-        wheel in place and 10-30x the force needed to slide the whole 1.5 kg
-        chassis sideways. In a pocket whose entire margin is 6 mm, scrub may be
-        the dominant actuator rather than a second-order effect.
+        wrong on this robot by a wide margin: the steering servo delivers far
+        more torque than is needed to scrub a wheel in place or slide the light
+        chassis sideways, so in a tight pocket scrub may be the dominant
+        actuator rather than a second-order effect. See
+        ``adr:0076-drivetrain-and-steering-hardware``.
 
         DELIBERATELY OPTIMISTIC. The yaw is applied in the direction that helps,
         proportional to how far the wheels turned this tick, with no friction
@@ -740,12 +742,12 @@ class SimulatedHardwareGateway:
         # All-or-nothing refusal made contact absorbing. Every candidate that
         # kept any overlap was rejected, including the one that would have
         # slid the chassis free, so a robot that once touched a wall could
-        # never move again -- it sat commanding 0.15 m/s with 0.76 m clear
-        # ahead and travelled 0.00 m for the whole round. That is also why a
-        # start in the narrow corridor's middle band failed 23 times out of
-        # 23: with 6 mm of lateral clearance the chassis may yaw only 2.3
-        # degrees before a corner reaches the block, and the navigator's very
-        # first steering command asks for more.
+        # never move again -- it sat stationary with clear track ahead for the
+        # whole round. That is also why a start in the narrow corridor's middle
+        # band failed every time: with millimetres of lateral clearance the
+        # chassis may yaw only a couple of degrees before a corner reaches the
+        # block, and the navigator's very first steering command asks for more.
+        # See ``adr:0086-simulator-realism``.
         #
         # Grazing along a surface is what the real robot does to centre itself.
         # Scaling the step keeps the original guarantee intact -- driving
@@ -839,18 +841,18 @@ class SimulatedHardwareGateway:
     def _apply_lidar_sensor_model(self, ranges: np.ndarray) -> np.ndarray:
         """Turn raycast truth into what the C1 actually reports.
 
-        Three effects, all MEASURED 2026-09-14 against 5,763,600 real rays from
-        ``/scan`` over three of the 2026-09-13/14 rounds. Before this the model
-        was Gaussian noise plus a uniform 1% dropout, far cleaner than the real
-        sensor in exactly the 0.04-0.10 m band where ``contact_dist`` and the
-        escape gates live -- which is why the corpus could not arbitrate them.
+        Three effects, measured against real ``/scan`` rays over several
+        rounds. Before this the model was Gaussian noise plus a uniform dropout,
+        far cleaner than the real sensor in exactly the 0.04-0.10 m band where
+        ``contact_dist`` and the escape gates live -- which is why the corpus
+        could not arbitrate them. See ``adr:0086-simulator-realism``.
 
-        1. CHASSIS OCCLUSION. Two bands off the front corners, |bearing| 25-60
-           deg, where dropout and sub-floor returns sum to essentially 100% of
-           real rays: the sensor returns nothing usable there. 68.9% are
-           non-finite; the rest are reflections off the chassis itself, tightly
-           clustered (p50 0.0207 m, p5-p95 0.0108-0.0280). GEOMETRY, not noise,
-           so a uniform dropout rate cannot stand in for it.
+        1. CHASSIS OCCLUSION. Two bands off the front corners, |bearing| in the
+           configured range, where dropout and sub-floor returns sum to
+           essentially all real rays: the sensor returns nothing usable there.
+           Most are non-finite; the rest are reflections off the chassis itself,
+           tightly clustered at short range. GEOMETRY, not noise, so a uniform
+           dropout rate cannot stand in for it.
 
         2. NO LOWER CLIP AT ``LIDAR_MIN_RANGE``. The old code clamped to 0.045
            while the sector filter keeps ``r > min_valid_range_m`` = 0.044.
@@ -859,11 +861,11 @@ class SimulatedHardwareGateway:
            hardware, which discards them. Clipping at 0 lets that filter be
            exercised the way it is on the robot.
 
-        3. DROPOUT OUTSIDE THE BANDS at the measured 9.5% rather than a 1%
-           guess. The 25.4% whole-sweep figure is dominated by the bands and
-           must NOT be applied uniformly.
+        3. DROPOUT OUTSIDE THE BANDS at the measured rate rather than a guessed
+           one. The whole-sweep figure is dominated by the bands and must NOT be
+           applied uniformly.
 
-        Occlusion is applied AFTER noise deliberately: the 30 mm sigma is a
+        Occlusion is applied AFTER noise deliberately: the configured sigma is a
         wall-ranging figure and does not describe a surface 2 cm from the lens.
         """
         if self._lidar_noise_std > 0.0:
@@ -888,15 +890,13 @@ class SimulatedHardwareGateway:
                 self._lidar_occlusion_self_return_std_m,
                 ranges.shape,
             )
-            # Bounded at +-3 sigma, which is 0.0051-0.0363 m at the measured
-            # mean and spread, against a real envelope of 0.0047-0.0435. Derived
-            # from the two configured values rather than restated as literals.
+            # Bounded at +-3 sigma, derived from the two configured values
+            # rather than restated as literals, and set to stay below the
+            # min_valid_range_m floor.
             #
             # NOT clipped to LIDAR_MIN_RANGE (0.045): that sits ABOVE the
             # min_valid_range_m floor of 0.044, so it would hand the filter a
-            # valid 4.5 cm obstacle -- precisely the defect (2) removes. The
-            # bound has to stay below the floor, and the measured distribution
-            # already does.
+            # valid 4.5 cm obstacle -- precisely the defect (2) removes.
             span = 3.0 * self._lidar_occlusion_self_return_std_m
             self_return = np.clip(
                 self_return,
@@ -910,17 +910,17 @@ class SimulatedHardwareGateway:
         # Rays leave the SENSOR, not the chassis centre. `_state.x/y` is the
         # centre (kinematics: "(x, y) tracks the chassis centre") while the real
         # C1 sits LIDAR_MOUNT_X_OFFSET = 0.1222 m forward of it, flush with the
-        # bumper. Casting from the centre made simulated forward ranges ~12 cm
-        # longer than hardware would report -- larger than the whole 0.10 m
-        # contact zone the navigator gates on. Side rays against a parallel wall
-        # were unaffected, which is why blind corridor-WIDTH estimation kept
-        # working and hid this for so long.
+        # bumper. Casting from the centre made simulated forward ranges long by
+        # the mount offset -- larger than the whole contact zone the navigator
+        # gates on. Side rays against a parallel wall were unaffected, which is
+        # why blind corridor-WIDTH estimation kept working and hid this for so
+        # long.
         #
-        # Fixed 2026-08-21 together with the matching prediction in
-        # `navigation/localization.py`, which had the same omission. Either one
-        # alone would have desynchronised the estimator from its own sensor
-        # model: they were consistently wrong with each other, and only the
-        # hardware disagreed.
+        # The matching prediction in `navigation/localization.py` had the same
+        # omission; either one alone would have desynchronised the estimator from
+        # its own sensor model, since they were consistently wrong with each
+        # other and only the hardware disagreed. See
+        # ``adr:0080-lidar-mount-and-scan-plane``.
         sensor = Pose(self._state.x, self._state.y, self._state.yaw).sensor_origin(RobotSpecs.LIDAR_MOUNT_X_OFFSET)
         sensor_x = sensor.x
         sensor_y = sensor.y

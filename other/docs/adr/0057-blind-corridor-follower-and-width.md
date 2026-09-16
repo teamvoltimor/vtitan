@@ -185,3 +185,16 @@ mistake and it wrongly excluded the 0.10 arm.
 - `narrow_center_bias_m`: dropping the narrow bias to 0 widens the
   narrow-to-narrow arc 0.20 to 0.30 m and cuts that corner's steer demand 25.4 to
   17.6 deg at `L_eff = 0.095`.
+- Over 28 Open fixtures the classified widths were 100 percent correct across
+  14839 usable ticks, mean width error +0.03 cm.
+- Of 16 Obstacles fixtures, 9 blind collisions occurred in a corridor still held
+  at the narrow default before `min_samples` readings corrected it.
+- A matched seven-module sweep at equal worker count left the Obstacles failure
+  set unchanged (2026-08-29), verifying the centre-bias split.
+- The narrow prior is self-reinforcing: 390 consecutive drive commands at full
+  left lock ended 14 cm from a wall with the belief still reading 60 cm.
+- Measurement sanity: the same function returns None when the robot is skewed
+  24 deg against a wall, and 0.97 m when squarely placed in a 1 m corridor.
+- On `go_open_0002` a true 0.6 m corridor averaged 0.635 m yet peaked at a 1.229 m
+  single reading, which a consecutive-agreement rule accepted.
+- The centring gain shipped at 44.0 deg/m before the fix zeroed it.

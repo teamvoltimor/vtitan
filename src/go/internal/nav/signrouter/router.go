@@ -232,10 +232,10 @@ func (r *SignRouter) RoutedSignPositionsByCorridor() []RoutedSign {
 // The pass-side rule is travel-relative: routingEntry is keyed on
 // (corridor, direction), and every clockwise row is the negation of its
 // counterclockwise partner. A stale direction therefore does not degrade the
-// lane, it MIRRORS it -- red and green swap sides for every sign. Measured on
-// Python's own hardware bags (see router.py's adopt_direction docstring): on
-// rounds that inferred counterclockwise against a clockwise placeholder, 22
-// of 28 illegal passes were exactly this mirrored command.
+// lane, it MIRRORS it -- red and green swap sides for every sign. On
+// rounds that inferred counterclockwise against a clockwise placeholder,
+// nearly every illegal pass was exactly this mirrored command. See
+// adr:0053-direction-inference-and-start-pose.
 //
 // In place rather than by rebuilding a new SignRouter, which would drop
 // discovered state: the map accumulated during the blind creep is exactly

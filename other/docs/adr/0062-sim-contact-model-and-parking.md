@@ -99,6 +99,8 @@ state.)
   diagram.
 - 86bee47f 2026-09-14: `contact_slides_along_surfaces = true`, re-baselining the
   in-bay A/Bs.
+- The parking zone heading was nose-in before 2026-07-25; the reverse-reposition
+  guard for a target behind dates to 2026-07-11.
 
 ## Cross-references
 
@@ -128,3 +130,7 @@ state.)
   bearings are unchanged, so it is still exactly right for them. A smaller pad in
   ENTER still let the chassis clip a block edge in testing, because the
   WRO-regulation gap is only about 4 cm wider than the chassis per side.
+- Graze arithmetic: a 0.4 s graze, eight ticks at the measured 0.156 m/s, reached
+  the 59.4 mm displacement limit on its own.
+- The chassis penetrated a fin by 8.9 cm in 254 of 254 corpus scenarios while the
+  run reported `collided=False` and completed its laps.

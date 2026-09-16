@@ -161,6 +161,18 @@ are one story.
 - 72e7172b 2026-09-07: ship the measured turn radius 0.29 m.
 - 3b330a1c and 878b8485 2026-09-14: document the trade-offs and catalogue the
   rejected Ackermann diagram.
+- Feedforward fit is R^2 0.9999 over three points at duty 0.5/0.75/0.9; the duty
+  deadband starts at 0.200 and `max_rpm` 348 at duty 1.0. The stale 86 counts/rev
+  calibration read the drive ceiling as about 0.45 m/s against the measured 0.58.
+- SpeedEstimator window: bench data of 2026-08-28 at 86 counts/rev and a 13.6 rpm
+  target averages about 0.39 counts per 20 ms tick (over 100 percent relative
+  swing), so the 0.1 s window averages about 1.95 counts and makes a +-1 count
+  about a 50 percent rather than a >100 percent swing.
+- Servo twitch investigation: the twitching persisted under a single command with
+  no PWM rewrites and on a fresh battery, ruling out both command traffic and
+  supply sag.
+- The old EN-first BTS7960 ordering produced brief real motor kicks on both a cold
+  boot and a warm reconnect.
 
 ## Cross-references
 

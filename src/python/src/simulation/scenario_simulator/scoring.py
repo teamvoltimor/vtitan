@@ -279,8 +279,9 @@ class PassSideScorer:
             # Only the component of travel pointing AT the pillar moves it. The
             # magnitude of travel does not: a chassis sliding past a pillar it
             # is brushing covers distance without pushing it anywhere, and
-            # counting that as displacement made a 0.4 s graze -- eight ticks at
-            # the measured 0.156 m/s -- reach the 59.4mm limit on its own.
+            # counting that as displacement made a brief graze at creep speed
+            # reach the 59.4mm limit on its own. See
+            # ``adr:0062-sim-contact-model-and-parking``.
             sign = self._track.obstacle_center(index)
             if sign is None:
                 continue

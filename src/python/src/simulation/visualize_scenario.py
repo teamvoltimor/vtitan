@@ -232,9 +232,10 @@ def _parse_args() -> argparse.Namespace:
         "--slide",
         action="store_true",
         help="let a blocked translation slide ALONG the contacted surface instead of being "
-        "scaled to nothing. Without it the chassis advances 0.125 mm per tick at 20 deg of "
-        "incidence where a rubbing one gains 7.05 mm. Needs --recover to have any effect, "
-        "and every contact-dependent baseline in the repo was measured WITHOUT it.",
+        "scaled to nothing. Without it the chassis barely advances at a shallow angle where a "
+        "rubbing one would keep moving (see adr:0086-simulator-realism). Needs --recover to "
+        "have any effect, and every contact-dependent baseline in the repo was measured "
+        "WITHOUT it.",
     )
     parser.add_argument(
         "--in-bay",
@@ -299,7 +300,8 @@ class _RunOptions:
     #
     # `localize` does NOT, and only in this script. The headless battery keeps
     # it on because it is scoring runs, where ground-truth pose flatters every
-    # number (see ScenarioSimulator's 2026-08-01 note). This one is a
+    # number (see ScenarioSimulator's fidelity note and
+    # adr:0086-simulator-realism). This one is a
     # microscope: it draws the plan and the pose in the same frame, so with
     # localization on, state-estimation error is superimposed on the manoeuvre
     # being read, and the two are indistinguishable by eye. Off by default
@@ -485,10 +487,10 @@ def main() -> None:
         # Seeded from the scenario's own id, as every headless sweep does, not
         # from a fixed 0: the seed drives LIDAR noise, so a fixed 0 here meant a
         # run watched in RViz was not the run the sweep had scored. The in-bay
-        # exit itself no longer turns on it -- since the wall ratchet landed
-        # 2026-09-04 it is blind and geometric, taking 127 ticks in 254 of 256
-        # corpus scenarios with no spread at all -- but what happens after the
-        # handover still does, and that is where its 46 remaining failures are.
+        # exit itself no longer turns on it -- since the wall ratchet landed it
+        # is blind and geometric, with almost no spread across the corpus -- but
+        # what happens after the handover still does. See
+        # adr:0086-simulator-realism.
         scenario = NamedScenario(
             label=path.name,
             metadata=metadata,

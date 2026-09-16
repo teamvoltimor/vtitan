@@ -96,6 +96,21 @@ a missed one leaves the LIDAR collision controller active. This is carried into
   latency (54.5 percent to 11.0 percent, against hardware's 11.6 percent).
 - c9358428 2026-09-15: range is not the limit; the residual is zero-mean bearing
   scatter (see 0058).
+- Real detector median detection range is 0.70 m against the emulator's 10 m far
+  clip; the range model alone left the emulated camera carrying a detection on about
+  54.5 percent of ticks against hardware's 11.6 percent over 125 bags, and 15 Hz
+  against the 20 Hz loop explains about a quarter of that gap.
+- Colour flip: 111 of 2,162 detections carry the opposite colour (5.1 percent), and
+  the real errors are concentrated (most pillars near 0 percent, one at 47 percent)
+  where the model is i.i.d; the shipped `vision_color_flip_rate = 0.0` is unmeasured
+  and contradicts this.
+- Bearing scatter is zero-mean with sigma 0.232 rad (13.3 deg) and IQR -9.36 to
+  +8.59 deg over 2,588 detections; at 1.5 m that is about 0.35 m of lateral miss,
+  wider than `association_dist_m` 0.25 and `detection_match_dist_m` 0.30, while the
+  pose estimate alone carried about 1.7 deg.
+- Confidence is calibrated at the median only: across 3,315 real detections p10 is
+  0.515 and p90 0.917, against p10 0.477 and p90 0.942 from evenly-spaced sampler
+  levels.
 
 ## Cross-references
 

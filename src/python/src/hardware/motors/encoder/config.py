@@ -53,12 +53,9 @@ class EncoderConfig(HardwareBaseSettings, HardwareMotorsEncoder):
     The speed PID's feedforward is ``offset + slope * setpoint_rpm``, and this
     is the offset. Without it the feedforward is a line through the origin
     while the real drivetrain is not, so it under-commands at every speed and
-    the integrator absorbs the difference.
-
-    Measured 2026-08-29 on this chassis, loaded, at counts_per_rev=60:
-
-        rpm = 434.6 * duty - 86.7      (R^2 0.9999, 3 points 0.5/0.75/0.9)
-        -> deadband at duty 0.200, and max_rpm 348 at duty 1.0
+    the integrator absorbs the difference. See
+    ``adr:0076-drivetrain-and-steering-hardware`` for the bench derivation of
+    the shipped value.
 
     Defaults 0.0 so an unconfigured motor keeps the old proportional-only
     behaviour rather than silently gaining an offset it was never tuned with.
@@ -67,10 +64,10 @@ class EncoderConfig(HardwareBaseSettings, HardwareMotorsEncoder):
     a commanded stop would hold the deadband duty and the chassis would creep."""
 
     pid_kp: float = 0.010
-    """Closed-loop speed PID proportional gain, tuned on hardware 2026-07-25."""
+    """Closed-loop speed PID proportional gain, bench-tuned on hardware."""
 
     pid_ki: float = 0.020
-    """Closed-loop speed PID integral gain, tuned on hardware 2026-07-25."""
+    """Closed-loop speed PID integral gain, bench-tuned on hardware."""
 
     pid_kd: float = 0.0
     """Closed-loop speed PID derivative gain (unused)."""

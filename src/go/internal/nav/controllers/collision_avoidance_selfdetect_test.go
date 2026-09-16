@@ -53,11 +53,10 @@ func TestComputeRearClearance_RealWallBeyondTheChassisIsStillDetected(t *testing
 
 // TestComputeRearClearance_ChassisReturnIsNotReportedAsAWall ports
 // test_a_rear_return_inside_the_chassis_is_the_robot_not_a_wall: the defect
-// that suppressed every escape for a whole hardware round
-// (run_20260906_192424) -- a rear return well inside the chassis boundary
-// (0.125 m, against a 0.2722 m rear face) must not become the rear sector's
-// minimum via the uniform self-detection scalar (which sits at 0.08 m,
-// entirely inside the body at this bearing).
+// that suppressed every escape for a whole hardware round -- a rear return
+// well inside the chassis boundary must not become the rear sector's
+// minimum via the uniform self-detection scalar (which sits entirely inside
+// the body at this bearing). See adr:0056-raw-and-masked-scan.
 func TestComputeRearClearance_ChassisReturnIsNotReportedAsAWall(t *testing.T) {
 	t.Parallel()
 

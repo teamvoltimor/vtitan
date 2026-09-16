@@ -40,6 +40,19 @@ never a replacement. The mount is re-measured after any remount or cable work.
 The RPLIDAR C1 runs Express Scan Dense Mode, not classic SCAN; classic-mode range
 decode was never validated on this hardware and read 2 to 4 times too large.
 
+Driver protocol (hardware 2026-08-31): a RESET reboots the C1 core, so the scan
+request must wait about 1 s and under 2 ms it is silently ignored. Express Scan is
+ignored until the motor actually spins, needing an about 800 ms spin-up; the HQ
+motor command 0xA8 at 600 RPM is what spins it, while the 0xF0 PWM command left it
+unresponsive. The Dense stream emits one scan then pauses about 2.1 s, so the 4 s
+read timeout is set above that gap. The stream sets S=true exactly once, so scan end
+is detected from the per-packet start-angle wrap rather than a second S flag; a scan
+closed on the first wrap drop returns only 18-20 of about 300 points near the sweep
+end. One corrupt Dense byte fails its checksum and misaligns every later fixed-size
+read, so `readDensePacket` resyncs on the 0xA? 0x5? nibble pair. Classic mode's
+angle decode saw only a coarse front-placement check and its range decode was never
+per-bearing verified on this C1, which is why Dense is preferred.
+
 ## Consequences
 
 - Forward ranges are no longer about 12 cm long, and clearance zones are honest.
@@ -99,3 +112,6 @@ decode was never validated on this hardware and read 2 to 4 times too large.
   the offset and pulling the fit along the corridor axis; the simulator raycast
   from the centre too, so the two agreed and the error was invisible in sim while
   present on hardware.
+- The Go gateway repeated the Python mount bug: it cast rays from the body centre
+  until 2026-09-06, biasing every return by the 12.2 cm mount offset, before moving
+  to the 0.1222 m mount.

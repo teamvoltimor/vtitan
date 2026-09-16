@@ -128,9 +128,10 @@ class LidarLocalizer:
     def last_fit_cost(self) -> float | None:
         """Mean clipped squared residual (m^2) of the last accepted match.
 
-        Diagnostic only. Around 0.010 on a healthy hardware run (measured
-        median over two clean 3-lap runs, 2026-09-07), 0.043 on the run whose
-        estimate had lost the track.
+        Diagnostic only. A healthy run sits near a small floor while a run whose
+        estimate has lost the track sits well above it; see
+        ``adr:0084-localizer-divergence-and-relocalization`` for the measured
+        values.
         """
         return self._last_fit_cost
 
@@ -227,11 +228,10 @@ class LidarLocalizer:
         # a K-turn's rapid reorientation, when the cost landscape shifts
         # quickly between ticks) can become the new seed and then propagate
         # forever -- nothing else in this call chain ever re-checks it.
-        # Confirmed on real hardware 2026-08-04: a CCW run's position snapped
-        # from (0.86, ...) to (-0.12, ...) in under a second during a k_turn
-        # escape (real motion at that speed is ~1.6cm/tick, see
-        # ros2_hardware_gateway.py), then stayed at that physically
-        # impossible (off-track, x < 0) position for the rest of the run.
+        # Confirmed on real hardware: a run's position snapped to an off-track
+        # pose during a k_turn escape in under a second and then stayed there
+        # for the rest of the run. See
+        # ``adr:0084-localizer-divergence-and-relocalization``.
         #
         # point_in_free_space rejects both the outer boundary AND the inner
         # block: a match landing inside the inner block is exactly as
@@ -279,13 +279,12 @@ class LidarLocalizer:
         """Mean clipped squared residual (m^2) at one pose, over real returns only.
 
         Deliberately not the search's own cost. ``sanitize_lidar_ranges``
-        substitutes max range for every no-return ray, and on hardware that is
-        23-30% of the sweep -- rays carrying no information about where the
+        substitutes max range for every no-return ray, and on hardware that is a
+        large share of the sweep -- rays carrying no information about where the
         robot is, each contributing a full clipped residual whatever the pose.
         Included, they add a large offset that swamps the very difference this
-        number exists to detect: measured over the three runs of 2026-09-07,
-        counting them compresses the gap between a healthy fit and a lost one
-        from 8x (0.006 vs 0.05) to 2x (0.023 vs 0.051).
+        number exists to detect. See
+        ``adr:0084-localizer-divergence-and-relocalization``.
 
         The search's cost is left alone. It only ever compares candidates
         against each other on one sweep, where a constant offset cancels; this
@@ -318,10 +317,10 @@ class LidarLocalizer:
         seeded: it scores every free-space candidate on the track against the
         same cost the local search uses, so the answer does not depend on how
         wrong the estimate had become. Yaw is still taken as given -- it is
-        corrected against the walls independently, upstream of this class.
-        Measured on run_20260907_205830, which the local search lost for 48 s:
-        this recovered a pose with a residual 10-15x lower than the latched
-        one at every sampled tick, and none of its beams landed off-track.
+        corrected against the walls independently, upstream of this class. On a
+        run the local search had lost, this recovered a pose with a large drop
+        in residual and none of its beams off-track; see
+        ``adr:0084-localizer-divergence-and-relocalization``.
 
         The speed guard is deliberately bypassed. It bounds motion between
         consecutive estimates, and this is not motion -- it is the correction
@@ -334,12 +333,12 @@ class LidarLocalizer:
         mean the WALL MODEL is wrong -- and during blind operation, while the
         corridor widths are still being estimated, it usually does. A global
         search against a wrong model finds the best explanation of a track that
-        is not there, and jumping to it destroys a pose that was fine. Measured
-        on the balanced-128 Open sweep: without this check the sweep went
-        128/128 -> 127/128 (scenario 94, 1000-600-1000-1000 west/clockwise,
-        turned into a reverse-run) and one case lost 17 s. A wrong model raises
-        the floor for every candidate, so the global winner cannot beat the
-        local one by much -- which is exactly the signal this test reads.
+        is not there, and jumping to it destroys a pose that was fine. On the
+        balanced-128 Open sweep, dropping this check turned one clean case into
+        a reverse-run; see ``adr:0084-localizer-divergence-and-relocalization``.
+        A wrong model raises the floor for every candidate, so the global winner
+        cannot beat the local one by much -- which is exactly the signal this
+        test reads.
         """
         informative = ranges < RobotSpecs.LIDAR_MAX_RANGE
         gx, gy = self._free_space_candidates()
@@ -394,15 +393,14 @@ class LidarLocalizer:
         """Return True when ``best_xy`` implies a physically impossible speed.
 
         A cost/margin-based ambiguity guard (rejecting a winning candidate
-        whose cost margin over its runner-up was too thin) was tried,
-        committed, and reverted 2026-08-05 after replaying it against 22 real
-        hardware runs (846 sampled ticks): confirmed-bad and genuinely correct
-        matches had statistically indistinguishable cost and margin
-        distributions on real, noisy scans (median cost ~25-26 either way,
-        median margin ~0.02% either way) -- the signal the guard depended on
-        does not exist on real data, only in the clean simulator. No threshold
-        on it can work; the search's own cost surface cannot tell a real
-        correction from an ambiguous flip.
+        whose cost margin over its runner-up was too thin) was tried, committed,
+        and reverted: confirmed-bad and genuinely correct matches had
+        statistically indistinguishable cost and margin distributions on real,
+        noisy scans, so the signal the guard depended on does not exist on real
+        data, only in the clean simulator. No threshold on it can work; the
+        search's own cost surface cannot tell a real correction from an
+        ambiguous flip. See
+        ``adr:0084-localizer-divergence-and-relocalization``.
 
         This guard instead bounds physical plausibility directly: how far the
         candidate is from ``prior_xy`` against how much time actually passed

@@ -18,17 +18,17 @@
 //
 // # Do not re-add a dead zone on the turn comparison
 //
-// Tried and reverted 2026-08-02: a dead zone on the `left > right` test,
-// holding straight instead of committing to a side when the two were within a
-// few centimeters, meant to filter the occasional noisy scan. Even sized to
-// real LIDAR noise (~3 cm) it regressed multiple blind Open Challenge fixtures
-// into the 180 s round limit or left them oscillating near a corner: in a
-// narrow (0.6 m) corridor the asymmetry signal grows slowly approaching a
-// turn, so any dead zone eats the same margin the back-off branch depends on,
-// disproportionately to the noise it filtered.
+// A dead zone on the `left > right` test, holding straight instead of
+// committing to a side when the two were within a few centimeters, was tried
+// and reverted. Even sized to real LIDAR noise it regressed multiple blind
+// Open Challenge fixtures into the round limit or left them oscillating near
+// a corner: in a narrow corridor the asymmetry signal grows slowly
+// approaching a turn, so any dead zone eats the same margin the back-off
+// branch depends on, disproportionately to the noise it filtered.
 //
 // The wrong-side steer it was meant to fix is now largely absorbed by the
 // navigator's heading-aware ReplacePath reseek instead. Do not re-attempt one
 // here without re-measuring against the full Open Challenge sim battery, not
-// just the fixture that motivates it.
+// just the fixture that motivates it. See
+// adr:0057-blind-corridor-follower-and-width.
 package corridorfollower

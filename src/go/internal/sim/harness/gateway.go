@@ -305,10 +305,10 @@ func (g *SimHardwareGateway) lenScan() int {
 // Pose.sensor_origin(LIDAR_MOUNT_X_OFFSET) -- and applies the Gaussian noise
 // + invalid-ray dropout the Python oracle models.
 //
-// Casting from the body centre instead (which this did until 2026-09-06) puts
-// every return 12.2 cm further away than the real sensor would see it, and
-// makes the LIDAR scan-matcher, which predicts ranges FROM the mount offset,
-// match against a sensor that does not exist.
+// Casting from the body centre instead puts every return further away than
+// the real sensor would see it, and makes the LIDAR scan-matcher, which
+// predicts ranges FROM the mount offset, match against a sensor that does
+// not exist. See adr:0080-lidar-mount-and-scan-plane.
 func (g *SimHardwareGateway) refreshSensors() {
 	sensorX := g.state.X + g.cfg.LidarMountXOffsetM*math.Cos(g.state.Yaw)
 	sensorY := g.state.Y + g.cfg.LidarMountXOffsetM*math.Sin(g.state.Yaw)

@@ -222,8 +222,8 @@ func TestReplacePath_ReseeksNearestWaypoint(t *testing.T) {
 // TestReplacePath_HeadingBreaksNearTie covers the heading re-rank: near a
 // corner several waypoints sit at almost the same distance while pointing in
 // very different directions, and picking purely by position can hand back a
-// point past the turn -- measured on hardware as a ~193 deg demanded swing
-// where ~90 deg would do.
+// point past the turn, demanding a far larger swing than finishing the corner
+// needs. See adr:0057-blind-corridor-follower-and-width.
 func TestReplacePath_HeadingBreaksNearTie(t *testing.T) {
 	t.Parallel()
 

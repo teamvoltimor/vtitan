@@ -60,11 +60,12 @@ func (n *Navigator) applySignRouting(
 	// this frame may be what reveals the sign about to be routed around, so it
 	// has to land before candidate selection rather than after it."
 	//
-	// Until 2026-09-06 this ran ONLY inside blindCreep, so Go stopped looking
-	// at the camera the moment the travel direction settled -- a few seconds
-	// into the round. A genuinely blind run therefore confirmed 0-1 of its 4-6
-	// signs and drove into the rest. Python ingests every tick, for the whole
-	// round, from inside the router.
+	// This once ran ONLY inside blindCreep, so Go stopped looking at the
+	// camera the moment the travel direction settled -- a few seconds into
+	// the round -- and a genuinely blind run confirmed only a fraction of its
+	// signs before driving into the rest. Python ingests every tick, for the
+	// whole round, from inside the router. See
+	// adr:0058-sign-discovery-range-and-barrier-belief.
 	if n.discovery != nil {
 		n.discovery.Observe(observations, here)
 		n.discovery.Publish()

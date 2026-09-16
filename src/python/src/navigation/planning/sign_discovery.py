@@ -354,7 +354,7 @@ def _detection_to_world(
     #
     # RANGE_SCALE corrects a pinhole that under-reads, but the correction is
     # only valid paired with the camera time alignment. Correcting the range
-    # alone DOUBLES the lateral error, because the residual bearing error is
+    # alone worsens the lateral error, because the residual bearing error is
     # angular and a longer ray lengthens the lateral miss in proportion. Lateral
     # is what the router acts on; fix the bearing error first. See
     # RANGE_SCALE's docstring and
@@ -377,13 +377,13 @@ def _detection_to_world(
 
     # LIDAR range fusion. The ungated nearest-ray version was measured to make
     # the estimate WORSE: a single ray at the camera's bearing is usually a wall
-    # behind the sign, which is always FURTHER, so it was half the outward bias.
-    # The shipped mechanism requires a free-standing cluster of pillar width
-    # that agrees with the calibrated pinhole, so it can only corroborate a
-    # range rather than override it. The cluster-shape test alone discriminated
-    # pillar from wall near chance, so it is only used paired with the
-    # agreement test. Kept rather than deleted because the idea is sound and
-    # only the ungated implementation failed. See
+    # behind the sign, which is always FURTHER, so it biased the estimate
+    # outward. The shipped mechanism requires a free-standing cluster of pillar
+    # width that agrees with the calibrated pinhole, so it can only corroborate
+    # a range rather than override it. The cluster-shape test alone did not
+    # separate pillar from wall, so it is only used paired with the agreement
+    # test. Kept rather than deleted because the idea is sound and only the
+    # ungated implementation failed. See
     # ``adr:0058-sign-discovery-range-and-barrier-belief``.
     # Length, not truthiness: the declared type is Sequence[float], and a
     # numpy array is one -- `and array` raises "truth value is ambiguous"

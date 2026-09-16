@@ -131,3 +131,12 @@ the slowest feed's scan period (LIDAR at 10 Hz).
   to 127/128 (scenario 94 turned into a reverse-run) and one case lost 17 s.
 - `stale_timeout_sec`: past the timeout the gateway reports the sensor
   unavailable, so the navigator degrades safely instead of acting on frozen data.
+- On hardware 23 to 30 percent of the sweep is fabricated max-range no-returns;
+  counting them compresses the healthy-versus-lost fit-cost gap from 8x (0.006
+  against 0.05) to 2x (0.023 against 0.051).
+- The cost/margin ambiguity guard was reverted on 2026-08-05 after replaying
+  against 22 real hardware runs (846 sampled ticks): confirmed-bad and correct
+  matches had median cost about 25 to 26 and median margin about 0.02 percent
+  either way.
+- The global rescue of run_20260907_205830 recovered a 48 s pose divergence with
+  a residual 10 to 15x lower at every sampled tick and no beams off-track.

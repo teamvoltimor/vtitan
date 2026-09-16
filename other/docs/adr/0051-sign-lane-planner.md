@@ -231,3 +231,20 @@ centre bias the corridor width selected (ADR 0028). It must never flatten that.
   wrong-sense targets carry deform p50 0.554 m against 0.031 m for right-sense
   (18x), on a quantity that was never applied; the lane is the candidate that acts
   on that wish.
+- Holding full offset from activation and fading only on the way out was measured
+  over the 256 corpus at ramps 0.20/0.40/0.70 m: byte-identical without the depth
+  pin (182 collisions at every value) and slightly worse with it (in-time 137 to
+  135); the lateral clamp binds first, so the ramp has nothing to give.
+- Widening the `_in_lane_span` lateral test as well (to the far corner-square edge,
+  gated to a sign's plateau depth) was catastrophically worse on the full 256
+  corpus and reverted; at that depth it pulls in the neighbouring corridor's own
+  arc points.
+- `split_overlap` traced on a WEST corridor holding three specs: a plateau at
+  2.15..2.65 lateral 0.781 contained a neighbour's endpoints at 2.22 and 2.24
+  lateral 0.325, and the plan passed the sign on that dip.
+- `_prefer_committed`: measured over the 256 corpus, 28 of 229 collisions had the
+  winner change during the fatal approach.
+- Inverting `activation_dist` and `passed_dist` scored 256 of 256 collisions with
+  zero laps completed on the corpus, up from 209.
+- Disabling `PinCornerGuard` restored the pin and cost 11 wall collisions in the
+  sweep.

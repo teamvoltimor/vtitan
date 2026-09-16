@@ -34,18 +34,16 @@ class SpeedEstimator:
     Accumulates counts/dt over a minimum window before computing a rate, then
     applies light exponential smoothing to what's left. A single caller tick
     (e.g. a ~20ms PID period) is not enough window on its own at low RPM and
-    coarse counts_per_rev: bench data at 86 counts_per_rev / 13.6rpm target
-    (2026-08-28) averages ~0.39 counts per ~20ms tick, so a per-tick rate is
-    computed from a raw 0-vs-1 count difference -- a >100% relative swing
-    that smoothing alone cannot remove, since it damps a noisy signal rather
-    than fixing the signal's own resolution. Widening the window to
-    min_window_s trades responsiveness (a real lag of up to that long between
-    a real speed change and it showing up here) for a much lower noise floor
-    (at the same operating point, a 0.1s window averages ~1.95 counts, so a
-    +-1 count difference is a ~50% swing instead of >100%). Default chosen as
-    a reasoned middle ground, NOT live-verified against real oscillation
-    behavior -- re-check via base.py's "PID step" debug log after any
-    counts_per_rev/target-rpm change before trusting it.
+    coarse counts_per_rev: a per-tick rate would be computed from a raw
+    one-or-two-count difference, a relative swing smoothing alone cannot
+    remove, since it damps a noisy signal rather than fixing the signal's own
+    resolution. Widening the window to min_window_s trades responsiveness (a
+    real lag of up to that long between a real speed change and it showing up
+    here) for a much lower noise floor. Default chosen as a reasoned middle
+    ground, NOT live-verified against real oscillation behavior -- re-check
+    via base.py's "PID step" debug log after any counts_per_rev/target-rpm
+    change before trusting it. See
+    ``adr:0076-drivetrain-and-steering-hardware``.
     """
 
     def __init__(
@@ -149,12 +147,10 @@ class PIDController:
 
         The offset exists because a real drivetrain has a DEADBAND: below some
         duty the motor does not turn at all, so duty is affine in rpm rather
-        than proportional to it. Measured 2026-08-29 on this chassis, loaded:
-
-            rpm = 434.6 * duty - 86.7    ->    duty = 0.200 + rpm / 434.6
-
-        A pure ``gain * setpoint`` term cannot represent that, and the error it
-        leaves is what the integrator has to absorb on every tick.
+        than proportional to it. A pure ``gain * setpoint`` term cannot
+        represent that, and the error it leaves is what the integrator has to
+        absorb on every tick. See
+        ``adr:0076-drivetrain-and-steering-hardware`` for the bench fit.
 
         Returns 0.0 for a zero setpoint rather than the offset. Without that,
         commanding a stop would still ask for the deadband duty and the chassis

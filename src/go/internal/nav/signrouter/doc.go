@@ -8,10 +8,10 @@
 // -- a TRAVEL-RELATIVE rule: since the vehicle's right is the outer wall
 // driving counterclockwise and the inner square driving clockwise, the
 // same rule points at opposite world directions between the two, and
-// cannot be evaluated without knowing the travel direction. Corrected
-// 2026-09-03 (Python 879198f7) after two months of an absolute reading
-// (red always outward) that was right for counterclockwise and backwards
-// for every clockwise round.
+// cannot be evaluated without knowing the travel direction. It once read as
+// an absolute rule (red always outward) that was right for counterclockwise
+// and backwards for every clockwise round. See
+// adr:0059-pass-side-travel-relative-and-scorer-independence.
 //
 // # Scope and deviations from the Python source
 //

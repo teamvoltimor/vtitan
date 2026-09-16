@@ -81,9 +81,9 @@ def start_pose(
             purpose. The Obstacles Challenge is the one that does: its assumed
             start is computed from the all-narrow prior at the WIDE magnitude,
             so pinning that magnitude leaves the pose bit-identical to what its
-            scenarios were tuned against. Verified 2026-08-29: its failure set
-            is unchanged by the split, over a matched sweep of the same seven
-            test modules at the same worker count.
+            scenarios were tuned against. A matched sweep of the same test
+            modules leaves its failure set unchanged by the split (see
+            ``adr:0057-blind-corridor-follower-and-width``).
 
             Obstacles' assumed start therefore does NOT sit on its own planned
             centreline, which uses OBSTACLES_CENTER_BIAS_M; that inconsistency

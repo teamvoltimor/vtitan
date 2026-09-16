@@ -24,8 +24,8 @@ import (
 // different directions, and the robot's heading at that instant does not
 // always match the path's local direction there yet. Picking purely by
 // position can then hand WaypointController a point past the turn,
-// demanding a correction far larger than finishing the corner needs --
-// measured on real hardware as a ~193 deg swing where ~90 deg would do.
+// demanding a correction far larger than finishing the corner needs. See
+// adr:0057-blind-corridor-follower-and-width.
 // Passing a non-nil pose.Yaw re-ranks the near-tied-by-distance candidates
 // (ReplanHeadingTieMarginM) by heading agreement instead. Pass nil where
 // the robot has been tracking a path very similar to the new one, where
@@ -290,9 +290,8 @@ func (n *Navigator) handleWaypointWrap(pose trackmodel.Pose) bool {
 // pass-by rescue as every other one. Stopping at index+1 < len left
 // entering the reached-distance circle as the only way past the final
 // point, and a robot running wider than that radius never gets past it,
-// never wraps, and so never completes a lap: measured on the 2026-08-06
-// counterclockwise round as a robot circling the mat for seven minutes with
-// the lap count stuck at zero.
+// never wraps, and so never completes a lap. See
+// adr:0053-direction-inference-and-start-pose.
 //
 // The BEHIND test is an Obstacles-only extension (gated on the router's
 // presence and StaleTargetRescue): a robot cutting a corner sharply enough

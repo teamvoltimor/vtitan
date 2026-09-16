@@ -87,9 +87,9 @@ func robotDepthOf(robotPos *trackmodel.Waypoint, wantX bool) *float64 {
 // in the corridor. PinHeadingGuard additionally releases the pin once the
 // robot's heading has drifted more than PinHeadingGuardRad from where it
 // stood when the pin engaged on this sign -- the position guard alone
-// missed a corner-arc case where yaw rotated 67deg while position still
-// read squarely in-corridor. See pin_depth's Python docstring for both
-// measured regressions.
+// missed a corner-arc case where yaw rotated away while position still
+// read squarely in-corridor. See
+// adr:0051-sign-lane-planner for both measured regressions.
 func PinDepth(
 	waypointDepth, signDepth float64,
 	robotDepth *float64,

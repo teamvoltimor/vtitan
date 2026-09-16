@@ -14,9 +14,8 @@
 // detector, which requires a geometric crossing of the start/finish line AND
 // a waypoint wrap since the last confirmed lap. Requiring both is what stops
 // overshoot, a stuck loop on the line, or a waypoint skip near the finish
-// from counting twice -- failure modes with real history on this robot (see
-// the 2026-08-06 counterclockwise round, where the lap count stuck at zero
-// for seven minutes).
+// from counting twice -- failure modes with real history on this robot. See
+// adr:0053-direction-inference-and-start-pose.
 //
 // # Time is injected
 //

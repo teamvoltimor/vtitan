@@ -47,10 +47,10 @@ func uniformWidths(width float64) map[trackmodel.Section]float64 {
 // _sensor_scan.
 //
 // Cast from the LIDAR, which sits LidarMountXOffsetM forward of the chassis
-// center, NOT from the center. Casting from the center is what the Python
-// tests did until 2026-08-21, and it agreed with both the simulator and the
-// localizer because all three shared the omission -- so the suite passed
-// while the modeled sensor sat 12.2 cm behind the real one.
+// center, NOT from the center. Casting from the center is what the earlier
+// tests did, and it agreed with both the simulator and the localizer because
+// all three shared the omission -- so the suite passed while the modeled
+// sensor sat behind the real one. See adr:0080-lidar-mount-and-scan-plane.
 func sensorScan(walls *trackmodel.TrackWalls, x, y, yaw float64, angles []float64) []float64 {
 	cfg := localization.DefaultConfig()
 	return walls.Raycast(
@@ -153,8 +153,9 @@ func TestRecoversPoseAcrossCorridorWidths(t *testing.T) {
 }
 
 // TestRejectsResultOutsideTrackBounds covers the free-space guard against the
-// real 2026-08-04 failure: a match snapping off-track during a k-turn escape
-// and staying there for the rest of the run.
+// real failure where a match snapped off-track during a k-turn escape and
+// stayed there for the rest of the run. See
+// adr:0084-localizer-divergence-and-relocalization.
 func TestRejectsResultOutsideTrackBounds(t *testing.T) {
 	t.Parallel()
 

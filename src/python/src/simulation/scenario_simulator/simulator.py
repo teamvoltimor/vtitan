@@ -121,20 +121,20 @@ class ScenarioSimulator(PassSideScorer):
     for ground-truth pose, which is still useful as a control: the difference
     between the two runs is a direct measure of what state estimation costs.
 
-    The default was ground truth until 2026-08-01, and that flattered every
-    number the sim produced. A robot handed perfect odometry is being asked an
-    easier question than the one it faces on a track, and the gap only shows up
-    where it is expensive to find. Defaults now match the hardware; make the
-    sim easier deliberately, not by omission.
+    The default was ground truth until it was found to flatter every number the
+    sim produced. A robot handed perfect odometry is being asked an easier
+    question than the one it faces on a track, and the gap only shows up where
+    it is expensive to find. Defaults now match the hardware; make the sim
+    easier deliberately, not by omission. See ``adr:0086-simulator-realism``.
 
     ``blind`` is on by default too, for the same reason: a round the robot
     drives knowing the corridor widths is not the round it will actually be
-    given. It withholds the start pose as well — see ``known_start`` below,
+    given. It withholds the start pose as well -- see ``known_start`` below,
     which is the arm that hands it back. A blind run seeds the BELIEVED start
     from ``assumed_start_conditions`` (a fixed guess, always SOUTH) while the
     chassis is physically placed at the scenario's true start, exactly as
-    hardware behaves. On 2026-08-01 that gap is what a full afternoon of
-    on-track debugging turned out to be chasing.
+    hardware behaves. That gap was the substance of a long on-track debugging
+    session. See ``adr:0053-direction-inference-and-start-pose``.
 
     What blind does NOT withhold is error in the placement itself: the believed
     start is a fixed guess, not a *perturbed* one, so the robot is wrong in a
@@ -156,14 +156,14 @@ class ScenarioSimulator(PassSideScorer):
     pose from the true start instead of ``assumed_start_conditions``. It exists
     to isolate one variable, because blind bundles three (layout, direction,
     start pose) and the middle arm of ``blind-source`` cannot separate them.
-    Measured 2026-08-16: the believed-vs-true offset in ordinary blind is a
-    STABLE rigid rotation -- exactly the section-relabelling angle (assumed
-    start is always SOUTH, so a NORTH start reads 180 deg, EAST 90, WEST -90),
-    holding to within 1.4 deg across a whole run. Since the track is
+    The believed-vs-true offset in ordinary blind is a STABLE rigid rotation --
+    exactly the section-relabelling angle (assumed start is always SOUTH, so a
+    NORTH start reads 180 deg, EAST 90, WEST -90) -- holding across a whole run.
+    Since the track is
     4-fold symmetric and the pass-side rule is rotation-invariant, that
     rotation *should* be harmless; this arm is how to find out whether some
     part of the pipeline is nonetheless mixing the believed frame with
-    absolute truth.
+    absolute truth. See ``adr:0053-direction-inference-and-start-pose``.
 
     ``blind`` covers what the robot knows about the *track*. ``sensor_errors``
     covers what it knows about *itself* — where it was placed and which way it
@@ -212,12 +212,12 @@ class ScenarioSimulator(PassSideScorer):
         # control arm. Either of blind or sensor_errors forces it True, so
         # passing False alongside them is silently ignored rather than honoured.
         # The DEFAULT is now the measured hardware error budget, not a perfect
-        # sensor. Until 2026-09-14 this read `SensorErrors()` -- every field
+        # sensor. It used to read `SensorErrors()` -- every field
         # 0.0 -- and nothing in the corpus ever passed an argument, so the whole
         # suite ran on a PERFECT pose and a PERFECT start placement. That is the
         # easy side of every question that depends on the pose estimate, and it
         # systematically flatters any threshold whose job is to rescue a plan
-        # that has already gone wrong.
+        # that has already gone wrong. See ``adr:0086-simulator-realism``.
         #
         # Set the simulation.toml sensor_* keys to 0.0 to recover the old
         # idealised behaviour. An explicit `sensor_errors` argument still wins,
@@ -240,11 +240,12 @@ class ScenarioSimulator(PassSideScorer):
         # over the exact start pose and section, so the robot began every run
         # knowing precisely where it was -- a luxury the hardware does not have.
         # There it falls back to assumed_start_conditions, a fixed guess of the
-        # canonical section at (1.50, 0.25); place the robot anywhere else and it
-        # plans a lap from a position a metre from the truth. On 2026-08-01 that
-        # was an afternoon of on-track debugging, and no simulated scenario could
+        # canonical section; place the robot anywhere else and it
+        # plans a lap from a position a metre from the truth. That
+        # was an on-track debugging session, and no simulated scenario could
         # have caught it, because none of them ever started the robot anywhere
-        # but where it thought it was.
+        # but where it thought it was. See
+        # ``adr:0053-direction-inference-and-start-pose``.
         #
         # The physical placement stays at `start`; the whole belief system moves
         # together -- plan, estimator seed, IMU zero, lap line, park controller.
@@ -252,8 +253,9 @@ class ScenarioSimulator(PassSideScorer):
         # run that steers in the true frame while counting laps in the believed
         # one spends a partial lap reaching a finish line it never started at,
         # which reads as a slow robot and is really just two frames disagreeing.
-        # That mistake cost a measured quarter-to-half lap per run before this
-        # was made consistent.
+        # That mistake cost a measurable fraction of a lap per run before this
+        # was made consistent. See
+        # ``adr:0053-direction-inference-and-start-pose``.
         # Both challenges run the same tuning. An Obstacles-specific profile
         # (shorter lookahead + capped top speed) used to be applied here; it was
         # removed once re-measurement showed it changed nothing — see the note in
@@ -281,8 +283,8 @@ class ScenarioSimulator(PassSideScorer):
         # corridors, plans them centred, and must assume a start on that same
         # centreline. Obstacles instead pins the pre-split WIDE magnitude,
         # because its scenarios are calibrated around that exact assumed pose:
-        # measured 2026-08-29, the split's 0.0 and its own planning bias of
-        # 0.15 each failed six scenarios that pass at 0.10. Its assumed start
+        # the split's own planning bias and a zero bias each failed scenarios
+        # that the WIDE magnitude passes. Its assumed start
         # therefore does not sit on its own planned line -- a pre-existing
         # inconsistency, left alone rather than fixed in passing, since
         # OBSTACLES_CENTER_BIAS_M is a separately swept value.
@@ -321,8 +323,9 @@ class ScenarioSimulator(PassSideScorer):
 
         # ``None`` restores the old all-or-nothing scoring, where any contact
         # with a pillar ends the run. Kept switchable because every figure
-        # recorded before 2026-08-01 was measured that way, and comparing
-        # against them needs the same rule.
+        # recorded before pillar displacement was scored that way, and comparing
+        # against them needs the same rule. See
+        # ``adr:0062-sim-contact-model-and-parking``.
         self._max_sign_push: float | None = TrafficSignSpecs.MAX_LEGAL_DISPLACEMENT_M if allow_sign_nudge else None
         self._sign_push: dict[int, float] = {}
         self._obstacles_move: bool = self._tuning.simulation.obstacles_are_pushed
@@ -383,11 +386,12 @@ class ScenarioSimulator(PassSideScorer):
         self._bay_exit_ticks = 0
         self._bay_exit = BayExit()
         # Speed for the blind corridor-follow that runs before the travel
-        # direction settles. Named _creep_speed until 2026-08-09, which was
-        # doubly misleading: it is not the creep tier, and it never was --
-        # it read the slow tier. The medium tier is the closest match to the
-        # 0.150 m/s this phase actually ran at, so keeping it here avoids
-        # slowing every race start as a side effect of grading the ladder.
+        # direction settles. Once named _creep_speed, which was doubly
+        # misleading: it is not the creep tier, and it never was -- it read the
+        # slow tier. The medium tier is the closest match to the speed this
+        # phase actually ran at, so keeping it here avoids slowing every race
+        # start as a side effect of grading the ladder. See
+        # ``adr:0085-speed-envelope``.
         self._blind_follow_speed = self._tuning.speed.medium_mps
         self._creep_widths: list[CreepWidthSample] = []
         """(yaw, measured width) taken before the direction was known."""
@@ -411,10 +415,11 @@ class ScenarioSimulator(PassSideScorer):
 
         # Ground truth for the pass-side rule, kept by the SIMULATOR rather than
         # read back off the navigator. Scoring a rule from the robot's own
-        # belief lets better self-deception pass for better driving: measured
-        # 2026-08-24, the router's believed-frame verdict flagged 46% of passes
-        # where the true layout says 21%, and ended 45 of 64 runs where 38
-        # genuinely offended. A judge watches the mat, so this does too.
+        # belief lets better self-deception pass for better driving: the
+        # believed-frame verdict flagged many more passes, and ended more runs,
+        # than the true layout says genuinely offended. A judge watches the mat,
+        # so this does too. See
+        # ``adr:0059-pass-side-travel-relative-and-scorer-independence``.
         self._true_signs = signs
         # `ScenarioMetadata` is a pydantic model, not a dict -- and `None` for a
         # scenario with no lot, which is how the Open Challenge expresses it.
@@ -460,10 +465,11 @@ class ScenarioSimulator(PassSideScorer):
             solid_walls=solid_walls,
             # Config decides, with the explicit argument still winning so the
             # diagnostics that sweep this arm are unaffected. Defaults TRUE
-            # since 2026-09-14: the old scale-to-nothing model stopped a chassis
-            # dead on contact at any angle, 56x less progress at 20 degrees than
-            # sliding gives, and the bay exit is a sequence of shallow-angle
-            # contacts.
+            # since the contact model was recalibrated: the old
+            # scale-to-nothing model stopped a chassis dead on contact at any
+            # angle, where sliding keeps it moving, and the bay exit is a
+            # sequence of shallow-angle contacts. See
+            # ``adr:0086-simulator-realism``.
             slide_on_contact=slide_on_contact or self._tuning.simulation.contact_slides_along_surfaces,
             scrub_yaw_gain=scrub_yaw_gain,
             # A surface that no longer ends the run has to stop the chassis
@@ -476,9 +482,9 @@ class ScenarioSimulator(PassSideScorer):
             # property of the object, not of the scoring: a fin is a physical
             # barrier and a chassis cannot occupy the same space as one. Deriving
             # it from the terminal set meant fins were excluded and the chassis
-            # passed through them, which is how the bay exit measured 8.9 cm of
-            # PENETRATION rather than a contact -- the geometry it was scored on
-            # was never reachable.
+            # passed through them, so the bay exit registered deep PENETRATION
+            # rather than a contact -- the geometry it was scored on was never
+            # reachable. See ``adr:0062-sim-contact-model-and-parking``.
             solid_surfaces=(frozenset(ContactSurface) - {ContactSurface.NONE} - self._terminal_surfaces)
             | {ContactSurface.PARKING_LOT},
             lidar_hz=lidar_hz,
@@ -580,13 +586,13 @@ class ScenarioSimulator(PassSideScorer):
     def _bay_exit_command(self, scan: LidarScan) -> DriveCommand:
         """Delegate to the navigation-layer bay exit.
 
-        The manoeuvre itself lived here until 2026-08-31, which meant the
-        simulator drove the pocket exit while the real robot had no bay-exit
-        path at all. It now lives in :mod:`src.navigation.maneuvers.bay_exit`
-        and both this and the ROS2 node call it, so an in-bay simulation
-        exercises the code the robot runs.
+        The manoeuvre itself lived here once, which meant the simulator drove
+        the pocket exit while the real robot had no bay-exit path at all. It now
+        lives in :mod:`src.navigation.maneuvers.bay_exit` and both this and the
+        ROS2 node call it, so an in-bay simulation exercises the code the robot
+        runs. See ``adr:0060-bay-exit-clearance-guard``.
 
-        ``yaw_rad`` was omitted here until 2026-09-10 while the ROS2 node passed
+        ``yaw_rad`` was omitted here once while the ROS2 node passed
         ``pose.yaw``, and the omission was NOT cosmetic: without it
         ``_track_rotation`` returns on its first line, ``_rotation_rad`` stays
         at 0 and ``rotation_complete`` -- the manoeuvre's own release test --
@@ -640,8 +646,9 @@ class ScenarioSimulator(PassSideScorer):
         # parking bay the geometry names the direction outright, but the
         # planner's path runs from the BELIEVED start -- the assumed centreline,
         # not the pocket -- so handing over while still boxed drives straight
-        # into a marker. Measured: settling without this guard took the in-bay
-        # probe from 0.33-14.06 m back down to 0.18 m, every run collided.
+        # into a marker: settling without this guard collapsed the in-bay probe
+        # travel and every run collided. See
+        # ``adr:0060-bay-exit-clearance-guard``.
         #
         # So keep the corridor follower driving until the robot is actually out,
         # and let the planner take over only once forward is clear. Checked
@@ -651,8 +658,8 @@ class ScenarioSimulator(PassSideScorer):
         # the robot was PLACED. Re-testing it every tick lets it fire mid-creep
         # at a corner -- forward blocked, one side close, the other open reads
         # the same -- and settle the direction off geometry that is not a bay at
-        # all. Measured: that changed parallel-start runs that must be
-        # untouched, one going 22.40 m -> 3.42 m.
+        # all, which changed parallel-start runs that must be untouched. See
+        # ``adr:0053-direction-inference-and-start-pose``.
         if not self._bay_start_checked:
             self._bay_start_checked = True
             bay = direction_from_parking_bay(scan.ranges_m, scan.angles_rad, self._tuning)
@@ -664,9 +671,10 @@ class ScenarioSimulator(PassSideScorer):
         # A budget expiry releases the maneuver on exactly the same path as a
         # clean exit, so the fall-through below still rebuilds the plan. Without
         # a budget `is_clear` is the ONLY release, and it gates on forward
-        # clearance the pocket cannot provide -- measured: 600/600 ticks held,
+        # clearance the pocket cannot provide: the manoeuvre held every tick,
         # `CoreNavigator` never stepped once, so no escape behaviour was ever
-        # reachable from an in-bay start.
+        # reachable from an in-bay start. See
+        # ``adr:0060-bay-exit-clearance-guard``.
         budget = self._tuning.corridor_follower.bay_exit_max_frames
         if self._exiting_bay:
             self._bay_exit_ticks += 1
@@ -676,8 +684,8 @@ class ScenarioSimulator(PassSideScorer):
             # returning: that block is what rebuilds the path for the committed
             # direction and calls replace_path, and skipping it hands the
             # planner a stale plan still pointing at waypoint 0 while the robot
-            # has driven out of the bay. Measured: it drove straight back into a
-            # marker, 0.24-0.30 m every run.
+            # has driven out of the bay: it drove straight back into a marker
+            # every run. See ``adr:0060-bay-exit-clearance-guard``.
             self._exiting_bay = False
             just_exited = True
 
@@ -693,8 +701,9 @@ class ScenarioSimulator(PassSideScorer):
         # cleanest readings of the whole round, taken driving straight down a
         # corridor. Discarding them leaves the first surviving readings to be
         # taken at a corner, where the side rays span the next corridor and get
-        # attributed to this one. Measured: that alone mislearned the starting
-        # corridor on fixtures whose direction was inferred perfectly.
+        # attributed to this one: discarding them mislearned the starting
+        # corridor on fixtures whose direction was inferred perfectly. See
+        # ``adr:0057-blind-corridor-follower-and-width``.
         if self._width_estimator is not None:
             m = measure_corridor_width(scan.ranges_m, scan.angles_rad, pose.yaw)
             if m is not None:
@@ -743,8 +752,9 @@ class ScenarioSimulator(PassSideScorer):
             # the provisional direction and the path is unchanged. The
             # navigator did not step during the creep, so its waypoint index is
             # still 0 while the robot has driven a metre past it -- it would
-            # resume by chasing a waypoint behind itself. Measured: this alone
-            # cost fixtures that had inferred the direction perfectly.
+            # resume by chasing a waypoint behind itself. This alone cost
+            # fixtures that had inferred the direction perfectly. See
+            # ``adr:0053-direction-inference-and-start-pose``.
             self._navigator.replace_path(self._waypoints, (pose.x, pose.y), pose.yaw)
             return False
 
@@ -788,10 +798,10 @@ class ScenarioSimulator(PassSideScorer):
         # Attribute the reading by HEADING, not position. Position would be
         # circular — it comes from matching against a wall model built from the
         # very widths being estimated, so a wrong belief mis-attributes the
-        # reading that would have corrected it and the error locks in (measured:
-        # 8 of 28 fixtures learned a wrong layout and drove into a wall, all
-        # with ~40 cm of position error). Heading comes from the IMU and owes
-        # nothing to the map.
+        # reading that would have corrected it and the error locks in: fixtures
+        # learned a wrong layout and drove into a wall, all with large position
+        # error. Heading comes from the IMU and owes nothing to the map. See
+        # ``adr:0057-blind-corridor-follower-and-width``.
         section = section_from_heading(pose.yaw, self._direction)
         observed_change = estimator.observe(section, scan.ranges_m, scan.angles_rad, pose.yaw)
         if self._width_gate is None:
@@ -909,11 +919,11 @@ class ScenarioSimulator(PassSideScorer):
 
         The consequence for tests and diagnostics is that comparing a robot-
         derived position against ground truth is only meaningful once one side
-        has been brought into the other's frame. Measured 2026-09-04 over the 16
-        obstacles fixtures: discovered signs sit a median 0.200 m from world
-        truth with 107/190 beyond the 10 cm tolerance, and a median 0.010 m with
-        **0/190** beyond it once mapped through here. The discovery was always
-        accurate; only the frame was wrong.
+        has been brought into the other's frame. Measured over the obstacles
+        fixtures, discovered signs sat well outside tolerance against world
+        truth and inside it once mapped through here. The discovery was always
+        accurate; only the frame was wrong. See
+        ``adr:0053-direction-inference-and-start-pose``.
 
         Returns the point unchanged on a sighted or ``known_start`` run, where
         the believed start IS the true start.
@@ -931,10 +941,11 @@ class ScenarioSimulator(PassSideScorer):
 
         Taken on the first tick a pose exists, and never revisited. Deliberately
         NOT ``_believed_start``: that is only the SEED the blind prior starts
-        from (a canonical 1.500, 0.400), and the localizer immediately fits the
-        scan against its believed wall model and lands somewhere else -- 1.781,
-        0.494 on a south-start fixture whose true start is 1.775, 0.500. Using
-        the seed put a 29 cm error into a frame that should have been identity.
+        from (a canonical corridor-centre pose), and the localizer immediately
+        fits the scan against its believed wall model and lands somewhere else,
+        near the true start. Using the seed put a large error into a frame that
+        should have been identity. See
+        ``adr:0053-direction-inference-and-start-pose``.
 
         Both halves are read at the SAME instant so the pair describes one rigid
         offset rather than mixing two moments of a moving chassis.

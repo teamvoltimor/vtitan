@@ -13,9 +13,8 @@ only decide between two values. See
 
 The measurement needs no map and no position estimate. The LIDAR sits at the
 chassis centre, so the range directly left plus the range directly right spans
-wall to wall through the robot, wherever in the corridor it happens to be.
-Measured over all 28 Open Challenge fixtures: 100% classification accuracy on
-14839 usable ticks, mean error +0.03 cm.
+wall to wall through the robot, wherever in the corridor it happens to be. See
+``adr:0057-blind-corridor-follower-and-width`` for the measured rationale.
 
 Two gates keep bad readings out:
 
@@ -145,14 +144,14 @@ class CorridorWidthEstimator:
     neither value is a better guess than the other and the tighter one fails
     safe. **The Obstacles Challenge is not that round.** Its corridors are all
     100 cm, which is a rule of the event and therefore knowable before the
-    robot is placed — exactly like "the track is 3x3 m and the loop is
+    robot is placed - exactly like "the track is 3x3 m and the loop is
     rectangular". Assuming narrow there is not conservative, it is *known to be
-    wrong for every corridor*, and it costs real runs: measured over the 16
-    obstacles fixtures, 9 of 16 blind collisions happened in a corridor still
-    held at the narrow default, because the robot turns into a corridor and
-    meets a traffic sign there before ``_MIN_SAMPLES`` readings have accumulated
-    to correct it. In the Open Challenge that same latency is harmless -- there
-    is nothing in the corridor to hit.
+    wrong for every corridor*, and it costs real runs: a blind collision happens
+    when the robot turns into a corridor and meets a traffic sign there before
+    ``_MIN_SAMPLES`` readings have accumulated to correct it (see the Obstacles
+    fixture evidence in ``adr:0057-blind-corridor-follower-and-width``). In the
+    Open Challenge that same latency is harmless - there is nothing in the
+    corridor to hit.
 
     The estimator still runs and can still override the prior: this changes
     where it starts, not whether it measures -- unless constructed with

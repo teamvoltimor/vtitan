@@ -21,8 +21,9 @@ const curvatureCoefficient = 2.0
 // Standard formulation: curvature = 2*yLocal / lookahead**2, steering angle =
 // atan(curvature * wheelbaseM/2), clamped to the chassis's physical steering
 // limit. wheelbaseM is halved internally (see wheelbaseHalfDivisor) because
-// this chassis steers both axles in counter-phase, confirmed on hardware
-// 2026-07-25, doubling the yaw rate a full-wheelbase formula would predict.
+// this chassis steers both axles in counter-phase, which doubles the yaw rate
+// a full-wheelbase formula would predict. See
+// adr:0076-drivetrain-and-steering-hardware.
 //
 // Only valid for a target roughly ahead (xLocal > 0) -- the formula gives a
 // plausible-looking but wrong result for a target behind the robot; callers

@@ -1,7 +1,8 @@
 """Quadrature-encoder calibration constants.
 
 Measured on hardware, not derived from the datasheet -- see
-``scripts/hardware/calibrate_encoder.py`` if the drivetrain changes.
+``scripts/hardware/calibrate_encoder.py`` if the drivetrain changes, and
+``adr:0076-drivetrain-and-steering-hardware`` for the calibration history.
 
 ``counts_per_rev``/``max_rpm`` are NOT constants here -- they are required
 fields on ``EncoderConfig`` (``src/config/hardware/motors/encoder.toml``), since

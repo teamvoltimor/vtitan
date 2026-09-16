@@ -298,12 +298,13 @@ func TestHealthStatus_String(t *testing.T) {
 }
 
 // TestCorrectAngleDeg pins the mount-correction formula against the
-// 8-bearing hardware data that found it (2026-08-31): with the old
-// rawDeg+180 offset, front and back read swapped while left and right read
-// correctly. A rotation (constant offset) moves every bearing together, so
-// it can't reproduce that pattern -- only a mirror (negation) can, since a
-// reflection about the left-right axis fixes points on that axis while
-// swapping points off it. These cases encode that derivation directly:
+// hardware data that found it (see adr:0080-lidar-mount-and-scan-plane):
+// with the old rawDeg+180 offset, front and back read swapped while left
+// and right read correctly. A rotation (constant offset) moves every bearing
+// together, so it can't reproduce that pattern -- only a mirror (negation)
+// can, since a reflection about the left-right axis fixes points on that
+// axis while swapping points off it. These cases encode that derivation
+// directly:
 // front/back (0/180) must swap, left/right (90/270) must not move, for the
 // same inverted+offset inputs that produced the old, wrong pairing.
 func TestCorrectAngleDeg(t *testing.T) {

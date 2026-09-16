@@ -183,10 +183,11 @@ func assertObstaclesInvariants(t *testing.T, which, id string, r scenario.Result
 			t.Errorf("%s %s: ParkPoints = %d, want one of 0/%d/%d (the WRO tiers)",
 				which, id, points, parking.PartialParkPoints, parking.FullParkPoints)
 		}
-		// Rule 9.24.7 as ruled 2026-09-03: contact with a parking-lot
-		// limitation voids ALL parking points. A run that ended ON a fin
-		// scoring credit would mean the scorer's Touched veto and the
-		// simulator's terminal surface disagree about the same contact.
+		// Rule 9.24.7: contact with a parking-lot limitation voids ALL
+		// parking points (see adr:0062-sim-contact-model-and-parking). A run
+		// that ended ON a fin scoring credit would mean the scorer's Touched
+		// veto and the simulator's terminal surface disagree about the same
+		// contact.
 		if r.TerminalSurface == "parking_lot" && points > 0 {
 			t.Errorf("%s %s: ended on a parking-lot fin but scored %d points; "+
 				"touching a lot limitation voids all parking points (9.24.7)",
@@ -239,8 +240,8 @@ func assertObstaclesParity(t *testing.T, id string, native, py scenario.Result) 
 	}
 	// The sign INDICES matter, not just the count: passing the wrong sign on
 	// the wrong side is a different bug from passing a different sign, and
-	// the 2026-09-03 travel-relative rule fix turned on exactly which sign
-	// each side applied to.
+	// the travel-relative rule turned on exactly which sign each side applied
+	// to (see adr:0059-pass-side-travel-relative-and-scorer-independence).
 	if !slices.Equal(native.PassSideViolationSigns, py.PassSideViolationSigns) {
 		t.Errorf("%s: PassSideViolationSigns mismatch native=%v python=%v",
 			id, native.PassSideViolationSigns, py.PassSideViolationSigns)

@@ -2,8 +2,8 @@
 // integrator the headless simulator uses to advance the car's pose,
 // ported from src/python/src/simulation/kinematics.py.
 //
-// Both axles steer, in opposite directions and by the same amount --
-// confirmed on the real chassis 2026-07-25. That is not the textbook
+// Both axles steer, in opposite directions and by the same amount -- see
+// adr:0076-drivetrain-and-steering-hardware. That is not the textbook
 // front-steer bicycle model, and the difference is not subtle:
 // counter-phase steering moves the instantaneous center of rotation from
 // the rear axle to the chassis center, so the robot yaws roughly TWICE as
@@ -19,8 +19,8 @@
 // hardware, so any gain tuned against it was hotter on the real robot than
 // in sim -- see
 // src/python/tests/unit/test_kinematics_4ws.py, this package's Go test
-// oracle, whose docstring documents the historical regression (fixed
-// 8eb3c38e).
+// oracle, whose docstring documents the historical regression (see
+// adr:0076-drivetrain-and-steering-hardware).
 //
 // Integration is sub-stepped for accuracy at the 20 Hz control rate.
 //

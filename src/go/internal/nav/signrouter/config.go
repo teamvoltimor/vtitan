@@ -197,8 +197,8 @@ const (
 // chassisHalfDiagonalM matches geometry.chassis_half_diagonal_m(): half the
 // chassis diagonal, the clearance radius while mid-turn. Sized on the
 // diagonal rather than the half-width because a robot still turning
-// presents its corner, not its side -- see the Python docstring for the
-// measured collision-count justification.
+// presents its corner, not its side. See
+// adr:0051-sign-lane-planner for the measured collision-count justification.
 func chassisHalfDiagonalM(lengthM, widthM float64) float64 {
 	return math.Hypot(lengthM/2, widthM/2)
 }

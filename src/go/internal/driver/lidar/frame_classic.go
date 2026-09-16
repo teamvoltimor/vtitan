@@ -19,12 +19,9 @@ package lidar
 // lower-sample-rate path every RPLIDAR model supports. It is kept as a
 // standalone option alongside the Dense/Express mode implementation (see
 // frame_dense.go, ClassicSerialDriver's sibling), not because it's the
-// preferred mode: hardware validation 2026-08-31 found classic-mode range
-// decode reading 2-4x too large versus known physical distances (a coarse
-// front-placement check found angle decode plausible, but this predates the
-// same day's 8-bearing dump that caught Dense mode's front/back mirroring
-// bug -- classic mode shares correctAngleDeg but hasn't had the same
-// rigorous per-bearing verification), while the same hardware's Python
+// preferred mode: classic-mode range decode is unvalidated on this C1 and
+// reads too large versus known physical distances (see
+// adr:0080-lidar-mount-and-scan-plane), while the same hardware's Python
 // stack — which uses
 // Dense mode via sllidar_ros2's default scan_mode="Standard" (routed
 // through startScanExpress, never classic startScan) — reads correctly.
@@ -87,8 +84,8 @@ type (
 // serial_unix.go:93) doesn't cause an endless retry. bufio.Reader.fill (and
 // io.ReadFull) treat a (0, nil) read as "no data available yet, try again"
 // and loop forever, which otherwise hangs Connect and Read indefinitely
-// whenever the device is slow or silent — confirmed on the C1 (2026-08-31: a
-// non-streaming lidar hung the dense driver for the full test timeout).
+// whenever the device is slow or silent — confirmed on the C1 (see
+// adr:0080-lidar-mount-and-scan-plane).
 //
 // Instead of erroring on the very first empty read (which would also kill a
 // healthy scan that has a brief inter-packet gap), timeoutReader tolerates
@@ -133,9 +130,8 @@ const (
 	// cmdHQMatorSpeedCtrl (SL_LIDAR_CMD_HQ_MOTOR_SPEED_CTRL) is the
 	// alternative motor-start command the sllidar SDK uses for RPM-mode motor
 	// control. On the C1 this is the variant that actually spins the motor up
-	// and lets the Express Scan stream (verified on hardware 2026-08-31: the
-	// 0xF0 PWM command left the device unresponsive to the scan request,
-	// while 0xA8 with an RPM payload produced a live capsule stream).
+	// and lets the Express Scan stream; see
+	// adr:0080-lidar-mount-and-scan-plane.
 	cmdHQMatorSpeedCtrl = 0xA8
 
 	// descStartFlag1/2 are the fixed two bytes identifying the start of a
@@ -178,9 +174,9 @@ const (
 	// classicDistanceQ2Scale converts classic mode's packed 16-bit
 	// distance_q2 fixed-point value to millimeters: "Actual Distance =
 	// distance_q2/4.0 mm" (Figure 4-5). NOTE: on the RPLIDAR C1 this
-	// over-scales real distances by 2-4x versus known physical distances
-	// (hardware test 2026-08-31, angle decode confirmed correct
-	// separately) — see this file's package comment. Dense mode
+	// over-scales real distances versus known physical distances — see
+	// adr:0080-lidar-mount-and-scan-plane and this file's package comment.
+	// Dense mode
 	// (frame_dense.go) does not use this constant; its cabin distance
 	// field is plain millimeters, no Q2 scaling.
 	classicDistanceQ2Scale = 4.0
@@ -220,8 +216,8 @@ const (
 
 // motorDefaultRpm is the RPM value sent to start the motor via the HQ
 // motor-speed command. The sllidar SDK's startMotor() drives the motor to a
-// nominal speed; 600 RPM matches the spin-up observed streaming correctly on
-// the C1 (verified on hardware 2026-08-31).
+// nominal speed; this value matches the spin-up that streams correctly on
+// the C1 (see adr:0080-lidar-mount-and-scan-plane).
 const motorDefaultRpm = 600
 
 // serialPollTimeout is the per-call read timeout configured on the serial
@@ -233,11 +229,11 @@ const serialPollTimeout = 250 * time.Millisecond
 // start-angle wrap past 360deg. The C1 Express/Dense stream sets the S
 // (start-of-scan) flag only on the first packet of the whole stream, so a
 // scan's end is detected from the per-packet start angle wrapping back toward
-// 0 (verified on hardware 2026-08-31). The wrap is recognized as a drop of
-// more than scanWrapAngleDeg between consecutive packet start angles; a full
-// 360deg rotation of the motor (e.g. one packet from 358deg to 32deg) is
-// always far more than this, while the ~35deg spacing of consecutive packets
-// is far less.
+// 0 (see adr:0080-lidar-mount-and-scan-plane). The wrap is recognized as a
+// drop of more than scanWrapAngleDeg between consecutive packet start angles;
+// a full 360deg rotation of the motor (e.g. one packet from 358deg to 32deg)
+// is always far more than this, while the ~35deg spacing of consecutive
+// packets is far less.
 const scanWrapAngleDeg = 180.0
 
 // fullSweepDeg is the angular coverage that completes a Dense Mode scan. A
@@ -245,8 +241,8 @@ const scanWrapAngleDeg = 180.0
 // revolution past the scan's first packet (see DenseSerialDriver.readScan) --
 // the C1 sets S=true on the stream's first packet wherever the motor happens
 // to be, so closing on a fixed wrap drop alone returns a partial first scan
-// when the stream begins near the sweep end (verified on hardware 2026-08-31:
-// 18-20 points vs a full 300).
+// when the stream begins near the sweep end (see
+// adr:0080-lidar-mount-and-scan-plane).
 const fullSweepDeg = 360.0
 
 // yawOffsetDeg is the residual mount miscalibration (degrees) applied on
@@ -297,11 +293,10 @@ var (
 // no correction applied) into the robot frame, where 0 is straight ahead.
 // When mounted upside-down, the LIDAR's apparent spin direction reverses in
 // the robot's top-down frame -- a constant offset can't express that, only
-// a mirror (negation) can. Verified on hardware 2026-08-31: an 8-bearing
-// object placement test found front/back swapped while left/right read
-// correctly with a plain rawDeg+180 offset; a rotation moves every bearing
-// together; only the mirror -rawDeg+offset reproduced "front and back swap,
-// left and right unchanged" from that same data.
+// a mirror (negation) can: a rotation moves every bearing together, while a
+// reflection about the left-right axis fixes points on that axis and swaps
+// the rest. See adr:0080-lidar-mount-and-scan-plane for the hardware test
+// that found it.
 func correctAngleDeg(rawDeg float64, inverted bool, residualOffsetDeg float64) float64 {
 	if inverted {
 		return -rawDeg + residualOffsetDeg
@@ -342,8 +337,8 @@ func payloadRequestPacket(cmd byte, payload []byte) []byte {
 
 // startMotorPacket builds the SET_MOTOR_PWM request that spins the C1 motor up
 // to its default speed. Must be sent before any scan request, or the device
-// answers the scan request with no data stream (verified on hardware
-// 2026-08-31: Express Scan returned zero bytes until the motor was started).
+// answers the scan request with no data stream (see
+// adr:0080-lidar-mount-and-scan-plane).
 func startMotorPacket() []byte {
 	rpm := uint16(motorDefaultRpm)
 	return payloadRequestPacket(cmdHQMatorSpeedCtrl, []byte{byte(rpm), byte(rpm >> highByteShift)})

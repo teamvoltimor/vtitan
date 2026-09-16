@@ -36,8 +36,9 @@ the robot drives out of no longer scores the same as failing to complete.
 ``_score_obstacle_contact``, which downgrades a contact to a non-event while the
 sign stays inside its 85 mm placement circle -- rule 9.20. ``PARKING_LOT`` is
 listed alongside it and is NOT softened: 9.24.7 ends the round the moment "the
-robot touches the parking lot limitations". Before 2026-09-03 the fins shared
-``OBSTACLE`` and so inherited a leniency the rules give only to signs.
+robot touches the parking lot limitations". The fins once shared ``OBSTACLE``
+and so inherited a leniency the rules give only to signs; the split is
+recorded in ``adr:0062-sim-contact-model-and-parking``.
 
 **``INNER_WALL`` is stricter than the rules and is knowingly left that way.**
 9.18 permits touching a wall that is not moved -- "if the vehicle touches or
@@ -45,7 +46,7 @@ bumps the walls, and the walls are not moved, the vehicle may continue the
 round, and no penalties will be incurred" -- and names only the OPEN challenge's
 outer boundary wall as untouchable. Relaxing it would re-base every Obstacles
 figure in the repo at once, so it is a deliberate decision rather than an
-oversight; see the 2026-09-03 notes.
+oversight; see ``adr:0059-pass-side-travel-relative-and-scorer-independence``.
 """
 
 
@@ -92,9 +93,10 @@ class SimResult:
     Rule 9.21 permits driving opposite for two sections only -- the one where
     the direction was changed and the neighbouring one -- and Appendix A case 4
     stops the round once the projection is COMPLETELY out of that window.
-    Enforced from 2026-09-04; before that the simulator scored exactly one
-    round-end condition (the wrong-side pass), so escapes and U-turns could
-    reverse arbitrarily far and still be graded clean.
+    Before this was enforced the simulator scored exactly one round-end
+    condition (the wrong-side pass), so escapes and U-turns could reverse
+    arbitrarily far and still be graded clean. See
+    ``adr:0059-pass-side-travel-relative-and-scorer-independence``.
     """
 
     reverse_run_origin_step: int | None = None
@@ -276,12 +278,11 @@ class ContactTracker:
             # does not count.
             #
             # Both graces used to apply here and between them they hid the
-            # bay-exit manoeuvre entirely: the start window is 2.0 s (40 ticks)
-            # and the whole exit is 22, so EVERY contact it made began inside
-            # the window and was forgiven for a further 15 s. Measured
-            # 2026-09-03: the chassis penetrates a fin by 8.9 cm in 254/254
-            # corpus scenarios while the run reports collided=False and goes on
-            # to complete its laps.
+            # bay-exit manoeuvre entirely: the whole exit began inside the start
+            # window and was forgiven for a further grace period, so the run
+            # reported collided=False while the chassis penetrated a fin and
+            # went on to complete its laps. See
+            # ``adr:0062-sim-contact-model-and-parking``.
             self.surface = surface
             return True
 

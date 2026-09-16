@@ -8,10 +8,9 @@ import (
 	"github.com/teamvoltimor/vtitan/src/go/internal/nav/controllers"
 )
 
-// shippedObstaclesContactDist is clearance.toml's obstacles_contact_dist,
-// pinned to 0.10 on 2026-09-14 (see that file's own note: the A3 bench that
-// would justify 0.04 has never run). Not taken from DefaultConfig like the
-// other expectations in this file: DefaultConfig leaves the override nil
+// shippedObstaclesContactDist is clearance.toml's obstacles_contact_dist.
+// See adr:0061-contact-zone-per-challenge. Not taken from DefaultConfig like
+// the other expectations in this file: DefaultConfig leaves the override nil
 // (that IS its documented default, and the Open path depends on nil meaning
 // "unset"), so comparing against it would assert the opposite of what ships.
 const shippedObstaclesContactDist = 0.10

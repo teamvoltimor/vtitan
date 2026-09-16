@@ -251,8 +251,9 @@ func TestCandidateCorridors_CornerHasTwoAdjacentFaces(t *testing.T) {
 // where nearest-face flipped EAST/NORTH on every tick of an approach.
 // x=2.40 is a LATERAL value and y~2.00 a DEPTH value, so both points
 // describe an EAST sign -- DepthConsistentCorridor must resolve both to
-// EAST regardless of which face nearest-face happened to pick, fixing a
-// measured 42.1% corner misfile rate.
+// EAST regardless of which face nearest-face happened to pick, fixing the
+// corner misfile rate. See
+// adr:0064-corridor-by-depth-and-clearance-budget.
 func TestDepthConsistentCorridor_FixesTheTracedMisfile(t *testing.T) {
 	t.Parallel()
 

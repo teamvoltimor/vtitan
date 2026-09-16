@@ -19,8 +19,8 @@ type Config struct {
 
 	// RelocalizeCostThreshold/RelocalizeAfterScans/RelocalizeGridStepM/
 	// RelocalizeAcceptRatio parameterize global relocalization -- see
-	// relocalizeGlobally. Hardware-validated: recovered a 48s pose
-	// divergence in run_20260907_205830.
+	// relocalizeGlobally. See
+	// adr:0084-localizer-divergence-and-relocalization.
 	RelocalizeCostThreshold float64
 	RelocalizeAfterScans    int
 	RelocalizeGridStepM     float64
@@ -40,8 +40,8 @@ const (
 	// DefaultResidualClipM matches localization.toml's residual_clip_m.
 	DefaultResidualClipM = 0.25
 	// DefaultMaxSpeedMPS matches localization.toml's max_speed_mps. Raised
-	// from 0.25 on 2026-08-29 -- see blind_nav.NavigationBlindNavLocalization.MaxSpeedMps
-	// for why that value silently froze pose.
+	// from its earlier value because the old bound silently froze pose. See
+	// adr:0084-localizer-divergence-and-relocalization.
 	DefaultMaxSpeedMPS = 0.60
 	// DefaultJumpConfirmToleranceM matches jump_confirm_tolerance_m.
 	DefaultJumpConfirmToleranceM = 0.05

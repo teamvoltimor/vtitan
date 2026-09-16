@@ -99,18 +99,19 @@ class Driver(DriveDriver):
         """Open the H-bridge: RPWM hardware PWM, LPWM software PWM, EN pins latched HIGH.
 
         Both PWM channels are fully claimed and confirmed at 0 duty BEFORE
-        R_EN/L_EN ever go HIGH -- confirmed on hardware 2026-08-28 (brief,
-        real motor kicks on both a cold boot and a warm reconnect) that the
-        previous ordering (EN pins HIGH first, PWM channels claimed after)
-        left a window where the bridge was already enabled while LPWM's
-        electrical state was whatever gpiozero's claim-then-set-0 sequence
-        transiently left it at -- gpiozero requesting a GPIO line can
-        release/reclaim it, which the level shifter's onboard pull-up reads
-        as a brief HIGH the same way the disconnect()-side gap did (see
-        _force_gpio_low() below). RPWM is included here too even though it's
-        kernel-claimed by the pwm-2chan overlay before Python ever runs --
-        its duty is not otherwise confirmed zero on a fresh boot, so treat
-        it the same way rather than relying on the overlay's default.
+        R_EN/L_EN ever go HIGH -- confirmed on hardware (brief, real motor
+        kicks on both a cold boot and a warm reconnect) that the previous
+        ordering (EN pins HIGH first, PWM channels claimed after) left a
+        window where the bridge was already enabled while LPWM's electrical
+        state was whatever gpiozero's claim-then-set-0 sequence transiently
+        left it at -- gpiozero requesting a GPIO line can release/reclaim it,
+        which the level shifter's onboard pull-up reads as a brief HIGH the
+        same way the disconnect()-side gap did (see _force_gpio_low() below).
+        RPWM is included here too even though it's kernel-claimed by the
+        pwm-2chan overlay before Python ever runs -- its duty is not otherwise
+        confirmed zero on a fresh boot, so treat it the same way rather than
+        relying on the overlay's default. See
+        ``adr:0076-drivetrain-and-steering-hardware``.
         """
         try:
             from gpiozero import DigitalOutputDevice, PWMOutputDevice

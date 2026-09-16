@@ -139,7 +139,8 @@ class LiveScenarioVisualizer(Node):
         which always guesses SOUTH, while the chassis is placed at the
         scenario's true start. The believed-vs-true offset is therefore a rigid
         rotation by the section-relabelling angle -- NORTH reads 180 deg, EAST
-        90, WEST -90 -- measured stable to within 1.4 deg over a whole run.
+        90, WEST -90 -- measured stable over a whole run. See
+        ``adr:0053-direction-inference-and-start-pose``.
 
         The plan and the sign estimates are expressed in that believed frame,
         so drawing them against ``map`` puts them on a track the robot is not
@@ -369,8 +370,9 @@ class LiveScenarioVisualizer(Node):
         same upside-down mount rotation carried by the static
         ``base_link -> lidar_link`` transform. RViz therefore sees the sweep
         originate from the actual sensor position and orientation instead of
-        from the chassis centre, which used to draw forward wall hits ~12 cm
-        closer to the robot than they really were.
+        from the chassis centre, which used to draw forward wall hits closer to
+        the robot than they really were. See
+        ``adr:0080-lidar-mount-and-scan-plane``.
         """
         msg = LaserScan()
         msg.header.stamp = stamp
@@ -907,11 +909,12 @@ class LiveScenarioVisualizer(Node):
         return m
 
     def _robot_lidar_marker(self) -> Marker:
-        # HEIGHT + LIDAR_MOUNT_Z_OFFSET = 0.08, matching static_tfs.launch.py /
-        # the Go SDF generator. Read from config, not the 0.02 literal that used
+        # HEIGHT + LIDAR_MOUNT_Z_OFFSET, matching static_tfs.launch.py /
+        # the Go SDF generator. Read from config, not a literal that used
         # to sit here beside a comment naming the value it duplicated. The offset
-        # is NEGATIVE: the unit is recessed, and the beam measures 0.08 m off the
-        # floor, not the 0.12 this comment asserted until 2026-09-07.
+        # is NEGATIVE: the unit is recessed, and the beam measures below the
+        # chassis top, not the higher figure this comment asserted at one point.
+        # See ``adr:0080-lidar-mount-and-scan-plane``.
         m = Marker()
         m.header.frame_id = TfFrames.BASE_LINK
         m.ns = "robot"

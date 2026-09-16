@@ -34,7 +34,8 @@ type Config struct {
 	// MinTurnRadiusM is RobotSpecs.MIN_TURN_RADIUS_M: the curvature floor a
 	// plain bicycle model does not have, matching AckermannKinematics'
 	// clamp. Without it dead reckoning believed the chassis ratcheted out of
-	// the pocket 31x faster than measured. <= 0 disables the floor.
+	// the pocket far faster than reality. See
+	// adr:0086-simulator-realism. <= 0 disables the floor.
 	MinTurnRadiusM float64
 	// SpeedResponseTauS is RobotSpecs.SPEED_RESPONSE_TAU_S: the drivetrain's
 	// decay constant, for the guard's coast-past-command prediction.
@@ -57,10 +58,10 @@ type Config struct {
 	MaxSteeringRateRadPerS float64
 	// ServoSlewRateRadPerS is tuning.pursuit.SERVO_SLEW_RATE_RAD_S: how fast
 	// the servo ACTUALLY moves, used to budget the standstill a leg change
-	// costs. Split from MaxSteeringRate on 2026-09-11 because one number was
-	// doing two jobs that pull opposite ways -- the limiter is a cornering
-	// policy held low, while this budget wastes 2.5 s per reversal whenever
-	// it sits below the truth. Ships 2.4 (measured >= 2x the old 1.2).
+	// costs. Split from MaxSteeringRate because one number was doing two jobs
+	// that pull opposite ways -- the limiter is a cornering policy held low,
+	// while this budget wastes time per reversal whenever it sits below the
+	// truth. See adr:0076-drivetrain-and-steering-hardware.
 	ServoSlewRateRadPerS float64
 	// ControlHz is tuning.control.CONTROL_HZ: ticks per second, for
 	// converting a slew rate into a per-tick angle step.
@@ -75,7 +76,7 @@ const (
 	// DefaultRearSteerRatio matches robot.toml's rear_steer_ratio.
 	DefaultRearSteerRatio = 1.0
 	// DefaultYawGain matches robot.toml's yaw_gain, calibrated against bag
-	// data 2026-08-29.
+	// data. See adr:0086-simulator-realism.
 	DefaultYawGain = 0.55
 	// DefaultChassisLengthM/DefaultChassisWidthM match robot.toml's
 	// [chassis] length/width.

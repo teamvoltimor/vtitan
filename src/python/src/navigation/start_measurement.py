@@ -26,8 +26,7 @@ section anyway (see ``start_conditions``' module docstring). What is knowable,
 and what actually matters, is how far along that corridor it stands and how far
 it has before the corner it is driving at.
 
-Measured rationale and the 2026-08-05 failure:
-``adr:0053-direction-inference-and-start-pose``.
+Measured rationale: ``adr:0053-direction-inference-and-start-pose``.
 """
 
 from __future__ import annotations

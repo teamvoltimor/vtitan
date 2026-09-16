@@ -13,7 +13,7 @@ robot arrives on the new line instead of being displaced onto it.
 So the step is not inherent to replanning, only to replanning *underneath* the
 chassis. Deferring the change until the robot leaves that section removes it
 rather than shrinking it (``UNCONFIRMED_WIDTH_INNER_BIAS_M``) or spreading it
-over time (``REPLAN_BLEND_TICKS``, refuted).
+over time (``REPLAN_BLEND_TICKS``; see ``adr:0057-blind-corridor-follower-and-width``).
 
 What deferring costs is small and bounded: the current corridor keeps planning
 on the old belief for the remainder of one traverse, so it is centred slightly

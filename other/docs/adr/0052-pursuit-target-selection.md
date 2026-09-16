@@ -211,3 +211,8 @@ narrow prior could not fire before the wall arrived.
 - `corner_preview_distance_m`: waypoint spacing is 0.117 to 0.258 m, so the preview
   must clear the straight remainder AND reach into the arc before any heading change
   registers.
+- In `run_20260830_014612` the first corner (west to south, 6.1 s) ran preview
+  1.373 -> 0.980 -> 0.590 -> 0.197 -> 0.000 rad while the lookahead went long two
+  seconds before the corner; `run_20260830_013702` previewed 0.197 rad.
+- The shortened straight of the Open zigzag chain leaves the short lookahead
+  spanning 82 percent of straight ticks, a loop gain of x2.25.

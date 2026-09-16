@@ -27,11 +27,11 @@ func TestDetectThreatDirection_WallBehindReportsBackNotFront(t *testing.T) {
 		ranges[k] = lidarCloseThreat
 	}
 
-	// Between 2026-08-22 and 2026-08-31 the rear was fully masked by the
-	// blind wedges, so a wall behind was not seen at all and this asserted
-	// ThreatNone. The wedges were re-measured on the current mount
-	// (-155..-120 / 120..160, a ~40 deg slot at +/-160..180), so the rear
-	// is visible again and the original behaviour is back.
+	// The rear was once fully masked by the blind wedges, so a wall behind
+	// was not seen at all and this asserted ThreatNone. The wedges were
+	// re-measured on the current mount, leaving a readable slot at the rear,
+	// so the rear is visible again and the original behaviour is back. See
+	// adr:0056-raw-and-masked-scan.
 	if got := controller.DetectThreatDirection(scanObj(ranges, angles)); got != controllers.ThreatBack {
 		t.Errorf("DetectThreatDirection() = %v, want %v", got, controllers.ThreatBack)
 	}
@@ -129,11 +129,11 @@ func TestComputeForwardClearance_IgnoresRearWall(t *testing.T) {
 }
 
 // TestComputeRearClearance_SeesRearWall ports
-// test_rear_clearance_sees_rear_wall: the re-measured wedges (2026-08-31)
-// leave a ~40 deg readable slot at the rear (+/-160..180), so rear rays are
-// visible and rear clearance reads the actual wall distance rather than the
-// no-data fallback -- unlike the 2026-08-22..2026-08-31 window when the
-// mount fully masked the rear.
+// test_rear_clearance_sees_rear_wall: the re-measured wedges leave a
+// readable slot at the rear, so rear rays are visible and rear clearance
+// reads the actual wall distance rather than the no-data fallback -- unlike
+// the window when the mount fully masked the rear. See
+// adr:0056-raw-and-masked-scan.
 func TestComputeRearClearance_SeesRearWall(t *testing.T) {
 	t.Parallel()
 
@@ -172,10 +172,10 @@ func TestComputeRearClearance_ClearWhenOnlyFrontBlocked(t *testing.T) {
 // behind" from "cannot see".
 
 // TestRearSector_NormalScanIsMeasured ports test_normal_scan_is_measured:
-// the 2026-08-31 wedge re-measurement restored a ~40 deg readable slot at
-// the rear (+/-160..180), so a normal scan's rear sector reports measured
-// again -- unlike the 2026-08-22..2026-08-31 window when the mount fully
-// masked the rear ("cannot see" rather than "nothing behind").
+// the wedge re-measurement restored a readable slot at the rear, so a normal
+// scan's rear sector reports measured again -- unlike the window when the
+// mount fully masked the rear ("cannot see" rather than "nothing behind").
+// See adr:0056-raw-and-masked-scan.
 func TestRearSector_NormalScanIsMeasured(t *testing.T) {
 	t.Parallel()
 

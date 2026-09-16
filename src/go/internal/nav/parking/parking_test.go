@@ -96,8 +96,9 @@ func TestBuildZone_TargetYaw(t *testing.T) {
 	}
 }
 
-// TestBuildZone_TargetYawNeverPerpendicular guards the pre-2026-07-25 nose-in
+// TestBuildZone_TargetYawNeverPerpendicular guards the earlier nose-in
 // geometry: the target heading must be parallel to the wall, not across it.
+// See adr:0062-sim-contact-model-and-parking.
 func TestBuildZone_TargetYawNeverPerpendicular(t *testing.T) {
 	t.Parallel()
 
@@ -311,11 +312,12 @@ func TestController_FarRobotDrivesNonzeroSpeed(t *testing.T) {
 	}
 }
 
-// TestController_TargetBehindTriggersReverseReposition checks the 2026-07-11
+// TestController_TargetBehindTriggersReverseReposition checks the
 // non-convergent-orbit guard at the unit level: a target behind the robot makes
 // the controller reverse-and-reorient rather than drive away from it. The full
 // closed-loop Ackermann sim lives in the Python suite; here we assert the
-// recovery branch fires on the degenerate geometry directly.
+// recovery branch fires on the degenerate geometry directly. See
+// adr:0062-sim-contact-model-and-parking.
 func TestController_TargetBehindTriggersReverseReposition(t *testing.T) {
 	t.Parallel()
 

@@ -25,14 +25,13 @@ import (
 // failure domains: an operator tuning corridor_follower.toml should not be
 // blocked by a typo in lidar_sectors.toml.
 //
-// The bay-exit fields ARE overlaid here as of 2026-09-05. They were left out
-// on the grounds that they belonged to "internal/nav/bayexit's own TOML and
-// loader" -- neither of which was ever written, so in practice every bay
-// constant read a Go literal, corridor_follower.toml did not name them
-// either, and Go drifted from Python unnoticed: the clearance guard was still
-// OFF and the arc still 0.3 while Python shipped the solved full-lock
-// ratchet. They live on this Config (see bayexit.Config.Follower), so this is
-// the loader that owns them.
+// The bay-exit fields ARE overlaid here. They were once left out on the
+// grounds that they belonged to "internal/nav/bayexit's own TOML and loader"
+// -- neither of which was ever written, so in practice every bay constant
+// read a Go literal, corridor_follower.toml did not name them either, and Go
+// drifted from Python unnoticed. They live on this Config (see
+// bayexit.Config.Follower), so this is the loader that owns them. See
+// adr:0069-config-governance.
 func ConfigFor(
 	logger *slog.Logger,
 	configRoot string,

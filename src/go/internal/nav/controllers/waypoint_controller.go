@@ -123,13 +123,10 @@ func (w *WaypointController) SelectTargetPoint(
 	// How far ALONG THE PATH the scan may walk. Without a bound this loop
 	// wraps a whole lap and returns the first waypoint merely geometrically
 	// in front of the chassis -- which, once the chassis has turned toward
-	// the way it came, is on the FAR SIDE OF THE RING. Measured 2026-09-11:
-	// the selected target sat p50 2.08-2.50 m away at a bearing 97-140 deg
-	// BACKWARDS around the loop on 60-91% of ticks, while pure pursuit
-	// tracked it perfectly. A clean 3-lap control never selected a target
-	// beyond 0.91 m in 2533 ticks; 1.0 m removes every pathological pick and
-	// is raised to at least lookaheadDistance so it can never starve the
-	// search. The modulo stays, so the 2026-08-03 seam fix is untouched.
+	// the way it came, is on the FAR SIDE OF THE RING. The bound removes
+	// every such pathological pick and is raised to at least
+	// lookaheadDistance so it can never starve the search. The modulo stays,
+	// so the seam fix is untouched. See adr:0052-pursuit-target-selection.
 	spanM := w.TargetSearchSpanM
 	walked := 0.0
 	for offset := range n {
@@ -238,9 +235,8 @@ func (w *WaypointController) ComputeSteering(
 // This covers a different quantity from TargetSearchSpanM: a closed loop has
 // two tangent directions at every point, and a point one meter along the path
 // in the wrong sense is still one meter away and still in the forward
-// half-plane of a rotated chassis. Measured 2026-09-12: the span bound
-// converted the reversal rather than closing it (wrong-sense targets 56-91%
-// -> 2.8%, but target-behind-chassis 0.0% -> 35.4%).
+// half-plane of a rotated chassis. The span bound alone converted the
+// reversal rather than closing it. See adr:0052-pursuit-target-selection.
 func agreesWithPathSense(dx, dy, dist float64, path []trackmodel.Waypoint, index int) bool {
 	if dist <= 0.0 {
 		return true

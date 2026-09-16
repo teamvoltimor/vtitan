@@ -317,8 +317,9 @@ func TestWidthEstimator_ReportsChangeOnce(t *testing.T) {
 // TestWidthEstimator_CornerLeakageDoesNotFlipSettledCorridor is the
 // regression this class was rewritten for. Corner leakage reads as a wide
 // corridor and arrives in RUNS, so a consecutive-agreement rule flips a
-// corridor that had already settled correctly. Measured on go_open_0002: a
-// truly 0.6 m corridor averaging 0.635 m still peaked at 1.229 m.
+// corridor that had already settled correctly -- a truly narrow corridor
+// averaging just over its width still peaked at a wide reading. See
+// adr:0057-blind-corridor-follower-and-width.
 func TestWidthEstimator_CornerLeakageDoesNotFlipSettledCorridor(t *testing.T) {
 	t.Parallel()
 

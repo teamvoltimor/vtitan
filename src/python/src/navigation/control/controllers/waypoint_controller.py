@@ -50,9 +50,9 @@ def _agrees_with_path_sense(
     only how far the scan may WALK. A point one metre along the path in the
     wrong sense is still one metre away and still in the forward half-plane of
     a chassis that has already rotated, so ``x_local > 0`` admits it freely.
-    Measured inside the known reversal windows, against a clean 3-lap control:
-    the span bound converted the wrong-sense failure into a
-    target-behind-the-chassis failure rather than closing it -- see
+    Inside the known reversal windows, against a clean 3-lap control, the span
+    bound converted the wrong-sense failure into a target-behind-the-chassis
+    failure rather than closing it -- see
     ``scripts/bag/diag_bag_target_loop_sense.py`` and
     ``adr:0052-pursuit-target-selection``.
 
@@ -424,7 +424,7 @@ class WaypointController:
         # still available as a fallback. NOTE the cost this carries: taking a
         # later candidate takes a FARTHER one, and curvature divides by the
         # target's squared distance, so the filter trades an impossible bearing
-        # for a weaker correction. Measured NEGATIVE -- see
+        # for a weaker correction. The sweep was negative -- see
         # PurePursuitParams.min_target_radius_m and
         # ``adr:0052-pursuit-target-selection`` -- which is why it ships off.
         nearest_unreachable: tuple[float, float] | None = None
@@ -518,7 +518,7 @@ class WaypointController:
         away and simply re-fires the heading speed cut every tick.
 
         Always True when ``min_target_radius_m`` is 0, which is the shipped
-        default and the pre-2026-09-09 behaviour.
+        default and the previous behaviour.
         """
         if self.min_target_radius_m <= 0.0 or dist <= 0.0:
             return True

@@ -132,10 +132,11 @@ def emulate_sign_detections(
     That is not hypothetical. The camera's bearing formula was MIRRORED --
     positive for a box on the RIGHT of the image against a robot frame where
     left is positive -- so every sign was reflected across the heading axis onto
-    the far wall of a 1 m corridor. It survived in-tree because this emulator
+    the far wall of a corridor. It survived in-tree because this emulator
     reproduced the true geometry directly and the router's unit tests built
     their bounding boxes by INVERTING the same formula. Both agreed with the
-    error. Only a hardware bag disagreed.
+    error. Only a hardware bag disagreed. See
+    ``adr:0072-vision-data-path``.
 
     So this inverts the projection to a BOX and stops there, leaving the decode
     to the shipped code. Anything wrong in that decode now shows up in the
@@ -148,13 +149,13 @@ def emulate_sign_detections(
     tuning = get_tuning(tuning)
     confidence = tuning.simulation.detection_confidence
     focal_px = (RobotSpecs.CAMERA_WIDTH / 2) / math.tan(RobotSpecs.CAMERA_HFOV / 2)
-    # Measured FROM THE SENSOR, which is 0.1222 m forward of the chassis centre.
+    # Measured FROM THE SENSOR, forward of the chassis centre.
     # `_detection_to_world` projects its ray from there, so a range taken at the
-    # centre comes back 12.2 cm long -- verified by round-tripping a sign at
-    # 1.000 m and getting 1.122 m. (`emulate_sign_observations` above still
-    # measures from the centre; it also REPORTS from the centre, so it is
-    # self-consistent, but it does disagree with the shipped decoder by that
-    # same offset.)
+    # centre comes back long by that offset, verified by round-tripping a sign.
+    # (`emulate_sign_observations` above still measures from the centre; it also
+    # REPORTS from the centre, so it is self-consistent, but it does disagree
+    # with the shipped decoder by that same offset.) See
+    # ``adr:0080-lidar-mount-and-scan-plane``.
     sensor_pos = Waypoint(
         robot_pos.x + RobotSpecs.LIDAR_MOUNT_X_OFFSET * math.cos(robot_yaw),
         robot_pos.y + RobotSpecs.LIDAR_MOUNT_X_OFFSET * math.sin(robot_yaw),

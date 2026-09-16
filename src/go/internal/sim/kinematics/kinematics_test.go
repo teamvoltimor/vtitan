@@ -58,9 +58,8 @@ func newTestKinematicsWith(rearSteerRatio, yawGain, speedTauS float64) *kinemati
 
 // TestYawGainScalesTheTurnRadiusInversely: half the yaw for the same
 // speed and angle is twice the radius. The gain is the tyre slip the
-// zero-slip geometry has no term for -- measured 2026-08-29, when
-// replaying a real run's commands through this integrator produced 1.83x
-// the yaw the IMU recorded. Matches
+// zero-slip geometry has no term for (see adr:0086-simulator-realism).
+// Matches
 // TestMeasuredDeparturesFromTheIdealModel.test_yaw_gain_scales_the_turn_radius_inversely.
 func TestYawGainScalesTheTurnRadiusInversely(t *testing.T) {
 	t.Parallel()
@@ -158,7 +157,8 @@ func radiusOfCurvature(kin *kinematics.AckermannKinematics) float64 {
 }
 
 // TestCounterPhaseTurnsTwiceAsSharpAsFrontSteer is the headline property,
-// and the one that regressed before (fixed 8eb3c38e). Matches
+// and the one that regressed before (see
+// adr:0076-drivetrain-and-steering-hardware). Matches
 // TestCounterPhaseDoublesTheYawRate.test_counter_phase_turns_twice_as_sharply_as_front_steer.
 func TestCounterPhaseTurnsTwiceAsSharpAsFrontSteer(t *testing.T) {
 	t.Parallel()

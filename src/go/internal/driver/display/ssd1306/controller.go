@@ -127,8 +127,8 @@ func (c *Controller) writeCommand(cmds ...byte) error {
 // writeData sends the full data buffer as a single I2C write, prefixed
 // once with controlData — matching driver_raw_i2c.py's _write_data, which
 // deliberately sends the whole framebuffer in one transaction rather than
-// 32-byte SMBus-block-sized chunks (see that method's doc comment for the
-// measured ~100ms/frame cost this avoids).
+// 32-byte SMBus-block-sized chunks, whose per-frame cost this avoids (see
+// adr:0083-oled-backend-and-button-thresholds).
 func (c *Controller) writeData(data []byte) error {
 	buf := make([]byte, 0, len(data)+1)
 	buf = append(buf, controlData)

@@ -160,7 +160,8 @@ func TestCornerTurn_DroppedBeamCannotVetoACorner(t *testing.T) {
 
 // TestSafety_BacksOffWhenRearIsMeasurable covers the reversing branch. It can
 // only be reached with a rear reading, which the shipped mount cannot produce
-// -- the occlusion wedges have met at 180 degrees since 2026-08-22.
+// -- the occlusion wedges have met at 180 degrees. See
+// adr:0056-raw-and-masked-scan.
 func TestSafety_BacksOffWhenRearIsMeasurable(t *testing.T) {
 	t.Parallel()
 
@@ -211,11 +212,11 @@ func TestSafety_RefusesToBackOffWhenRearUnmeasurable(t *testing.T) {
 	}
 }
 
-// TestSafety_PivotsOutOfTheBayInsteadOfHolding covers the 2026-08-27 fix. A
+// TestSafety_PivotsOutOfTheBayInsteadOfHolding covers the in-bay pivot fix. A
 // robot started INSIDE the parking bay -- a legal start -- sat at exactly
 // 0.00 m for a whole run, 8/8 scenarios, with the front against a fin and
 // BOTH sides reading 12.0 m. There was an open corridor either side and the
-// robot could see it.
+// robot could see it. See adr:0053-direction-inference-and-start-pose.
 func TestSafety_PivotsOutOfTheBayInsteadOfHolding(t *testing.T) {
 	t.Parallel()
 
@@ -344,8 +345,8 @@ func TestCentring_ShippedCreepHoldsItsLane(t *testing.T) {
 
 // TestCentring_SteersWhenTheGainIsRestored keeps the disabled branch from
 // rotting unnoticed -- the same inert-configuration trap that has already
-// cost this project several wrong conclusions. 44.0 is the value shipped
-// until 2026-08-22.
+// cost this project several wrong conclusions. 44.0 is a former shipped
+// value. See adr:0057-blind-corridor-follower-and-width.
 func TestCentring_SteersWhenTheGainIsRestored(t *testing.T) {
 	t.Parallel()
 
@@ -365,9 +366,9 @@ func TestCentring_SteersWhenTheGainIsRestored(t *testing.T) {
 }
 
 // TestHeadingDamping_ObliqueChassisSteersBackToAxis is the case offset-only
-// centering cannot see: dead center, pointing wrong. Measured on hardware
-// 2026-08-07 as a 3.2 s limit cycle with the heading 30 degrees off axis at
-// the median, which starves the direction gate.
+// centering cannot see: dead center, pointing wrong. On hardware this showed
+// as a limit cycle with the heading off axis at the median, which starves the
+// direction gate. See adr:0057-blind-corridor-follower-and-width.
 func TestHeadingDamping_ObliqueChassisSteersBackToAxis(t *testing.T) {
 	t.Parallel()
 

@@ -153,3 +153,13 @@ wrong answer.
   which is why the shipped pair is 1.00 against 0.60.
 - `assume_bay_start` is the in-bay start (the 7-point start); `false` is the
   recognition-only control arm, not a competing start policy.
+- Without the parallel-start guard a parallel-start run went 22.40 m -> 3.42 m.
+- The canonical start seed is (1.500, 0.400); the localizer landed at (1.781,
+  0.494) against a true start of (1.775, 0.500), so using the seed cost 29 cm.
+  Over the 16 Obstacles fixtures, discovered signs sat a median 0.200 m from
+  world truth with 107/190 beyond the 10 cm tolerance, and a median 0.010 m with
+  0/190 beyond it once mapped through the believed frame.
+- All three real starts on 2026-08-06 landed in the NEIGHBOURING corridor
+  ((2.099, 0.484) and (2.101, 0.487) as EAST, (0.656, 0.596) as WEST, none as
+  SOUTH); run 180154 crossed the line four times, every crossing labelled east,
+  and scored 0 laps while a replay against the assumed origin counts 4.

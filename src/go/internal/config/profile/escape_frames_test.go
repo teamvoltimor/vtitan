@@ -13,12 +13,12 @@ const shippedControlHz = 20.0
 // TestFrames_MatchesTheHistoricalFrameCounts is the safety net for the
 // seconds-not-frames conversion.
 //
-// Every duration in escape.toml used to be a literal frame count, and every
-// one of them was measured at 20 Hz. Storing seconds and deriving ticks is
-// only safe if the derivation reproduces those literals exactly at the
-// shipped rate -- otherwise the conversion silently retunes the escape
-// system, which is the subsystem where a behaviour change is hardest to
-// notice and hardest to attribute.
+// Every duration in escape.toml used to be a literal frame count at the
+// shipped control rate. Storing seconds and deriving ticks is only safe if
+// the derivation reproduces those literals exactly at the shipped rate --
+// otherwise the conversion silently retunes the escape system, which is the
+// subsystem where a behaviour change is hardest to notice and hardest to
+// attribute. See adr:0055-escape-maneuver-selection.
 //
 // The pairs below are the pre-conversion values, kept here as the thing the
 // arithmetic has to agree with rather than as a restatement of it.

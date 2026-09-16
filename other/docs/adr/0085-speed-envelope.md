@@ -138,3 +138,5 @@ hardware observation.
   `speed_response_tau_s = 0.35`, so 0.40 m is roughly triple the ~0.13 m needed to
   shed fast to slow. 2026-09-01 bags showed ~0.6 m between the start square and
   the resting place, landing past the boundary.
+- The blind corridor-follow phase, before travel direction settles, actually ran
+  at 0.150 m/s; the medium tier (0.1326) is its closest shipped match.

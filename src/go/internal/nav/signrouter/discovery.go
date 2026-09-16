@@ -90,10 +90,10 @@ type ObservedSignMap struct {
 // Default* mirror the shipped sign_discovery.toml / lidar_sectors values.
 // DefaultMinConfidence is reused from this package's sighted router config.
 //
-// RobotCorridorFlipTicks and MinReliableBBoxHeightPX carried unconfirmed
-// placeholders (1 and 8.0) against the shipped 5 and 5 until 2026-09-06;
-// DiscoveryConfigFor now reads the file, so these are the no-config-root
-// fallback rather than a second source of truth.
+// RobotCorridorFlipTicks and MinReliableBBoxHeightPX once carried unconfirmed
+// placeholders against the shipped values; DiscoveryConfigFor now reads the
+// file, so these are the no-config-root fallback rather than a second source
+// of truth. See adr:0058-sign-discovery-range-and-barrier-belief.
 const (
 	DefaultMaxIngestRangeM         = 2.0
 	DefaultAssociationDistM        = 0.25
@@ -261,12 +261,12 @@ func (m *ObservedSignMap) Observe(
 ) {
 	// The debounce advances on EVERY tick, before the empty-frame return.
 	// Behind it, RobotCorridorFlipTicks counted detection FRAMES while
-	// calling itself ticks: measured 2026-09-11 over 125 bags, only 11.6% of
-	// ticks carry a detection, so the shipped 5 meant roughly 43 ticks of
-	// wall time and the settled label was stale by construction at the exact
-	// moment a detection finally arrived -- which is when it is read. The
-	// corridor is a property of where the robot IS, and the robot keeps
-	// moving through the frames the camera has nothing to say about.
+	// calling itself ticks, so the shipped count meant far more wall time
+	// than intended and the settled label was stale by construction at the
+	// exact moment a detection finally arrived -- which is when it is read.
+	// The corridor is a property of where the robot IS, and the robot keeps
+	// moving through the frames the camera has nothing to say about. See
+	// adr:0058-sign-discovery-range-and-barrier-belief.
 	robotCorridor := m.settleRobotCorridor(
 		waypoints.CorridorForPosition(robotPos.X, robotPos.Y, m.cfg.CornerMinM, m.cfg.CornerMaxM),
 	)

@@ -13,15 +13,15 @@ The 2026 scoring table (section 10, page 21 of the official rules) pays:
 ===== ============================================================ ======
 
 Measuring only 1.8.2 is what made parking look worthless. The chassis cannot
-reach it -- 0.194 m in a 0.20 m bay is a 3 mm containment window and a 1.15
-degree heading budget -- but that argument says nothing about 1.8.3, which a
-perpendicular nose-in satisfies with 0.118 m of clearance on each side.
+reach it -- the containment window and heading budget are both tiny -- but that
+argument says nothing about 1.8.3, which a perpendicular nose-in satisfies with
+clearance on each side. See ``adr:0062-sim-contact-model-and-parking``.
 
-Both tiers are vetoed by contact. Ruled 2026-09-03: "The parking lot limitations
-cannot be touched by the robot. When they are touched, the robot is stopped and
-no points for the parking can be scored." So a run that grinds its way to a
-perfect pose scores ZERO, and any sweep that does not model contact as a veto
-overstates every strategy that leans on it.
+Both tiers are vetoed by contact: "The parking lot limitations cannot be touched
+by the robot. When they are touched, the robot is stopped and no points for the
+parking can be scored." So a run that grinds its way to a perfect pose scores
+ZERO, and any sweep that does not model contact as a veto overstates every
+strategy that leans on it.
 
 Pure geometry over a final pose; no controller state, no ROS2.
 """

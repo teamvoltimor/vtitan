@@ -58,14 +58,14 @@ func FollowCorridor(
 	}
 	// The corner and back-off branches steer AT their own angle rather than
 	// sharing the centering clamp: one is sized by the arc having to fit
-	// inside turnClearance, the other by the 2026-08-07 limit cycle.
+	// inside turnClearance, the other by the heading-damping limit cycle.
 	//
 	// They then took the SAME value anyway, because one constant was applied
 	// to branches that commit at two different distances -- so lowering it to
-	// 21.25 deg to make the corner arc fit 0.60 m also cut the back-off
-	// branch, which commits at 0.30 m and is where the colliding runs spend
-	// 59% of their creep ticks. Each branch now derives its own cap from its
-	// own commit distance; see SteerCapNorm.
+	// make the corner arc fit also cut the back-off branch, which commits
+	// closer and is where the colliding runs spend most of their creep ticks.
+	// Each branch now derives its own cap from its own commit distance; see
+	// SteerCapNorm. See adr:0049-corner-arcs-per-corridor-and-commit-distance.
 	maxCorner := SteerCapNorm(turnClearance, cfg)
 
 	forward := navutil.ForwardClearance(
@@ -205,10 +205,10 @@ func backOff(
 	// robot never moves, so the navigator's step is never reached, the stuck
 	// detector never runs, and no escape is ever considered.
 	//
-	// Measured 2026-08-27: a robot started INSIDE the parking bay -- a legal
-	// start -- sat at exactly 0.00 m for the whole run, 8/8 scenarios. Front
-	// was 0.05-0.19 m against a parking fin while BOTH sides read 12.0 m.
-	// There was an open corridor either side and the robot could see it.
+	// A robot started INSIDE the parking bay -- a legal start -- can sit at
+	// exactly 0.00 m for the whole run with the front against a fin while
+	// BOTH sides read open. See
+	// adr:0053-direction-inference-and-start-pose.
 	//
 	// So pivot toward it instead: creep forward under full lock and let the
 	// nose swing out. Gated on the side being genuinely open, so a true dead

@@ -69,9 +69,10 @@ def footprint_overlaps_lot(
 
     The partial-credit counterpart to :func:`footprint_inside`. WRO scores parking
     in two tiers -- 15 points for "completely in the parking area and parallel"
-    (1.8.2) and **7 for "parking partly or not parallel"** (1.8.3) -- and until
-    2026-09-03 nothing in this repo could express the second, so every sweep
-    measured only the tier the chassis geometrically cannot reach.
+    (1.8.2) and **7 for "parking partly or not parallel"** (1.8.3) -- and before
+    this existed nothing in this repo could express the second, so every sweep
+    measured only the tier the chassis geometrically cannot reach. See
+    ``adr:0062-sim-contact-model-and-parking``.
 
     A true rectangle-rectangle overlap, not a corner-in-box test: at the headings
     that matter here the chassis can straddle the lot mouth with no corner of
@@ -146,11 +147,11 @@ def footprint_breaches_markers(
     """Whether any chassis corner has come within the marker standoff of a fin.
 
     The wall guard alone used to be sufficient by accident: with the steering limit
-    modelled at 30 deg the chassis could not turn tightly enough to swing a corner
-    into a fin before the wall stopped it. At the real ~70 deg lock (R_min 0.034 m
-    rather than 0.165 m) ENTER's pure pursuit of the lot centre turns hard enough to
-    reach them, so the fins need the same explicit give-up the wall has. Same
-    priority as there: not colliding beats parking.
+    modelled far too low the chassis could not turn tightly enough to swing a
+    corner into a fin before the wall stopped it. At the real lock ENTER's pure
+    pursuit of the lot centre turns hard enough to reach them, so the fins need
+    the same explicit give-up the wall has. Same priority as there: not colliding
+    beats parking. See ``adr:0076-drivetrain-and-steering-hardware``.
 
     A fin flanks the lot along the wall and spans its full depth, so a corner is in
     fin territory when it lies within the lot's depth band and at or past a fin's
@@ -158,8 +159,8 @@ def footprint_breaches_markers(
 
     ``standoff_m`` defaults to the controller's safety margin; SCORING passes
     ``0.0`` -- see :func:`footprint_breaches_wall`. Touching a fin is not merely a
-    collision here: WRO stops the robot and voids ALL parking points for it
-    (ruled 2026-09-03), so this predicate at zero standoff is the scorer's veto.
+    collision here: WRO stops the robot and voids ALL parking points for it, so
+    this predicate at zero standoff is the scorer's veto.
     """
     marker_standoff = (
         DEFAULT_PARKING_CONTEXT.constants.marker_standoff_m if standoff_m is None else standoff_m

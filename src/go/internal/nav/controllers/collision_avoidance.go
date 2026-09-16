@@ -53,7 +53,7 @@ type CollisionAvoidanceController struct {
 	ContactDist float64
 	// RiskRayWindow is how many ADJACENT lane rays must corroborate a short
 	// reading before it counts as an obstacle. See RobustMinRange; 1 is the
-	// bare minimum this used before 2026-09-06.
+	// bare minimum this once used. See adr:0056-raw-and-masked-scan.
 	RiskRayWindow int
 	// SlowDist is the begin-avoiding distance (m).
 	SlowDist float64

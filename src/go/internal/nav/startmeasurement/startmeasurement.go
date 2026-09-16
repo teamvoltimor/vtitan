@@ -10,19 +10,20 @@
 // 1.5 sits exactly on the boundary between them: the one along-corridor
 // position the robot can never legally occupy.
 //
-// Measured on real hardware 2026-08-05: two CCW rounds were set down near
-// the far end of the corridor with 0.69 m of clear track ahead while the
-// plan, built from the assumed start, expected roughly 1.5 m. The robot
-// drove into the wall in six seconds with the steering barely off center,
-// because nothing downstream can discover a starting error the localizer
-// is not looking for -- its search is local (see internal/nav/localization),
-// so an error of that size is permanently outside its reach.
+// On real hardware, rounds were set down near the far end of the corridor
+// with far less clear track ahead than the plan, built from the assumed
+// start, expected. The robot drove into the wall with the steering barely
+// off center, because nothing downstream can discover a starting error the
+// localizer is not looking for -- its search is local (see
+// internal/nav/localization), so an error of that size is permanently
+// outside its reach. See adr:0053-direction-inference-and-start-pose.
 //
 // The scan already contains the answer. With the chassis aligned to the
 // corridor, the four cardinal rays give the distance to the wall ahead, the
 // wall behind and each side, and those ARE the position, expressed relative
-// to the corridor the robot is standing in. Measured against the recorded
-// rounds' true poses the four rays agreed to within 1-4 cm.
+// to the corridor the robot is standing in. Against the recorded rounds'
+// true poses the four rays agree closely. See
+// adr:0053-direction-inference-and-start-pose.
 //
 // Which side of the mat the robot is on is neither knowable nor needed:
 // with equal corridors the track is symmetric under 90 degree rotation, so
@@ -63,7 +64,7 @@ type Config struct {
 type MeasuredStart struct {
 	X, Y float64
 	// DistanceAheadM is the clear track between the robot and the wall it
-	// faces -- the number whose absence caused the 2026-08-05 failures.
+	// faces -- the number whose absence caused the early hardware failures.
 	DistanceAheadM float64
 	// OuterWallDistanceM is the distance to the outer wall, across the
 	// corridor.
@@ -161,14 +162,13 @@ func rotateInto(
 // cfg.ClosingToleranceM is how far forward+back may fall short of the mat
 // before the reading is rejected. Opposite rays along a corridor must span
 // the mat, so their sum is a free validity check -- it needs no knowledge
-// of where the robot is. Sized from real scans, not nominally: two recorded
-// rounds on a properly set-up track summed to 2.978 m and 2.971 m against a
-// nominal 3.0, so the honest error on good data is already 2-3 cm before
-// LIDAR noise, mat seams, or walls that are not quite square. The 0.15 m
-// default is five times that, while the failure this rejects -- a hand, a
-// bystander, or a sign standing in one of the rays -- misses by a meter or
+// of where the robot is. Sized from real scans, not nominally: on good data
+// the honest error is already centimetres before LIDAR noise, mat seams, or
+// walls that are not quite square, while the failure this rejects -- a hand,
+// a bystander, or a sign standing in one of the rays -- misses by a meter or
 // more. The margin is deliberately generous: a false rejection costs a
-// re-run, and a false acceptance costs the round.
+// re-run, and a false acceptance costs the round. See
+// adr:0053-direction-inference-and-start-pose.
 func MeasureStartPose(
 	scan controllers.LidarScan,
 	direction trackmodel.Direction,

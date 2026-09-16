@@ -89,8 +89,8 @@ func (d *DenseSerialDriver) Connect(ctx context.Context) error {
 	// timeoutReader's maxSilence (scanReadTimeout) bounds a stalled read so a
 	// device that never answers the Express Scan request fails fast instead of
 	// hanging (go.bug.st/serial returns (0, nil) on timeout, which otherwise
-	// loops forever in bufio). scanReadTimeout is set above the C1's observed
-	// ~2.1s inter-scan gap (measured on hardware 2026-08-31) so a healthy
+	// loops forever in bufio). scanReadTimeout is set above the C1's
+	// inter-scan gap (see adr:0080-lidar-mount-and-scan-plane) so a healthy
 	// scan assembles across bursts, while a truly dead device still errors.
 	if timeoutErr := d.port.SetReadTimeout(serialPollTimeout); timeoutErr != nil {
 		return fmt.Errorf("lidar: setting read timeout: %w", timeoutErr)
@@ -107,9 +107,8 @@ func (d *DenseSerialDriver) Connect(ctx context.Context) error {
 
 	// Reboot the RPLIDAR core to a clean idle state. The sllidar SDK's
 	// connect sequence issues a RESET before starting a scan, and on the C1
-	// the Express Scan request is otherwise sometimes silently ignored
-	// (verified on hardware 2026-08-31: streaming only began reliably after
-	// a RESET + motor-start, matching the SDK's flow).
+	// the Express Scan request is otherwise sometimes silently ignored (see
+	// adr:0080-lidar-mount-and-scan-plane).
 	if resetErr := d.Reset(ctx); resetErr != nil {
 		return fmt.Errorf("lidar: resetting device: %w", resetErr)
 	}
@@ -117,8 +116,8 @@ func (d *DenseSerialDriver) Connect(ctx context.Context) error {
 	// The C1 will not stream scan data unless its motor is spinning, so start
 	// it before requesting the scan (mirrors the sllidar SDK's startMotor()
 	// call inside startScanExpress). Without this the Express Scan request is
-	// silently ignored and the device returns no data (verified on hardware
-	// 2026-08-31).
+	// silently ignored and the device returns no data (see
+	// adr:0080-lidar-mount-and-scan-plane).
 	if _, writeErr := d.port.Write(startMotorPacket()); writeErr != nil {
 		return fmt.Errorf("lidar: starting motor: %w", writeErr)
 	}
@@ -289,9 +288,9 @@ func (d *DenseSerialDriver) readDescriptor() (descriptor, error) {
 // resyncing on corruption. The C1 streams 84-byte packets continuously at
 // 460800 baud, so a single dropped or corrupted byte both fails the packet
 // it lands in AND misaligns every subsequent fixed-size read -- without
-// resync, one bad byte aborts the whole scan (verified on hardware
-// 2026-08-31: "dense packet checksum mismatch" during an interactive
-// read). On a sync/checksum mismatch it therefore scans byte-by-byte for
+// resync, one bad byte aborts the whole scan (see
+// adr:0080-lidar-mount-and-scan-plane). On a sync/checksum mismatch it
+// therefore scans byte-by-byte for
 // the next 0xA? 0x5? sync-nibble pair (the same robustness
 // ClassicSerialDriver.readDescriptor applies to the descriptor), reads the
 // rest of the packet from there, and retries. Only a stream that stays
@@ -394,8 +393,8 @@ func (st *denseScanState) accumulate(resolved []Point, prev, cur densePacket) bo
 
 	// The C1 Express/Dense stream only flags the start of a scan
 	// (S=1) on its first packet; subsequent packets never re-set S, so a
-	// scan can't be closed on a second S flag (verified on hardware
-	// 2026-08-31: S was true exactly once per stream). Instead the scan
+	// scan can't be closed on a second S flag (see
+	// adr:0080-lidar-mount-and-scan-plane). Instead the scan
 	// ends when the per-packet start angle wraps back toward 0 (i.e.
 	// drops below the previous packet's angle after having increased
 	// monotonically through 360deg).

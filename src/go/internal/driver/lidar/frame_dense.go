@@ -10,10 +10,10 @@ package lidar
 // through drv->startScanExpress (see sllidar_node.cpp's work_loop — the
 // scan_mode.empty() branch, the only one that calls the classic
 // drv->startScan, is never taken when scan_mode is set), never the
-// classic 5-byte SCAN packets frame_classic.go decodes. Hardware
-// validation 2026-08-31 found classic mode's range decode reading 2-4x
-// too large versus known distances on this exact C1 unit, while the
-// Python/Dense path reads correctly — so this is the mode to prefer.
+// classic 5-byte SCAN packets frame_classic.go decodes. Classic mode's
+// range decode reads too large versus known distances on this exact C1
+// unit, while the Python/Dense path reads correctly (see
+// adr:0080-lidar-mount-and-scan-plane) — so this is the mode to prefer.
 //
 // Scope: only the "legacy" Dense capsule request (working_mode=0, Figure
 // 4-11's note: "When set to 0, this command is a legacy version express

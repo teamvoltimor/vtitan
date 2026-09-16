@@ -7,43 +7,37 @@ hardware imposes:
 * **Steering slew** — the servo cannot snap to an angle instantly; it ramps at
   ``pursuit.servo_slew_rate_rad_s`` (rad/s).
 
-  This reads the MODEL of the hardware, not the cornering POLICY. The two were
-  deliberately split in ``pursuit.toml`` on 2026-09-11 and this integrator was
-  left on the wrong one until 2026-09-14: it used ``max_steering_rate``, which
-  is a policy cap lowered 2.0 -> 1.2 on 2026-08-28 because cornering was too
-  drastic, while the servo was bench-measured LOADED at ~2.91 rad/s and ships
-  conservatively at 2.4. So the simulated actuator slewed at half the real
-  one's rate.
+  This reads the MODEL of the hardware, not the cornering POLICY -- two distinct
+  tuning fields (see ``adr:0076-drivetrain-and-steering-hardware``). Using the
+  policy cap here made the simulated actuator slew at half the real one's rate.
   Normal driving mostly hid it, because the controller already rate-limits its
-  command to the same 1.2 and the physical limit then never binds. It bites on
+  command to the policy and the physical limit then never binds. It bites on
   STEP commands -- escapes, K-turns, the bay exit -- where a latched steering
-  value is applied at once and the wheel took twice as long to get there as the
-  hardware's does. Those are exactly the manoeuvres the escape work is tuned
-  against. ``pursuit.toml`` warns against the inverse error ("raising the POLICY
-  to fix the MODEL re-heats cornering"); this is the same conflation, read the
-  other way round.
+  value is applied at once and the wheel would take twice as long to get there
+  as the hardware's does. Those are exactly the manoeuvres the escape work is
+  tuned against. See ``adr:0086-simulator-realism``.
 * **Drive acceleration** — the drive motor cannot change speed instantly; it is
   clamped to ``max_accel`` (m/s²), the physical acceleration limit of the drive motor.
 * **Drive lag** — and it does not track the command even within that clamp: it
   approaches a new setpoint as a first-order lag with time constant
-  ``speed_tau_s``. Measured 2026-08-29; see below.
+  ``speed_tau_s``. See ``adr:0086-simulator-realism``.
 * **Steering limit** — front-wheel angle saturates at ``MAX_STEERING_ANGLE``.
 * **Yaw gain** — the geometry above is zero-slip, and the real chassis is not.
   ``yaw_gain`` scales the predicted yaw rate by the fraction actually
-  delivered. Measured 2026-08-29; see below.
+  delivered. See ``adr:0086-simulator-realism``.
 
-The last two exist because this model was written from first principles and
-first checked against a bag on 2026-08-29 (``run_20260829_140424``, via
-``scripts/bag/diag_bag_sim_fidelity.py``). Replaying that run's own command
-stream through this integrator produced 3512° of yaw against the IMU's 1918° --
-the simulator cornered 1.83x harder than the hardware it was standing in for,
-and reached commanded speed in a fraction of the ~0.35 s the drivetrain takes.
-Both gaps flattered the robot, so any tuning validated only in sim before that
-date was validated against a car that turns better than the real one.
+The last two exist because this model was written from first principles and then
+checked against a recorded bag (via ``scripts/bag/diag_bag_sim_fidelity.py``).
+Replaying that run's own command stream through this integrator cornered harder
+than the hardware it was standing in for and reached commanded speed faster than
+the drivetrain does. Both gaps flattered the robot, so any tuning validated only
+in sim before that calibration was validated against a car that turns better
+than the real one. See ``adr:0086-simulator-realism``.
 
 **Both axles steer, in opposite directions and by the same amount** -- confirmed
-on the real chassis 2026-07-25. That is not the textbook bicycle model, and the
-difference is not subtle: counter-phase steering moves the instantaneous centre
+on the real chassis; see ``adr:0076-drivetrain-and-steering-hardware``. That is
+not the textbook bicycle model, and the difference is not subtle: counter-phase
+steering moves the instantaneous centre
 of rotation from the rear axle to the chassis centre, so the robot yaws *twice
 as fast* as a front-steer car at the same steering angle::
 
@@ -281,38 +275,29 @@ class AckermannKinematics:
             x += v * math.cos(yaw) * h
             y += v * math.sin(yaw) * h
             # Curvature, floored by the chassis's MINIMUM TURN RADIUS. The
-            # bicycle term alone has no floor: at the shipped 85 deg lock it
-            # gives L_eff / (tan(85) * yaw_gain) = 1.5 cm of radius, which a
-            # 30 x 19.4 cm four-wheeled chassis cannot do.
+            # bicycle term alone has no floor: at the shipped lock it gives a
+            # radius far below what a 30 x 19.4 cm four-wheeled chassis can do.
             #
-            # Measured from `/joint_states` drive-wheel travel against pose yaw
-            # over five hardware bags, the real radius SATURATES:
+            # Measured from `/joint_states` drive-wheel travel against pose yaw,
+            # the real radius SATURATES: past a modest steering angle the real
+            # car buys almost nothing while the model keeps rewarding lock.
+            # Without this floor every full-lock manoeuvre in simulation is
+            # optimistic by more than an order of magnitude -- the in-bay exit
+            # in particular. See ``adr:0086-simulator-realism``.
             #
-            #   |steer|   effective R   model R    ratio
-            #    15-30       66.0 cm     41.7 cm    1.6x
-            #    30-45       38.2 cm     22.5 cm    1.7x
-            #    75-90       28.9 cm      2.3 cm   12.7x
-            #
-            # so past ~30 deg the real car buys almost nothing while the model
-            # keeps rewarding lock. Without this floor every full-lock manoeuvre
-            # in simulation is optimistic by more than an order of magnitude --
-            # the in-bay exit completes in a deterministic 91 ticks in sim where
-            # hardware takes 5-44 s and once managed 2.2 deg in 44.1 s.
-            #
-            # AND THE FLOOR IS NOT A CONSTANT. Re-measured 2026-09-10 over 33
-            # bags with IMU yaw, the achieved radius rises with speed and then
-            # saturates -- 0.105 m at 0.025 m/s, 0.298 at 0.132, 0.43 above
-            # 0.22 -- so 0.29 is the curve's value at ~0.118 m/s, near corridor
-            # speed. The bay exit creeps, and there the constant is nearly 2x
-            # too large. `v` is the SUBSTEP's speed, so the floor tracks the
-            # chassis through an acceleration rather than being fixed per call.
-            # Off by default; see `MIN_TURN_RADIUS_TRACKS_SPEED`.
+            # AND THE FLOOR IS NOT A CONSTANT. Re-measured over many bags with
+            # IMU yaw, the achieved radius rises with speed and then saturates,
+            # so ``min_turn_radius_m`` is the curve's value near corridor speed
+            # while the bay exit creeps and the constant there is too large.
+            # `v` is the SUBSTEP's speed, so the floor tracks the chassis through
+            # an acceleration rather than being fixed per call. Off by default;
+            # see `MIN_TURN_RADIUS_TRACKS_SPEED`.
             # A floor of 0.0 means the caller asked for NO clamp, and the speed
             # curve must not resurrect one: it replaces the constant, it does not
             # outrank the decision to switch the floor off. Tests that assert the
             # ideal geometry pin the floor to 0.0 for exactly this reason, and
             # while the curve overwrote it unconditionally they asserted the
-            # clamp (a flat 0.239 m) instead of the model they name.
+            # clamp instead of the model they name.
             floor = self._min_turn_radius_m
             if self._radius_tracks_speed and floor > 0.0:
                 floor = min(

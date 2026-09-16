@@ -82,8 +82,8 @@ class EscapeRecovery:
         A generic reverse escape backs along an ARC into space the robot has
         never been and largely cannot see; retracing needs no rear sensor by
         construction, because the chassis was physically standing on this ground
-        seconds ago, and it cannot swing into a wall. Measured rationale and the
-        refuted alternative: ``adr:0050-escape-steering-degrees-and-committed-side``
+        seconds ago, and it cannot swing into a wall. See
+        ``adr:0050-escape-steering-degrees-and-committed-side``
         and ``adr:0055-escape-maneuver-selection``.
 
         Reverse pure pursuit: curvature is the NEGATIVE of the forward case,
@@ -143,17 +143,18 @@ class EscapeRecovery:
             # CONTACT_DIST to spare before it counts, and an empty trail still
             # refuses. Without this the gate is unreachable on a chassis with
             # no rear slot, and a scenario needing one escape-reverse hits the
-            # wall instead (measured on go_open #85, 2026-08-22).
+            # wall instead. See ``adr:0055-escape-maneuver-selection``.
             if self._trail_confirms_reverse(
                 reverse_distance=abs(maneuver.speed) * maneuver.duration_frames / self._tuning.control.control_hz
             ):
                 return False
             logger.warning("Reverse escape refused: rear sector measured nothing")
             return True
-        # As a gap from the REAR bumper. Compared raw until 2026-08-22, which
-        # made this gate unreachable: the sensor is at the front, so an obstacle
-        # touching the rear bumper reports ~0.272 m against a 0.10 m threshold
-        # and the reverse was authorised right up to the moment of impact.
+        # As a gap from the REAR bumper. Compared raw, this gate was
+        # unreachable: the sensor is at the front, so an obstacle touching the
+        # rear bumper reports a range far larger than the threshold and the
+        # reverse was authorised right up to the moment of impact. See
+        # ``adr:0055-escape-maneuver-selection``.
         return bumper_gap_behind(rear.min_range_m) < self._clearance.contact_dist
 
     def _fit_reverse_to_rear_gap(self, maneuver: EscapeManeuver, scan: LidarScan) -> EscapeManeuver:
@@ -396,12 +397,12 @@ class EscapeRecovery:
         which side repeated attempts within the sequence take; this only
         fixes what side attempt 1 commits to.
 
-        Measured on the 2026-09-10 Obstacles bags: this base was hardcoded to
-        1.0 at every reset and NEVER read from LIDAR, so the stuck K-turn
-        opposed the clearer side far more often than the one escape type that
-        already read a threat direction. This closes that gap the same way: a
-        left/right clearance comparison, seeded once per sequence rather than
-        re-read every tick. See ``adr:0050-escape-steering-degrees-and-committed-side``.
+        This base was once hardcoded to 1.0 at every reset and never read from
+        LIDAR, so the stuck K-turn opposed the clearer side far more often than
+        the one escape type that already read a threat direction. This closes
+        that gap the same way: a left/right clearance comparison, seeded once per
+        sequence rather than re-read every tick. See
+        ``adr:0050-escape-steering-degrees-and-committed-side``.
 
         The clearer-side sign is numerically identical whether the escape
         that follows drives forward or reverses: Ackermann reverse flips
@@ -504,14 +505,12 @@ class EscapeRecovery:
         # the worst-case stuck reverse so a longer escalation cannot outrun it.
         #
         # Every forward-forcing term below is gated on `rear_blind`, so none of
-        # this is the normal path any more: the rear slot was re-measured on
-        # 2026-08-31 (~40 deg at +/-160..180, wedges -155..-120 / 120..160) and
-        # `rear_blind` is now usually False, leaving only the genuine
-        # `rear_clear < CONTACT_DIST` case. Measured over five previously
-        # colliding scenarios, "rear sector measured nothing" refusals went
-        # 54 -> 0. The degraded reasoning above is kept deliberately -- it is
-        # what runs when the rear IS occluded, which is still every bearing
-        # inside the wedges.
+        # this is the normal path any more: the rear slot has since been
+        # re-measured on the current mount and `rear_blind` is now usually False,
+        # leaving only the genuine `rear_clear < CONTACT_DIST` case. The
+        # degraded reasoning above is kept deliberately -- it is what runs when
+        # the rear IS occluded, which is still every bearing inside the wedges.
+        # See ``adr:0056-raw-and-masked-scan``.
         stuck_reverse_distance = (
             abs(self._escape.rev_speed) * self._escape.max_escape_frames(self._tuning.control.control_hz) / self._tuning.control.control_hz
         )
@@ -566,15 +565,13 @@ class EscapeRecovery:
             # Both ends blocked and rear unmeasurable (the current build carries
             # no rear slot -- see rear_sector_no_longer_available_2026_08_22):
             # a frozen hold used to deadlock here, re-arming the same failed
-            # command every stuck window until the run timed out (27 s frozen on
-            # real hardware 2026-08-04; and the dominant term in Obstacles'
-            # 19->132 timeout rise after the LIDAR fix). The safe, rear-free
-            # recovery is a LOW-SPEED PIVOT forward -- never a reverse, since the
-            # rear gate cannot authorise one without a sensor -- steering toward
-            # the more open side so the chassis reorients out of the wedge
-            # instead of sitting in it. Forward creep, not zero speed: it walks
-            # itself clear using decisive steering the pure-pursuit path would
-            # not command for this geometry.
+            # command every stuck window until the run timed out. The safe,
+            # rear-free recovery is a LOW-SPEED PIVOT forward -- never a reverse,
+            # since the rear gate cannot authorise one without a sensor --
+            # steering toward the more open side so the chassis reorients out of
+            # the wedge instead of sitting in it. Forward creep, not zero speed:
+            # it walks itself clear using decisive steering the pure-pursuit path
+            # would not command for this geometry.
             steer_sign = self._pivot_steer_sign(scan)
             if self._escape_count == 0:
                 self._escape_sequence_start_xy = (robot_x, robot_y)
@@ -620,8 +617,8 @@ class EscapeRecovery:
         # The reverse leg curves the OPPOSITE way, so its rotation adds to the
         # forward leg's instead of undoing it. Without this the two legs of a
         # k-turn hold the same lock and retrace one another -- the bay's
-        # pendulum, measured at 85.6% of leg pairs on the open track. See
-        # escape_mirrors_reverse; ships off.
+        # pendulum (see ``adr:0050-escape-steering-degrees-and-committed-side``).
+        # See escape_mirrors_reverse; ships off.
         if self._escape.escape_mirrors_reverse:
             steering = -steering
         self._begin_maneuver(

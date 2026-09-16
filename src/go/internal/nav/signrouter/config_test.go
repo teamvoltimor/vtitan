@@ -67,8 +67,9 @@ func TestDefaultConfig_WallClearanceTracksSameChassis(t *testing.T) {
 // TestNewConfig_RejectsActivationAtOrAbovePassed matches
 // TestActivationPassedOrdering.test_activation_at_or_above_passed_is_rejected:
 // activation_dist must stay below passed_dist, or a sign is engaged and
-// marked passed on the same tick -- measured on the 256-scenario corpus to
-// silently take collisions from 209 to 256/256 with zero laps completed.
+// marked passed on the same tick -- on the corpus this silently took
+// collisions to every scenario with zero laps completed. See
+// adr:0051-sign-lane-planner.
 func TestNewConfig_RejectsActivationAtOrAbovePassed(t *testing.T) {
 	t.Parallel()
 

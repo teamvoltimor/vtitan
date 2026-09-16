@@ -86,8 +86,9 @@ func (s pinDepthScenario) apply(pin signrouter.PinContext) float64 {
 // red passes on the vehicle's right -- and the vehicle's right is the
 // outer wall driving COUNTERCLOCKWISE but the inner square driving
 // CLOCKWISE, so the two directions take OPPOSITE signs. They were
-// identical here until the 2026-09-03 fix, which is what let the absolute
-// misreading survive.
+// identical here before the travel-relative fix, which is what let the
+// absolute misreading survive. See
+// adr:0059-pass-side-travel-relative-and-scorer-independence.
 func TestApplyDeformation_OffsetDirectionPerSectionColorDirection(t *testing.T) {
 	t.Parallel()
 
@@ -338,10 +339,11 @@ func TestPinDepth_StillFiresWhenRobotIsSquarelyInCorridor(t *testing.T) {
 }
 
 // TestPinDepth_CornerGuardOffRestoresThePin matches
-// TestDepthPinCornerGuard.test_guard_off_restores_the_pin_that_cost_11_wall_collisions:
+// TestDepthPinCornerGuard.test_guard_off_restores_the_pin_that_cost_wall_collisions:
 // with PinCornerGuard disabled, the same geometry that blocked the pin above
 // must let it fire again -- otherwise the sweep that measured the guard's
-// effect would be comparing a knob that does not move the geometry.
+// effect would be comparing a knob that does not move the geometry. See
+// adr:0051-sign-lane-planner.
 func TestPinDepth_CornerGuardOffRestoresThePin(t *testing.T) {
 	t.Parallel()
 

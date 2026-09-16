@@ -48,14 +48,13 @@ const DefaultSmoothing = 0.3
 // counts over before computing a rate, matching control.py's
 // min_window_s=0.1.
 //
-// A single ~20ms nav tick is not enough window on its own at low RPM and
-// coarse counts_per_rev: bench data at 86 counts_per_rev / 13.6rpm target
-// (2026-08-28) averaged ~0.39 counts per tick, so a per-tick rate is a raw
-// 0-vs-1 count difference -- a >100% relative swing smoothing cannot
-// remove, since it damps a noisy signal rather than fixing the signal's own
-// resolution. At the same operating point a 0.1s window averages ~1.95
-// counts, so a +-1 count difference is a ~50% swing instead. Reasoned, NOT
-// live-verified -- re-check after any counts_per_rev/target-rpm change.
+// A single nav tick is not enough window on its own at low RPM and coarse
+// counts_per_rev: a per-tick rate is a raw 0-vs-1 count difference, a large
+// relative swing smoothing cannot remove, since it damps a noisy signal
+// rather than fixing the signal's own resolution. A longer window averages
+// several counts, so a +-1 count difference is a much smaller swing.
+// Reasoned, NOT live-verified -- re-check after any counts_per_rev/target-rpm
+// change. See adr:0076-drivetrain-and-steering-hardware.
 const DefaultMinWindowS = 0.1
 
 // errCountsPerRevPositive mirrors control.py's _CPR_POSITIVE guard: every
