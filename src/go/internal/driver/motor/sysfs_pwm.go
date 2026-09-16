@@ -37,8 +37,8 @@ const (
 // sysfsPWMChannel is the real dutyWriter (controller.go) for RPWM
 // (forward): the Pi's one free hardware PWM engine, driven directly through
 // the kernel's /sys/class/pwm sysfs interface (export/period/duty_cycle/
-// enable files) rather than a library, per go-migration-plan.md's stated
-// preference for this pin.
+// enable files) rather than a library, per
+// adr:0068-go-parallel-track-single-cutover's stated preference for this pin.
 type sysfsPWMChannel struct {
 	chipDir    string
 	channelDir string

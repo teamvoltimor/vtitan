@@ -3,11 +3,10 @@
 // parity testing against the Python baseline (see
 // adr:0068-go-parallel-track-single-cutover, "Simulation" and "Testing"
 // sections). It does not reimplement any simulation math: each scenario run
-// is a subprocess call into scripts/sim/run_scenario.py — see
+// is a subprocess call into scripts/sim/run_scenario.py - see
 // internal/sim/scenario.SubprocessRunner. Only the orchestration
-// (concurrency, aggregation, reporting) is Go-native today, per the plan's
-// explicit split between "port the orchestrator now" and "port the core
-// math only if profiling says so" (not yet run).
+// (concurrency, aggregation, reporting) is Go-native today, per
+// adr:0068-go-parallel-track-single-cutover's orchestrator/core-math split.
 package main
 
 import (
@@ -230,8 +229,7 @@ func newRootCmd(cfg *cliConfig, logger *slog.Logger, stdout io.Writer) *cobra.Co
 
 	// Sensor errors: what the robot is wrong about regarding ITSELF, as
 	// opposed to what --blind withholds about the track. All default to
-	// zero (a perfect robot), which is the condition every corpus number
-	// here was measured on, so switching one on is an explicit A/B.
+	// zero (a perfect robot), so switching one on is an explicit A/B.
 	flags.Float64Var(
 		&cfg.startPosErr,
 		"start-pos-error-m",

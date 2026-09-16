@@ -44,9 +44,9 @@ const sideHalfFovRad = math.Pi / 4
 //     ComputeRearClearance reports the same no-data sentinel it reports for
 //     open road, and reversingIntoUnseenWall refuses outright -- but a
 //     refused reverse is a robot that is not escaping.
-//   - The arc is what produces the wall strikes. Measured blind with the
-//     escape mask off, sign collisions fall 57 -> 41 but wall collisions
-//     rise 0 -> 13, in a corridor only 1.0 m wide.
+//   - The arc is what produces the wall strikes. See
+//     adr:0050-escape-steering-degrees-and-committed-side and
+//     adr:0055-escape-maneuver-selection.
 //
 // Retracing needs no rear sensor by construction: the chassis was
 // physically standing on this ground seconds ago, so it is free unless
@@ -117,8 +117,7 @@ func (n *Navigator) reversingIntoUnseenWall(
 		// moved in since, so it has to cover the WHOLE maneuver with the
 		// contact distance to spare before it counts, and an empty trail
 		// still refuses. Without this the gate is unreachable on a chassis
-		// with no rear slot, and a scenario needing one escape-reverse hits
-		// the wall instead (measured on go_open #85, 2026-08-22).
+		// with no rear slot. See adr:0055-escape-maneuver-selection.
 		reverseDistance := math.Abs(
 			maneuver.Speed,
 		) * float64(
@@ -130,10 +129,8 @@ func (n *Navigator) reversingIntoUnseenWall(
 		n.logger.Warn("reverse escape refused: rear sector measured nothing")
 		return true
 	}
-	// As a gap from the REAR bumper. Compared raw until 2026-08-22, which
-	// made this gate unreachable: the sensor is at the front, so an
-	// obstacle touching the rear bumper reports ~0.272 m against a 0.10 m
-	// threshold and the reverse was authorized right up to impact.
+	// As a gap from the REAR bumper, so the contact distance means the same
+	// thing at both ends. See adr:0055-escape-maneuver-selection.
 	return controllers.BumperGapBehind(
 		rear.MinRangeM,
 		n.cfg.LidarToRearBumperM,
@@ -215,24 +212,22 @@ func trailClearanceBehind(
 //
 // reversingIntoUnseenWall above answers "may this reverse start?" and
 // nothing else: it compares the gap at the FIRST frame against ContactDistM
-// and then the maneuver runs its full latched duration regardless. That
-// duration comes from the severity of what is in FRONT (K_TURN_MAX_S at
-// CRITICAL, K_TURN_MIN_S otherwise), so at REV_SPEED the critical escape
-// asks for 21.6 cm of reverse against a rear gap measured at p50 17 cm and
-// p10 7 cm -- the gate waves it through at 17 cm and the chassis is driven
-// into the pillar it is escaping. Measured over 46 escape episodes on the
-// 2026-09-10 bags: 35% did not fit.
+// and then the maneuver runs its full latched duration regardless, while
+// that duration comes from the severity of what is in FRONT (K_TURN_MAX_S
+// at CRITICAL, K_TURN_MIN_S otherwise), so a reverse can be driven into the
+// pillar behind. See adr:0055-escape-maneuver-selection.
 //
 // A CEILING, not a replacement. Front severity still proposes; the rear
-// room only caps. A reverse that already fits comes back unchanged, which
-// is 65% of them, so this cannot shorten the maneuvers that work.
+// room only caps. A reverse that already fits comes back unchanged, so this
+// cannot shorten the maneuvers that work.
 //
 // Two deliberate non-interventions, matching the Python doc comment:
 //
-//   - An unmeasured rear sector is left ALONE, not capped to zero. The slot
-//     this mount leaves is ~40 deg and can vanish entirely; capping on a
-//     sentinel would silently delete the maneuver on a chassis with no rear
-//     vision. Authorizing that reverse stays reversingIntoUnseenWall's job.
+//   - An unmeasured rear sector is left ALONE, not capped to zero. That
+//     slot can vanish entirely; capping on a sentinel would silently delete
+//     the maneuver on a chassis with no rear vision. Authorizing that
+//     reverse stays reversingIntoUnseenWall's job. See
+//     adr:0056-raw-and-masked-scan.
 //   - A gap already inside ContactDistM is left alone too: that is a
 //     refusal, not a truncation, and the gate above already makes it.
 //
@@ -354,10 +349,7 @@ func (n *Navigator) driveActiveManeuverOnto(
 //
 // Derived from escapeCount rather than flipped in place, so a side is held
 // for EscapeSideCommitAttempts consecutive attempts before the other is
-// tried. Flipping on every attempt means consecutive attempts rotate the
-// chassis in opposite directions and undo each other: measured on real
-// hardware 2026-08-05 as four escalating escapes over 40 s that rocked the
-// yaw between -0.4 and -0.8 rad and translated the robot exactly nowhere.
+// tried. See adr:0050-escape-steering-degrees-and-committed-side.
 //
 // firstAttempt is the escapeCount at which this caller's sequence begins,
 // so its blocks line up with it -- anchoring every caller at 1 leaves
@@ -430,17 +422,10 @@ func (n *Navigator) pivotSteerSign(scan controllers.LidarScan, haveScan bool) fl
 // which side repeated attempts within the sequence take; this only fixes
 // what side attempt 1 commits to.
 //
-// Measured on the 2026-09-10 Obstacles bags: this base was hardcoded to 1.0
-// at every reset and never read from LIDAR, so the stuck K-turn (as
-// opposed to the reactive one kTurnSteerSign already serves, and the
-// both-blocked pivot pivotSteerSign already serves) opposed the clearer
-// side 57% of the time, against 11% for side_correction -- the one escape
-// type that already read a threat direction. This closes that gap the same
-// way pivotSteerSign and kTurnSteerSign independently do for their own
-// forward/reverse cases: the clearer-side sign is numerically identical
-// regardless of which direction the escape that follows travels, since
-// "aim toward the clearer side" is invariant to the Ackermann sign flip
-// between forward and reverse.
+// The clearer-side sign is numerically identical regardless of which
+// direction the escape that follows travels, since "aim toward the clearer
+// side" is invariant to the Ackermann sign flip between forward and
+// reverse. See adr:0050-escape-steering-degrees-and-committed-side.
 func (n *Navigator) stuckEscapeBaseSign(scan controllers.LidarScan, haveScan bool) float64 {
 	if !haveScan || len(scan.RangesM) == 0 {
 		return n.escapeSteerSign
@@ -521,12 +506,12 @@ func (n *Navigator) beginStuckEscape(p stuckEscapeParams) {
 // twitching one centimeter every few seconds forever.
 //
 // When reverse itself is blocked (wedged both front and rear), this used to
-// hold and reset the detector, over and over, forever: confirmed on real
-// hardware 2026-08-04 as a robot frozen at the same position for 27 s.
-// Holding is only the safe choice when forward is ALSO blocked; when it is
-// not, a forward creep at full steering lock gives the robot a real chance
-// to walk itself clear using more decisive steering than normal drive's
-// pure-pursuit curvature was willing to command for this geometry.
+// hold and reset the detector, over and over, forever. Holding is only the
+// safe choice when forward is ALSO blocked; when it is not, a forward creep
+// at full steering lock gives the robot a real chance to walk itself clear
+// using more decisive steering than normal drive's pure-pursuit curvature
+// was willing to command for this geometry. See
+// adr:0055-escape-maneuver-selection.
 func (n *Navigator) handleStuckEscape(pose trackmodel.Pose) {
 	n.logger.Warn("robot stuck - triggering escape")
 	diag := n.stuckDetector.GetDiagnostics()
@@ -755,9 +740,10 @@ func (n *Navigator) tryEscape(pose trackmodel.Pose, p perception, debug DebugSna
 	}
 	n.escapeCount++
 	// Fitted AFTER escalation, not before: escalation doubles the duration
-	// to walk a wedged chassis out, and a doubled reverse into 7 cm of rear
-	// room is the failure this cap exists to stop. The ceiling has to be
-	// the last word on the distance.
+	// to walk a wedged chassis out, and a doubled reverse into too little
+	// rear room is the failure this cap exists to stop. The ceiling has to
+	// be the last word on the distance. See
+	// adr:0055-escape-maneuver-selection.
 	n.beginManeuver(n.fitReverseToRearGap(n.maybeEscalate(maneuver), p.scan))
 	// Decorate the caller's snapshot rather than assigning it and letting
 	// driveActiveManeuver rebuild over the top -- that ordering silently

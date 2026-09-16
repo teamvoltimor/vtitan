@@ -85,15 +85,16 @@ type Config struct {
 	// TOML comment before re-sweeping.
 	BayExitReverseM float64
 	// BayExitSteerNorm is the swing-out steering magnitude, 0..1 of full
-	// lock, on the legacy exit. MEASURED INERT 2026-08-29 (something
-	// downstream saturates before this reaches the wheels) but kept at full
-	// lock since nothing refutes the geometry argument for it.
+	// lock, on the legacy exit. Measured inert (something downstream
+	// saturates before this reaches the wheels) but kept at full lock since
+	// nothing refutes the geometry argument for it. See
+	// adr:0088-refuted-config-knobs.
 	BayExitSteerNorm float64
 	// BayExitReverseSteerNorm is the steering magnitude DURING the legacy
 	// exit's reverse leg, applied with the sign INVERTED the way
-	// FollowCorridor's reverse branch already does. REFUTED 2026-08-29 at
-	// any non-zero value; kept at 0.0 (straight reverse) so the refutation
-	// stays recorded.
+	// FollowCorridor's reverse branch already does. Refuted at any non-zero
+	// value; kept at 0.0 (straight reverse) so the refutation stays recorded.
+	// See adr:0088-refuted-config-knobs.
 	BayExitReverseSteerNorm float64
 	// BayExitHoldSteer holds the forward leg's steering through the legacy
 	// exit's reverse leg instead of centring, so the servo's slew is not
@@ -140,13 +141,11 @@ type Config struct {
 	// tolerates (m), subtracted from BayExitClearanceMarginM so the
 	// effective threshold can go negative without loosening
 	// BayExitClearanceMarginM itself (whose floor exists to stop that
-	// margin being set backwards by accident). Ships 0.0 = inert: the
-	// guard was measured refusing on a PREDICTED gap of ~4 mm against a
-	// 1 mm margin while dead-reckoning it from a pose ~29 mm wrong,
-	// arbitrating an order of magnitude below its own model's error, so
-	// every refusal flipped the leg for zero net travel. A positive value
-	// lets the guard refuse only where the model is confidently -- not
-	// marginally -- inside a fin.
+	// margin being set backwards by accident). Ships 0.0 = inert: the guard
+	// arbitrates an order of magnitude below its own model's error, so every
+	// refusal flipped the leg for zero net travel. A positive value lets the
+	// guard refuse only where the model is confidently -- not marginally --
+	// inside a fin. See adr:0060-bay-exit-clearance-guard.
 	BayExitClearanceToleranceM float64
 	// BayExitLegStallTicks is ticks of no wheel travel that end a
 	// cycle-maneuver leg and start the other -- the PRIMARY leg-end
@@ -168,12 +167,12 @@ type Config struct {
 	// BayExitSpeedScale is an extra speed scale applied to BOTH guarded
 	// legs, on top of CornerSpeedScale/ReverseSpeedScale. It is the lever
 	// on the COAST: commanding zero does not stop the chassis, it decays
-	// with SpeedResponseTauS and travels a further v*tau, against an
-	// along-wall budget of 31-57 mm. A cliff at both ends -- 1.0 leaves no
-	// admissible leg at all (the coast alone exceeds the slack, so the
-	// guard correctly refuses and the chassis never moves), 0.5 collides,
-	// 0.2 leaves only 3.5 mm of fin margin where 0.35 leaves 9.0 mm.
-	// Matches BAY_EXIT_SPEED_SCALE.
+	// with SpeedResponseTauS and travels a further v*tau, against a tight
+	// along-wall budget. A cliff at both ends: high enough that the coast
+	// alone exceeds the slack and the guard correctly refuses with the
+	// chassis never moving, or low enough that a leg collides or leaves
+	// almost no fin margin. Matches BAY_EXIT_SPEED_SCALE. See
+	// adr:0060-bay-exit-clearance-guard.
 	BayExitSpeedScale float64
 	// AssumeBayStart begins an OBSTACLES round believing the robot was
 	// placed inside the parking bay, instead of waiting for
@@ -231,8 +230,9 @@ type Config struct {
 	// SHIPS FALSE, INERT: no consuming logic reads this field.
 	BayExitGuardMirrorsReverse bool
 	// BayExitDrUsesMeasuredYaw matches BAY_EXIT_DR_USES_MEASURED_YAW. SHIPS
-	// FALSE, INERT: no consuming logic reads this field -- REFUTATION
-	// RECORDED, neither arm beat the shipped yaw model.
+	// FALSE, INERT: no consuming logic reads this field. Refutation
+	// recorded; neither arm beat the shipped yaw model. See
+	// adr:0060-bay-exit-clearance-guard.
 	BayExitDrUsesMeasuredYaw bool
 }
 

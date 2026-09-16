@@ -8,18 +8,18 @@ import (
 )
 
 // quaternionTolerance is the float64 comparison tolerance used throughout
-// this file — the golden vectors are scipy float64 output, so anything
+// this file - the golden vectors are scipy float64 output, so anything
 // looser would risk masking a real regression, and anything tighter would
 // start failing on ordinary floating-point rounding noise.
 const quaternionTolerance = 1e-9
 
 // Golden vectors generated directly from the Python driver's own conversion
-// call — scipy.spatial.transform.Rotation.from_euler("xyz", [roll, pitch,
-// yaw], degrees=True).as_quat() — not hand-derived, so a passing test here
+// call - scipy.spatial.transform.Rotation.from_euler("xyz", [roll, pitch,
+// yaw], degrees=True).as_quat() - not hand-derived, so a passing test here
 // means byte-for-byte behavioral parity with
-// src/python/src/hardware/imu/bno08x/utils.py, which is the actual bar
-// for this migration (see go-migration-plan.md's parity-gate testing
-// strategy).
+// src/python/src/hardware/imu/bno08x/utils.py, which is the actual bar for
+// this migration (see adr:0068-go-parallel-track-single-cutover's parity-gate
+// testing strategy).
 func TestQuaternionFromEuler_MatchesScipyGoldenVectors(t *testing.T) {
 	t.Parallel()
 

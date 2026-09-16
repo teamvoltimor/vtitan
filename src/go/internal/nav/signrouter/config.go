@@ -264,10 +264,9 @@ func DefaultConfig() Config {
 // passed_dist, in that order, on the same tick. Invert them and every sign
 // is engaged and marked passed in the same breath, from a meter away, and
 // stays retired for the rest of the run -- deformation never fires at the
-// real pass. Measured on the 256-scenario corpus: activation_dist=1.30
-// against passed_dist=1.20 took it from 209 collisions to 256/256 with zero
-// laps completed, silently. That is the worst shape a config error can take
-// in a safety path, so it is an error rather than a clamp.
+// real pass. That is the worst shape a config error can take in a safety
+// path, so it is an error rather than a clamp. See
+// adr:0051-sign-lane-planner.
 func NewConfig(cfg Config) (Config, error) {
 	if cfg.ActivationDistM >= cfg.PassedDistM {
 		return Config{}, fmt.Errorf(

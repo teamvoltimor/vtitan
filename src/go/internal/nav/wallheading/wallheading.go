@@ -7,10 +7,9 @@
 // alone, and a BNO085 in UART-RVC mode is 6-axis with no magnetometer and no
 // absolute reference. Its error is a ramp, not a bound.
 //
-// The measurements say that is the axis that decides rounds. Across the 28
-// Open Challenge fixtures, 20 cm of position error costs nothing at all,
-// while 0.1 deg/s of gyro drift takes 28/28 to 6/28, and 0.5% of gyro scale
-// error takes it to 25/28.
+// The measurements say that is the axis that decides rounds: position error
+// is cheap, while gyro drift and scale error are not. See
+// adr:0054-absolute-heading-from-walls.
 //
 // # The observation
 //

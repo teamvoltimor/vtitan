@@ -2,7 +2,7 @@
 // process and reports per-step timing. With --cpuprofile / --memprofile it
 // captures runtime/pprof profiles around the loop. It does not edit or reuse
 // cmd/sim-runner; it is a standalone profiling harness (see
-// src/go/docs/internal/plans/2026-08-30-python-go-comparison.md §4).
+// adr:0068-go-parallel-track-single-cutover).
 package main
 
 import (

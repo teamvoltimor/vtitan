@@ -36,11 +36,10 @@ type RoutingKey struct {
 // vehicle's right" is a fixed rule that names opposite world directions
 // depending on which way it drives.
 //
-// Corrected 2026-09-03 (Python 879198f7) after reading the official PDF.
-// Between the port and then this table was ABSOLUTE (CW rows identical to
-// CCW), which is right for counterclockwise and backwards for every
-// clockwise round -- every pass-side figure recorded on the absolute table
-// is void.
+// This table spent time as an ABSOLUTE rule (CW rows identical to CCW), which
+// is right for counterclockwise and backwards for every clockwise round. See
+// adr:0059-pass-side-travel-relative-and-scorer-independence for the history
+// and the superseded figures.
 var routingTable = map[RoutingKey]RoutingEntry{
 	{trackmodel.South, trackmodel.Counterclockwise}: {AxisY, -1, +1},
 	{trackmodel.North, trackmodel.Counterclockwise}: {AxisY, +1, -1},
@@ -82,13 +81,10 @@ func multForColor(entry RoutingEntry, color SignColor) int {
 // PassSideLateralAxis returns the world-frame axis and sign of the
 // pass-side rule for corridor, matching pass_side_lateral_axis.
 //
-// direction is REQUIRED and may not be guessed. Until the 2026-09-03 fix
-// this was OutwardLateralAxis(corridor, color), which looked the rule up
-// under a fixed CLOCKWISE key and documented itself as direction-agnostic
-// -- true only while the table's CW and CCW rows were identical, which was
-// itself the bug. Under the real travel-relative rule the two rows are
-// negations, so a caller without a settled direction cannot evaluate the
-// rule at all.
+// direction is REQUIRED and may not be guessed: the table's CW and CCW rows
+// are negations, so a caller without a settled direction cannot evaluate the
+// rule at all. See
+// adr:0059-pass-side-travel-relative-and-scorer-independence.
 //
 // ok is false when direction has no entry (e.g. a zero-value Direction not
 // in the table) or corridor has no routing entry, which callers must treat
@@ -119,8 +115,8 @@ func PassSideLateralAxis(
 // coordinate must stay below TrackCornerMinM); NORTH/EAST border it on
 // their low side (must stay above TrackCornerMaxM). Every corridor is also
 // bounded on its outer side by the track wall. This clamp is asymmetric by
-// nature -- see clamp_lateral's Python docstring for why rebalancing it has
-// been measured and refuted.
+// nature; rebalancing it has been measured and refuted. See
+// adr:0064-corridor-by-depth-and-clearance-budget.
 func ClampLateral(value float64, corridor trackmodel.Section, cfg Config) float64 {
 	wallClearance := cfg.ChassisHalfDiagonalM + cfg.WallClearanceMarginM
 	lowSide := corridor == trackmodel.South || corridor == trackmodel.West
@@ -142,9 +138,9 @@ func ClampLateral(value float64, corridor trackmodel.Section, cfg Config) float6
 // a lane: when the full offset would put the lane past the boundary-clearance
 // limit, clamping parks it hard against that limit and hands every remaining
 // metre of the squeeze to the SIGN side -- over-margined at the wall,
-// under-margined at the pillar. Against the simulator's exact SAT collision
-// test the clamped placement clears the sign only within +/-28.2 deg of the
-// corridor axis, while the free-gap midpoint clears both sides at every yaw.
+// under-margined at the pillar. The free-gap midpoint clears both sides at
+// every yaw; see adr:0064-corridor-by-depth-and-clearance-budget for the
+// collision budget.
 //
 // frac travels from the clamped placement toward the gap midpoint: 0.0
 // reproduces ClampLateral exactly, 1.0 is full centring. Only the squeeze is
@@ -227,9 +223,9 @@ func depthViolation(x, y float64, corridor trackmodel.Section, cfg Config) float
 // point actually lies along, matching depth_consistent_corridor.
 // CorridorForPosition resolves a corner by NEAREST FACE, which is the
 // wrong axis to decide it on for a sign sitting right at a section
-// boundary -- see depth_consistent_corridor's Python docstring for the
-// measured 42.1% misfile rate this fixes. Ties keep fallback so a genuine
-// diagonal is left where CorridorForPosition put it.
+// boundary; see adr:0064-corridor-by-depth-and-clearance-budget for the
+// misfile rate this fixes. Ties keep fallback so a genuine diagonal is left
+// where CorridorForPosition put it.
 func DepthConsistentCorridor(
 	x, y float64,
 	fallback trackmodel.Section,

@@ -15,8 +15,9 @@ import (
 
 // Actuator is the actuator-shaped counterpart to driver.Driver[T]
 // (src/go/internal/driver): commanded via WriteFramebuffer
-// rather than sampled via Read — see doc.go. Kept to 3 methods
-// (interfacebloat's cap, go-migration-plan.md's "Interfaces" guidance);
+// rather than sampled via Read - see doc.go. Kept to 3 methods
+// (interfacebloat's cap, adr:0068-go-parallel-track-single-cutover's
+// "Interfaces" guidance);
 // Clear is exposed as an additional Driver method rather than folded into
 // this interface, since callers needing an Actuator abstraction (a future
 // page-orchestration consumer) can always clear by writing a blank
@@ -31,7 +32,7 @@ type Actuator interface {
 // Driver is the SSD1306 OLED display driver: Connect claims a real
 // periph.io I2C bus and wires it into a Controller, which owns all
 // protocol logic (controller.go). It implements Actuator; it does not
-// implement driver.Driver[T] — see doc.go.
+// implement driver.Driver[T] - see doc.go.
 type Driver struct {
 	cfg Config
 

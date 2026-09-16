@@ -81,8 +81,8 @@ func (l *LidarLocalizer) ResetTracking() {
 //
 // Diagnostic only. Non-zero means the local search lost the pose and was
 // recovered; the value belongs in the debug snapshot because the failure
-// it reports (run_20260907_205830) was invisible in every field the
-// navigator already published.
+// it reports was invisible in every field the navigator already published.
+// See adr:0084-localizer-divergence-and-relocalization.
 func (l *LidarLocalizer) RelocalizationCount() int {
 	return l.relocalizationCount
 }
@@ -92,9 +92,8 @@ func (l *LidarLocalizer) RelocalizationCount() int {
 // the first EstimatePosition call that has a scored a fit (i.e. one whose
 // bearings matched its ranges).
 //
-// Diagnostic only. Around 0.010 on a healthy hardware run (measured median
-// over two clean 3-lap runs, 2026-09-07), 0.043 on the run whose estimate
-// had lost the track.
+// Diagnostic only: small on a healthy run, larger once the estimate has
+// lost the track. See adr:0084-localizer-divergence-and-relocalization.
 func (l *LidarLocalizer) LastFitCost() (cost float64, ok bool) {
 	if l.lastFitCost == nil {
 		return 0, false
@@ -167,9 +166,8 @@ func (l *LidarLocalizer) EstimatePosition(
 	// The search is a local hill-climb reseeded from priorXY every call, with
 	// no independent check on its own output -- SearchRadiusM is sized for
 	// search robustness, not as a physical bound. A wrong-but-locally-cheap
-	// match can become the next seed and propagate forever. Confirmed on real
-	// hardware 2026-08-04: a CCW run's position snapped to an off-track
-	// x < 0 during a k-turn escape and stayed there for the rest of the run.
+	// match can become the next seed and propagate forever. See
+	// adr:0084-localizer-divergence-and-relocalization.
 	//
 	// Clearance is 0, matching Python's default: this asks only whether the
 	// point is physically occupiable, not whether it is safely navigable.
@@ -216,11 +214,10 @@ func (l *LidarLocalizer) EstimatePosition(
 // substituted with LidarMaxRangeM and carries no positional information,
 // each contributing a full clipped residual whatever the pose. Included,
 // those rays add a large offset that swamps the very difference this number
-// exists to detect -- measured in Python, counting them compresses the gap
-// between a healthy fit and a lost one from 8x to 2x. The search's own cost
-// is left alone: it only ever compares candidates against each other on one
-// sweep, where a constant offset cancels; this one is compared against an
-// absolute threshold, where it does not.
+// exists to detect. The search's own cost is left alone: it only ever
+// compares candidates against each other on one sweep, where a constant
+// offset cancels; this one is compared against an absolute threshold, where
+// it does not. See adr:0084-localizer-divergence-and-relocalization.
 //
 // Uses l.fan (built for this tick's anglesRad in EstimatePosition) rather
 // than raycasting only the informative rays: raycasting is a pure function

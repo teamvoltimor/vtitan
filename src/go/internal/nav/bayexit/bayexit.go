@@ -160,11 +160,10 @@ func (b *BayExit) RotationComplete(cfg Config) bool {
 // Command backs out of the parking pocket, then swings the nose to the
 // open side, matching the command method.
 //
-// Pivoting straight from a centred placement does not work: the pocket is
-// 0.45 m along the wall against a 0.30 m chassis, so there is only ~7.5 cm
-// of slack at each end, and the nose reaches the marker before it has
-// rotated clear. So reverse first, to double the room ahead, then turn
-// hard.
+// Pivoting straight from a centred placement does not work: the pocket has
+// only centimetres of slack at each end, and the nose reaches the marker
+// before it has rotated clear. So reverse first, to double the room ahead,
+// then turn hard. See adr:0060-bay-exit-clearance-guard.
 //
 // Which way to turn is not a guess: the lot is always against the OUTER
 // wall, so its opening faces the inner block, and a lap always turns
@@ -307,7 +306,8 @@ func reverseLegCommand(
 		// servo's slew never reaches full lock inside a stroke this short if
 		// every reverse tick re-commands centre. NOT the same as
 		// BayExitReverseSteerNorm, which applies the INVERTED sign and so
-		// slews even further, to opposite lock (refuted 2026-08-29).
+		// slews even further, to opposite lock. Refuted; see
+		// adr:0060-bay-exit-clearance-guard.
 		mag := navutil.Clamp(f.BayExitSteerNorm, 0.0, 1.0)
 		reverseNorm = -mag
 		if openIsLeft {
@@ -512,9 +512,10 @@ func (b *BayExit) beginLeg(isReverse bool, travelledM float64, cfg Config, fromN
 	}
 	swingRad := math.Abs(toNorm-fromNorm) * cfg.followerMaxSteeringAngleRad()
 	// The SERVO's rate, not the command rate limiter. They were one field
-	// until 2026-09-11 and pull opposite ways: the limiter is a cornering
-	// policy deliberately held low, while this budget wastes 2.5 s per
-	// reversal whenever it sits below the truth. See ServoSlewRateRadPerS.
+	// and pull opposite ways: the limiter is a cornering policy deliberately
+	// held low, while this budget wastes time per reversal whenever it sits
+	// below the truth. See ServoSlewRateRadPerS and
+	// adr:0060-bay-exit-clearance-guard.
 	perTickRad := cfg.ServoSlewRateRadPerS / cfg.ControlHz
 	settle := 0
 	if perTickRad > 0 {
@@ -679,7 +680,7 @@ func (b *BayExit) cycleCommand(
 	// Steer FIRST, then drive. Commanding the angle and the motion
 	// together let the servo slew while the leg ran and the leg ended
 	// before the angle arrived. Slewing at a standstill costs ticks but no
-	// travel, and travel is the only thing a 7.5 cm pocket is short of.
+	// travel, and travel is the only thing a tight pocket is short of.
 	if b.settleTicks > 0 {
 		b.settleTicks--
 		return controllers.DriveCommand{SpeedMPS: 0.0, SteeringNorm: target}

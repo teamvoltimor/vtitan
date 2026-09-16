@@ -28,23 +28,18 @@ type Config struct {
 	//
 	// A blind round begins believing every corridor narrow, and both
 	// hypotheses share the fixed OUTER wall, so the entire width error lands
-	// as a lateral shift of the planned line: believed-narrow (0.6 m) plans
-	// at MAX-0.30, confirmed-wide (1.0 m) at MAX-0.60. Confirming moves the
-	// line 0.30 m in one 50 ms tick -- ten times what the chassis can travel,
-	// measured across six hardware runs, which threw heading error past the
-	// crawl threshold and pinned the limiter for 82-100% of the following
-	// ticks. Pre-positioning inward while the belief is still a guess shrinks
-	// that step to 0.30 - this value.
+	// as a lateral shift of the planned line. Pre-positioning inward while
+	// the belief is still a guess shrinks the step of confirming a wide
+	// corridor, which in one tick would otherwise outrun what the chassis
+	// can travel. See adr:0057-blind-corridor-follower-and-width.
 	//
 	// A SEPARATE field rather than a raised NarrowCenterBiasM: that value is
 	// 0.0 on evidence, and raising it would pay the cost in corridors that
-	// are genuinely narrow, where measured inward tracking drift (~0.07 m)
-	// already eats most of the margin. This one is handed straight back on a
-	// confirmed-narrow reading.
+	// are genuinely narrow, where inward tracking drift already eats most of
+	// the margin. This one is handed straight back on a confirmed-narrow
+	// reading.
 	//
-	// The ceiling is CLEARANCE. Do NOT raise it above 0.05 without
-	// re-measuring: 0.15 leaves a truly-narrow corridor 0.053 m of inner
-	// margin against that same 0.07 m of drift, and measured -16 cases.
+	// The ceiling is CLEARANCE. Do not raise it without re-measuring.
 	UnconfirmedWidthInnerBiasM float64
 	// DeferCurrentCorridorReplan holds a width change back until the robot
 	// has left the corridor it describes, matching

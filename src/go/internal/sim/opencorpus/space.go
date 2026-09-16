@@ -200,11 +200,10 @@ func Space(track *simconfig.Track, robot *simconfig.Robot) []Params {
 // "open128" corpus, which is the same layout/section/direction grid with the
 // spawn pinned hard against the outer wall.
 //
-// Kept because every Open pass rate in this project's history before the
-// balanced corpora (96 -> 125 -> 126) was measured on it, so it is the only
-// corpus those figures can be compared against. It is NOT the corpus to
-// screen anything new on: a blind robot's opening readings depend on where
-// across the corridor it starts, and this freezes exactly that.
+// Kept so older Open figures measured on it remain comparable. It is NOT the
+// corpus to screen anything new on: a blind robot's opening readings depend
+// on where across the corridor it starts, and this freezes exactly that. See
+// adr:0087-test-methodology.
 func OuterWallCells(params []Params) []Params {
 	filtered := make([]Params, 0, len(params)/outerWallCellCapacityDivisor)
 	for _, p := range params {

@@ -27,12 +27,13 @@ type Config struct {
 	// SimulatedHardwareGateway's own Pose.sensor_origin call.
 	LidarMountXOffsetM float64
 	// LidarNoiseStd is the Gaussian range noise stddev (meters). Mirrors
-	// RobotSpecs.LIDAR_NOISE_STDDEV; that constant is not ported to Go yet
-	// (see plan §2), so it is supplied here rather than read from a spec.
+	// RobotSpecs.LIDAR_NOISE_STDDEV; that constant is not ported to Go yet, so
+	// it is supplied here rather than read from a spec (see
+	// adr:0068-go-parallel-track-single-cutover).
 	LidarNoiseStd float64
 	// InvalidRayRate is the fraction of rays dropped to max-range (Slamtec
-	// no-return model). Mirrors simulation.LIDAR_INVALID_RAY_RATE; unported
-	// (plan §2), defaulted to 0.01.
+	// no-return model). Mirrors simulation.LIDAR_INVALID_RAY_RATE; unported,
+	// defaulted to 0.01. See adr:0068-go-parallel-track-single-cutover.
 	InvalidRayRate float64
 	// Localize runs the LIDAR scan-matcher and reports its estimate as the
 	// robot's pose, instead of handing the navigator ground truth.
@@ -48,28 +49,27 @@ type Config struct {
 	// reads the shipped localization.toml and robot.toml [lidar] geometry.
 	LocalizationConfig *localization.Config
 	// CollisionMarginM is the keep-out margin handed to collision.TrackModel.
-	// Mirrors simulation.COLLISION_MARGIN_M; unported (plan §2), defaulted 0.0.
+	// Mirrors simulation.COLLISION_MARGIN_M; unported, defaulted 0.0. See
+	// adr:0068-go-parallel-track-single-cutover.
 	CollisionMarginM float64
 	// TrackMaxCoordM is the mat's outer-boundary coordinate. Mirrors
 	// track.toml's max_coord; unported here, defaulted to 3.0.
 	TrackMaxCoordM float64
 	// ChassisLengthM / ChassisWidthM size the footprint passed to the
-	// collision check. Mirrors robot.toml; unported (plan §2), defaulted to
-	// the known WRO chassis (0.30 x 0.194).
+	// collision check. Mirrors robot.toml; unported, defaulted to the known
+	// WRO chassis (0.30 x 0.194). See
+	// adr:0068-go-parallel-track-single-cutover.
 	ChassisLengthM float64
 	ChassisWidthM  float64
 	// SensorErrors is what the robot may be wrong about regarding ITSELF:
 	// where it was placed and which way it thinks it points. The zero value
-	// is a perfect robot, which is what every corpus number in this repo
-	// was measured against -- and what the Python default is too, since
-	// every SensorErrors field defaults to 0.0 there. Switching any of it
-	// on is an explicit A/B.
+	// is a perfect robot, and switching any of it on is an explicit A/B.
 	SensorErrors sensorerrors.Errors
 
 	// DetectionConfidence is the fixed confidence internal/sim/visionsim
-	// reports for every emulated sign detection. Mirrors
-	// simulation.toml's detection_confidence; unported (plan §2), defaulted
-	// to 0.9.
+	// reports for every emulated sign detection. Mirrors simulation.toml's
+	// detection_confidence; unported, defaulted to 0.9. See
+	// adr:0068-go-parallel-track-single-cutover.
 	DetectionConfidence float64
 
 	// NoProgressWindowS / NoProgressDisplacementM end a run early, scored as
@@ -77,13 +77,10 @@ type Config struct {
 	// NoProgressWindowS. They mirror SimulationParams.NO_PROGRESS_WINDOW_S
 	// (30.0) and NO_PROGRESS_DISPLACEMENT_M (0.08).
 	//
-	// These were hardcoded at 2.0 s / 0.05 m until 2026-09-06 -- a FIFTEENFOLD
-	// shorter window than Python's. An escape maneuver reverses, reorients
-	// and re-approaches, which cannot finish inside two seconds, so the runner
-	// killed the run mid-escape: 142/256 blind runs ended stuck, 138 of them
-	// in a CORNER, at the LIDAR's 0.045 m floor, with ZERO collisions, having
-	// traveled a median 4.63 m. Python escapes 33 times a lap on the same
-	// corpus and recovers.
+	// The window must outlast an escape: a reverse, reorient and re-approach
+	// cannot finish inside a couple of seconds, and a runner that gives up
+	// first scores a recoverable stall as terminal. See
+	// adr:0068-go-parallel-track-single-cutover.
 	NoProgressWindowS       float64
 	NoProgressDisplacementM float64
 
@@ -94,8 +91,8 @@ type Config struct {
 	// StartCollisionGraceS before it counts as a real (terminal) crash;
 	// contact beginning later, or lasting longer, is terminal on the first
 	// tick. Mirrors SimulationParams.START_COLLISION_WINDOW_S (2.0) /
-	// START_COLLISION_GRACE_S (15.0); unported (plan §2), defaulted to the
-	// same values.
+	// START_COLLISION_GRACE_S (15.0); unported, defaulted to the same values.
+	// See adr:0068-go-parallel-track-single-cutover.
 	//
 	// Before this existed the native runner had NO grace at all: any tick of
 	// contact with a forbidden surface ended the run instantly, so a legal
@@ -115,7 +112,8 @@ const defaultControlHz = 20.0
 // DefaultConfig returns the all-default Config: 20 Hz control, 360-ray LIDAR
 // at 0.15–8 m, no noise, no dropout, perfect odometry, 3 m mat, 0.30x0.194 m
 // chassis. The noise/dropout/margin values are parity defaults for the
-// unported simulation.toml fields (plan §2), not measured values.
+// unported simulation.toml fields, not measured values. See
+// adr:0068-go-parallel-track-single-cutover.
 func DefaultConfig() Config {
 	return Config{
 		ControlHz:               defaultControlHz,

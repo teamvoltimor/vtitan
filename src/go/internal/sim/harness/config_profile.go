@@ -14,18 +14,17 @@ import (
 //
 // These fields were hardcoded in DefaultConfig with values that did not match
 // the robot the rest of the stack is configured for, and --config-root did not
-// reach them. That is the same class of divergence the ControlHz wiring in
-// NewNativeRunner exists to prevent, and it was measurably worse here: the
-// LIDAR floor shipped at 0.15 m against robot.toml's 0.045 m, so the simulated
-// sensor went blind more than three times further out than the real C1 does --
-// exactly across the range where the chassis works closest to a sign. A sweep
-// of the 256-scenario Obstacles corpus collided in 214 runs against the Python
-// oracle's 21, with contact concentrated on obstacles within the first lap.
+// reach them. The LIDAR floor shipped at 0.15 m against robot.toml's 0.045 m,
+// so the simulated sensor went blind more than three times further out than
+// the real C1 does, exactly across the range where the chassis works closest
+// to a sign. A sweep of the 256-scenario Obstacles corpus collided in 214 runs
+// against the Python oracle's 21, with contact concentrated on obstacles
+// within the first lap. See adr:0068-go-parallel-track-single-cutover.
 //
 // Deliberately NOT sourced here: LidarNoiseStd and InvalidRayRate. robot.toml
 // carries a noise_stddev, but the noise/dropout pair are simulation parameters
-// whose current values every corpus number in this repo was measured against,
-// and moving them is a re-baselining decision rather than a parity fix.
+// whose current values are a baseline; moving them is a re-baselining decision
+// rather than a parity fix. See adr:0087-test-methodology.
 func ApplyRobotProfile(
 	logger *slog.Logger, cfg Config, configRoot string, hardwareProfileNames []string,
 ) Config {

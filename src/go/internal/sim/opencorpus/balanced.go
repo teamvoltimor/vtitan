@@ -65,8 +65,7 @@ var comboSectionOrder = [4]simconfig.Section{
 // never varied. That is the wrong constant to freeze: a blind robot's
 // opening readings depend on where across the corridor it begins, and those
 // readings feed corridor-width estimation and the side ranges the direction
-// estimator votes on. Every Open pass rate in this project's history
-// (96 -> 125 -> 126) was measured against that single spawn.
+// estimator votes on. See adr:0087-test-methodology.
 //
 // Sampling 128 uniformly from the full 640 covers cells but leaves
 // layout/section coverage to chance, so two runs at different seeds are not

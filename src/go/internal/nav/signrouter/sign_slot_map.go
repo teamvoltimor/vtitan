@@ -4,22 +4,18 @@
 // instead of clustering freely.
 //
 // ObservedSignMap tracks whatever the camera reports and decides "which reports
-// describe the same pillar" from position alone -- unanswerable here, because
-// the believed position carries 0.15-0.25 m of error while two DISTINCT legal
-// pillars sit 0.20 m apart across the lane pair and 0.50 m apart along a
-// section. It invents pillars (9-25 believed on a track that physically holds
-// at most 8). The rulebook says a pillar stands on one of 24 legal cells -- six
-// per section, at 0.4 m from the outer wall or 0.4 m from the inner one, at
-// depths 1.0/1.5/2.0 m -- and that a section holds AT MOST TWO. So this is a
+// describe the same pillar" from position alone -- not answerable here, because
+// the believed position is too noisy to separate two DISTINCT legal pillars.
+// The rulebook says a pillar stands on one of 24 legal cells -- six per section,
+// at 0.4 m from the outer wall or 0.4 m from the inner one, at depths
+// 1.0/1.5/2.0 m -- and that a section holds AT MOST TWO. So this is a
 // CONSTRAINED ASSIGNMENT, recomputed every tick, not a clustering problem.
 //
-// MEASURED over 125 bags against the shipped map on identical observations:
-// routing error 23.3% -> 15.0%, worst peak believed 24 -> 7, runs over the
-// physical max 32/125 -> 0/125, position changes per run 44.9 -> 3.1, and
-// re-points/colour flips while COMMITTED 1062/66 -> 0/0.
+// Measured rationale and the 125-bag comparison are in
+// adr:0058-sign-discovery-range-and-barrier-belief.
 //
-// NEVER screen it in the simulator: the sim's sign map is exact, so every
-// number above collapses to zero there.
+// NEVER screen it in the simulator: the sim's sign map is exact, so its
+// advantage collapses to zero there.
 
 package signrouter
 
@@ -49,8 +45,8 @@ type cellEvidence struct {
 }
 
 // colour is the cell's colour: argmax over its OWN votes, pooled over the
-// round -- NOT pooled with neighbouring cells (measured and refuted: it
-// relocates flips rather than removing them).
+// round -- NOT pooled with neighbouring cells; pooling relocates flips rather
+// than removing them. See adr:0058-sign-discovery-range-and-barrier-belief.
 func (e *cellEvidence) colour() SignColor {
 	best := SignColorUnknown
 	bestV := math.Inf(-1)
@@ -463,8 +459,8 @@ func (m *SlotSignMap) published() []*SignSlot {
 }
 
 // setCommitted freezes the slot the router is committed to and thaws the rest.
-// The freeze removes the colour churn this design would otherwise have
-// (flips while committed 66 to 0, re-points 166 to 0) and routing IMPROVES.
+// The freeze removes the colour churn this design would otherwise have, and
+// routing improves. See adr:0058-sign-discovery-range-and-barrier-belief.
 func (m *SlotSignMap) setCommitted(index *int) {
 	for _, slot := range m.slots {
 		slot.Frozen = slot.PublishedIndex != nil && index != nil && *slot.PublishedIndex == *index

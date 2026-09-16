@@ -100,12 +100,10 @@ type NativeRunnerConfig struct {
 	//
 	// An empty ConfigRoot keeps every package on its Go literal defaults.
 	// That is NOT the shipped robot: the base navigation tree caps speed at
-	// max_mps 0.156 and carries no Open speed ladder at all, while the
-	// ladder that Open's results were measured against (0.26/0.38/0.50)
-	// lives only in profiles/rev-hd-hex-motor-6000rpm/motion/speed.toml. A
-	// sweep run without these is measuring a robot that drives a third as
-	// fast as the one the numbers describe, so any comparison against a
-	// Python baseline must set both.
+	// max_mps 0.156 and carries no Open speed ladder, which lives only in
+	// profiles/rev-hd-hex-motor-6000rpm/motion/speed.toml. A sweep run
+	// without these measures a materially slower robot, so any comparison
+	// against a Python baseline must set both. See adr:0085-speed-envelope.
 	ConfigRoot string
 	// RecordRoot, when non-empty, writes each scenario's run to an MCAP bag
 	// under <RecordRoot>/<scenario ID>/. Off by default: a 640-case sweep
@@ -115,8 +113,7 @@ type NativeRunnerConfig struct {
 	HardwareProfiles []string
 	// SensorErrors perturbs what the robot knows about ITSELF -- its start
 	// pose and its heading -- on top of whatever Blind withholds about the
-	// track. Zero (a perfect robot) is what every corpus number here was
-	// measured on, and is Python's default too.
+	// track. Zero (a perfect robot) is Python's default too.
 	SensorErrors sensorerrors.Errors
 	// Seed is the RNG seed for LIDAR noise/dropout (parity default 0, matching
 	// the Python np.random.default_rng(0)).
@@ -411,9 +408,7 @@ func (r *NativeRunner) Run(_ context.Context, sc corpus.Scenario) (Result, error
 		// "withhold the corridor widths, the travel direction AND the sign
 		// layout": no scenario file exists on the mat, so the router starts
 		// EMPTY and ObservedSignMap.Publish appends each sign as the camera
-		// confirms it. Until 2026-09-06 the router was handed the true
-		// positions in blind too, which made discovery redundant and Go's
-		// blind arm a strictly easier round than Python's.
+		// confirms it. See adr:0068-go-parallel-track-single-cutover.
 		//
 		// The router is still constructed (non-nil is what identifies the
 		// Obstacles Challenge to Navigator) and the emulated camera still
@@ -482,9 +477,9 @@ func (r *NativeRunner) Run(_ context.Context, sc corpus.Scenario) (Result, error
 		ControllersConfig:   r.ctrlCfg,
 		SignRouterConfig:    r.srCfg,
 		SignDiscoveryConfig: &r.discCfg,
-		// The blind phase reads the shipped TOML too. These used to be
-		// DefaultConfig() at the navigator's own call sites, which pinned
-		// the whole creep to Go literals whatever --config-root said.
+		// The blind phase reads the shipped TOML too, so the whole creep
+		// follows --config-root rather than Go literals. See
+		// adr:0068-go-parallel-track-single-cutover.
 		CorridorFollowerConfig:  &r.followCfg,
 		BayExitConfig:           &r.bxCfg,
 		CorridorEstimatorConfig: &r.estCfg,

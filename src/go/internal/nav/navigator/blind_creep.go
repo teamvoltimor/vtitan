@@ -165,9 +165,8 @@ func (n *Navigator) adoptDirection(
 	// including when the inferred direction agreed with the provisional one
 	// and the path is unchanged. The navigator did not follow the path during
 	// the creep, so its waypoint index is still 0 while the robot has driven a
-	// meter past it: it would resume by chasing a waypoint behind itself.
-	// Measured in Python: this alone cost fixtures that had inferred the
-	// direction perfectly.
+	// meter past it: it would resume by chasing a waypoint behind itself. See
+	// adr:0053-direction-inference-and-start-pose.
 	//
 	// The yaw is passed so the nearest-waypoint search breaks ties by heading
 	// agreement -- at the end of a corridor the waypoint behind and the one

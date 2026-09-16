@@ -5,19 +5,14 @@
 // A width belief update rebuilds the planned path, and the path is what
 // crosstrack and the steering target are measured against. When the corridor
 // whose width changed is the one the robot is standing in, that rebuild moves
-// the line the robot is ACTIVELY TRACKING -- measured on hardware 2026-08-30
-// across six runs as a ~0.30 m crosstrack step in a single 50 ms tick, ten
-// times what the chassis can physically travel in that time, which threw
-// heading error past the crawl threshold and pinned the limiter for 82-100%
-// of the ticks that followed.
+// the line the robot is ACTIVELY TRACKING.
 //
 // The same update applied to a corridor the robot is NOT in costs nothing:
 // the robot arrives on the new line instead of being displaced onto it. So
 // the step is not inherent to replanning, only to replanning UNDERNEATH the
 // chassis. Deferring removes it, rather than shrinking it
 // (Config.UnconfirmedWidthInnerBiasM) or spreading it over time (blended
-// replans, refuted twice -- a path that slides under the robot for a second
-// measured worse than one that jumps once and settles).
+// replans). See adr:0057-blind-corridor-follower-and-width.
 //
 // What deferring costs is small and bounded: the current corridor keeps
 // planning on the old belief for the remainder of one traverse, so it is
@@ -95,10 +90,10 @@ func New(enabled bool) *Gate {
 // planned line and they do not always move together. A corridor that is
 // genuinely narrow confirms at the value the prior already held: the width
 // does not change at all, but the section stops being unconfirmed, which
-// drops UnconfirmedWidthInnerBiasM and shifts the line 0.05 m outward.
-// Gating the width alone would let that one through -- a smaller step than
-// the 0.30 m case, in the corridor least able to afford being surprised, and
-// invisible to any test that only checks widths.
+// drops UnconfirmedWidthInnerBiasM and shifts the line outward. Gating the
+// width alone would let that one through, in the corridor least able to
+// afford being surprised, and invisible to any test that only checks widths.
+// See adr:0057-blind-corridor-follower-and-width.
 //
 // current is the section the robot is in right now, attributed by HEADING
 // rather than position: position would be circular here, since the planned

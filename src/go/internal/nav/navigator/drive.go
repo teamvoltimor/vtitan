@@ -163,13 +163,12 @@ func (n *Navigator) driveNormally(pose trackmodel.Pose, p perception) {
 	// Last-resort geometric guard against clipping a routed sign. The two
 	// responses that already exist both assume the planner has the sign
 	// handled -- the escape mask suppresses any reaction to it, and without
-	// that mask the generic escape reverses and swings, which in a 1.0 m
-	// corridor trades sign strikes for wall strikes. That assumption holds
-	// sighted, where the lane is placed a corridor ahead.
+	// that mask the generic escape reverses and swings. That assumption
+	// holds sighted, where the lane is placed a corridor ahead.
 	//
 	// Deliberately NOT gated on LIDAR risk: a return reads CRITICAL only at
-	// contact range, too late for any steering command to matter, which is
-	// why a risk-gated version of this measured flat.
+	// contact range, too late for any steering command to matter. See
+	// adr:0088-refuted-config-knobs.
 	if n.cfg.SignContactEvade && n.signRouter != nil {
 		if evade, evading := n.signEvadeSteer(pose); evading {
 			steering = navutil.Clamp(steering+evade, -1.0, 1.0)
@@ -184,10 +183,9 @@ func (n *Navigator) driveNormally(pose trackmodel.Pose, p perception) {
 	// Normal publish -- clear the escape escalation, but only once the
 	// robot has actually moved since the sequence started. A single
 	// normal-drive tick between escape attempts does not mean the escape
-	// worked: confirmed on real hardware 2026-08-04, normal_drive ->
-	// escape_triggered alternated for 34+ seconds with the robot pinned in
-	// place, and an unconditional reset zeroed the count every cycle so it
-	// never reached EscalateAfterAttempts.
+	// worked, so an unconditional reset would zero the count every cycle and
+	// it would never reach EscalateAfterAttempts. See
+	// adr:0055-escape-maneuver-selection.
 	if n.escapeSequenceStartXY == nil ||
 		math.Hypot(
 			pose.X-n.escapeSequenceStartXY.X,
@@ -230,8 +228,8 @@ func (n *Navigator) selectSpeed(
 	// Captured before the heading limiter, the envelope clamp and the risk
 	// cap all fold into speed. Reporting the post-min value under this name
 	// made the two debug fields satisfy final <= heading by construction, so
-	// the heading limiter looked innocent on 100% of ticks while it was in
-	// fact the binding constraint on most of them.
+	// the heading limiter looked innocent while it was in fact the binding
+	// constraint. See adr:0085-speed-envelope.
 	clearanceSpeed = speed
 
 	// Never take a sharp turn at a speed the steering actuator cannot keep
@@ -241,11 +239,9 @@ func (n *Navigator) selectSpeed(
 	// Clearance alone never catches this: a corner can have 0.50 m+ of open
 	// space ahead while still demanding a 90-180 deg correction.
 	//
-	// Only the CRAWL threshold reduces speed. This ladder briefly mirrored
-	// the clearance one; measured on hardware 2026-08-09 that cost 33% of
-	// lap time for nothing, since ordinary cornering sits at 23-45 deg of
-	// heading error, so the middle rungs taxed every corner on the track
-	// rather than catching a dangerous case.
+	// Only the CRAWL threshold reduces speed. A graduated ladder taxed every
+	// corner on the track rather than catching a dangerous case. See
+	// adr:0085-speed-envelope.
 	headingSpeed = n.cfg.FastSpeedMPS()
 	if math.Abs(angleError) >= n.cfg.CrawlRad {
 		headingSpeed = n.cfg.CreepSpeedMPS()
@@ -293,11 +289,11 @@ func (n *Navigator) selectSpeed(
 	}
 
 	// First-lap corner caution. A mixed-width corner's PLANNED arc is safe
-	// by construction (verified 2026-08-28: clearance to both outer walls
-	// never drops below what the straights already have), but real hardware
-	// wedged at exactly this kind of corner anyway, which points at CONTROL
-	// tracking error eating the plan's margin, not the plan itself. Only
-	// the first lap has never actually been driven.
+	// by construction, but real hardware wedged at exactly this kind of
+	// corner anyway, which points at CONTROL tracking error eating the
+	// plan's margin, not the plan itself. Only the first lap has never
+	// actually been driven. See
+	// adr:0049-corner-arcs-per-corridor-and-commit-distance.
 	if n.cfg.FirstLapCornerCaution && n.lapsCompleted == 0 && turnAhead != 0 {
 		speed = math.Min(speed, n.cfg.SlowSpeedMPS())
 	}

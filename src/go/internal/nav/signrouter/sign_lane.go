@@ -342,11 +342,10 @@ func nearestSignM(wp trackmodel.Waypoint, corridorSigns []LaneSpec) float64 {
 // twice, matching _assign_owners.
 //
 // Corner runway is BORROWED, and two corridors either side of a corner borrow
-// the SAME arc: with cornerEntryM 0.50 that is six waypoints per scenario over
-// the 256-scenario corpus, in every one of them. The shifts used to compound
-// -- the second corridor read a lateral the first had already moved and added
-// its own offset on top -- so 66% of those points ended up somewhere NEITHER
-// lane asked for, diverging by up to 215 mm, more than the chassis half-width.
+// the SAME arc. The shifts used to compound -- the second corridor read a
+// lateral the first had already moved and added its own offset on top -- so
+// most contested points ended up somewhere NEITHER lane asked for. See
+// adr:0051-sign-lane-planner for the measured count.
 //
 // A contested point goes to the lane whose own sign is nearest, which is the
 // lane whose pass that point actually serves. Exact ties keep the earlier

@@ -624,7 +624,8 @@ func (n *Navigator) ApplyBelievedStart(measured, pose trackmodel.Pose) {
 // Fed to the corridor follower as its believed corridor width, which is what
 // selects the NARROW turn clearance. Without it the follower commits every
 // corner at the WIDE clearance, so a narrow corridor is turned with an arc
-// sized for a corridor 20 cm wider than the one the robot is in.
+// sized for a wider corridor than the one the robot is in. See
+// adr:0057-blind-corridor-follower-and-width.
 func (n *Navigator) BelievedCreepWidthM() (widthM float64, ok bool) {
 	if len(n.creepWidths) == 0 {
 		return 0.0, false
@@ -736,9 +737,8 @@ func (n *Navigator) isHolding() bool {
 // straight down a corridor -- and they cannot be filed yet, because that
 // needs the direction. Discarding them instead leaves the first surviving
 // readings to be taken at a CORNER, where the side rays span the next
-// corridor and get attributed to this one. Measured in Python: that alone
-// mislearned the starting corridor on fixtures whose direction was inferred
-// perfectly.
+// corridor and get attributed to this one. See
+// adr:0057-blind-corridor-follower-and-width.
 //
 // Capped at MaxStartSamples (corridor_estimator.MAX_START_SAMPLES), oldest
 // dropped first, matching TrackNavigatorNode. A creep that never settles

@@ -68,12 +68,11 @@ type Config struct {
 	// so a Config that has never been resolved still drives something sane.
 	//
 	// The two challenges want opposite things. Obstacles degrades
-	// monotonically with speed (measured 2026-08-28: in-time 38/256 at
-	// 0.156 m/s, 16 at 0.50, 9 at 0.60), so it wants conservative rungs.
-	// Open's binding constraint is the 180 s round limit rather than sign
-	// clearance, so it can spend the headroom. Neither prefix is privileged
-	// as "the default": a drivetrain with no headroom declares neither and
-	// both challenges share one ladder.
+	// monotonically with speed, so it wants conservative rungs. Open's
+	// binding constraint is the round limit rather than sign clearance, so
+	// it can spend the headroom. Neither prefix is privileged as "the
+	// default": a drivetrain with no headroom declares neither and both
+	// challenges share one ladder. See adr:0085-speed-envelope.
 	Open      ChallengeTiers
 	Obstacles ChallengeTiers
 

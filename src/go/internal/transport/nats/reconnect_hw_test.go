@@ -15,11 +15,11 @@ import (
 )
 
 // TestHW_NATS_ConnectAndReconnectOverBrokerRestart is the field validation of
-// the NATS deployment hardening (go-migration-plan #2/#3): it proves a real
-// Go client using internal/transport/nats.Connect (a) reaches the live
-// nats-server started by vtitan-nats.service, and (b) survives a full broker
-// restart -- the exact failure mode of a USB-gadget link flap or a broker
-// crash -- by reconnecting and resuming pub/sub.
+// the NATS deployment hardening (adr:0068-go-parallel-track-single-cutover):
+// it proves a real Go client using internal/transport/nats.Connect (a)
+// reaches the live nats-server started by vtitan-nats.service, and (b)
+// survives a full broker restart -- the exact failure mode of a USB-gadget
+// link flap or a broker crash -- by reconnecting and resuming pub/sub.
 //
 // PASS -> initial connect + pub/sub works, `systemctl restart vtitan-nats`
 //

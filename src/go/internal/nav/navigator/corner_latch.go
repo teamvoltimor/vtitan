@@ -13,23 +13,13 @@ import (
 // That makes it a leading signal on approach, which is exactly what
 // WaypointController.SelectLookahead wants -- and it means the signal DECAYS
 // to zero as the chassis enters the arc, because the preview window slides
-// past the corner the chassis is now inside.
+// past the corner the chassis is now inside. See
+// adr:0052-pursuit-target-selection.
 //
 // So the signal is smallest precisely when the corner is being driven, and
-// thresholding it un-arms the short lookahead mid-turn. Measured on hardware
-// 2026-08-30 (run_20260830_014612, first corner, west -> south at 6.1 s),
-// with CornerTurnThresholdRad at 0.35:
-//
-//	rel_t   turn    look    aerr     xtrack
-//	-3.99   1.373   0.160   +0.573   0.179   preview armed, short lookahead
-//	-2.40   0.590   0.160   -0.612   0.076
-//	-2.00   0.197   0.320   -1.215   0.011   <- un-armed 2 s BEFORE the corner
-//	-0.60   0.000   0.320   -1.233   0.027
-//	+1.21   0.000   0.320   -1.053   0.119   <- crosstrack diverging
-//
-// The other two demands cannot cover the gap. Crosstrack error is measured
-// against the planned path and stays at 0.002-0.027 m right through the
-// corner -- the chassis is ON the path, it is POINTING 70 degrees off it --
+// thresholding it un-arms the short lookahead mid-turn. The other two demands
+// cannot cover the gap: crosstrack error is measured against the planned
+// path and stays small while the chassis is ON the path but POINTING off it,
 // and signAhead is an Obstacles-only boolean.
 //
 // Latching on ELAPSED TIME or on a waypoint count would both be proxies. The

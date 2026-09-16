@@ -6,11 +6,10 @@ package opencorpus
 //
 // # Why not just use math/rand
 //
-// Because the corpus is named by its seed. "balanced128 at seed 0" has to
-// mean the SAME 128 scenarios in Go as in Python, or two arms of an A/B run
-// in different languages are comparing different corpora while both claiming
-// the seed as evidence they are comparable. Go's own shuffle would produce a
-// perfectly good corpus that silently is not that one.
+// Because the corpus is named by its seed: "balanced128 at seed 0" has to
+// mean the SAME 128 scenarios in Go as in Python. Go's own shuffle would
+// produce a perfectly good corpus that silently is not that one. See
+// adr:0087-test-methodology.
 //
 // This is deliberately the only place in the tree that reimplements a
 // language runtime, and it exists solely to make a seed portable. It is

@@ -36,12 +36,9 @@ type SectorGeometry struct {
 	// self-detection by the PER-BEARING chassis exit range
 	// (ChassisExitRangeM) instead of the single SelfDetectionThresholdM
 	// scalar. One scalar cannot describe the rear: the chassis boundary
-	// runs from ~0.137 m at the rear sector's edges to ~0.272 m straight
-	// back, and 0.08 m sits inside the body everywhere in between --
-	// measured on hardware (run_20260906_192424) reading the chassis itself
-	// as the rear minimum on 100% of scans, which pinned
-	// most_constrained_side to BACK (a direction with no escape branch) on
-	// every one of five pillar-contact episodes.
+	// runs from a short range at the rear sector's edges to a longer one
+	// straight back, and the scalar floor sits inside the body in between.
+	// See adr:0056-raw-and-masked-scan.
 	RearSelfDetectionFromChassis bool
 	// ChassisExitXForwardM/ChassisExitXRearM/ChassisExitYSideM are the
 	// chassis footprint's edges in the LIDAR's own frame (sensor at the
@@ -206,14 +203,8 @@ func ChassisExitRangeM(a float64, geo SectorGeometry) float64 {
 // returns RIGHT NEXT TO the chassis still has to reject the chassis itself,
 // and a scalar floor cannot do both: it is either above the returns of
 // interest or below the robot's own. ChassisExitRangeM separates them per
-// bearing, which is where the distinction actually lives.
-//
-// Measured 2026-09-11 at the 105 ticks a contact recovery engaged: this
-// associates a cluster 55 points more often than the 0.15 m floor it
-// replaces (86.7% vs 31.4%) while admitting FEWER self-returns (1.3% vs
-// 4.6%), and the 0.15 m floor left the recovery firing on 81.9% of those
-// ticks -- no better than masking nothing. Matches
-// sectors.ranges_beyond_chassis.
+// bearing, which is where the distinction actually lives. See
+// adr:0056-raw-and-masked-scan; matches sectors.ranges_beyond_chassis.
 //
 // +Inf rather than a large finite range so a consumer filtering on
 // IsInf drops these as "no measurement outside the body along this ray".
@@ -353,24 +344,20 @@ func ForwardPathHasRays(scan LidarScan, pathHalfWidthM float64) bool {
 // RobustMinRange is the closest range in path that ADJACENT rays corroborate,
 // instead of the bare minimum.
 //
-// The bare minimum over a forward cone is an extreme-value statistic: the
-// simulated sweep carries sigma = 0.03 m of Gaussian range noise across ~500
-// rays, so the smallest of the few dozen inside the lane routinely sits two to
-// three sigma below the true nearest surface. Measured on the 256-scenario
-// Obstacles corpus, that phantom is worth 30 runs: with noise disabled the
-// same build scores 148 in-time against 118 with it.
+// The bare minimum over a forward cone is an extreme-value statistic: range
+// noise makes the smallest of the few dozen readings inside the lane sit
+// below the true nearest surface. See adr:0056-raw-and-masked-scan.
 //
-// A percentile over the whole cone would be the wrong shape -- a 0.05 m sign
-// pillar at 0.5 m subtends only about four rays, and a percentile would
-// discard it as readily as it discards noise. What separates them is
-// ADJACENCY: a real surface produces a run of short returns, uncorrelated
-// noise produces isolated dips. This slides a window over the lane and takes
-// the smallest window MEDIAN, so a reading has to be corroborated by its
-// neighbors to count, while an object spanning a window still registers at
-// its true range.
+// A percentile over the whole cone would be the wrong shape -- a small sign
+// pillar subtends only a few rays, and a percentile would discard it as
+// readily as it discards noise. What separates them is ADJACENCY: a real
+// surface produces a run of short returns, uncorrelated noise produces
+// isolated dips. This slides a window over the lane and takes the smallest
+// window MEDIAN, so a reading has to be corroborated by its neighbors to
+// count, while an object spanning a window still registers at its true
+// range.
 //
-// window <= 1 (or a path shorter than the window) is the bare minimum, which
-// is the pre-2026-09-06 behaviour.
+// window <= 1 (or a path shorter than the window) is the bare minimum.
 func RobustMinRange(path []float64, window int) float64 {
 	if len(path) == 0 {
 		return math.Inf(1)

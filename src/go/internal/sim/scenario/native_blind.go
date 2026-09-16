@@ -155,10 +155,9 @@ func discardingLogger() *slog.Logger {
 // (waypoints.toml's obstacles_center_bias_m, loaded by waypoints.ConfigFor)
 // otherwise -- the uniform centreline bias an Obstacles round plans with,
 // overriding the narrow/wide split entirely (its corridors are all 1.0 m by
-// rule, so there is no narrow case for the split to describe). Measured
-// HIGHER than the geometry argues for, compensating for the tracker's
-// outward drift rather than describing a racing line -- see that field's
-// docstring in waypoint.py for the full A/B history.
+// rule, so there is no narrow case for the split to describe). It compensates
+// for the tracker's outward drift rather than describing a racing line. See
+// adr:0057-blind-corridor-follower-and-width.
 func blindCenterBiasM(isObstacles bool, wpCfg waypoints.Config) *float64 {
 	if !isObstacles {
 		return nil
