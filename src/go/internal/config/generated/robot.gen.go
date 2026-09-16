@@ -2,12 +2,8 @@
 
 package generated
 
-// Single source of truth for the WRO robot's physical constants (chassis,
-// Ackermann geometry, mounts, sensor specs). Read at runtime by Python
-// (shared.config.robot_constants) and consumed by the Go simconfig package and the
-// URDF xacro. Values that belong to a swappable component (drive motor, steering
-// servo) are supplied by a hardware profile under src/config/profiles and are
-// optional here. Rationale for the values is in other/docs/adr.
+// Robot physical constants: chassis, steering geometry, mounts, sensor specs.
+// Swappable parts come from a hardware profile; rationale in ADRs.
 type RobotConfig struct {
 	// Steering geometry shared by the drivetrain and the Gazebo Ackermann plugin.
 	Ackermann *RobotConfigAckermann `json:"ackermann,omitempty,omitzero" yaml:"ackermann,omitempty" mapstructure:"ackermann,omitempty"`
@@ -83,9 +79,8 @@ type RobotConfigChassis struct {
 	// Chassis length (m).
 	Length *float64 `json:"length,omitempty,omitzero" yaml:"length,omitempty" mapstructure:"length,omitempty"`
 
-	// Chassis body mass (kg), excluding the four wheels. The URDF and the Gazebo
-	// model sum it with the wheel masses to get the total: 1.3 + 4 x 0.05 = 1.5, a
-	// middle value between both battery configurations.
+	// Chassis body mass (kg), excluding the four wheels; the URDF and Gazebo model
+	// add the wheel masses.
 	Mass *float64 `json:"mass,omitempty,omitzero" yaml:"mass,omitempty" mapstructure:"mass,omitempty"`
 
 	// Chassis width (m).
@@ -124,9 +119,8 @@ type RobotConfigDrivetrain struct {
 	// First-order lag (s) between a commanded speed and the achieved one.
 	SpeedResponseTauS *float64 `json:"speed_response_tau_s,omitempty,omitzero" yaml:"speed_response_tau_s,omitempty" mapstructure:"speed_response_tau_s,omitempty"`
 
-	// Fraction of the modelled yaw rate the chassis actually delivers. Below 1.0 is
-	// tyre slip and linkage compliance, which the zero-slip model has no term for.
-	// Measured 2026-08-29 as 0.55.
+	// Fraction of the modelled yaw rate the chassis actually delivers; below 1.0 is
+	// tyre slip and linkage compliance.
 	YawGain *float64 `json:"yaw_gain,omitempty,omitzero" yaml:"yaw_gain,omitempty" mapstructure:"yaw_gain,omitempty"`
 }
 
@@ -159,9 +153,8 @@ type RobotConfigLidar struct {
 	// Puck height (m), matching the lidar_link mesh in wro_robot.urdf.xacro.
 	Height *float64 `json:"height,omitempty,omitzero" yaml:"height,omitempty" mapstructure:"height,omitempty"`
 
-	// Whether the unit is mounted upside-down. Drives both the driver's own inverted
-	// parameter and a 180 degree yaw correction; the two must never be set
-	// independently.
+	// Whether the unit is mounted upside-down; drives the driver's inverted flag and
+	// a 180 degree yaw correction, which must never be set separately.
 	Inverted *bool `json:"inverted,omitempty,omitzero" yaml:"inverted,omitempty" mapstructure:"inverted,omitempty"`
 
 	// Farthest range the unit reports (m).

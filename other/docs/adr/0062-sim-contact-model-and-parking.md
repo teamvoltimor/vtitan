@@ -36,7 +36,9 @@ arithmetically blocked (0.097 vs 0.100 m, 3 mm per side).
 `sign.placement_circle_diameter = 0.085`: pillars are DISPLACED, not scored as
 first contact. Only pushing a pillar fully out counts against the team, and the
 conservative tolerance is 59.4 mm axially and 77.9 mm diagonally, so the simulator
-must track pillar pose, not just a contact flag. `parking.spacing_factor = 1.5`
+must track pillar pose, not just a contact flag. A pillar stays legal while any
+corner of its square remains inside the 0.085 m placement circle; it is out only
+once no corner remains inside. `parking.spacing_factor = 1.5`
 multiplies the robot LENGTH from `robot.toml` (1.5 x 0.30 = 0.45 m fin spacing);
 without the length the factor is meaningless.
 

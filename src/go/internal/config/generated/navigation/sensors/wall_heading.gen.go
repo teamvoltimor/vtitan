@@ -3,9 +3,8 @@
 package sensors
 
 type NavigationSensorsWallHeading struct {
-	// How far apart (in rays) the two returns forming one segment are taken. Wider is
-	// less sensitive to per-ray range noise but blurs genuine corners into the
-	// straight it is trying to measure.
+	// Ray separation between the two returns forming one segment. Wider is less noisy
+	// but blurs a real corner into the straight.
 	BaselineRays int `json:"baseline_rays" yaml:"baseline_rays" mapstructure:"baseline_rays"`
 
 	// Range step above which two returns are treated as different surfaces rather
@@ -13,9 +12,8 @@ type NavigationSensorsWallHeading struct {
 	MaxSegmentJumpM float64 `json:"max_segment_jump_m" yaml:"max_segment_jump_m" mapstructure:"max_segment_jump_m"`
 
 	// How aligned the fitted segment directions must be before the estimate is
-	// trusted. Low concentration means the returns disagree about where the wall runs
-	// -- which is what a corner, a traffic sign or an open side looks like, and in
-	// those cases the heading reference is worse than none.
+	// trusted. Rejects corners, signs and open sides, where heading is worse than
+	// none.
 	MinConcentration float64 `json:"min_concentration" yaml:"min_concentration" mapstructure:"min_concentration"`
 
 	// Fewer usable returns than this cannot form a segment at all.

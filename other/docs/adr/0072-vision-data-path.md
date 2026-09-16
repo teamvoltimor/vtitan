@@ -29,6 +29,23 @@ Picamera2 and falls back to `rpicam-vid` MJPEG, because picamera2's libcamera
 bindings target the system interpreter while ROS nodes run a different pixi
 Python, and OpenCV cannot open libcamera media nodes.
 
+The rpicam colour and noise keys ship at `rpicam-vid`'s own defaults, so the
+image reaching the detector is unchanged; the keys exist for reachability, not
+as a vision-baseline change. Red/green classification is threshold-based, and
+auto AWB re-tints the frame as framing changes, so a wrong fixed preset is worse
+than `auto`; the intended race preset is `fluorescent`, flipped only after
+re-checking the thresholds against venue footage. Both metering modes are
+ignored once `camera_exposure_time_us` is set (it turns AE off entirely), which
+is the real answer if the white mat fools the meter; `+ev` compensation instead
+lengthens the shutter, which smears signs in corners, and `spot` meters the
+frame centre where signs are not reliably placed, so it often meters bare mat.
+
+The debug video keeps the camera's native width rather than downscaling: the
+about 6x larger per-run file (about 20 to 120 MB for 3 min) is free against the
+SD card's 460 GB, and `annotate()` draws boxes on the full-resolution frame
+before the resize, so they scale with the image and need no separate coordinate
+transform.
+
 The class order is authoritative from the checkpoint metadata (0 green, 1 magenta,
 2 red); `GMR_CLASS_NAMES` is the one declaration and the driver's colour mapping
 derives from it. `iter_nms_by_class` is the single decoder, normalising the
@@ -38,7 +55,9 @@ classes and the HEF decodes garbage.
 
 The confidence floors are 0.45 at the detector (below that a detection never
 reaches the navigator) and 0.25 at the sign router, which is only for late
-confirmation of an already-discovered sign, never to create a new track.
+confirmation of an already-discovered sign, never to create a new track. A
+backend change goes through `HAILO_MIN_CONFIDENCE` / `DETECTOR_MIN_CONFIDENCE`,
+never a literal, so it is deliberate rather than a forgotten value.
 
 The division of labour: the LIDAR proposes WHERE and the camera decides WHAT. A
 LIDAR proposal is position-only and never publishes a sign by itself. The camera

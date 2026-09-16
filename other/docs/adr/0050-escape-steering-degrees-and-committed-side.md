@@ -82,6 +82,8 @@ corpus cannot adjudicate it. Settle it on a counter-clockwise hardware round.
   in nine Obstacles rounds commanded an Open tier and zero commanded an Obstacles
   one until the per-challenge params were re-resolved on the router swap.
 - The remaining side-correction refusal is unvalidated and off; it needs hardware.
+- The simulator cannot screen `escape_side_follows_committed_sign`: its sign map is
+  exact, so the agreement and disagreement collapse to nothing.
 
 ## History
 
@@ -140,6 +142,13 @@ corpus cannot adjudicate it. Settle it on a counter-clockwise hardware round.
   while `steer_target` went unpublished on 92 to 93 percent of its ticks, so the
   two layers alternated and undid each other at 2.7 to 4.4x absolute over signed
   wheel travel. The correction is ADDED to the plan, not substituted for it.
+- `escape_mirrors_reverse` measured on Open: the same forward/reverse sign held on
+  638 of 640 leg pairs, against the Obstacles 208 of 243.
+- `side_correction_follows_committed_sign` measured on `run_20260915_002408` (ccw,
+  3/3 laps, 42 escapes): SIDE_CORRECTION is 10 of the 12 usable escape episodes,
+  the escape agreed with the router's needed side on only 3 of 12, the alignment
+  delta was negative in every category, and range to the committed pillar moved
+  just 0.497 to 0.526 m.
 
 ## Cross-references
 

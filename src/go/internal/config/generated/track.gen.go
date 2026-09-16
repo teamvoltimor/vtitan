@@ -10,10 +10,8 @@ type SpawnAlignment string
 const SpawnAlignmentInner SpawnAlignment = "inner"
 const SpawnAlignmentOuter SpawnAlignment = "outer"
 
-// Mat geometry source of truth for the WRO 2026 Future Engineers mat. Read at
-// runtime by Python (shared.config.track_constants) and consumed by the Go
-// generator simgen (see trackconfig). Rationale for the values is in
-// other/docs/adr.
+// Mat geometry for the WRO 2026 Future Engineers mat. Read at runtime; rationale
+// for the values is in other/docs/adr.
 type TrackConfig struct {
 	// Legal corridor widths and the division lines that cut every corridor lengthwise
 	// (metres).
@@ -41,9 +39,8 @@ type TrackConfig struct {
 // Legal corridor widths and the division lines that cut every corridor lengthwise
 // (metres).
 type TrackConfigCorridor struct {
-	// The two division lines painted across every corridor, measured out from the
-	// outer wall (m). Every other lengthwise division derives from these: the
-	// starting square bands and the sign-grid width lines.
+	// Two division lines across every corridor, measured from the outer wall (m); the
+	// starting-square bands and sign-grid width derive from them.
 	DivisionLines []float64 `json:"division_lines" yaml:"division_lines" mapstructure:"division_lines"`
 
 	// Maximum valid corridor width (m). Deliberately above the legal maximum so tests
@@ -132,9 +129,8 @@ type TrackConfigSign struct {
 	// Minimum number of pillars per round.
 	MinCount int `json:"min_count" yaml:"min_count" mapstructure:"min_count"`
 
-	// Diameter (m) of the circle each pillar is placed within. Touching a pillar is
-	// not a failure: the pillar may be nudged while any corner of its square stays
-	// inside this circle. Only pushing it fully out counts against the team.
+	// Diameter (m) of the circle each pillar is placed within; touching is not a
+	// failure, only pushing it fully out counts.
 	PlacementCircleDiameter float64 `json:"placement_circle_diameter" yaml:"placement_circle_diameter" mapstructure:"placement_circle_diameter"`
 
 	// Official WRO red pillar colour, normalized RGB in [0, 1].
@@ -171,10 +167,8 @@ type TrackConfigStartingZone struct {
 	// Starting-square size as a fraction of the obstacles-challenge gap.
 	ObstaclesSizeFactor float64 `json:"obstacles_size_factor" yaml:"obstacles_size_factor" mapstructure:"obstacles_size_factor"`
 
-	// Which edge of its band the chassis is pushed flush against, one per band.
-	// 'outer' is the edge nearer the outer wall, 'inner' the edge nearer the inner
-	// block. The spawn offset is derived from this and the chassis width, so a
-	// re-measurement does not go stale.
+	// Which band edge the chassis hugs, one per band. 'outer' is nearer the outer
+	// wall, 'inner' nearer the inner block; the spawn offset is derived from it.
 	SpawnAlignment []SpawnAlignment `json:"spawn_alignment" yaml:"spawn_alignment" mapstructure:"spawn_alignment"`
 
 	// Visual thickness of the starting-square marker (m).

@@ -122,6 +122,10 @@ in-time / 28 laps>=3 / 9 timed out; 1.8 gave 29 / 34 / 0; 2.3 gave 31 / 33 / 0;
   Re-anchor at the end; sim 28 failed to 21.
 - 63c042bb / c1945efd: turning-escape re-seek reverted as inert and wrongly
   modelled: the 90 deg threshold never fires (k_turn p50 54.3, max 68.3 deg).
+- 2026-08-22: `pose_trail_min_step_m` written out from the `core_navigator`
+  module constant.
+- 2026-09-05: `min_history_for_distance` written out from a Python literal; the
+  shipped value was unchanged, so naming it changed nothing.
 
 ## Cross-references
 
@@ -159,3 +163,17 @@ in-time / 28 laps>=3 / 9 timed out; 1.8 gave 29 / 34 / 0; 2.3 gave 31 / 33 / 0;
   by another escape within two seconds because 97 percent are handed back the
   SAME target (median movement 0 cm). The escape works and the frozen plan undoes
   it.
+- `pose_trail_min_step_m` is a per-tick threshold coupled to speed: at 0.156 m/s
+  and 20 Hz the chassis advances about 0.008 m per tick and the trail thins,
+  while at 0.234 m/s it advances about 0.012 m and nothing thins. Re-check it
+  with any speed-profile change.
+- The older rear guard only checks the gap at the START of the manoeuvre, so it
+  cannot catch a reverse that is too long part-way through; that is what the
+  rear-gap cap exists to catch.
+- The rear-gap cap's evidence is all Obstacles (the object behind is a pillar);
+  Open escapes in corners against walls, where a shortened reverse under-rotates
+  and re-triggers, feeding the corner-escape loop that costs about 20 percent of
+  runs. The shared flag extends it to Open, unmeasured there.
+- Never cover ground backwards: a robot reversing down a corridor is going the
+  wrong way regardless of which way it points, which is why `min_reverse_clearance_m`
+  is a safety floor and not a tuning lever.

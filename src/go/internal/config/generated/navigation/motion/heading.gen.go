@@ -6,10 +6,7 @@ type NavigationMotionHeading struct {
 	// ~57 deg -- severe misalignment, drop to the creep floor
 	Crawl float64 `json:"crawl" yaml:"crawl" mapstructure:"crawl"`
 
-	// Written out 2026-09-10 at its shipped value: until then it existed only as a
-	// Python literal, so no edit here could reach it (pytest's shipped-tree
-	// completeness check now requires every concrete default to appear in this file).
-	// Ramp-release bandwidth is applied only above crawl; the value is inert at 0.0
-	// and its unit lives on the field.
+	// Ramp-release bandwidth applies only above this heading error (rad); inert at
+	// 0.0.
 	CrawlRampStart float64 `json:"crawl_ramp_start" yaml:"crawl_ramp_start" mapstructure:"crawl_ramp_start"`
 }

@@ -2,8 +2,7 @@
 
 package generated
 
-// Single source of truth for ROS2 topic names used by the robot and telemetry.
-// Loaded via RosTopicConfig.load_default(). Rationale for the values is in
+// ROS2 topic names used by the robot and telemetry. Rationale for the values is in
 // other/docs/adr.
 type RosTopics struct {
 	// Actuator feedback and status topics.

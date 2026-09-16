@@ -7,115 +7,49 @@ type NavigationSignsSignDiscovery struct {
 	AssociationDistM float64 `json:"association_dist_m" yaml:"association_dist_m" mapstructure:"association_dist_m"`
 
 	// Magenta sightings that must agree on a location before it is believed to be the
-	// parking barrier. The camera labels the barrier MAGENTA correctly far more often
-	// than it mislabels it RED -- measured over the four 2026-09-14 rounds, 1,921
-	// magenta detections against 748 wall-shaped reds admitted to the sign map -- and
-	// every one of those magenta detections was DISCARDED by
-	// detection_to_observation, which returns None for any non-routing colour. This
-	// is the threshold for using them instead. 0 disables the belief entirely.
+	// parking barrier; 0 disables.
 	BarrierBeliefMinSightings int `json:"barrier_belief_min_sightings" yaml:"barrier_belief_min_sightings" mapstructure:"barrier_belief_min_sightings"`
 
-	// Two magenta sightings within this distance are treated as the same barrier. The
-	// lot is 0.20 m long, so this is sized to absorb the pinhole range error rather
-	// than to resolve the object.
+	// Two magenta sightings within this distance (m) are treated as the same barrier.
 	BarrierMergeRadiusM float64 `json:"barrier_merge_radius_m" yaml:"barrier_merge_radius_m" mapstructure:"barrier_merge_radius_m"`
 
-	// Treat the believed parking lot as the 0.45 m SPAN the rulebook gives it rather
-	// than a point, extending the suppression test ALONG the wall only. The lot is
-	// two fins BLOCK_SPACING_FACTOR chassis lengths apart, which
-	// parking_lot_from_in_bay_start already builds as BLOCK1 and BLOCK2; the belief
-	// kept a single centroid, so a 0.30 m radius had to cover a 0.45 m object and
-	// reached each fin with 7 cm to spare against a believed position measured
-	// wandering 0.57 m between rounds. THE FAILURE IT FIXES, measured on two hardware
-	// wedges hours apart at the same place: the true fins sit at x = 0.94 (14,403
-	// LIDAR returns) and 1.42, a 0.48 m span centred on 1.18, while the belief placed
-	// its centroid at 1.30 -- so the WEST fin landed 0.36 m out, beyond the 0.30 m
-	// bubble. Wall-shaped reds on that fin were suppressed on 1 of 14 and 2 of 19
-	// with the point model, against 10 of 14 and 13 of 19 with the span. The chassis
-	// spent 70 s and 172 s (46% of each round) fighting a fin at (0.93, 0.16) while
-	// the planner routed around a phantom at (1.0, 0.6), 0.45 m away.
-	// barrier_belief.py's own docstring records the SAME wedge at (0.75, 0.25) on
-	// 2026-09-14, which is what that belief was built to fix. THE TRADE IS NOT FREE
-	// and the aggregate does not improve: over three rounds the barrier share
-	// suppressed rises 60.8->66.8%, 23.5->27.9% and 68.3->75.7%, while real pillar
-	// detections refused rise 25.5->26.4%, 2.7->4.9% and 8.8->12.7%. The benefit/cost
-	// RATIO is slightly worse on two of three. Narrowing the radius to 0.22 or 0.18
-	// alongside the span moves back down the same curve rather than off it. What the
-	// aggregate cannot see is the west fin, which is the thing that ends rounds. THE
-	// SIMULATOR CANNOT SCORE THIS AT ALL -- it never emits a magenta detection -- so
-	// there is no corpus regression guard and the only instrument is a
-	// counter-clockwise hardware round. SHIPS OFF AND UNVALIDATED ON TRACK.
-	// Diagnostic: scripts/bag/diag_bag_barrier_belief.py --shape both
+	// Treat the believed parking lot as its 0.45 m span along the wall rather than a
+	// point; extends suppression along the wall only.
 	BarrierSpanAlongWall *bool `json:"barrier_span_along_wall,omitempty,omitzero" yaml:"barrier_span_along_wall,omitempty" mapstructure:"barrier_span_along_wall,omitempty"`
 
-	// A RED detection landing within this distance of a believed barrier is dropped
-	// instead of seeded as a pillar. This is the whole point of the belief: the
-	// magenta barrier reaching the sign map as a red pillar is what makes the router
-	// plan a pass around a WALL, and on run_20260914_214824 that pendulumed the
-	// chassis for 66.4 s at (0.75, 0.25) beside the west parking corridor. Sized from
-	// the pinhole position error, not from the lot.
+	// A RED detection within this distance (m) of a believed barrier is dropped
+	// instead of seeded as a pillar.
 	BarrierSuppressionRadiusM float64 `json:"barrier_suppression_radius_m" yaml:"barrier_suppression_radius_m" mapstructure:"barrier_suppression_radius_m"`
 
 	// pool colour votes across fragments of one pillar within this radius (0 = off)
 	ColourPoolRadiusM float64 `json:"colour_pool_radius_m" yaml:"colour_pool_radius_m" mapstructure:"colour_pool_radius_m"`
 
-	// A CLIPPED box is exempt from the aspect test: its ratio is not a measurement of
-	// the object's shape. A pillar being approached runs out of frame, its height
-	// stops growing while its width does not, and w/h crosses 1.0 with nothing about
-	// the pillar having changed. 61% of the red detections the gate was rejecting
-	// were clipped (run_20260906_145546 / _145909).
+	// A box clipped at a frame edge is exempt from the aspect test; tolerance in px.
+	// 0 disables.
 	FrameEdgeTolerancePx float64 `json:"frame_edge_tolerance_px" yaml:"frame_edge_tolerance_px" mapstructure:"frame_edge_tolerance_px"`
 
-	// Take the sign's range from the LIDAR ray at the camera's bearing. ONLY VALID
-	// PAIRED WITH lidar_range_fusion_cluster BELOW -- the two are one mechanism.
-	// Shipped TRUE until 2026-09-06 and measured to make the estimate WORSE: at the
-	// camera's bearing the return is wall-shaped 51% of the time and pillar-shaped
-	// 27%, median implied chord 34 cm against a 5 cm sign. It fired on 92.5% of
-	// detections (the gate is 0.05 < r < 10.0, i.e. no gate) and a wall behind a sign
-	// is always FURTHER, so it was half the outward bias that pinned believed signs
-	// to the walls. Costs 28 cm of median position error with the corrected bearing.
-	// Back ON 2026-09-11, gated. Replayed over 78 hardware bags (09-06 to 09-10),
-	// pass-side routing errors / passes judged: both off (baseline)     194 / 654
-	// 29.7% fusion UNGATED          227 / 605   37.5%   <- reproduces the refutation
-	// fusion + cluster gate   180 / 712   25.3%   <- fewer errors, MORE passes The
-	// ungated arm reproducing its own refutation is what validates the harness. The
-	// gated arm is the only one that improves without shrinking the denominator.
+	// Take the sign's range from the LIDAR ray at the camera's bearing; valid only
+	// paired with the cluster gate.
 	LidarRangeFusion bool `json:"lidar_range_fusion" yaml:"lidar_range_fusion" mapstructure:"lidar_range_fusion"`
 
 	// Fractional range disagreement (fraction of the pinhole estimate) above which
 	// the LIDAR cluster is rejected and the pinhole range stands.
 	LidarRangeFusionAgreement float64 `json:"lidar_range_fusion_agreement" yaml:"lidar_range_fusion_agreement" mapstructure:"lidar_range_fusion_agreement"`
 
-	// The two knobs below parameterise lidar_range_fusion above. The gate requires a
-	// free-standing cluster of pillar width at the camera's bearing whose range
-	// AGREES with the pinhole within lidar_range_fusion_agreement; failing either
-	// test, the pinhole stands. NOT optional: with this false the fusion above is the
-	// version measured harmful.
+	// Gate the LIDAR range fusion on a free-standing pillar-width cluster agreeing
+	// with the pinhole; false is the harmful ungated form.
 	LidarRangeFusionCluster bool `json:"lidar_range_fusion_cluster" yaml:"lidar_range_fusion_cluster" mapstructure:"lidar_range_fusion_cluster"`
 
-	// Max distance at which a sign observation is accepted. 2.0 until 2026-09-07,
-	// lowered because the pinhole range correction above stops holding past ~1.5 m:
-	// binned error is -7 cm at 1.1-1.5 m but -77 cm beyond, so a far detection seeds
-	// a track most of a metre out and the router then routes around a phantom. 1.5
-	// rather than the 1.2 where the correction is tightest, because
-	// sign_router.toml's activation_dist_m is 1.40 -- ingesting only inside 1.2 m
-	// would discover a sign AFTER the point it must already be routed around.
+	// Max distance (m) at which a sign observation is accepted; farther readings are
+	// refused.
 	MaxIngestRangeM float64 `json:"max_ingest_range_m" yaml:"max_ingest_range_m" mapstructure:"max_ingest_range_m"`
 
-	// Widest box (width/height) still accepted as a pillar. A pillar is taller than
-	// it is wide; the magenta parking-lot barrier read as RED for 52% of that class's
-	// detections on run_20260905_214920, all of them wider than tall, while genuine
-	// green pillars sit at w/h p90 = 0.85. Neither area nor confidence separates the
-	// two -- only aspect does. 0.0 disables.
+	// Widest box (width/height) still accepted as a pillar; 0.0 disables the aspect
+	// gate.
 	MaxPillarAspect float64 `json:"max_pillar_aspect" yaml:"max_pillar_aspect" mapstructure:"max_pillar_aspect"`
 
-	// Refuse to publish a sign into a section already holding this many. The rulebook
-	// allows TWO per section and eight on the track; the map believed 8, 7, 12 and 5
-	// per section on the 2026-09-11 hardware rounds. Unlike snap_to_lattice_m above,
-	// which quantised the POSITION and left the COUNT alone, a cap needs no opinion
-	// about which tracks are duplicates. SHIPS OFF (0): the risk is that an early
-	// phantom holds a slot the real pillar then cannot have, which is the failure
-	// mode of an earlier dedup attempt. The rulebook value is 2.
+	// Refuse to publish a sign into a section already holding this many; 0 disables
+	// the cap.
 	MaxSignsPerSection int `json:"max_signs_per_section" yaml:"max_signs_per_section" mapstructure:"max_signs_per_section"`
 
 	// confirming observations before a sign is published
@@ -124,22 +58,8 @@ type NavigationSignsSignDiscovery struct {
 	// minimum bbox height for a reliable distance estimate
 	MinReliableBboxHeightPx int `json:"min_reliable_bbox_height_px" yaml:"min_reliable_bbox_height_px" mapstructure:"min_reliable_bbox_height_px"`
 
-	// Empirical correction on the PINHOLE RANGE, applied to the result. The
-	// detector's boxes are ~2x taller than a 0.10 m pillar projects to -- implied
-	// sign height is p50 19.8 cm against the assumed 10.0 -- so the raw pinhole
-	// UNDER-reads by about half. 1.95 is the best scalar, median |range error| 6.3
-	// cm, measured against 8 LIDAR-located pillars on run_20260906_232408 and
-	// _232748.  THIS ONLY WORKS PAIRED WITH THE CAMERA TIME ALIGNMENT, and shipping
-	// it alone is worse than shipping nothing. Measured 2D position error p50 / share
-	// inside ASSOCIATION_DIST_M: shipped (neither)      47.1 cm / 19% range scale
-	// alone      47.6 cm / 19%     <- no better time alignment alone   47.1 cm / 19%
-	// <- no better BOTH                   15.3 cm / 61% A longer ray magnifies any
-	// angular error, so before the 0.85 s lag was corrected this scale doubled
-	// LATERAL error (9.8 -> 18.6 cm) and was rejected for it. With the pose aligned,
-	// lateral is 3.6 cm and goes only to 6.8 cm.  Not a true scale: log(bbox_h) vs
-	// log(range) has slope -0.40, not -1. Binned error is +/-5 cm out to 1.1 m, -7 cm
-	// at 1.1-1.5 m and -77 cm beyond 1.5 m, which is what max_ingest_range_m below is
-	// for. Prefer fixing the detector's box convention and returning this to 1.0.
+	// Empirical multiplier on the pinhole range; valid only paired with the camera
+	// time alignment.
 	RangeScale float64 `json:"range_scale" yaml:"range_scale" mapstructure:"range_scale"`
 
 	// ticks the robot's own corridor must settle before discovery accepts the change
@@ -148,14 +68,7 @@ type NavigationSignsSignDiscovery struct {
 	// Snap a fixed observation to the corridor lattice; 0.0 disables.
 	SnapToLatticeM float64 `json:"snap_to_lattice_m" yaml:"snap_to_lattice_m" mapstructure:"snap_to_lattice_m"`
 
-	// Camera capture-to-consumption lag, used ONLY when a detection payload carries
-	// no capture stamp (an older vision_node). /vision/detections is a headerless
-	// std_msgs/String, so until 2026-09-07 every detection was decoded against the
-	// pose at RECEIPT. Measured 0.85 s on run_20260906_232408/_232748 (0.78 and 0.95
-	// found independently in the two runs); at 0.3 m/s through a corner that is most
-	// of a sign's lateral offset, and it was the ENTIRE bearing residual left after
-	// the mirror fix -- 20.2 deg -> 5.4 deg once aligned. The check that was not
-	// fitted to it: the recovered cx-vs-bearing slope reads -309 px/rad at zero lag,
-	// which no real lens can produce (floor ~620), and -679 at 0.85 s.
+	// Camera capture-to-consumption lag (s), used only when a detection carries no
+	// capture stamp.
 	VisionLatencyS float64 `json:"vision_latency_s" yaml:"vision_latency_s" mapstructure:"vision_latency_s"`
 }

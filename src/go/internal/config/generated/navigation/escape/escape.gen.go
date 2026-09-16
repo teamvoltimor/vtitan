@@ -6,98 +6,41 @@ type NavigationEscapeEscape struct {
 	// Consecutive escapes before escalating (longer duration, opposite side)
 	EscalateAfterAttempts int `json:"escalate_after_attempts" yaml:"escalate_after_attempts" mapstructure:"escalate_after_attempts"`
 
-	// Steer the OPPOSITE way on an escape's reverse leg, so the forward and reverse
-	// arcs curve opposite ways and rotation accumulates instead of cancelling.
-	// Measured 2026-09-11: 208 of 243 forward/reverse leg pairs (85.6%) hold the SAME
-	// sign today, which is the bay pendulum outside the bay.  FALSE shared, TRUE for
-	// Obstacles -- same split as k_turn_fit_rear_gap above, and for the same reason:
-	// the measurement is entirely from Obstacles bags (the thing being rocked against
-	// is a pillar), while Open escapes in corners against walls and sits at 638/640.
-	// The sim cannot screen either side; the first hardware round with this on IS the
-	// A/B.
+	// Steer the opposite way on an escape's reverse leg so forward and reverse arcs
+	// accumulate rotation. False shared, true for Obstacles.
 	EscapeMirrorsReverse bool `json:"escape_mirrors_reverse" yaml:"escape_mirrors_reverse" mapstructure:"escape_mirrors_reverse"`
 
-	// When an escape maneuver latches, RETIRE the sign the router is committed to, so
-	// the plan it returns to is not the one that drove into it. MEASURED 2026-09-15
-	// over 105 escape episodes on five rounds: the escape WORKS -- a median 9.8 cm of
-	// forward clearance gained, only 15% gain nothing, efficiency 0.63 -- and 62% are
-	// followed by another escape within two seconds, because 97% are handed back the
-	// same target and 79% still hold the SAME committed sign. The router is still
-	// routing around the object the chassis just escaped. That measurement is also
-	// what rules out the alternatives: re-planning after the maneuver reproduces the
-	// same target, because the map still holds the sign; and only 9% of escapes fire
-	// with NO committed sign, so this is not a case of the escape reacting to
-	// something the router never saw. THE RISK, which is why it ships off: retiring a
-	// sign the chassis has not actually passed forfeits its pass side, and a
-	// wrong-side pass ENDS an Obstacles round. The defence is that by the time an
-	// escape fires the pass is already compromised -- the chassis is inside contact
-	// range of the thing it was supposed to go around. That is an argument, not a
-	// measurement, and the corpus scores both collisions and pass sides.
+	// Retire the router's committed sign when an escape latches, so the plan it
+	// returns to is not the one that drove into it. Ships off.
 	EscapeRetiresCommittedSign bool `json:"escape_retires_committed_sign" yaml:"escape_retires_committed_sign" mapstructure:"escape_retires_committed_sign"`
 
 	// Attempts spent on one side before trying the other (1 = alternate every
 	// attempt, which cancels itself out)
 	EscapeSideCommitAttempts int `json:"escape_side_commit_attempts" yaml:"escape_side_commit_attempts" mapstructure:"escape_side_commit_attempts"`
 
-	// Steer a K-turn toward the side the ROUTER committed to passing on, instead of
-	// toward whichever +-45 deg side sector reads further away.  The two answer
-	// different questions -- "which wall is nearer" against "which side of the PILLAR
-	// must I pass" -- and they agree 56% of the time, 48-49% in a corner. MEASURED
-	// over 194 hardware escape episodes with a sign committed, 2026-09-12: when the
-	// steering agrees with the router the escape nets +0.050 m toward the pass and
-	// improves 87% of episodes; when it opposes, -0.017 m and 16%. So half the time
-	// the escape SPENDS the placement the plan bought.  REFUTED, do not re-try: that
-	// this is a near-tie the LIDAR cannot resolve. 18 of 37 opposing escapes were
-	// decided on a margin of 0.20 m or more.  SHIPS OFF. The gain is a contrafactual
-	// over observed episodes, not an A/B, and the simulator cannot screen it -- there
-	// the sign map is exact and the disagreement collapses to nothing. Turn on
-	// `obstacles_` only: the Open Challenge has no committed sign, so the shared flag
-	// is inert there anyway.
+	// Steer a K-turn toward the router's committed pass side instead of the more open
+	// LIDAR sector. Ships off.
 	EscapeSideFollowsCommittedSign bool `json:"escape_side_follows_committed_sign" yaml:"escape_side_follows_committed_sign" mapstructure:"escape_side_follows_committed_sign"`
 
-	// Clearance the router's side must ALREADY have before it may be forced. Not
-	// optional alongside the flag above: forcing a side in a 1.00 m corridor with no
-	// floor drives the chassis into the wall the LIDAR was right about.  ABSOLUTE,
-	// not a margin between sides. A relative band wide enough to catch the problem
-	// (0.20 m) also overrules 22 of the 49 episodes that choose correctly today; the
-	// sensitivity table sits at a ratio of 1.00 or worse from 0.05 m upward. An
-	// absolute floor only engages when the wanted side is physically shut. 0.12 is a
-	// shade over half the 0.194 m chassis width.
+	// Absolute clearance (m) the router's side must already have before it may be
+	// forced; not a margin between sides.
 	EscapeSideOverrideMinClearanceM float64 `json:"escape_side_override_min_clearance_m" yaml:"escape_side_override_min_clearance_m" mapstructure:"escape_side_override_min_clearance_m"`
 
-	// Cap the reverse above by the rear room the LIDAR actually measures, instead of
-	// committing the full duration chosen from FRONT severity alone. At rev_speed
-	// 0.20 m/s those two durations are 10.8 cm and 21.6 cm of reverse, against a rear
-	// gap measured at p50 17 cm / p10 7 cm over 46 escape episodes (09-10 bags) --
-	// the reverse did not fit in 35% of them, and the existing rear guard cannot see
-	// it because it only checks the gap at the START of the manoeuvre. A CEILING, not
-	// a replacement: a reverse that fits is untouched, and an unmeasured rear sector
-	// is left alone rather than capped to zero.  Obstacles only. All of the evidence
-	// is Obstacles bags (the thing 7-17 cm behind the chassis is a pillar); Open
-	// escapes fire in corners against walls, where a shortened reverse under-rotates
-	// and re-triggers, feeding the corner escape loop that already costs ~20% of
-	// runs. Set k_turn_fit_rear_gap = true to extend it to Open -- unmeasured there.
+	// Cap the K-turn reverse by the rear room the LIDAR measures; a ceiling, not a
+	// replacement. Obstacles only.
 	KTurnFitRearGap bool `json:"k_turn_fit_rear_gap" yaml:"k_turn_fit_rear_gap" mapstructure:"k_turn_fit_rear_gap"`
 
 	// Maximum K-turn duration (CRITICAL risk)
 	KTurnMaxS float64 `json:"k_turn_max_s" yaml:"k_turn_max_s" mapstructure:"k_turn_max_s"`
 
-	// Escape durations are in SECONDS, converted to control ticks at load by
-	// EscapeManeuverParams.frames(). They used to be frame counts, which silently
-	// mean a different duration at a different loop rate: 40 frames is 2 s at the
-	// shipped 20 Hz and 0.8 s at 50 Hz, so raising control_hz would have made the
-	// robot declare itself stuck 2.5x sooner and truncate every escape, with nothing
-	// raising and no value here edited. Each value below is the old frame count
-	// divided by 20, so behaviour at the shipped rate is unchanged. Minimum K-turn
-	// duration (OBSTACLE risk)
+	// Minimum K-turn duration (s) at OBSTACLE risk; converted to control ticks at
+	// load.
 	KTurnMinS float64 `json:"k_turn_min_s" yaml:"k_turn_min_s" mapstructure:"k_turn_min_s"`
 
 	// Hard cap on any single escalated escape duration
 	MaxEscapeS float64 `json:"max_escape_s" yaml:"max_escape_s" mapstructure:"max_escape_s"`
 
-	// Written out 2026-09-05; existed only as a Python literal, so no edit to this
-	// file could reach it. Shipped value, so naming it changed nothing. Position
-	// samples needed before recent-movement distance is trusted
+	// Position samples needed before recent-movement distance is trusted.
 	MinHistoryForDistance int `json:"min_history_for_distance" yaml:"min_history_for_distance" mapstructure:"min_history_for_distance"`
 
 	// Obstacles-only override of escape_mirrors_reverse: steer the opposite way on
@@ -112,63 +55,30 @@ type NavigationEscapeEscape struct {
 	// rear room the LIDAR actually measures.
 	ObstaclesKTurnFitRearGap bool `json:"obstacles_k_turn_fit_rear_gap" yaml:"obstacles_k_turn_fit_rear_gap" mapstructure:"obstacles_k_turn_fit_rear_gap"`
 
-	// Obstacles-challenge value for side_correction_follows_committed_sign. Only the
-	// Obstacles challenge has a committed pass side at all, so this is the one that
-	// matters; the shared field exists so the Open path stays byte-identical.
+	// Obstacles value for side_correction_follows_committed_sign; only Obstacles has
+	// a committed pass side.
 	ObstaclesSideCorrectionFollowsCommittedSign bool `json:"obstacles_side_correction_follows_committed_sign" yaml:"obstacles_side_correction_follows_committed_sign" mapstructure:"obstacles_side_correction_follows_committed_sign"`
 
 	// ~1.3 m of travel at the spacing above
 	PoseTrailLen int `json:"pose_trail_len" yaml:"pose_trail_len" mapstructure:"pose_trail_len"`
 
-	// Pose trail followed by a retrace-reverse: ground the chassis occupied a moment
-	// ago is known free without any rear-facing sensor, which is the only reason
-	// reversing blind is safe at all. Module constants in core_navigator until
-	// 2026-08-22.  The spacing is a distance-per-TICK threshold, so it interacts with
-	// speed: at 0.156 m/s and 20 Hz the chassis advances ~0.008 m per tick and a
-	// creeping robot's trail gets thinned as intended; at 0.234 m/s it advances
-	// ~0.012 m and nothing is thinned. Re-check this alongside any speed-profile
-	// change.
+	// Minimum spacing (m) between pose-trail samples; the trail grounds a blind
+	// retrace-reverse as known-free.
 	PoseTrailMinStepM float64 `json:"pose_trail_min_step_m" yaml:"pose_trail_min_step_m" mapstructure:"pose_trail_min_step_m"`
 
 	// Reverse speed during escapes (m/s)
 	RevSpeed float64 `json:"rev_speed" yaml:"rev_speed" mapstructure:"rev_speed"`
 
-	// Road-wheel steering angle held while reversing out, in DEGREES.  Was
-	// rev_steering_scale = 0.8, a normalised fraction of full lock -- which named
-	// itself a scale while every call site used it as a magnitude (steering = value *
-	// side_sign), and which silently meant a different physical angle on every
-	// steering geometry: 44 deg at the bench-measured 55 deg limit, 68 deg on a 270
-	// deg servo. 44.0 preserves the 55 deg behaviour exactly.
+	// Road-wheel steering angle (deg) held while reversing out; was a normalised
+	// fraction of full lock.
 	RevSteerDeg float64 `json:"rev_steer_deg" yaml:"rev_steer_deg" mapstructure:"rev_steer_deg"`
 
 	// Let a FORWARD side correction bias the planned steering instead of replacing
-	// it. A latched manoeuvre makes the navigator return before the planner runs, so
-	// the router's deformation is not merely overridden, it is never computed:
-	// measured 2026-09-11, the manoeuvre supplied 100% of the commanded steering
-	// while steer_target went unpublished on 92-93% of those ticks, and the two
-	// layers alternated at 2.7-4.4x absolute-over-signed wheel travel.
-	// side_correction dominates those windows 184/198 ticks against the k-turn's 22.
-	// Scoped to the forward nudge: a k-turn, a stuck reverse, or a side correction
-	// already reversing off a wall all still own the chassis outright. SHIPS OFF --
-	// summing two steering signals can saturate the wheel. REFUTED and left off: the
-	// scoping is what makes it inert -- practically every side correction on hardware
-	// is the already-touching REVERSE branch, which this excludes. The forward nudge
-	// it qualifies is 44/12/0/0 ticks (0.8/0.3/0.0/0.0%) against 550/572/143/88
-	// reversing, over the four 2026-09-11 Obstacles rounds.
+	// it. Ships off; refuted.
 	SideCorrectionBlends bool `json:"side_correction_blends" yaml:"side_correction_blends" mapstructure:"side_correction_blends"`
 
-	// Let the sign router's committed pass side outrank "steer away from the threat"
-	// in a SIDE_CORRECTION, the way escape_side_follows_committed_sign already does
-	// for the K-turn. MEASURED on run_20260915_002408 (ccw, 3/3 laps, 42 escapes):
-	// SIDE_CORRECTION is 10 of the 12 usable escape episodes, and the escape agreed
-	// with the side the router needed on only 3 of 12 overall, with the alignment
-	// delta NEGATIVE in every category and the range to the committed pillar moving
-	// just 0.497 -> 0.526 m. That is the operator-reported pendulum: back off three
-	// centimetres, steer the wrong way, come back. Uses the SAME arbitration as the
-	// K-turn including its refusal -- the wanted side must have
-	// escape_side_override_min_clearance_m of room, and when it is shut the manoeuvre
-	// reverses STRAIGHT rather than take the other side, because a wrong-side pass
-	// ENDS the round where a slower recovery only costs time.
+	// Let the router's committed pass side outrank steering away from the threat in a
+	// side correction. Ships off.
 	SideCorrectionFollowsCommittedSign bool `json:"side_correction_follows_committed_sign" yaml:"side_correction_follows_committed_sign" mapstructure:"side_correction_follows_committed_sign"`
 
 	// Duration of a side-threat correction
@@ -177,9 +87,8 @@ type NavigationEscapeEscape struct {
 	// Forward speed during a side-threat correction
 	SideCorrectionSpeed float64 `json:"side_correction_speed" yaml:"side_correction_speed" mapstructure:"side_correction_speed"`
 
-	// Road-wheel steering angle for a side-threat correction, in DEGREES. Was
-	// side_correction_steer = 0.3 normalised; 16.5 deg is that value at the 55 deg
-	// road-wheel limit it was tuned against.
+	// Road-wheel steering angle (deg) for a side-threat correction; was a normalised
+	// fraction of full lock.
 	SideCorrectionSteerDeg float64 `json:"side_correction_steer_deg" yaml:"side_correction_steer_deg" mapstructure:"side_correction_steer_deg"`
 
 	// Time spent forward-turning during slalom
@@ -203,21 +112,7 @@ type NavigationEscapeEscape struct {
 	// Time without movement before "stuck"
 	StuckTimeoutS float64 `json:"stuck_timeout_s" yaml:"stuck_timeout_s" mapstructure:"stuck_timeout_s"`
 
-	// Keep FEEDING the sign router while a maneuver holds the chassis. Not the same
-	// knob as side_correction_blends above: that one lets the planner STEER during a
-	// correction and is refuted; this one only keeps the map current and discards the
-	// deformed waypoint, so it cannot move the wheel.  What it addresses: step()
-	// returns early for a latched maneuver, so the router call -- which owns the
-	// blind discovery ingest, engage/pass bookkeeping and routed_sign_positions, the
-	// list the escape mask itself reads -- does not run at all for the maneuver's
-	// duration. Measured 2026-09-12 over three hardware rounds: 183 episodes, 22.3%
-	// of all ticks (150 s of 686 s), and 179 of 183 (97.8%) hold a CONSTANT steering
-	// value, up to 44 ticks / 2.2 s. For a quarter of the race the wheel is open-loop
-	// AND the sign map takes in nothing.  SHIPS OFF AND UNVALIDATED. Track access was
-	// lost before it could be run, and the sim cannot stand in for this class -- it
-	// exercises side_correction on 1.09% of ticks against hardware's 19-25%. Validate
-	// by re-running scripts/bag/diag_bag_planner_silence.py and
-	// scripts/bag/diag_bag_pass_side.py with the three 2026-09-12 rounds as the
-	// control arm.
+	// Keep feeding the sign router while a maneuver holds the chassis. Ships off and
+	// unvalidated.
 	TickRouterDuringManeuver bool `json:"tick_router_during_maneuver" yaml:"tick_router_during_maneuver" mapstructure:"tick_router_during_maneuver"`
 }

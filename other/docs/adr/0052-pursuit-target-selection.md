@@ -193,3 +193,21 @@ narrow prior could not fire before the wall arrived.
   corner and never crossed 0.30, so the lookahead stayed long and the curvature
   stayed weak; the moment crosstrack reached 0.13 the short lookahead armed and
   steering jumped to 0.52.
+- `obstacles_yaw_gain_compensation` paired on 2026-09-05: Obstacles runs with a
+  violation 33/64 to 6/64 and laps credited 131 to 196. Open was the downside:
+  640-case 638 to 615, rule 9.21 terminations 1 to 15, nine more timeouts, and the
+  128-case screen read only 127 to 124, an eightfold understatement of the
+  Obstacles cost. `diag_base.load_tuning` sets both yaw fields together because
+  this knob CAN shadow the base on an Obstacles sweep, unlike `open_lookahead_long`.
+  UNSETTLED ON HARDWARE: the sim is exact because the plant IS `yaw_gain` 0.55; on
+  the robot the same 1.8x is unresolved between `rear_steer_ratio` and
+  `linkage_ratio` and needs a bench test.
+- `open_lookahead_long` Open verdict: the one change was case 590 ok to incomplete,
+  and case 300 fails in both arms (the known free-space creep deadlock). Its
+  Obstacles cost: 256 timeouts 35 to 40; sign-pass crosstrack IDENTICAL at 10.32 cm
+  median, so the Open tracking gain does not reproduce.
+- `target_sense_gate`: pre-reversal wrong-sense bursts ran up to 117 ticks against
+  a longest of 14 on the clean control.
+- `corner_preview_distance_m`: waypoint spacing is 0.117 to 0.258 m, so the preview
+  must clear the straight remainder AND reach into the arc before any heading change
+  registers.

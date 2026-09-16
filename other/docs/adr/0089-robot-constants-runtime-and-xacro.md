@@ -30,6 +30,8 @@ checked-in copy that must be kept in step BY HAND when a chassis or sensor value
 changes; its `.gen.` name and `DO NOT EDIT` header are stale.
 
 Units are metres, kilograms and radians unless a field is explicitly named `_deg`.
+The concrete consumers are `shared.config.robot_constants` (Python), the
+`simconfig` package (Go) and the URDF xacro.
 
 ## Consequences
 

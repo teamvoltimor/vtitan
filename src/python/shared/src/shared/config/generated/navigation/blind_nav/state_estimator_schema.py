@@ -13,5 +13,5 @@ class NavigationBlindNavStateEstimator(StrictModel):
     )
     yaw_correction_gain: float = Field(
         ...,
-        description='Fraction of the observed yaw discrepancy folded into the estimate per update.  Distinct from localization.toml, which tunes the LIDAR pose *search*: this is the dead-reckoning blend, and it runs whether or not localization is enabled. Deliberately small -- the IMU is the only absolute heading reference the robot has, so a hot gain lets a single bad correction drag the heading, and corridor_estimator files every width reading by heading.',
+        description='Fraction of the observed yaw discrepancy folded into the dead-reckoning estimate per update; deliberately small so one bad correction cannot drag heading.',
     )

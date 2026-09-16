@@ -51,7 +51,7 @@ class Corridor(StrictModel):
     )
     division_lines: list[float] = Field(
         ...,
-        description='The two division lines painted across every corridor, measured out from the outer wall (m). Every other lengthwise division derives from these: the starting square bands and the sign-grid width lines.',
+        description='Two division lines across every corridor, measured from the outer wall (m); the starting-square bands and sign-grid width derive from them.',
         min_length=2,
     )
 
@@ -108,7 +108,7 @@ class Sign(StrictModel):
     )
     placement_circle_diameter: float = Field(
         ...,
-        description='Diameter (m) of the circle each pillar is placed within. Touching a pillar is not a failure: the pillar may be nudged while any corner of its square stays inside this circle. Only pushing it fully out counts against the team.',
+        description='Diameter (m) of the circle each pillar is placed within; touching is not a failure, only pushing it fully out counts.',
     )
     min_count: conint(ge=0) = Field(
         ..., description='Minimum number of pillars per round.'
@@ -185,7 +185,7 @@ class StartingZone(StrictModel):
     )
     spawn_alignment: list[SpawnAlignment] = Field(
         ...,
-        description="Which edge of its band the chassis is pushed flush against, one per band. 'outer' is the edge nearer the outer wall, 'inner' the edge nearer the inner block. The spawn offset is derived from this and the chassis width, so a re-measurement does not go stale.",
+        description="Which band edge the chassis hugs, one per band. 'outer' is nearer the outer wall, 'inner' nearer the inner block; the spawn offset is derived from it.",
     )
 
 

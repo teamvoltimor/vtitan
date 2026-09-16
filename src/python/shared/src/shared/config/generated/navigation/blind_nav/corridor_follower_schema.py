@@ -13,31 +13,31 @@ class NavigationBlindNavCorridorFollower(StrictModel):
     )
     turn_clearance_m: float = Field(
         ...,
-        description="Forward clearance at which the corner turn begins. Must stay strictly below direction_estimator.toml's corner_clearance_m -- NavigationTuning refuses to load otherwise. The gap between the two is the window in which the robot is still square to the corridor and the way ahead is visibly closing, which is the only chance it gets to read which side is open.",
+        description='Forward clearance (m) at which the corner turn begins; must stay strictly below direction_estimator.corner_clearance_m, enforced at load.',
     )
     narrow_turn_clearance_m: float = Field(
         ...,
-        description="Forward clearance at which the corner turn begins instead of turn_clearance_m, once the corridor currently being creep-followed reads as NARROW. Must stay strictly below turn_clearance_m -- NavigationTuning refuses to load otherwise.  The direction gate's opening signal becomes visible once the chassis is close enough that the inner block's near edge -- set by the *cross* corridor's own width -- is behind it. In a 1.0 m corridor that happens with ~0.4 m of clearance still in hand, well before turn_clearance_m (0.60 m) commits the turn, so the gate gets a fair window while the chassis is still square. In a uniform 0.6 m corridor the near edge sits exactly at turn_clearance_m's own value (both equal CorridorDimensions.NARROW), so that window is zero -- the turn always commits at the same instant the opening would become visible. Direction never settles, and the whole round is spent in blind creep with no plan, no lap counting, nothing. Confirmed by sweeping turn_clearance_m against the live sim/navigator: 0.60 never settles, 0.50 settles but only completes 1 of 3 laps, 0.40 settles and completes 2 of 3 -- see open_challenge_narrow_corridor_root_cause_2026_08_15. 0.40 keeps a 0.10 m margin above corridor_follower.py's _MIN_FORWARD_CLEARANCE_M (RobotSpecs.LENGTH, 0.30 m) so the corner-turn branch still fires cleanly instead of folding into the emergency back-off branch.",
+        description='Forward clearance (m) at which the corner turn begins when the corridor reads NARROW; must stay strictly below turn_clearance_m.',
     )
     centering_gain_deg_per_m: float = Field(
         ...,
-        description="Degrees of ROAD-WHEEL steering per metre of lateral offset from the centreline, and a hard cap on the result, also in road-wheel degrees.  These three were normalised fractions of full lock (0.8 / 0.8 / 0.25) until 2026-08-21. That made them depend on the servo: moving to a 270 deg servo (55 deg -> 85 deg at the road wheel) multiplied all three by 1.55x with no edit to this file, which is exactly the wrong direction given what the paragraph below was measured to say. The values here are what the old fractions resolved to at 55 deg, so the change of units changed no behaviour on the base chassis -- it only stopped a hardware swap from retuning the control loop behind your back.  Both are deliberately timid. The chassis is counter-phase four-wheel steering with a 0.034 m minimum turn radius, so it responds violently -- the same reason pursuit's steer_kp came down to 1.2. A hot gain here does not merely wander: the resulting oscillation swings the heading past the direction estimator's alignment gate, which then refuses every reading and the direction never settles at all. Measured at gain 2.0 (normalised, i.e. 110 deg/m here), that cost 12 of 28 fixtures their direction and put 9 into a wall.  Sitting off-centre for one metre costs nothing. Oscillating costs the round.  Zero since 2026-08-22, which is that argument carried to its conclusion: the creep does not need to centre at all. It exists so the direction estimator can settle, and centring is what stops it settling. Traced on a failing scenario: starting 0.303 m from the OUTER wall of a 1.0 m corridor, the ~0.2 m lateral correction swung the heading 0 -> 32 deg and crossed the estimator's 25 deg alignment gate at t~=4.0s -- one second before the corridor end arrived. The robot reached the corner already forbidden to look, never settled, never got a plan, and sat there until the no-progress bailout. A passing run held 6-8 deg flat and voted the instant a side opened.  The failure is confined to that one placement -- wide corridor, outermost start band -- where 11 of 32 scenarios failed while all other 96 passed; the same band in a 0.6 m corridor starts near-centred (0.303/0.297) and never failed. Since the start cell is drawn on the day, that was ~6.9% of all legal starts never leaving the square.  Measured at 0.0, holding HEADING_GAIN: blind 128-scenario sweep 11 failures -> 0 (128/128), creep 6.7s -> 3.4s, turn-1 reversing 3.9% -> 0%. Full 57-case suite 17 -> 15 failures, stuck runs 6 -> 0, 10% faster overall; the 15 that remain are timeouts on the retired 0.156 m/s chassis, not driving failures.  Kept as a zeroed gain rather than deleted code: the centring branch is still the right shape if a future chassis needs it, and MAX_CENTERING_STEER_DEG still clamps the heading term that replaced it.",
+        description='Road-wheel steering degrees per metre of lateral offset; 0.0, because centring swings the heading past the direction alignment gate.',
     )
     heading_gain: float = Field(
         ...,
-        description='Road-wheel steering angle per unit of heading error against the corridor axis -- DIMENSIONLESS, since both sides are angles, which is why this one needs no unit suffix and no longer moves with the servo.  This is the damping term centering_gain_deg_per_m alone lacks. Position error and heading error are 90 deg out of phase in a steered chassis, so proportional-on-position is an oscillator: measured on hardware 2026-08-07 as 112 steering sign flips in 177 s, 45% of ticks pinned at max_centering_steer_deg, heading 30 deg off axis at the median. That starves the direction gate, which needs the chassis square to a corridor at the moment one side opens. Raising centering_gain_deg_per_m cannot fix it and makes it worse (see max_centering_steer_deg).',
+        description='Road-wheel steering angle per unit of heading error against the corridor axis (dimensionless); the damping term centring lacks.',
     )
     max_centering_steer_deg: float = Field(
         ...,
-        description='Road-wheel degrees. Was 0.25 of full lock, which meant 13.75 deg at the bench-measured 55 deg limit and would have become 21.25 deg on the 270 deg servo. The 2026-08-07 run sat on this value for 45% of ticks, so it is a value the robot spends real time at rather than an outer bound it rarely reaches.  Since centering_gain_deg_per_m went to 0.0 this clamps only the heading damping term. It is sized by STABILITY -- the 2026-08-07 limit cycle -- and deliberately stays where it is; the corner branches that used to share it now read max_corner_steer_deg instead.',
+        description='Road-wheel degrees ceiling on the heading damping term; sized by stability, not geometry (corner branches use max_corner_steer_deg).',
     )
     max_corner_steer_deg: float = Field(
         ...,
-        description="Road-wheel degrees the corner-turn and back-off branches steer AT. Sized by GEOMETRY, not stability: the corner branch commits its turn at turn_clearance_m, so its arc has to fit inside that clearance.  radius = wheelbase / ((1 + rear_steer_ratio) * yaw_gain * tan(angle)) = 0.19 / (2 * 0.55 * tan(angle))  At 13.75 deg that is 0.706 m against a 0.60 m commit clearance -- the turn cannot be completed, so the robot runs out of room mid-corner, noses into the outer wall and falls into the back-off branch, where it is never square to a corridor and the direction estimator can never settle. This was invisible until the simulator's yaw_gain was calibrated against a bag on 2026-08-29; the old model turned 1.83x too well and the arc always fit.  Measured over the 128-scenario Open corpus at yaw_gain 0.55: all 31 collisions in the shipped configuration were runs that never settled direction, and no run that settled ever collided.  21.25 deg is 0.450 m of radius, 0.15 m inside the commit clearance. It is also exactly what the pre-2026-08-21 normalised value (0.25 of full lock) resolves to on the 270 deg servo this robot now has -- the units refactor froze the number at the 55 deg servo's 13.75 to avoid changing behaviour, and this is that intent restored on the current hardware rather than a new guess.",
+        description="Road-wheel degrees the corner-turn and back-off branches steer at; sized by geometry so the arc fits the branch's commit clearance.",
     )
     steer_cap_from_commit_distance: bool = Field(
         ...,
-        description='Scale that cap by the distance each branch actually commits at, instead of applying max_corner_steer_deg to all three of them.  The geometry argument above is anchored on ONE distance, turn_clearance_m = 0.60. Two other branches commit closer and inherited the same angle, so the arc they drive cannot fit -- the same defect the 13.75 deg value had at 0.60 m, one level down:  corner, wide corridor (the anchor)   0.60 m   fits corner, narrow_turn_clearance_m      0.40 m   does NOT fit back-off, min_forward_clearance_m    0.30 m   1.5x too wide  So lowering this constant to 21.25 on 2026-08-30 to make the corner arc fit also cut the back-off branch, where colliding runs spend 59% of their creep ticks (3943 of 6657, against 676 in the corner branch). On a rear-free chassis that branch drives FORWARD under this angle -- its comment calls it "full lock" and it was a quarter of it.  Holding radius proportional to the commit distance gives tan(cap) = tan(max_corner_steer_deg) * turn_clearance_m / d, which returns 21.25 deg at 0.60 m -- so the one case that has actually been measured does not move -- and 30.26 deg at 0.40 m, 37.87 deg at 0.30 m. The ratio form cancels (1 + rear_steer_ratio) * yaw_gain, so it inherits the anchor\'s calibration rather than depending on those two separately.  Measured 2026-08-31 over the FULL 640-case Open space (every layout, section, direction and legal start cell): 596 -> 612 ok, collisions 18 -> 3, ZERO new collisions, inner-block collisions 0 -> 0, and sim time mean -0.01 s with 587 of 596 cases identical. It is the only change of the session that buys cases for free; it re-sizes a turn rather than adding caution.  The 3 collisions that survive are exactly the 3 runs that logged zero corner-branch and zero back-off ticks, so the fix repaired every collision routed through the branches it touches and none of the others.  37.87 deg is commandable: max_wheel_angle_deg is 85.0 on the current servo and that is a true ROAD-WHEEL angle (confirmed 2026-08-31; the previous servo\'s was 180). Understeer is the remaining unknown -- the real chassis turns wider than the bicycle model at a given angle -- but that error is in the safe direction here, since it means this cap under-corrects rather than over-corrects. NOT yet validated on track.',
+        description="Scale the corner steering cap by each branch's commit distance instead of applying max_corner_steer_deg to all branches.",
     )
     corner_speed_scale: float = Field(
         ...,
@@ -48,7 +48,7 @@ class NavigationBlindNavCorridorFollower(StrictModel):
     )
     turn_arc_half_fov_deg: float = Field(
         ...,
-        description='Second opinion on "has the corridor ended?", checked before committing to a hard-over corner turn.  turn_clearance_m alone reads the MINIMUM over lidar_sectors.toml\'s +/-8 deg cone, which is too narrow to separate a corridor that has ended from a chassis pointed obliquely at the wall beside it: 0.24 m off a wall at 30 deg puts that whole cone on the wall at 0.24/sin(30) = 0.48 m -- under the threshold, mid-corridor. Measured on run_20260806_162008, that fired the corner branch for 53% of a 305 s round at 47% precision against a 45% base rate, i.e. no better than chance. The robot held hard-over steering half the round, never came square to a corridor, and so never inferred its travel direction, never planned a path, and scored zero laps.  This asks the complementary question -- is there anywhere ahead still open -- as a MAXIMUM over a wider arc. At a real corner the end wall blocks every bearing in the arc; an oblique chassis still has the corridor\'s own axis inside it, reading metres. Scored on run_20260806_161659 (a healthy 3-lap round) the pair fires 12 times, exactly one episode per corner per lap, at 96% precision.',
+        description='Half field-of-view (deg) of the wider arc used as a second opinion on whether the corridor has ended, checked before a hard-over turn.',
     )
     turn_open_range_m: float = Field(
         ...,
@@ -56,15 +56,15 @@ class NavigationBlindNavCorridorFollower(StrictModel):
     )
     corner_leak_margin_m: float = Field(
         ...,
-        description='Added to CorridorDimensions.WIDE to get the side-range limit past which a side has "opened" (leaked past the end of the inner block) and is no longer treated as a corridor wall to centre against.',
+        description='Margin (m) added to WIDE giving the side range past which a side counts as opened, no longer a wall to centre against.',
     )
     min_forward_clearance_m: float = Field(
         ...,
-        description='Back off when the wall ahead is this close. Defaults to the chassis length, but is tunable independently of it: the direction should have settled long before this -- measured, it resolves after about 0.8 m of travel with roughly 0.5 m to spare. Reaching here means it did not, so driving on into the corner with no plan is not an option. Stopping is not either: with no direction there is no plan to hand over to and nothing else is steering, so a stopped robot stays stopped -- go_open_0020 sat at zero speed for 400 ticks with the wall 0.13 m away and the round expired around it.',
+        description='Back off when the wall ahead is this close (m); defaults to the chassis length but is tunable independently.',
     )
     min_reverse_clearance_m: float = Field(
         ...,
-        description='Room needed behind before backing off is allowed. Defaults to the chassis length, but is tunable independently of it: backing blindly into whatever is behind trades one wall for another, and with less than this the robot is boxed at both ends and holding still is genuinely all that is left. The robot must never cover ground backwards -- a robot reversing down a corridor is going the wrong way regardless of which way it is pointing.',
+        description='Room needed behind (m) before backing off is allowed; defaults to the chassis length but is tunable independently.',
     )
     bay_wall_clearance_m: float = Field(
         ...,
@@ -72,31 +72,30 @@ class NavigationBlindNavCorridorFollower(StrictModel):
     )
     assume_bay_start: bool = Field(
         ...,
-        description='Begin an OBSTACLES round believing the robot was placed inside the bay, rather than waiting for the scan to prove it. The in-bay start is the 7-point one and is the start we intend to use; an unrecognised bay start DEADLOCKS, and believing wrongly costs nothing because a parallel start has forward clearance and is dropped by is_clear on the next tick. Set false for the recognition-only control arm.',
+        description='Begin an OBSTACLES round assuming the robot was placed inside the bay instead of waiting for the scan to prove it.',
     )
     bay_exit_clearance_guard: bool = Field(
         ...,
-        description='Bound each exit leg by PREDICTED fin clearance instead of by contact -- a contact-bounded leg-end IS the 9.24.7 violation. Supersedes both older exits: with this on, bay_exit_cycle and the reverse-then-swing exit are unreachable.',
+        description='Bound each exit leg by predicted fin clearance instead of contact; a contact-bounded leg-end is the 9.24.7 violation.',
     )
     bay_exit_clearance_margin_m: float = Field(
-        ...,
-        description="Fin clearance the guard refuses to go below. Lowered 0.005 -> 0.001 on 2026-09-06: at 0.005 there is a band of outward positions where a step of the leg's own size lands just under the margin in BOTH directions, so both legs are refused while the modelled pose is still CLEAR, nothing moves, and the refusal is permanent. The band opens at dr_out = 0.0365 m and the ratchet drives out straight through it. In the unit fixture 0.005 stalls for 795 consecutive ticks of 900 and 0.003 for 786; at 0.001 the longest block is 1. Costs 9.0 mm -> 5.6 mm of true fin clearance, still 16/16 with TOUCHED 0/16.",
+        ..., description='Fin clearance (m) the guard refuses to go below.'
     )
     bay_exit_guard_overlap_recovery: bool = Field(
         ...,
-        description='Let a leg that IMPROVES an already-violated gap run. _predicted_gap takes the min over BOTH fins, so once the modelled body overlaps one, the fin being moved AWAY from vetoes the leg as hard as the one ahead -- run_20260906_192358 stood still for 14.2 s of a 16.6 s exit at a frozen 44 mm overlap.',
+        description='Let a leg that improves an already-violated fin gap run, so the guard does not veto motion away from the overlap.',
     )
     bay_exit_guard_block_ticks: int = Field(
         ...,
-        description='Unbroken ticks of the guard refusing BOTH legs before handing over to the contact-bounded exits. 0 = never, and that is deliberate: the handover buys motion by spending fin contact, which 9.24.7 ends the round on. Inert on the corpus; 40 (2 s) is the value to try first, with TOUCHED read alongside.',
+        description='Unbroken ticks of the guard refusing both legs before handing over to the contact-bounded exits; 0 = never.',
     )
     bay_exit_arc_steer_norm: float = Field(
         ...,
-        description='Steering both guarded legs hold, as a fraction of full lock. A CLIFF at 1.0: 0.3-0.9 all give 0/8 out of the bay, and 0.9 collides rather than stalling. The margin is ~2 degrees -- see the docstring before touching it.',
+        description='Steering both guarded legs hold, as a fraction of full lock; a cliff at 1.0, with only ~2 deg of margin.',
     )
     bay_exit_speed_scale: float = Field(
         ...,
-        description="Extra speed scale on both guarded legs. Also a cliff: 1.0 never moves at all (the coast alone exceeds the along-wall slack), 0.5 collides, 0.2 leaves only 3.5 mm of fin margin against this value's 9.0 mm.",
+        description='Extra speed scale on both guarded legs; a cliff: 1.0 never moves, 0.5 collides.',
     )
     bay_exit_cycle: bool = Field(
         ...,
@@ -140,11 +139,11 @@ class NavigationBlindNavCorridorFollower(StrictModel):
     )
     bay_exit_open_side_sector_deg: float = Field(
         ...,
-        description="...but POLL before latching, and score the side over a SECTOR rather than one ray. The gateway substitutes max range for a dropout, and the ray facing the near pocket wall drops out on 21-37% of ticks against 0-5% for the one facing open space -- so 12 m beat 0.84 m and run_20260906_192424 ratcheted into the wall all round. valid_fraction * median over +/-15 deg scores 100% of the 383 hardware bay scans; the shipped single ray scored 70.6/72.9/71.2%. Do not widen far: at +/-30 the sector reaches the pocket's END walls.",
+        description='Half-angle (deg) of the sector over which the open side is scored instead of a single ray; do not widen or it reaches the end walls.',
     )
     bay_exit_open_side_votes: int = Field(
         ...,
-        description='Ticks polled before the latch. 1 restores the old tick-1 latch, which rested the round on the first scan the node ever receives -- the one frame no bag can show, since recording began 1.9-2.6 s after the exit in two of three runs.',
+        description='Ticks polled before latching the open side; 1 restores the old tick-1 latch.',
     )
     bay_exit_latch_reverse: bool = Field(
         ...,
@@ -156,11 +155,11 @@ class NavigationBlindNavCorridorFollower(StrictModel):
     )
     bay_exit_max_frames: int = Field(
         ...,
-        description='Hard bound on the whole manoeuvre. 0 (never) let run_20260906_105056 hold the chassis for 1832 of 1834 ticks -- 91.7 s spinning through -420 deg of yaw, stopped by the operator, not by the robot. Nothing else bounds this: the exit owns the tick and CoreNavigator never steps while it does.',
+        description='Hard bound (ticks) on the whole bay-exit manoeuvre; 0 = never, which can stall the round.',
     )
     bay_exit_speed_mps: float = Field(
         ...,
-        description="Nose-against-wall recovery. A forward arc below this distance -- or reporting NOTHING, which is the same wall closer than MIN_VALID_RANGE_M -- backs the chassis straight off before any leg logic runs. ABSOLUTE speed for the bay-exit legs, m/s. 0 = keep the inherited scaling (creep * corner/reverse scale * bay_exit_speed_scale = 0.067 m/s).  0.067 m/s is BELOW WHAT THE DRIVETRAIN DELIVERS. Measured on run_20260906_181613 and _181839: commanded on 876 of 882 ticks with no pause longer than 0.1 s, while /motor/drive_speed read 0 deg/s on 92-97% of them against the ~110 deg/s that speed implies. The chassis was not waiting between legs -- it was never moving. Rotation over 27-44 s was -8.8 / +1.6 / -8.1 deg.  Set this to a speed the motor actually turns at. It is a HARDWARE number and the simulator cannot choose it -- the sim has no deadband, moves at any commanded speed, and reports 0.086 m/s colliding in 32/32 scenarios. Raise it on the robot, watch /motor/drive_speed actually leave zero, and watch the fin clearance: the leg still has to stop inside the pocket. 0.10 chosen on hardware evidence 2026-09-06, against the simulator's advice. The sim says 0.10 collides 32/32 at 0.27 m of travel -- but its failure is OVERRUN, and it assumes the commanded speed is delivered instantly and exactly. On this robot that assumption is false: at 0.067 commanded the encoder read 0 deg/s on 92-97% of bay-exit ticks. The sim cannot see the floor and the robot cannot ignore it, so this value is set from the hardware side and the sim's objection is recorded rather than obeyed.  WATCH ON THE NEXT RUN: /motor/drive_speed leaving zero (the point), and fin clearance holding (the risk). If the chassis now overruns the pocket the sim was right and this comes back down.  RAISED 0.10 -> 0.15 on 2026-09-10, measured on hardware and ISOLATED against the mirrored reverse that had just landed. 0.10 sits inside the motor deadband: encoder-zero 56.1% of bay ticks, delivered p50 ZERO. At 0.15 the wheel stops stalling outright (0.4%). With the mirror on and nothing else changed, the bay phase went 62.2 s -> 24.1 s for the same exit -- a clean 2.6x on one variable, same placement, same night. The fin clearance the note above asks about held: the run left the pocket and drove 7.6 m.  What is left is NOT this value. Each mirrored reversal swings the road wheel lock to lock, 170 deg = 2.97 rad, and MAX_STEERING_RATE ships 1.2 rad/s, so a reversal costs 2.47 s of a standing robot: 9 reversals = 22.2 s of that 24.1. 92% of the bay is now the SERVO, and that rate has never been measured.",
+        description='Absolute speed (m/s) for the bay-exit legs; 0 = keep the inherited scaling. A hardware number set above the motor deadband.',
     )
     bay_exit_contact_dist_m: float = Field(
         ...,
@@ -168,11 +167,11 @@ class NavigationBlindNavCorridorFollower(StrictModel):
     )
     bay_exit_contact_recovery_ticks: int = Field(
         ...,
-        description='SHIPS DISABLED (0). The recovery returns its reverse BEFORE the clearance guard, so it reverses blind into a fin. Measured on diag_bay_start --corpus --limit 32, ticks 12 -> 0:  12       0 distance median   0.06m   23.52m laps>=1           0       22 collided          32      2 fins TOUCHED      32/32   0/32  Touching a parking-lot limitation voids ALL parking points, so this was expensive as well as immobilising. Re-enabling it requires routing the reverse through the same fin-gap prediction _guarded_command uses, not around it.',
+        description='Ticks of nose-contact reverse-off recovery; ships disabled (0) because it reverses blind into a fin.',
     )
     bay_exit_target_yaw_deg: float = Field(
         ...,
-        description="Rotation from the placement heading at which the exit has turned enough to leave. In the pocket this is the ONLY signal that works -- the wall sits inside the LIDAR's minimum range, so forward clearance reports nothing.",
+        description='Rotation (deg) from the placement heading at which the exit has turned enough to leave; in the pocket rotation is the only working signal.',
     )
     bay_exit_leg_max_s: float = Field(
         ...,
@@ -180,17 +179,17 @@ class NavigationBlindNavCorridorFollower(StrictModel):
     )
     bay_exit_guard_measured_coast: bool = Field(
         ...,
-        description="Budget the guard's stopping distance from the MEASURED wheel speed instead of the commanded one. INERT pending a hardware trial. Measured 2026-09-10: at a commanded 0.15 the wheel never stalls (0.0% vs 56.1% at the shipped 0.10) but DELIVERS 0.027, so the guard budgets 52.5 mm of coast for a real 9.5 and vetoed 39-71% of ticks -- 306 and 195 reversals, zero net travel, 0/2 out of the bay. See BAY_EXIT_GUARD_MEASURED_COAST for the table.",
+        description="Budget the guard's stopping distance from measured wheel speed instead of commanded; inert pending a hardware trial.",
     )
     bay_exit_clearance_tolerance_m: float = Field(
         ...,
-        description='Predicted fin OVERLAP the guard tolerates (m). Ships 0.0 = inert. The guard refuses on a predicted 4 mm gap against a 1 mm margin while its dead-reckoned pose is ~29 mm wrong, so the refusals are noise -- and each one flips the leg and pays a servo swing: 324 legs of 0.06 s in 39.3 s, 814 deg rotation for 5.3 net, zero travel. RISK: tolerating overlap means the chassis may touch a fin, and a fin is the parking structure. Trial 0.010-0.020 with a hand on it.',
+        description='Predicted fin overlap (m) the guard tolerates; ships 0.0 (inert). Tolerating overlap risks fin contact.',
     )
     bay_exit_guard_mirrors_reverse: bool = Field(
         ...,
-        description='Steer the OPPOSITE way on the reverse leg, so the two arcs curve opposite ways and rotation ACCUMULATES instead of cancelling. SHIPPED TRUE 2026-09-10 on hardware: without it the manoeuvre is a pendulum, not a ratchet -- the steering held the same lock across every reversal (0 flips in 111 and in 140 measured legs), forward legs turned +1.94 deg each and reverse legs -1.74, and the chassis spent 815-1070 deg of rotation to keep 2-7 with ZERO net travel, 0/2 out of the bay. With it: 0 held / 4 flipped, 0% of consecutive legs cancelling, ~75 deg of rotation for ~71 net (95% efficient), 0-4 reversals instead of 111-324, and OUT OF THE BAY 3/3 in 2.8 / 13.4 / 21.1 s then 11-20 m driven. See BAY_EXIT_GUARD_MIRRORS_REVERSE.',
+        description='Steer the opposite way on the reverse leg so the two arcs curve opposite ways and yaw accumulates instead of cancelling.',
     )
     bay_exit_dr_uses_measured_yaw: bool = Field(
         ...,
-        description="Dead reckon each bay-exit leg with the yaw the robot actually has instead of the yaw the leg's steering was expected to produce. Verdict REFUTATION RECORDED (9e80162c): neither arm beats the shipped yaw model. Inert on the corpus.",
+        description='Dead reckon each bay-exit leg with measured yaw instead of the yaw its steering implies; refuted, ships false.',
     )

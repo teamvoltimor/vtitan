@@ -124,3 +124,10 @@ the slowest feed's scan period (LIDAR at 10 Hz).
   blind peak error 2.5x worse (20.8 -> 52.2 cm), because blind means the wall
   model itself is wrong and dead reckoning between poor fixes compounds drift
   rather than staying anchored to the last one.
+- `max_speed_mps`: the current drivetrain measured about 0.58 m/s at max_duty 0.5
+  and about 0.9 m/s open-loop (2026-08-29 bench), against the retired motor's
+  0.156 m/s ceiling.
+- `relocalize_accept_ratio`: without it the balanced-128 Open sweep went 128/128
+  to 127/128 (scenario 94 turned into a reverse-run) and one case lost 17 s.
+- `stale_timeout_sec`: past the timeout the gateway reports the sensor
+  unavailable, so the navigator degrades safely instead of acting on frozen data.

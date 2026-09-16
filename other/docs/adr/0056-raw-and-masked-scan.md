@@ -174,3 +174,24 @@ that removes reverse authorization rather than fixing it.
   read clear while the front lane was at/below `contact_dist`. The forward lane
   (the same chassis-width lane `assess_risk` uses) now supplies the check and
   triggers a reverse instead of the forward creep.
+- `blind_wedge_left_min_deg`: occlusion is decidable only over a whole bag and
+  needs BOTH a valid-ray fraction and a range spread; valid fraction alone passed a
+  bearing pinned constant by a stationary period. A no-return is substituted with
+  max range, so an occluded bearing reads 12 m and looks maximally clear until
+  masked.
+- `escape_mask_radius_m` is sized as the sign's own half-diagonal (0.035 m for a
+  50x50 mm footprint) plus about 0.085 m of pose and mapping error. Do NOT raise it
+  much further: the wall behind a sign can be as close as about 0.15 m in a narrow
+  corridor, and masking that wall too removes a guard nothing else replaces.
+- `escape_mask_cluster_assoc_m` can be generous, since a miss only costs the mask
+  and never masks a wall, while the belief-anchored radius stays tight because a
+  cluster is measured; 0.35 m covers the observed belief error and is still well
+  inside the 0.50 m the WRO grid spaces two pillars by, so one belief cannot snap
+  onto its neighbour.
+- `escape_mask_chassis_margin_m` exists to stop contact recoveries that engage at a
+  robot-to-belief range of p10 0.047 / p50 0.127 / p90 0.280 m, under any scalar
+  floor high enough to keep the robot's own returns out; the margin is only the
+  tolerance on the nominal rectangle, because the body is not a perfect box and the
+  mount has play. At the 105 engagement ticks of 2026-09-11, admitted clusters that
+  were the robot itself: 0.30 m floor 1.0/0.0 percent, 0.15 m 31.4/4.6, 0.08 m
+  87.6/5.5, per-bearing 86.7/1.3.

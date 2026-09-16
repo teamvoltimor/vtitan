@@ -35,6 +35,10 @@ thresholds escalate rather than replace: 10 s passes 3 s first, so a panicked gr
 can only ever stop the robot, never skip straight to power-off; the 7 s gap is the
 margin for that.
 
+The config fields declare `validation_alias`, so the lowercase TOML key and the
+SHOUT_CASE environment name (`UI_REFRESH_RATE_HZ`, `DISPLAY_BACKEND`) both
+resolve; pydantic only matches a TOML key against an alias when one is declared.
+
 ## Consequences
 
 - A library-level I2C hang has a dependency-free fallback.

@@ -100,3 +100,12 @@ collisions sighted but inverts blind.
 - The width-belief hypothesis is dead: the per-corridor belief fields are correct,
   and only the scalar `corridor_width_belief_m` misleads (published only during
   blind creep).
+- `corridor_flip_ticks`: requiring N consecutive agreeing ticks costs a genuine
+  corridor change 0.25 s at 20 Hz, irrelevant against the 1.40 m activation
+  distance. Both damped arms trade sign strikes for a handful of new wall strikes,
+  the same verdict as `commit_hysteresis`: a real mechanism that does not earn its
+  place in a safety path on the evidence.
+- `sign_deform_sense_guard` counterfactual, measured on run_20260912_064539:
+  wrong-sense targets carry deform p50 0.554 m against 0.031 m for right-sense
+  (18x), on a quantity that was never applied; the lane is the candidate that acts
+  on that wish.

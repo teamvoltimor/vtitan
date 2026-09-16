@@ -7,27 +7,33 @@
   "properties": {
     "min_concentration": {
       "type": "number",
-      "description": "How aligned the fitted segment directions must be before the estimate is trusted. Low concentration means the returns disagree about where the wall runs -- which is what a corner, a traffic sign or an open side looks like, and in those cases the heading reference is worse than none."
+      "description": "How aligned the fitted segment directions must be before the estimate is trusted. Rejects corners, signs and open sides, where heading is worse than none.",
+      "x-journal": "adr:0054-absolute-heading-from-walls"
     },
     "baseline_rays": {
       "type": "integer",
-      "description": "How far apart (in rays) the two returns forming one segment are taken. Wider is less sensitive to per-ray range noise but blurs genuine corners into the straight it is trying to measure."
+      "description": "Ray separation between the two returns forming one segment. Wider is less noisy but blurs a real corner into the straight.",
+      "x-journal": "adr:0054-absolute-heading-from-walls"
     },
     "max_segment_jump_m": {
       "type": "number",
-      "description": "Range step above which two returns are treated as different surfaces rather than one continuous wall."
+      "description": "Range step above which two returns are treated as different surfaces rather than one continuous wall.",
+      "x-journal": "adr:0054-absolute-heading-from-walls"
     },
     "min_segment_m": {
       "type": "number",
-      "description": "Segments shorter than this are dominated by range noise, not wall direction."
+      "description": "Segments shorter than this are dominated by range noise, not wall direction.",
+      "x-journal": "adr:0054-absolute-heading-from-walls"
     },
     "near_max_range_m": {
       "type": "number",
-      "description": "Returns at or beyond this are no-return rays sanitised to max range by the driver, not real surfaces. The C1 reports 12 m; this sits just under it."
+      "description": "Returns at or beyond this are no-return rays sanitised to max range by the driver, not real surfaces. The C1 reports 12 m; this sits just under it.",
+      "x-journal": "adr:0054-absolute-heading-from-walls"
     },
     "min_returns": {
       "type": "integer",
-      "description": "Fewer usable returns than this cannot form a segment at all."
+      "description": "Fewer usable returns than this cannot form a segment at all.",
+      "x-journal": "adr:0054-absolute-heading-from-walls"
     }
   },
   "required": [

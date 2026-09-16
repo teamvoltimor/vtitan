@@ -185,3 +185,49 @@ centre bias the corridor width selected (ADR 0028). It must never flatten that.
   margin, derived rather than restated: `TestLateralOffsetTracksChassis` measured
   that a 0.28 mm chassis-width change was enough to flip a corpus scenario, so the
   offset must track the live chassis geometry.
+- `activation_dist_m` MUST stay below `passed_dist_m` (`SignRouterConfig` enforces
+  it); inverting the pair engages and retires every sign a metre out and silently
+  disables avoidance for the whole run (256 of 256 collisions). The pair is
+  deliberately 1.40/1.60 rather than the measured peak 1.60/1.80: 1.80 costs 19
+  runs against 1.60, and 1.40 keeps twice the margin for hardware pose error.
+- `deform_depth_buffer_m`: too small and avoidance switches OFF during the final
+  approach to any sign at grid depth 1.0 or 2.0 (the corners, where two-thirds of
+  WRO signs sit); 0.70+ is worse again (38 finishes).
+- `commit_hysteresis` is ON since 2026-09-07; the corpus still reads flat but the
+  instrument changed: hardware duplicate nearest-neighbour separation is 0.21 m
+  against 0.012 m in sim. Replaying recorded 09-07 detections while holding the
+  commitment cuts aim-point jumps over 0.15 m from 38 to 21 with the committed-tick
+  count unchanged at 1538. It was reported from the track first: the robot lines
+  up, keeps correcting and arrives badly placed, and median steering flips during
+  an approach is zero, so the target was moving.
+- `sign_aware_speed`, measured blind on the 256 corpus off to on: clean 77 to 79,
+  in-time 71 to 73, rev-run (9.21) 14 to 9, unscored 14 to 9, collisions 15 to 15
+  (sign 6 to 4, wall 9 to 11), timeouts 26 to 27. The mechanism is not established
+  (escapes flat at 17293 against 17283); it is Obstacles-only because it gates on a
+  deformation the router applied. The prior refutation was measured SIGHTED
+  (curvature-limited); the blind run is the information-limited competition case.
+- `sign_lane_hold_m` hardware study over 141 bags: the believed pillar sits p50
+  +0.122 m past the centreline for crossing failures, +0.044 for successes and
+  -0.198 for already-legal passes, with the lookahead on the ramp on 47 percent of
+  closest approaches, and every one of those bags was recorded at hold 0.25. On the
+  256 corpus, hold 0.40 against 0.25: collisions 25 against 21, laps>=3 222 against
+  225, in-time 191 against 218, escapes per lap 7.01 against 4.34.
+- `sign_lane_deform_fallback_m`: the intended lane offset is 0.28 m and the
+  failures' lane peaks at 0.130 m. It ships off because the simulator's sign map is
+  EXACT, so the lane materialises and this branch barely fires; a flat sim A/B
+  would measure the sim.
+- `sign_aware_lookahead`: crosstrack is measured against the RAW path, so it never
+  rises during a sign pass and never arms the short lookahead on its own. 256
+  corpus off to on: pass-side 2 to 0, rev-run 5 to 1, collisions 8 to 5 (wall 4 to
+  0), stuck 26 to 32, timeouts 65 to 69. The field comment said "extend" until
+  2026-09-06; it shortens.
+- `pair_handoff_span_m` hardware evidence over four 2026-09-14 rounds and 41
+  passes: a pass begun on the wrong side grazes 4.8x more often (23.8 against 5.0
+  percent) and finishes wrong-side 2.9x more (14.3 against 5.0 percent);
+  commitment lands at p50 0.498 m where the crossing needs about 0.614 m,
+  publication costing 0.317 m and the commit criteria 0.266 m of the 1.081 m the
+  camera gives.
+- `sign_deform_sense_guard` counterfactual measured on run_20260912_064539:
+  wrong-sense targets carry deform p50 0.554 m against 0.031 m for right-sense
+  (18x), on a quantity that was never applied; the lane is the candidate that acts
+  on that wish.

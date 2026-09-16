@@ -42,7 +42,10 @@ hand-synced checked-in copy, see 0089); sensor specs consolidated
 into `robot.toml` (`lidar.min_range`, `lidar.max_range`, `imu.mount_z_offset`);
 ROS topic names centralized in `ros_topics.toml`; competition rules in
 `competition_specs.toml` (`round_time_limit_s = 180.0`, `open_challenge_laps = 3`,
-`obstacle_challenge_laps = 3`).
+`obstacle_challenge_laps = 3`). `ros_topics.toml` is loaded through
+`RosTopicConfig.load_default()`; track consumers are
+`shared.config.track_constants` (Python) and the Go generator `simgen`
+(`trackconfig`).
 
 There is no environment variable override for navigation tuning. The only variable
 read is `VTITAN_HARDWARE_PROFILE`, and it selects profiles, not values. A key

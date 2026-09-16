@@ -16,11 +16,8 @@ type HardwareVisionNode struct {
 	// ROS2 image topic the node subscribes to when camera_source is "topic".
 	CameraTopic string `json:"camera_topic" yaml:"camera_topic" mapstructure:"camera_topic"`
 
-	// Periodic raw (un-annotated) frame capture for later dataset accumulation /
-	// fine-tuning -- see src/vision/dataset_capture.py. Saved to
-	// <run_dir>/<capture_subdir>/, next to that run's mcap bag and debug video.
-	// Obstacles Challenge only ever saves a frame once it actually contains a
-	// detection; Open Challenge saves every capture_interval_s unconditionally.
+	// Periodic raw-frame capture for later dataset accumulation / fine-tuning; saved
+	// under the run directory alongside the mcap bag.
 	CaptureDatasetFrames bool `json:"capture_dataset_frames" yaml:"capture_dataset_frames" mapstructure:"capture_dataset_frames"`
 
 	// Capture/publish rate for the node, in frames per second.
@@ -42,12 +39,7 @@ type HardwareVisionNode struct {
 	// Publish the raw camera image stream for debugging.
 	PublishRaw bool `json:"publish_raw" yaml:"publish_raw" mapstructure:"publish_raw"`
 
-	// Recorded debug video's width; height is derived from the captured frame's own
-	// aspect ratio. Set to the camera's native width (camera_width in
-	// rpi_camera_module_3.toml/rpicam.toml) rather than downscaled -- SD card has
-	// 460GB free, so a ~6x larger per-run video (~20MB -> ~120MB for 3min) costs
-	// nothing. Detection boxes need no extra handling: annotate() already draws them
-	// on the full-resolution frame before this resize, so they scale with the image
-	// instead of needing separate coordinate transforms.
+	// Recorded debug video width in pixels; height follows the frame aspect ratio.
+	// Set to the camera's native width.
 	VideoWidth int `json:"video_width" yaml:"video_width" mapstructure:"video_width"`
 }

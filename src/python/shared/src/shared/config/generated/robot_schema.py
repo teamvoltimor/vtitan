@@ -16,7 +16,7 @@ class Chassis(StrictModel):
     height: float | None = Field(None, description='Chassis height (m).')
     mass: float | None = Field(
         None,
-        description='Chassis body mass (kg), excluding the four wheels. The URDF and the Gazebo model sum it with the wheel masses to get the total: 1.3 + 4 x 0.05 = 1.5, a middle value between both battery configurations.',
+        description='Chassis body mass (kg), excluding the four wheels; the URDF and Gazebo model add the wheel masses.',
     )
 
 
@@ -83,7 +83,7 @@ class Drivetrain(StrictModel):
     )
     yaw_gain: float | None = Field(
         None,
-        description='Fraction of the modelled yaw rate the chassis actually delivers. Below 1.0 is tyre slip and linkage compliance, which the zero-slip model has no term for. Measured 2026-08-29 as 0.55.',
+        description='Fraction of the modelled yaw rate the chassis actually delivers; below 1.0 is tyre slip and linkage compliance.',
     )
     min_turn_radius_m: float | None = Field(
         None,
@@ -138,7 +138,7 @@ class Lidar(StrictModel):
     )
     inverted: bool | None = Field(
         None,
-        description="Whether the unit is mounted upside-down. Drives both the driver's own inverted parameter and a 180 degree yaw correction; the two must never be set independently.",
+        description="Whether the unit is mounted upside-down; drives the driver's inverted flag and a 180 degree yaw correction, which must never be set separately.",
     )
     mount_yaw_offset_deg: float | None = Field(
         None,

@@ -17,7 +17,7 @@ class HardwareVisionDetector(StrictModel):
     )
     min_confidence: float = Field(
         ...,
-        description='THE one shipped detection-confidence floor, shared by all three vision backends. The hailo backends (hailo.toml, hailo_streaming.toml) no longer declare their own copy: their pydantic fields resolve it back to this line, so a backend change is deliberate (env HAILO_MIN_CONFIDENCE / DETECTOR_MIN_CONFIDENCE), never a forgotten literal.',
+        description='Shipped detection-confidence floor shared by all vision backends; below it a detection never reaches the navigator.',
     )
     output_format: str = Field(
         ...,

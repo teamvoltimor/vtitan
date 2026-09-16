@@ -78,6 +78,9 @@ hardware observation.
 - 703403ab 2026-09-04: `finish_approach_m = 0.40`.
 - 9260f162 2026-09-09: `crawl_ramp_start` added, ships 0.0.
 - 42926df1 2026-09-09: min target radius filter measured and shipped off (see 0052).
+- 2026-09-10: `crawl_ramp_start` written out at its shipped value; until then it
+  was a Python literal unreachable from the schema, and pytest's shipped-tree
+  completeness check now requires every concrete default to appear in the file.
 
 ## Refuted
 
@@ -118,3 +121,20 @@ hardware observation.
   `final <= heading_speed` true by construction, so the heading limiter looked
   innocent on 100 percent of ticks while it was the binding constraint on most of
   them.
+- `min_mps`: the friction floor was measured no-load and in a straight line; the
+  true floor under full steering lock is higher (tyre scrub) and has never been
+  measured.
+- `creep_mps`: raised 2026-08-09 from 0.050, which was exactly the stiction floor,
+  commanded precisely when steering is near full lock and tyre scrub worst;
+  hardware spent 16 percent (CW) / 21 percent (CCW) of driving ticks there, all
+  from the heading limiter. The servo slews at 2.0 rad/s, so full lock from centre
+  takes 0.61 s covering 6.2 cm against 3.1 cm, versus a 0.103 m lateral margin;
+  that budget is in METRES, so this tier must not be re-scaled by a motor change.
+  Legacy fractional names: `min_frac = 0.32`, `max_frac = 1.0`, `creep_frac =
+  0.65`, `medium_frac = 0.85`.
+- `finish_approach_m`: scoring rule 1.3 pays 3 points for stopped in the finish
+  section; the section straight is 1 m and the line sits at its along-track
+  centre, leaving 0.50 m past the line. The drivetrain decays with
+  `speed_response_tau_s = 0.35`, so 0.40 m is roughly triple the ~0.13 m needed to
+  shed fast to slow. 2026-09-01 bags showed ~0.6 m between the start square and
+  the resting place, landing past the boundary.

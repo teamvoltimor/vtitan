@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://vtitan.local/schemas/ros_topics.schema.json",
   "title": "RosTopics",
-  "description": "Single source of truth for ROS2 topic names used by the robot and telemetry. Loaded via RosTopicConfig.load_default(). Rationale for the values is in other/docs/adr.",
+  "description": "ROS2 topic names used by the robot and telemetry. Rationale for the values is in other/docs/adr.",
   "type": "object",
   "additionalProperties": false,
   "required": [

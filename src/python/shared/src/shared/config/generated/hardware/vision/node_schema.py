@@ -40,11 +40,11 @@ class HardwareVisionNode(StrictModel):
     )
     video_width: int = Field(
         ...,
-        description="Recorded debug video's width; height is derived from the captured frame's own aspect ratio. Set to the camera's native width (camera_width in rpi_camera_module_3.toml/rpicam.toml) rather than downscaled -- SD card has 460GB free, so a ~6x larger per-run video (~20MB -> ~120MB for 3min) costs nothing. Detection boxes need no extra handling: annotate() already draws them on the full-resolution frame before this resize, so they scale with the image instead of needing separate coordinate transforms.",
+        description="Recorded debug video width in pixels; height follows the frame aspect ratio. Set to the camera's native width.",
     )
     capture_dataset_frames: bool = Field(
         ...,
-        description="Periodic raw (un-annotated) frame capture for later dataset accumulation / fine-tuning -- see src/vision/dataset_capture.py. Saved to <run_dir>/<capture_subdir>/, next to that run's mcap bag and debug video. Obstacles Challenge only ever saves a frame once it actually contains a detection; Open Challenge saves every capture_interval_s unconditionally.",
+        description='Periodic raw-frame capture for later dataset accumulation / fine-tuning; saved under the run directory alongside the mcap bag.',
     )
     capture_interval_s: float = Field(
         ...,

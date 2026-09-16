@@ -6,75 +6,30 @@ type NavigationMotionClearance struct {
 	// Robot creeps forward (< this) -- immediate danger
 	ContactDist float64 `json:"contact_dist" yaml:"contact_dist" mapstructure:"contact_dist"`
 
-	// Ticks a contact-reverse is suppressed after it fires; the countdown only runs
-	// while the path is CLEAR, so the back-off and the approach cannot oscillate
-	// against the same obstacle.
+	// Ticks a contact-reverse is suppressed after it fires; the countdown runs only
+	// while the path is clear, so the pair cannot oscillate.
 	ContactReverseCooldownTicks int `json:"contact_reverse_cooldown_ticks" yaml:"contact_reverse_cooldown_ticks" mapstructure:"contact_reverse_cooldown_ticks"`
 
-	// Back off when the chassis has closed to contact_dist, instead of creeping
-	// forward into it; the cooldown only counts down while CLEAR so the pair cannot
-	// oscillate. Ships disabled (0), and the trail gate did not rescue it.
+	// Back off when the chassis closes to contact_dist instead of creeping in; ships
+	// disabled (0).
 	ContactReverseTicks int `json:"contact_reverse_ticks" yaml:"contact_reverse_ticks" mapstructure:"contact_reverse_ticks"`
 
 	// Full speed capability (> this)
 	FastDist float64 `json:"fast_dist" yaml:"fast_dist" mapstructure:"fast_dist"`
 
-	// Treat a forward cone that returns NOTHING as degraded rather than clear. A
-	// whole-cone no-return is the LIDAR failing to see, not open track -- reading it
-	// as "wide open" drove the robot into walls (fixed 2026-08-28).
+	// Treat a forward cone that returns nothing as degraded, not clear (the LIDAR
+	// failing to see).
 	ForwardNoDataIsDegraded bool `json:"forward_no_data_is_degraded" yaml:"forward_no_data_is_degraded" mapstructure:"forward_no_data_is_degraded"`
 
-	// Measure forward clearance from the BUMPER rather than the LIDAR. Off: the gates
-	// above already subtract the mount offset where they need to, and flipping this
-	// would double-apply it.
+	// Measure the forward lane from the bumper plane instead of the LIDAR; off keeps
+	// the gates' existing mount-offset correction.
 	ForwardPathAheadOfBumper bool `json:"forward_path_ahead_of_bumper" yaml:"forward_path_ahead_of_bumper" mapstructure:"forward_path_ahead_of_bumper"`
 
 	// Normal speed zone
 	MediumDist float64 `json:"medium_dist" yaml:"medium_dist" mapstructure:"medium_dist"`
 
-	// Obstacles-Challenge contact zone. Resolved by
-	// ClearanceZones.for_obstacles_challenge(), which CoreNavigator calls once at
-	// construction; Open keeps contact_dist above. There is deliberately no
-	// open_contact_dist -- nothing measured wants Open to differ, and an unset knob
-	// nothing has ever moved reads as tuning that exists.  Why the zone is
-	// per-challenge at all: this threshold fires the reversing escape (assess_risk
-	// returns CRITICAL below it), and the two challenges present different things to
-	// escape FROM. A wall 0.10 m ahead in Open is a genuine emergency. Obstacles
-	// additionally has signs the router deliberately routes PAST at ~0.175 m from
-	// their surface, so 0.10 fires on geometry the planner chose on purpose -- the
-	// robot escapes from clearances it was aimed at. Measured 2026-08-31 on
-	// subset128: ~180 escapes per run while colliding with a sign only 4-5 times in
-	// 128 runs.  Worth, on the full 256 corpus (2026-09-01, raw in
-	// src/.corpus/contactdist_256_fixed.txt):  laps>=3      11 -> 82        timeouts
-	// 126 -> 48 laps >=1     41 -> 136       stuck       19 -> 10 in-time       3 ->
-	// 52        escapes/lap 685 -> 44 sign collisions/lap 0.132 -> 0.009  Wall
-	// collisions stay FLAT at 17, which is the check that the extra laps are not
-	// bought by driving harder at walls. Pass-side goes 82 -> 122, but that is an
-	// artefact of survival: it is counted per run, and the 0.10 arm dies early enough
-	// to drive only 68 laps against 434, so it never reaches enough signs to
-	// misroute. Per lap it moves the other way.  Verify on 256, never a subset. This
-	// exact plumbing check PASSED on 16 fixtures and on 128 scenarios and FAILED at
-	// 256 -- the escape gates never bound in the smaller sets.  *** NOT
-	// HARDWARE-VALIDATED. THE STOPPING-DISTANCE BENCH IS STILL UNRUN. ***
-	// bumper_gap_ahead already removes the 12.2 cm LIDAR mount offset, so the gate
-	// compares a CHASSIS-to-obstacle distance: at 0.05 the robot drives normally
-	// until its bumper is 5 cm out, then declares CRITICAL and reverses. Nobody has
-	// measured how far the chassis travels between that tick and standstill -- LIDAR
-	// scan period, nav tick, PID response, mechanical deceleration. If that chain
-	// exceeds 5 cm at Obstacles cruise, this value generates the collisions it was
-	// meant to prevent, and the sim CANNOT say otherwise: contact there is absorbing,
-	// so a run ends before the robot can be wedged.  Run
-	// docs/internal/algorithms/hardware-bench-procedure.md Session A before any
-	// Obstacles track run, and revert this line to 0.10 if A3's decision rule says
-	// so. Its preflight matters: verify reverse on blocks FIRST -- nav commands
-	// reverse, this whole mechanism IS a reverse, and reverse has never been observed
-	// on hardware. 0.04 only works PAIRED with min_valid_range_m = 0.044. Alone it is
-	// a threshold the guard can never observe -- the sector filter discarded
-	// everything below 0.05 -- which measured +3 collisions on Go sighted. With the
-	// floor reading valid the threshold becomes actionable and collisions FALL.
-	// HARDWARE CAUTION: this sits 5 mm below the C1's rated minimum, where a real
-	// sensor is least trustworthy. The sim clips cleanly at 0.045 and cannot model
-	// that, so bench the sensor at close range before racing on this value.
+	// Obstacles-challenge contact zone (m); overrides contact_dist when a sign router
+	// is attached and fires the reversing escape below it.
 	ObstaclesContactDist float64 `json:"obstacles_contact_dist" yaml:"obstacles_contact_dist" mapstructure:"obstacles_contact_dist"`
 
 	// Extra clearance beyond chassis half-width still counted as "in the forward

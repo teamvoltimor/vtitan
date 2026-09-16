@@ -65,6 +65,11 @@ correct robot-frame angles.
   not retune one to mask the other.
 - Sensor-error tests run with the correction off, because it would mask exactly
   the perturbation those tests exist to measure.
+- `yaw_correction_gain` is the dead-reckoning blend, not the LIDAR pose-search
+  tuning in `localization.toml`, and it runs whether or not localization is
+  enabled. It is deliberately small because `corridor_estimator` files every
+  width reading by heading: a large blend would move the heading that decides
+  which corridor a reading belongs to.
 
 ## History
 

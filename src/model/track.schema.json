@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://vtitan.local/schemas/track.schema.json",
   "title": "TrackConfig",
-  "description": "Mat geometry source of truth for the WRO 2026 Future Engineers mat. Read at runtime by Python (shared.config.track_constants) and consumed by the Go generator simgen (see trackconfig). Rationale for the values is in other/docs/adr.",
+  "description": "Mat geometry for the WRO 2026 Future Engineers mat. Read at runtime; rationale for the values is in other/docs/adr.",
   "type": "object",
   "additionalProperties": false,
   "properties": {
@@ -22,31 +22,36 @@
           "description": "Driveable track side length (m).",
           "type": "number",
           "x-unit": "m",
-          "x-go": "TrackSize"
+          "x-go": "TrackSize",
+          "x-journal": "adr:0069-config-governance"
         },
         "min_coord": {
           "description": "Minimum coordinate (m), bottom-left origin.",
           "type": "number",
           "x-unit": "m",
-          "x-go": "TrackMinCoord"
+          "x-go": "TrackMinCoord",
+          "x-journal": "adr:0069-config-governance"
         },
         "max_coord": {
           "description": "Maximum coordinate (m), top-right. Equal to the track size for a track that starts at the origin.",
           "type": "number",
           "x-unit": "m",
-          "x-go": "TrackMaxCoord"
+          "x-go": "TrackMaxCoord",
+          "x-journal": "adr:0069-config-governance"
         },
         "corner_min": {
           "description": "Corner region start (m): the middle third of each axis.",
           "type": "number",
           "x-unit": "m",
-          "x-go": "TrackCornerMin"
+          "x-go": "TrackCornerMin",
+          "x-journal": "adr:0069-config-governance"
         },
         "corner_max": {
           "description": "Corner region end (m).",
           "type": "number",
           "x-unit": "m",
-          "x-go": "TrackCornerMax"
+          "x-go": "TrackCornerMax",
+          "x-journal": "adr:0069-config-governance"
         }
       },
       "required": [
@@ -148,7 +153,7 @@
           "x-go": "CorridorMaxWidth"
         },
         "division_lines": {
-          "description": "The two division lines painted across every corridor, measured out from the outer wall (m). Every other lengthwise division derives from these: the starting square bands and the sign-grid width lines.",
+          "description": "Two division lines across every corridor, measured from the outer wall (m); the starting-square bands and sign-grid width derive from them.",
           "type": "array",
           "items": {
             "type": "number"
@@ -215,7 +220,7 @@
           "x-go": "SignGridDepthFar"
         },
         "placement_circle_diameter": {
-          "description": "Diameter (m) of the circle each pillar is placed within. Touching a pillar is not a failure: the pillar may be nudged while any corner of its square stays inside this circle. Only pushing it fully out counts against the team.",
+          "description": "Diameter (m) of the circle each pillar is placed within; touching is not a failure, only pushing it fully out counts.",
           "type": "number",
           "x-unit": "m",
           "x-go": "SignPlacementCircleDiameter",
@@ -376,7 +381,7 @@
           "items": {
             "$ref": "#/definitions/SpawnAlignment"
           },
-          "description": "Which edge of its band the chassis is pushed flush against, one per band. 'outer' is the edge nearer the outer wall, 'inner' the edge nearer the inner block. The spawn offset is derived from this and the chassis width, so a re-measurement does not go stale.",
+          "description": "Which band edge the chassis hugs, one per band. 'outer' is nearer the outer wall, 'inner' nearer the inner block; the spawn offset is derived from it.",
           "x-journal": "adr:0007-starting-zone-spawn-alignment"
         }
       },

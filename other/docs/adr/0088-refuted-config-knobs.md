@@ -105,3 +105,25 @@ less of hardware ticks, so it cannot move the alternation it was written for);
   `sign_lane_skip_unsatisfiable`, `sign_lane_deform_fallback_m`. `slot_sign_map`
   is on; its comment still says "SHIPS OFF", a stale note. `escape_mask_radius_m`
   and its cluster association are in 0056.
+- `side_correction_blends` raw split: the qualifying forward nudge is 44/12/0/0
+  ticks (0.8/0.3/0.0/0.0 percent) against 550/572/143/88 reversing over the four
+  2026-09-11 Obstacles rounds; side corrections dominate 184/198 ticks against the
+  K-turn's 22.
+- `tick_router_during_maneuver`: three 2026-09-12 rounds gave 183 episodes, 22.3
+  percent of all ticks (150 s of 686 s), 179 of 183 (97.8 percent) holding a
+  constant steering value up to 44 ticks / 2.2 s; the sim exercises
+  `side_correction` on 1.09 percent of ticks against hardware's 19-25 percent.
+  Validate with `scripts/bag/diag_bag_planner_silence.py` and `diag_bag_pass_side.py`
+  against those rounds.
+- `advance_past_passed_waypoint` false: measured to stall the waypoint index at
+  corners (measurement in 0057). `forward_only_reseek` also ships false and no ADR
+  owns it: the reseek-direction gate is undocumented and should be a deliberate
+  decision.
+- `sign_lidar_align` full A/B, 256 corpus off to on: in-time 148 to 146, laps>=1
+  179 to 172, U-turns 2 to 38 (27 of 256 runs), rev-run 1 to 7, unscored 1 to 7,
+  timeouts 69 to 65, stuck 32 to 30. Feeding the return to discovery, or using it
+  to bias the classifier ROI, does not require pointing the chassis at the sign.
+- `sign_lidar_align_deadband_deg` caution: the U-turn refutation turns on this gain
+  and deadband; do not raise them while the law ships off.
+- `retrace_escape` shares its session and 640-case sweep with
+  `steer_cap_from_commit_distance`, so that sweep is its evidence provenance.

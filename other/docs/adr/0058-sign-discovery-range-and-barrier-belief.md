@@ -278,3 +278,30 @@ cannot score it because it never emits a magenta detection.
   at receipt, takes the bearing residual from 20.2 deg to 5.4 deg. The corrected
   pairing is what makes `range_scale`'s pinhole correction usable at all; see the
   `vision_latency_s` measurement above.
+- `max_pillar_aspect`: neither area nor confidence separates the blurred barrier
+  from a real pillar, only aspect does.
+- `range_scale`: without the pose alignment the scale doubled lateral error (9.8 to
+  18.6 cm); aligned it goes 3.6 to 6.8 cm. Binned error is about +/-5 cm out to
+  1.1 m. Prefer fixing the detector box convention and returning `range_scale` to
+  1.0.
+- `lidar_range_fusion` ungated: the gate was 0.05 < r < 10.0 m, i.e. no gate; because
+  a wall behind a sign is always farther it supplied half the outward bias that
+  pinned believed signs to walls. The ungated arm reproducing its own earlier
+  refutation is what validates the 78-bag replay harness.
+- `vision_latency_s`: `/vision/detections` is a headerless `std_msgs/String`, so
+  before 2026-09-07 every detection was decoded against the pose at RECEIPT. At
+  0.3 m/s through a corner the 0.85 s lag is most of a sign's lateral offset.
+- `max_signs_per_section`: the rulebook allows two per section and eight on the
+  track; unlike `snap_to_lattice_m`, which quantised position and left the count
+  alone, a cap needs no opinion about which tracks are duplicates.
+- `barrier_belief_min_sightings`: every magenta detection was dropped by
+  `detection_to_observation`, which returns None for any non-routing colour.
+  `barrier_merge_radius_m` is sized to absorb the pinhole range error rather than
+  to resolve the object, because the lot is 0.20 m long. `barrier_suppression_radius_m`
+  is sized from the pinhole position error, not from the lot.
+- `barrier_span_along_wall`: `barrier_belief.py`'s own docstring records the same
+  wedge at (0.75, 0.25) on 2026-09-14. The chassis spent 70 s and 172 s (46 percent
+  of each round) fighting the west fin while the planner routed around a phantom
+  0.45 m away, and the aggregate cannot see the west fin, which is the thing that
+  ends rounds. Narrowing the merge/suppression radius to 0.22 or 0.18 alongside the
+  span moves back down the same benefit/cost curve rather than off it.

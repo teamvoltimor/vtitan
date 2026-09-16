@@ -29,7 +29,7 @@ class HardwareMotorsBts7960(StrictModel):
     )
     r_en_pin: int = Field(
         ...,
-        description="Held permanently HIGH at connect() -- these gate the module's overcurrent/thermal protection, not direction. Physical BCM number vs the module's own R_EN/L_EN silkscreen doesn't matter now that both are always HIGH (it mattered under the old shared-PWM/EN-toggle design; see git log).",
+        description="BCM pin for R_EN; held permanently HIGH at connect() to gate the module's overcurrent/thermal protection, not direction.",
     )
     l_en_pin: int = Field(
         ...,

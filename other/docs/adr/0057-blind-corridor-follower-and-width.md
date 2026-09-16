@@ -79,6 +79,8 @@ mistake and it wrongly excluded the 0.10 arm.
   LIDAR noise it ate the same margin the deadlock back-off depends on. Do not
   re-attempt without re-measuring the full Open battery.
 - `replan_blend_ticks = 0` is kept configurable but is refuted twice as a lever.
+- `obstacles_center_bias_m = 0.15` is the flat uniform centre bias for Obstacles,
+  in place of the Wide/Narrow split.
 
 ## History
 
@@ -123,6 +125,10 @@ mistake and it wrongly excluded the 0.10 arm.
   text-asserting test so a deleted key fails locally.
 - a84e5b2f 2026-09-05: let the blind path see the shipped config. Blind Open
   laps>=3 56 to 112, collisions 20 to 0, stuck 52 to 16.
+- 2026-08-21: the three centring values were normalised fractions of full lock
+  (0.8 / 0.8 / 0.25); the 270 deg servo (55 to 85 deg at the road wheel)
+  multiplied all three by 1.55x, so the unit refactor froze the old fractions at
+  their 55 deg values and a servo swap can no longer retune the loop.
 
 ## Cross-references
 
@@ -161,3 +167,21 @@ mistake and it wrongly excluded the 0.10 arm.
   half-extent, which are not commensurable (a path curvature against a width),
   and ignored `center_bias_m`, so it scored a centred path and a biased one
   identically while the bias was what actually spent the margin.
+- `min_samples = 12` heading-attributed readings costs about half a second at the
+  20 Hz loop.
+- `plausible_width_margin_m = 0.25` treats a measured width more than 0.25 m
+  outside the legal [NARROW, WIDE] band as a plausibility failure (a corner), not
+  as a noisy corridor.
+- `max_start_samples = 20` spans the last second at 20 Hz; it is a rolling window
+  rather than a total because the robot is often powered on off-track, and only
+  readings taken after placement count.
+- `turn_arc_half_fov_deg` on an oblique chassis (0.24 m off a wall at 30 deg puts
+  the +/-8 deg cone at 0.48 m) and on a healthy run: `run_20260806_161659` fires
+  12 times, one episode per corner per lap, at 96 percent precision.
+- `wide_center_bias_m`: each centimetre of bias near the inner block costs 8 cm of
+  lap; inward beat outward at 0.05 (24/24 against 21/24, outward +18.2 s mean).
+  With per-corner arcs the corner margin equals the straight margin at every
+  bias, a single budget of 0.203 - `center_bias_m`.
+- `narrow_center_bias_m`: dropping the narrow bias to 0 widens the
+  narrow-to-narrow arc 0.20 to 0.30 m and cuts that corner's steer demand 25.4 to
+  17.6 deg at `L_eff = 0.095`.

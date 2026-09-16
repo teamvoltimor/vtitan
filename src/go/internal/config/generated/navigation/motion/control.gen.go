@@ -3,11 +3,7 @@
 package motion
 
 type NavigationMotionControl struct {
-	// Frequency (Hz) the control loop runs at, on the robot and in simulation.  The
-	// single source for the loop period. This used to be stated twice -- 0.05 s in
-	// the waypoint controller and 20 Hz in the simulated gateway -- which agreed only
-	// by maintenance. The controller rate-limits steering with dt, so the two
-	// drifting apart would not raise anything: it would tune the robot against a
-	// cadence the simulator never ran at.
+	// Control-loop frequency (Hz) on the robot and in simulation; single source for
+	// the loop period.
 	ControlHz float64 `json:"control_hz" yaml:"control_hz" mapstructure:"control_hz"`
 }

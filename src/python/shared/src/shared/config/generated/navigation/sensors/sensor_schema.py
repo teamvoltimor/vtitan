@@ -13,5 +13,5 @@ class NavigationSensorsSensor(StrictModel):
     )
     stale_timeout_sec: float = Field(
         ...,
-        description='A cached sensor reading older than this is treated as a dropout -- the gateway reports it as unavailable so the navigator degrades safely instead of acting on frozen data. Derived as 5x the LIDAR scan period (RobotSpecs.LIDAR_UPDATE_RATE), the slowest sensor feed the control loop depends on.',
+        description='A cached sensor reading older than this (s) is treated as a dropout; derived as 5x the LIDAR scan period.',
     )

@@ -23,7 +23,8 @@
     },
     "camera_inverted": {
       "type": "boolean",
-      "description": "True when the camera is mounted upside-down; applies a 180 degree rotation so a sign passes on the side the robot expects."
+      "description": "True when the camera is mounted upside-down; applies a 180 degree rotation so a sign passes on the side the robot expects.",
+      "x-journal": "adr:0078-camera-mount-and-focus"
     },
     "camera_rotation": {
       "type": "integer",
@@ -39,11 +40,12 @@
     },
     "camera_af_mode": {
       "type": "string",
-      "description": "Focus, exposure, colour and noise controls that feed the Hailo detector. See Config's field docstrings in driver.py for what each does and why.  Defaults below are tuned for the WRO venue: an indoor room under controlled artificial white light (fluorescent/cool-white LED panels), not natural/daylight. Re-tune camera_awb_mode (and re-check the red/green sign colour thresholds downstream) if testing near windows or outdoors -- daylight/cloudy colour temperature is not what these values assume. \"manual\" | \"auto\" | \"continuous\""
+      "description": "Autofocus mode; \"manual\" parks the lens at camera_lens_position, the other two let it hunt. \"manual\" | \"auto\" | \"continuous\"",
+      "x-journal": "adr:0078-camera-mount-and-focus"
     },
     "camera_lens_position": {
       "type": "number",
-      "description": "2026-09-11: was 0.8 D (focus 1.25 m, in-focus from 0.63 m). MEASURED over 7149 red/green boxes on four hardware rounds, range from the 0.10 m sign height and a 621.9 px focal: p10 0.19 / p50 0.40 / p90 0.68 m, with 83.6% INSIDE the old near limit and 99.9% inside 1.0 m. The lens was focused past nearly everything it actually sees. 1.25 D focuses 0.80 m and spans 0.485-2.29 m, giving up only range where 0.0% of detections occur.  Chosen for the DECISION range, not the median box: the median is dominated by frames of a sign already being passed, whose verdict was settled earlier. What matters is first-usable-detection 0.824 m down to router commitment 0.469 m, and 0.485 m sits right on that lower edge. 1.43 D (0.446-1.62 m) centres the window better and is the value to try once the dioptre scale is bench-verified -- which it still is not, on either driver. MEASURED AFTER THE CHANGE and NOT reverted, deliberately. On the two rounds that followed, confidence in the 0.0-0.5 m band (83.6% of detections) fell with clean run-level separation: before 0.831/0.842/0.862/0.869/0.902, after 0.767/0.771, no overlap, and the drop survives inside every yaw bin so it is not the higher yaw rate. But the rounds are 21:12 and 21:18 against 15:23-17:25 and the LIGHTING CHANGED -- one round that evening was discarded outright for poor lighting. Operator's call 2026-09-11: the drop is attributable to light, keep 1.25 D. The optics agree: at 1.25 D the near in-focus limit moves 0.63 -> 0.485 m, so this band should improve or hold, never worsen. What WOULD settle it is a matched-lighting A/B, or the bench check of the dioptre scale that this file has always said is unverified. dioptres (1/distance_m) -- focuses 0.80 m, sharp 0.485-2.29 m",
+      "description": "Lens focus in dioptres (1/distance_m); required when af_mode is manual. Higher dioptres focus nearer.",
       "x-journal": "adr:0078-camera-mount-and-focus"
     },
     "camera_ae_exposure_mode": {

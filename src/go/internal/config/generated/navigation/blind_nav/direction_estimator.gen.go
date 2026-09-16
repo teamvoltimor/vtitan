@@ -3,59 +3,31 @@
 package blind_nav
 
 type NavigationBlindNavDirectionEstimator struct {
-	// Maximum heading error against the nearest track axis for a side-ray reading to
-	// be trusted -- 25 degrees. Off axis the side rays cut a diagonal and read long
-	// for no good reason.  corridor_estimator.measure_corridor_width gates the same
-	// side rays on the same geometry and reads this same value; the two must agree,
-	// or a scan can be trusted for width and rejected for direction. Deliberately not
-	// one of the heading.toml zones: those modulate speed, and retuning speed must
-	// not move this gate.
+	// Maximum heading error (rad) against the nearest track axis for a side-ray
+	// reading to be trusted; shared with width measurement.
 	AlignmentToleranceRad float64 `json:"alignment_tolerance_rad" yaml:"alignment_tolerance_rad" mapstructure:"alignment_tolerance_rad"`
 
-	// Forward clearance below which the corridor counts as ending, opening the window
-	// in which the robot reads which side is open.  Deliberately larger than
-	// corridor_follower.toml's turn_clearance_m, and NavigationTuning enforces that
-	// ordering across the two files. Turning swings the heading past the alignment
-	// gate, so a robot that begins its turn the instant the comparison becomes
-	// decisive rotates straight through its only measurement window and comes out
-	// with a wall on both sides and nothing learned. Measured with both at 0.75 m:
-	// three fixtures never settled at all and two settled wrong after 20-plus seconds
-	// of wandering.
+	// Forward clearance (m) below which the corridor counts as ended, opening the
+	// window to read which side is open; kept above turn_clearance_m.
 	CornerClearanceM float64 `json:"corner_clearance_m" yaml:"corner_clearance_m" mapstructure:"corner_clearance_m"`
 
-	// Log one direction-gate verdict every this many unresolved blind-creep ticks, in
-	// track_navigator_node's direction-not-yet-settled logging. Diagnostic only: at
-	// the ~20 Hz control rate, logging every tick during a prolonged
-	// corridor-follower hold would flood the log; this keeps enough resolution to see
-	// which gate is refusing readings without drowning it out.
+	// Log one direction-gate verdict every this many unresolved blind-creep ticks;
+	// diagnostic only.
 	GateLogPeriodTicks int `json:"gate_log_period_ticks" yaml:"gate_log_period_ticks" mapstructure:"gate_log_period_ticks"`
 
-	// Side rays longer than this cannot be a wall of this 3 m track, so they are
-	// rejected rather than voted on.  This is not a tidiness bound. A LIDAR dropout
-	// is substituted with MAX RANGE (12 m) by both the real driver and the simulator,
-	// which reads as "this side is wide open" -- precisely the signal this module
-	// hunts for. Sweeps arrive at 10 Hz against a 20 Hz control loop, so one bad
-	// sweep could supply a whole vote block and send the robot around the track
-	// backwards with a clean scoreboard.
+	// Side rays longer than this (m) are rejected rather than voted on; a LIDAR
+	// dropout is substituted with max range and would read as open.
 	MaxInTrackRangeM float64 `json:"max_in_track_range_m" yaml:"max_in_track_range_m" mapstructure:"max_in_track_range_m"`
 
-	// Minimum left/right difference for a sweep to count as evidence rather than
-	// noise. Was 0.30, which discarded the asymmetry a robot starting near the centre
-	// of a wide corridor actually sees.
+	// Minimum left/right range difference (m) for a sweep to count as evidence rather
+	// than noise.
 	MinAsymmetryM float64 `json:"min_asymmetry_m" yaml:"min_asymmetry_m" mapstructure:"min_asymmetry_m"`
 
-	// Agreeing observations DirectionEstimator requires before settling on a
-	// direction. Voting rather than trusting a single scan, for the same reason
-	// corridor_estimator.toml's min_samples does.
+	// Agreeing observations required before the estimator settles on a direction;
+	// voting, not a single scan.
 	MinVotes int `json:"min_votes" yaml:"min_votes" mapstructure:"min_votes"`
 
-	// Maximum sum of left + right ranges that still represents one corridor.  The
-	// widest legal corridor is 1.0 m and the LIDAR sits at the chassis centre, so the
-	// two side rays sum to the corridor width wherever the robot sits across it. A
-	// sum past this has to mean one ray missed the inner block and ran off down the
-	// next corridor. The margin absorbs scanning slightly off-axis; it is the same
-	// plausibility bound used elsewhere to reject stray readings.  Exceeding this sum
-	// means one ray ran off-track into an adjacent corridor rather than both reading
-	// walls of the current one.
+	// Maximum left + right range sum (m) that still represents one corridor; a larger
+	// sum means one ray ran off into an adjacent corridor.
 	PlausibleSpanThresholdM float64 `json:"plausible_span_threshold_m" yaml:"plausible_span_threshold_m" mapstructure:"plausible_span_threshold_m"`
 }

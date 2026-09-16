@@ -78,6 +78,8 @@ wrong answer.
 - The estimator's votes are not fully independent (a cached scan is observed on
   consecutive ticks), so `min_votes` does not mean what its docstring says; the
   gates, not the vote count, are the defence.
+- `alignment_tolerance_rad` is deliberately not one of the `heading.toml` zones:
+  those modulate speed, and retuning speed must not move this gate.
 
 ## History
 
@@ -146,3 +148,8 @@ wrong answer.
 - A CW round planned as CCW came from `model_copy(update={"direction": str(...)})`
   not validating, leaving the field a plain `str` so identity tests read False;
   invisible on CCW.
+- `corner_clearance_m` and `turn_clearance_m` measured together at 0.75 m: three
+  fixtures never settled at all and two settled wrong after 20+ s of wandering,
+  which is why the shipped pair is 1.00 against 0.60.
+- `assume_bay_start` is the in-bay start (the 7-point start); `false` is the
+  recognition-only control arm, not a competing start policy.

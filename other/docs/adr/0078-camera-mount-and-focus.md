@@ -36,12 +36,25 @@ focused past nearly everything: 83.6 percent of detections were inside its near
 limit. 1.25 D focuses 0.80 m and spans 0.485 to 2.29 m, chosen for the decision
 range (first-usable detection 0.824 m down to router commitment 0.469 m).
 
+The range came from the 0.10 m sign height and a 621.9 px focal: 99.9 percent
+of the 7149 boxes were inside 1.0 m, and 1.43 D spans 0.446 to 1.62 m.
+
+The shipped camera controls (focus, exposure, colour, noise) assume the WRO
+venue's controlled artificial white light (fluorescent / cool-white LED panels),
+not natural daylight; testing near windows or outdoors needs re-tuned
+`camera_awb_mode` and a re-check of the red/green sign thresholds.
+
 ## Consequences
 
 - The camera reads bearing and colour; a missed detection does not remove
   collision safety.
 - A measured confidence drop in the near band (before 0.83 to 0.90, after 0.767 to
   0.771) is attributed to lighting and the lens was deliberately not reverted.
+- The confidence drop survives inside every yaw bin, so it is not the higher yaw
+  rate; the two rounds were 21:12 and 21:18 against 15:23 to 17:25 with changed
+  lighting, and one poor-light round was discarded outright. At 1.25 D the near
+  in-focus limit moves 0.63 to 0.485 m, so the band should improve or hold; a
+  matched-lighting A/B is what would settle the attribution.
 - Known open limitation: the world projection still assumes a level camera while
   the mount is pitched 10 degrees down, an unmodeled foreshortening bias.
 - 1.43 D centres the window better and is the value to try only after the dioptre
@@ -65,6 +78,8 @@ range (first-usable detection 0.824 m down to router commitment 0.469 m).
 
 - Continuous autofocus; the 0.8 D and 2.0 D lens positions; the 30 deg / 0.16 m
   mount estimates; `camera_inverted = false`; factory intrinsic calibration.
+- The former 0.8 D hyperfocal optics (f = 2.75 mm, f/2.2, 1.4 um pixels, 2 px
+  circle of confusion, sharp from about 0.6 m to infinity).
 
 ## Cross-references
 

@@ -153,3 +153,46 @@ infraction. The exit must be evaluated against the default contact model.
   model: each leaves the bay 254/256 where the other leaves 0/256, so a fallback
   between them (`bay_exit_fallback_frames`) is cheap insurance while which one
   matches the real robot is unknown.
+- `bay_exit_clearance_margin_m`: at 0.005 m a band of outward positions refuses
+  BOTH legs while the modelled pose is still CLEAR, so nothing moves and the
+  refusal is permanent; the band opens at `dr_out = 0.0365 m` and the ratchet
+  drives through it. Unit fixture: 0.005 stalls 795 of 900 ticks, 0.003 for 786,
+  and at 0.001 the longest block is 1. True fin clearance drops 9.0 to 5.6 mm,
+  still 16/16 with TOUCHED 0/16.
+- `bay_exit_guard_overlap_recovery`: `_predicted_gap` takes the min over BOTH
+  fins, so once the modelled body overlaps one, the fin being moved AWAY vetoes
+  the leg as hard as the one ahead; the recovery flag is what lets it run.
+- `bay_exit_guard_block_ticks`: try 40 (2 s) first, reading TOUCHED alongside.
+- `bay_exit_speed_scale` is a cliff: 1.0 never moves (the coast alone exceeds the
+  along-wall slack), 0.5 collides, and 0.2 leaves only 3.5 mm of fin margin
+  against the shipped 9.0 mm.
+- `bay_exit_open_side_sector_deg`: the near-pocket-wall ray drops out on 21-37
+  percent of ticks against 0-5 percent for the open-space ray, which made 12 m
+  beat 0.84 m and sent `run_20260906_192424` into the wall. Widening to +/-30 deg
+  reaches the pocket end walls, so do not widen past about +/-15 deg.
+- `bay_exit_open_side_votes`: recording began 1.9-2.6 s after the exit in two of
+  three runs, so a first-scan (tick-1) latch rests on a frame no bag can show.
+- `bay_exit_max_frames`: nothing else bounds the manoeuvre; `run_20260906_105056`
+  held the chassis for 1832 of 1834 ticks (91.7 s, -420 deg of yaw) and was
+  stopped by the operator. `CoreNavigator` never steps while the exit owns the
+  tick.
+- `bay_exit_speed_mps`: the simulator has no deadband, moves at any commanded
+  speed, and collides 32/32 at 0.10 m/s over 0.27 m of travel, but its failure
+  mode is OVERRUN under an instant-delivery assumption; 0.067 commanded read
+  encoder 0 deg/s on 92-97 percent of ticks. Each mirrored reversal swings
+  170 deg = 2.97 rad at 1.2 rad/s, so a reversal costs 2.47 s and 9 reversals are
+  22.2 s of the 24.1 s bay phase (92 percent is the servo).
+- `bay_exit_contact_recovery_ticks`: on `diag_bay_start --corpus --limit 32`,
+  disabling it moved ticks 12 to 0, moved-distance median 0.06 to 23.52 m,
+  laps>=1 0 to 22, collided 32 to 2, and fins TOUCHED 32/32 to 0/32. Re-enabling
+  requires routing the reverse through the same fin-gap prediction
+  `_guarded_command` uses.
+- `bay_exit_guard_measured_coast`: at a commanded 0.15 the wheel never stalls
+  (0.0 percent against 56.1 at 0.10) but delivers 0.027, so the guard budgets
+  52.5 mm of coast for a real 9.5 and vetoed 39-71 percent of ticks (306 and 195
+  reversals, zero net travel, 0/2 out); inert pending a hardware trial with
+  corrected stopping-distance data.
+- `bay_exit_clearance_tolerance_m`: the guard refuses on a predicted 4 mm gap
+  against a 1 mm margin while its dead-reckoned pose is about 29 mm wrong, giving
+  324 legs of 0.06 s in 39.3 s, 814 deg of rotation for 5.3 net and zero travel;
+  trial 0.010-0.020 only with a hand on the chassis.

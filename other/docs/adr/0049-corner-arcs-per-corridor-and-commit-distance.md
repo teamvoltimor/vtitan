@@ -77,6 +77,9 @@ verdict.
 - `unconfirmed_width_inner_bias_m` does NOT touch the arc: `calculate_waypoints`
   passes the CONFIRMED bias, so the arc is invariant to it. The earlier claim that
   it tightened the lap-1 arc was wrong and wrongly excluded the 0.10 arm.
+- Understeer is the remaining unknown: the real chassis turns wider than the
+  bicycle model at a given angle. The error is in the safe direction
+  (under-corrects), and the commit-distance cap is not yet validated on track.
 
 ## History
 
@@ -152,3 +155,10 @@ verdict.
   the one variable that moves; slowing appears to make the corner worse, not
   safer. The planned arc itself was verified safe on 2026-08-28: clearance to both
   outer walls never drops below what the straights already have.
+- `narrow_turn_clearance_m` swept live in sim and navigator
+  (`open_challenge_narrow_corridor_root_cause_2026_08_15`): 0.60 never settles,
+  0.50 settles but completes 1 of 3 laps, 0.40 settles and completes 2 of 3.
+- `min_forward_clearance_m`: the direction normally resolves after about 0.8 m of
+  travel with roughly 0.5 m to spare; `go_open_0020` sat at zero speed for 400
+  ticks with the wall 0.13 m away and the round expired, so stopping is not an
+  option there.

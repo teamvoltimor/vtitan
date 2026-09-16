@@ -47,6 +47,17 @@ of the K-turn reduction while keeping 7 cm of stopping room rather than 4 cm.
   and 4.9M rays the front trigger window is flat (11 at 0.04 against 10 at 0.10);
   `gap = range - 0.0278`, so 0.04 fires on a 6.8 cm return, above the C1's 4.5 cm
   floor.
+- Beyond the rows above, the corpus also moved laps>=1 41 to 136 and stuck 19 to 10.
+  Pass-side 82 to 122 is an artefact of survival: the 0.10 arm drives only 68 laps
+  against 434, so it never reaches enough signs to misroute, and per lap it moves
+  the other way.
+- Nobody has measured travel to standstill (LIDAR scan period, nav tick, PID
+  response, mechanical deceleration); if that chain exceeds 5 cm at Obstacles
+  cruise the value generates the collisions it was meant to prevent, and the
+  simulator cannot say so because contact is absorbing. Run the stopping-distance
+  bench before any Obstacles track run and revert to 0.10 if its decision rule says
+  so; verify reverse on blocks FIRST, because nav commands reverse and reverse has
+  never been observed on hardware.
 
 ## History
 
@@ -88,3 +99,17 @@ of the K-turn reduction while keeping 7 cm of stopping room rather than 4 cm.
   episode re-triggering, not the CRITICAL-tick rate, is the statistic that matters.
 - `slow_dist` is inert (0.25 against 0.35 moves nothing), which isolates the
   escape gate rather than the speed-cap zone as the mechanism.
+- `ClearanceZones.for_obstacles_challenge()`, called once by `CoreNavigator` at
+  construction, resolves the override. The router routes past signs at about
+  0.175 m from their surface, so a 0.10 contact zone fires on geometry the planner
+  chose.
+- 2026-08-31 subset128: about 180 escapes per run while colliding with a sign only
+  4-5 times in 128 runs.
+- `bumper_gap_ahead` already removes the 12.2 cm LIDAR-mount offset, so the gate
+  compares a CHASSIS-to-obstacle distance: at 0.05 the robot drives until its
+  bumper is 5 cm out, then declares CRITICAL and reverses.
+- 0.04 only works PAIRED with `min_valid_range_m = 0.044`; alone it is a threshold
+  the guard can never observe (the sector filter discarded everything below 0.05)
+  and it measured +3 collisions on Go sighted. 0.04 also sits 5 mm below the C1's
+  rated minimum, where a real sensor is least trustworthy; the simulator clips
+  cleanly at 0.045 and cannot model that, so bench the sensor at close range first.

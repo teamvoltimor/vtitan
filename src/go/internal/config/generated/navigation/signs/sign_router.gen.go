@@ -3,80 +3,20 @@
 package signs
 
 type NavigationSignsSignRouter struct {
-	// Tuned 2026-08-01 against the 256-scenario corpus: 27 -> 47 three-lap finishes
-	// (229 -> 209 collisions). Stock values were 0.80 / 1.20 / 0.3, none of them ever
-	// measured against a corpus.  activation_dist MUST stay below passed_dist --
-	// SignRouterConfig enforces it. A sign is engaged inside activation_dist and
-	// retired outside passed_dist on the SAME tick, so inverting them engages and
-	// retires every sign a metre out and disables avoidance for the whole run
-	// (256/256 collisions, silently).  The pair is deliberately 1.40/1.60 rather than
-	// the measured peak 1.60/1.80 (51 finishes): 1.80 costs 19 runs against 1.60, and
-	// 1.40 keeps twice the margin to that edge for hardware pose error.
-	// deform_depth_buffer is how far past the corner span a target may sit and still
-	// be deformed. Too small and avoidance switches OFF during the final approach to
-	// any sign at grid depth 1.0 or 2.0 -- i.e. at the corners, where two-thirds of
-	// WRO signs sit. 0.70+ is worse again (38 finishes). distance at which
-	// deformation activates
+	// Distance (m) at which a sign is engaged; must stay below passed_dist_m, which
+	// retires it on the same tick.
 	ActivationDistM float64 `json:"activation_dist_m" yaml:"activation_dist_m" mapstructure:"activation_dist_m"`
 
-	// Once the router has engaged a sign, keep routing around THAT sign until it is
-	// cleared, rather than re-running the nearest-wins race every tick. With two
-	// signs in play -- the WRO grid spaces them 0.50 m apart along a 1.0 m corridor,
-	// so this is common -- a pure per-tick race can flip the winner mid-approach and
-	// jump the commanded lateral line from one sign's required value to the other's
-	// with no runway left to track it. Set true to hold the committed sign.  ON since
-	// 2026-09-07, and the reason it was off is worth keeping. Measured 2026-08-01
-	// over the corpus it read flat (sighted 229 collisions either way, blind 227 off
-	// vs 228 on) and was dismissed as not earning its place. Re-run 2026-09-07 the
-	// corpus still reads flat: in-time 59 = 59, laps>=3 71 -> 70, collided 18 -> 19.
-	// What changed is the instrument, not the number. This holds the aim point still
-	// when two tracks of the SAME pillar compete, and duplicate tracks exist in both
-	// worlds at the same rate (sim 2.0x, hardware 2.2x) but NOT at the same
-	// separation:  duplicate nearest-neighbour, p50:   sim 0.012 m    hardware 0.21 m
-	// So a winner-switch moves the commanded line 1.2 cm in the corpus and 21 cm on
-	// the mat -- a factor of 17. The corpus was pricing a defect it barely has.
-	// Replayed over recorded detections from the 09-07 runs (see
-	// scripts/bag/diag_bag_sign_target_churn.py), holding the commitment cuts
-	// aim-point jumps over 0.15 m from 38 to 21, with the committed-tick count
-	// unchanged at 1538 -- so it is not buying that by disengaging.  Reported from
-	// the track first: the robot lines up correctly to pass a sign, keeps correcting,
-	// and arrives badly placed. It is not a hunting controller (median steering flips
-	// during an approach is ZERO); the target was moving.
+	// Hold the committed sign until it is cleared rather than re-running the
+	// nearest-wins race every tick.
 	CommitHysteresis bool `json:"commit_hysteresis" yaml:"commit_hysteresis" mapstructure:"commit_hysteresis"`
 
-	// A discovered sign's corridor decides which world axis its avoidance deformation
-	// treats as "lateral", and it is re-derived every tick from an estimate that
-	// keeps moving. Two-thirds of legal WRO grid positions sit ON a corner boundary,
-	// where millimetres of jitter swing corridor_for_position() between two corridors
-	// whose lateral axes are ORTHOGONAL -- so the commanded waypoint alternates
-	// between two unrelated targets at 20 Hz and the chassis tracks neither. Measured
-	// on go_obstacles_0000: an estimate wobbling +-5 mm around (2.40, 2.00) flipped
-	// EAST/NORTH on every single tick for the whole approach, swinging the steering
-	// command between -0.068 and -0.172.  Requiring N consecutive agreeing ticks
-	// before moving the label costs a genuine corridor change 0.25 s at 20 Hz --
-	// irrelevant against the 1.40 m activation distance -- and makes the dither a
-	// no-op. Deliberately temporal rather than a geometric dead-band: the corner
-	// tie-break picks the NEAREST inner face, so a point 0.40 m deep in the east band
-	// but 0.003 m past the north one classifies NORTH, and nudging the position
-	// toward the label you want to keep can make that label LESS likely. Distance to
-	// the decision surface is not usable as a margin here; consecutive agreement does
-	// not care about the surface's shape.  DEFAULT 1 (mechanism inert), measured
-	// 2026-08-15 over the 256-scenario corpus, blind, laps-only, all three arms in
-	// ONE invocation (diag_sign_sweep.py corridor-flip 1 5 10 --corpus):  ticks
-	// collisions            laps>=1  laps>=3 1      252/256 (0 wall)      11/256
-	// 4/256 5      254/256 (5 wall)      17/256   2/256 10     252/256 (3 wall)
-	// 15/256   4/256  Flat on collisions and on laps>=3, and both damped arms trade
-	// sign strikes for a handful of NEW wall strikes -- holding a stale corridor
-	// keeps deforming on the wrong axis for longer. Same verdict, and for the same
-	// reason, as commit_hysteresis above: a real mechanism that does not earn its
-	// place in a safety path on the evidence. The code and the sweep arm stay so it
-	// can be re-tested once the dominant failure is understood.  Worth re-testing on
-	// HARDWARE before dismissing entirely: the sim commands steering with infinite
-	// bandwidth, so a 20Hz axis flip costs it almost nothing, where a real servo has
-	// to physically slew between the two commands.
+	// Consecutive ticks the robot's corridor must agree before the label commits; 1
+	// leaves the mechanism inert.
 	CorridorFlipTicks int `json:"corridor_flip_ticks" yaml:"corridor_flip_ticks" mapstructure:"corridor_flip_ticks"`
 
-	// depth-axis slack for "in corridor" check
+	// Depth-axis slack (m) for the in-corridor test; too small disables avoidance at
+	// corner signs at grid depth 1.0/2.0.
 	DeformDepthBufferM float64 `json:"deform_depth_buffer_m" yaml:"deform_depth_buffer_m" mapstructure:"deform_depth_buffer_m"`
 
 	// Guards on the depth/heading pin
@@ -85,29 +25,12 @@ type NavigationSignsSignRouter struct {
 	// max distance to associate a detection with a sign
 	DetectionMatchDistM float64 `json:"detection_match_dist_m" yaml:"detection_match_dist_m" mapstructure:"detection_match_dist_m"`
 
-	// That cluster search has NO range floor: the contact recoveries the mask exists
-	// to prevent engage at a robot-to-belief range of p10 0.047 / p50 0.127 / p90
-	// 0.280 m, under any floor high enough to keep the robot's own returns out. The
-	// chassis is rejected per BEARING instead (sectors.ranges_beyond_chassis), and
-	// this is only the tolerance on the nominal rectangle -- the body is not a
-	// perfect box and the mount has play. Association at the 105 engagement ticks of
-	// 2026-09-11, with the share of admitted clusters that were the robot itself:
-	// 0.30 m floor 1.0%/0.0%, 0.15 m 31.4%/4.6%, 0.08 m 87.6%/5.5%, per-bearing
-	// 86.7%/1.3% -- it beats every scalar on both axes at once.
+	// Tolerance (m) on the nominal chassis rectangle when the robot's own returns are
+	// rejected per bearing; no range floor.
 	EscapeMaskChassisMarginM float64 `json:"escape_mask_chassis_margin_m" yaml:"escape_mask_chassis_margin_m" mapstructure:"escape_mask_chassis_margin_m"`
 
-	// Snap that mask onto the LIDAR CLUSTER nearest the believed sign, instead of
-	// anchoring it on the belief. The radius above was covering two things at once --
-	// the map's position ERROR and the pillar's EXTENT -- and on hardware no single
-	// value covers both. Measured 2026-09-11 over the two Obstacles rounds that
-	// wedged at the same point, the nearest LIDAR return sat p50 0.248 m and 0.154 m
-	// from the believed sign while the radius is 0.12, so the mask caught 0/209 and
-	// 60/316 of the ticks it exists for and both rounds were lost to the limit cycle
-	// it exists to prevent.  Association can be generous (a miss only costs the mask,
-	// it never masks a wall); the radius above stays tight because a cluster is
-	// MEASURED. 0.35 m covers the observed belief error with margin and is still well
-	// inside the 0.50 m the WRO grid spaces two pillars by, so one belief cannot snap
-	// onto its neighbour. 0.0 disables the snap.
+	// Snap the escape mask onto the LIDAR cluster nearest the believed sign; 0.0
+	// disables the snap.
 	EscapeMaskClusterAssocM float64 `json:"escape_mask_cluster_assoc_m" yaml:"escape_mask_cluster_assoc_m" mapstructure:"escape_mask_cluster_assoc_m"`
 
 	// How close (m) a LIDAR return must land to a routed sign to be attributed to it
@@ -121,20 +44,7 @@ type NavigationSignsSignRouter struct {
 	MinConfidence float64 `json:"min_confidence" yaml:"min_confidence" mapstructure:"min_confidence"`
 
 	// Metres of travel past the committed sign over which the lateral target is
-	// interpolated toward the NEXT sign's line, instead of stepping to it in one tick
-	// when the claim moves. The router claims one sign at a time, so at handoff the
-	// commanded line JUMPS -- and when a pair wants opposite sides (the WRO grid puts
-	// pillars 0.50 m apart in a 1.0 m corridor, so a red-then-green pair is routine)
-	// that jump IS the crossing, issued with whatever runway is left. MEASURED over
-	// the four 2026-09-14 rounds, 41 passes: a pass begun on the WRONG side grazes
-	// 4.8x more often (23.8% against 5.0%) and finishes on the wrong side 2.9x more
-	// often (14.3% against 5.0%), and five of the six sub-30 mm grazes were
-	// crossings. The runway is not there either: commitment lands at p50 0.498 m
-	// where the crossing needs about 0.614 m, publication costing 0.317 m and the
-	// commit criteria 0.266 m of the 1.081 m the camera gives. SHIPS AT 0.0, inert,
-	// pending a corpus A/B -- it moves the commanded lateral line, the same surface
-	// two earlier clearance-bound attempts got wrong. Applies only once the committed
-	// sign is BEHIND the chassis, so no pass is compromised to set up the next.
+	// interpolated to the next sign's line; 0 steps in one tick.
 	PairHandoffSpanM float64 `json:"pair_handoff_span_m" yaml:"pair_handoff_span_m" mapstructure:"pair_handoff_span_m"`
 
 	// distance beyond which a sign is "passed"
@@ -154,9 +64,7 @@ type NavigationSignsSignRouter struct {
 	// How far back along the pose trail the REFUTED retrace-on-escape aims (m).
 	RetraceDistM float64 `json:"retrace_dist_m" yaml:"retrace_dist_m" mapstructure:"retrace_dist_m"`
 
-	// Refuted experiments, kept configurable and OFF Retrace on escape: REFUTED (see
-	// steer_cap_from_commit_distance's note in corridor_follower.toml -- same
-	// session, same 640-case sweep).
+	// Retrace the pose trail on escape. REFUTED; ships off.
 	RetraceEscape bool `json:"retrace_escape" yaml:"retrace_escape" mapstructure:"retrace_escape"`
 
 	// Road-wheel angle (degrees) commanded by the REFUTED retrace-on-escape when the
@@ -166,67 +74,14 @@ type NavigationSignsSignRouter struct {
 	// ticks after lap start before bookkeeping activates
 	SettleTicks int `json:"settle_ticks" yaml:"settle_ticks" mapstructure:"settle_ticks"`
 
-	// Use the SHORT pursuit lookahead while a routed sign is engaged (the comment
-	// here said "extend" until 2026-09-06; it shortens). Crosstrack is measured
-	// against the RAW path, so it never rises during a sign pass and never arms the
-	// short lookahead on its own -- a long lookahead flattens the slope to a lateral
-	// offset, and the chassis arrives level with the pillar still inside the line it
-	// was given.  Enabled 2026-09-06 on hardware evidence: abeam a committed sign the
-	// chassis achieves only 35-40% of its commanded lateral offset (0.12-0.14 m of
-	// 0.32-0.38 m, runs _112704 and _085551), and a THIRD of passes go within 10 cm
-	// of the pillar. Measured back-to-back on the 256 corpus, false -> true:  off
-	// on in-time         149   148     flat laps>=3         150   149     flat
-	// pass-side         2     0     round-enders under 9.24.5 rev-run           5
-	// 1 collisions        8     5 of which wall   4     0 stuck            26    32
-	// the cost timeouts         65    69     the cost  Shipped ON deliberately
-	// against a FLAT headline: a pass-side violation ends the round for zero, a
-	// timeout keeps the laps already driven. 7 round-enders become 1. Open is
-	// structurally unaffected (no sign router): 127/127 cases byte-identical, 0.0 s
-	// delta.
+	// Use the short pursuit lookahead while a routed sign is engaged.
 	SignAwareLookahead bool `json:"sign_aware_lookahead" yaml:"sign_aware_lookahead" mapstructure:"sign_aware_lookahead"`
 
-	// Cap speed at the `slow` tier while the router is actually holding a sign
-	// deformation this tick. ON.  The docstring shipped this False as "unmeasured
-	// over the corpus, ships off until it is", and separately records the lever as
-	// REFUTED. Both are now resolved rather than overridden:  * The refutation was
-	// measured SIGHTED, where the shortfall is curvature- limited and extra time
-	// cannot buy turning radius. This is measured BLIND, which is the competition
-	// configuration and, as `explore_lap_speed_frac` already argues, an
-	// INFORMATION-limited problem where time is worth something. Same knob, different
-	// constraint. * Measured 2026-09-04 over the 256-scenario corpus, blind, both
-	// arms in ONE invocation (diag_sign_sweep.py sign-speed-blind 0 1 --corpus
-	// --strip-parking), against the rule-9.21 judge added the day before:  metric
-	// off    on clean          77    79 in-time        71    73 laps>=3        77
-	// 79 rev-run (9.21) 14     9 unscored       14     9 collisions     15    15
-	// (sign 6->4, wall 9->11) timeouts       26    27 pass-side     118   119  READ
-	// THE COLLISION ROW HONESTLY: the total does not move. Two strikes shift from the
-	// sign column to the wall column, which this file's own `corridor_flip_ticks`
-	// note calls out as not an achievement. An earlier session's "collisions 17->15,
-	// timeouts 31->30 so it costs nothing" does NOT reproduce; timeouts cost +1 here.
-	// What earns the flag is the row that session could not see, because 9.21 was
-	// unenforced when it measured: rev-run falls 14 -> 9, and `unscored` falls by the
-	// same 5 -- the same runs, five previously ILLEGAL rounds becoming scoreable,
-	// which is where +2 clean / +2 in-time / +2 laps>=3 come from.  The MECHANISM is
-	// not established. Escapes are flat (17293 vs 17283), so "fewer sign contacts ->
-	// fewer escapes -> fewer heading inversions" is a plausible story that has NOT
-	// been measured. Do not build on it.  Obstacles-only by construction: it gates on
-	// a deformation the router applied, and Open never deforms, so this cannot touch
-	// the Open ladder.
+	// Cap speed at the slow tier while the router holds a sign deformation this tick;
+	// Obstacles-only.
 	SignAwareSpeed bool `json:"sign_aware_speed" yaml:"sign_aware_speed" mapstructure:"sign_aware_speed"`
 
-	// Extra margin beyond chassis+sign half-widths. Raised 0.075 -> 0.10 on
-	// 2026-09-06 from hardware, not from the sweep.  run_20260906_184717 is the first
-	// round this robot drove properly, and it showed the LATERAL SHORTFALL IS GONE:
-	// abeam a committed sign the chassis achieved 0.247 m against 0.239 m commanded
-	// (it was 0.12-0.14 of 0.32-0.38 that morning), and sat on the commanded side 87%
-	// of the time. What remains is SCATTER, not bias -- p10 of the achieved offset is
-	// 0.033 m against a p50 of 0.247, so a tail of passes still arrives near-contact:
-	// 21% within 10 cm of the pillar, against a chassis half-width of 0.097 m.  More
-	// commanded margin is the direct answer to a scatter tail. 256 corpus, 0.075 ->
-	// 0.10: laps>=3 149 -> 151, in-time 148 -> 149, sign collisions 5 -> 4, stuck 32
-	// -> 30, U-turns 2 -> 1, pass-side 0 -> 1, timeouts unchanged. Each delta is near
-	// noise alone; they move together, and the reason to expect them to came from the
-	// robot.
+	// Extra margin (m) beyond the chassis and sign half-widths when passing a sign.
 	SignClearanceMarginM float64 `json:"sign_clearance_margin_m" yaml:"sign_clearance_margin_m" mapstructure:"sign_clearance_margin_m"`
 
 	// Along-track distance (m) within which a routed sign predicted to clip the
@@ -240,41 +95,8 @@ type NavigationSignsSignRouter struct {
 	// sign-contact evade.
 	SignContactSteerDeg float64 `json:"sign_contact_steer_deg" yaml:"sign_contact_steer_deg" mapstructure:"sign_contact_steer_deg"`
 
-	// Drop the deform when it pushes the aim point AGAINST the path's own direction
-	// of travel, and only when the undeformed point did not.  INERT ON THIS TREE,
-	// verified 2026-09-12: sign_lane_planner and sign_lane_suppress_deform are both
-	// true above and sign_lane_deform_fallback_m is 0.0, so navigator.step NEVER
-	// reassigns steer_target to the deformed point. This guard sits behind an
-	// identity check on that reassignment and evaluated on 0 ticks of four sighted
-	// scenarios with the flag forced on. Kept so the deform cannot be re-enabled
-	// without it. Turning it on today does nothing.  AND THE NUMBERS BELOW DO NOT SAY
-	// WHAT THEY FIRST APPEARED TO. sign_deform_magnitude_m is computed
-	// UNCONDITIONALLY, applied or not, so under shipped suppression it is a
-	// COUNTERFACTUAL -- the offset the router WANTED. The separation is a real
-	// correlation and does NOT identify the deform as the cause: it says wrong-sense
-	// targets happen where the router wanted a large lateral offset, and here it is
-	// the LANE that acts on that wish, not the deform. Same error class as reading
-	// min_lidar_range_m as contact evidence.  Measured 2026-09-12 on
-	// run_20260912_064539, the one post-span-bound round that still drove a quarter
-	// of a lap backwards:  set                    deform p50   deform/range p50
-	// ratio >= 1 wrong-sense targets        0.554 m               1.56          55%
-	// right-sense targets        0.031 m               0.06           8%  18x in
-	// magnitude, on a quantity that was never applied. What survives is the SHAPE OF
-	// THE WISH: where the router wanted 0.554 m of offset on a target only 0.281 m
-	// ahead, the commanded line is nearly twice as far sideways as it is forward.
-	// Which component delivers that is open, and the lane is the candidate.  THE
-	// RATIO IS NOT THE TEST, and the control is why: a clamp would have to fire near
-	// 1.0, and the clean 3-lap control carries ratio >= 1.0 on 12% of its RIGHT-sense
-	// ticks. A big shove on a near target is routine and usually harmless. What
-	// separates the failure is the OUTCOME -- 0.7% wrong-sense on the clean control
-	// against 23.0% before the reversal -- so the guard tests that directly.
-	// Distinct from motion/pursuit.toml's target_sense_gate and NOT redundant with
-	// it: that one filters the search's candidates, for the pre-bound mechanism where
-	// wrong-sense targets carried NO deformation (p50 0.000 m, 27-44% deformed across
-	// the three 2026-09-11 rounds). Here 100% of them did. Same symptom, two origins,
-	// measured on different runs.  Only the deform is dropped -- the router has
-	// already been called, so engage/pass bookkeeping, the discovery ingest and
-	// routed_sign_positions stay intact. SHIPS OFF AND UNVALIDATED ON TRACK.
+	// Drop the deform when it pushes the aim point against the path's direction of
+	// travel; inert while the lane suppresses the deform.
 	SignDeformSenseGuard bool `json:"sign_deform_sense_guard" yaml:"sign_deform_sense_guard" mapstructure:"sign_deform_sense_guard"`
 
 	// Deformation and speed coupling Minimum deformation, in metres, that counts as
@@ -287,84 +109,18 @@ type NavigationSignsSignRouter struct {
 	// Distance from a corner at which lane entry is suppressed.
 	SignLaneCornerEntryM float64 `json:"sign_lane_corner_entry_m" yaml:"sign_lane_corner_entry_m" mapstructure:"sign_lane_corner_entry_m"`
 
-	// ...but the lane does not always answer. Use the router's DEFORM on ticks where
-	// the lane has not got the target this far onto the legal side; below the value
-	// the deform replaces it, never adds to it. Measured 2026-09-11 over 129 bags: on
-	// failed CROSSING passes the lane reached the legal side on 37.4% while the
-	// deform's target was on it on 47.3%, and where the deform landed legal the pass
-	// failed 62.6% against 82.1% where it did not (p=4e-5). The intended lane offset
-	// is 0.28 m and the failures' lane peaks at 0.130 m. 0.0 keeps the global
-	// suppression, which is what shipped. SHIPS OFF: the sim's sign map is EXACT so
-	// its lane materialises and this branch barely fires there -- a flat sim A/B
-	// would be measuring the sim, not this.
+	// Use the router's deform where the lane has not taken the target this far (m)
+	// onto the legal side; it replaces, never adds to, the lane.
 	SignLaneDeformFallbackM float64 `json:"sign_lane_deform_fallback_m" yaml:"sign_lane_deform_fallback_m" mapstructure:"sign_lane_deform_fallback_m"`
 
 	// Require the corridor's depth reading to agree before committing a lane.
 	SignLaneDepthConsistentCorridor bool `json:"sign_lane_depth_consistent_corridor" yaml:"sign_lane_depth_consistent_corridor" mapstructure:"sign_lane_depth_consistent_corridor"`
 
-	// How far a SQUEEZED plateau moves off clamp_lateral's boundary limit toward the
-	// midpoint of its free gap. 0.0 is the clamped placement; 1.0 is full centring.
-	// Binds only where the full offset does not fit -- 646 of the corpus's 1282
-	// signs, in 248 of its 256 scenarios.  SET TO 1.0 ON 2026-09-12, REVERSING A
-	// REFUTATION. Measured as a 2x3 factorial (three placements x two inner-wall
-	// scorings) in ONE invocation on the 256 corpus, blind, park off:  placement
-	// scoring   collisions (wall/sign)  laps>=3  in-time clamped     strict      61
-	// ( 0 / 61)           185      144 clamped     real        61  ( 0 / 61)
-	// 185      144 0.40        strict      66  ( 1 / 65)           181      155 0.40
-	// real        65  ( 0 / 65)           182      156 1.00        strict      38  (
-	// 4 / 34)           213      182 1.00        real        35  ( 0 / 35)
-	// 215      183  So -26 collisions, +30 laps>=3, +39 in-time against the shipped
-	// placement. 0.40 is NOT monotonic (collisions 66 vs 61 while in-time improves),
-	// so the mechanism is not simply "more pillar margin"; 1.00 wins on both columns.
-	// WHY THE 2026-08-20 REFUTATION (229/256 vs 202/256, wall 3 -> 61) DOES NOT
-	// STAND: it is not wrong, it is OBSOLETE. It was measured on a tree without the
-	// depth pin, with parking pursued after the final lap, and at hold 0.25 -- a
-	// baseline that scored 202 collisions where this one scores 61. The wall column
-	// it turned on is now 0 -> 1 -> 4 instead of 3 -> 11 -> 61. Sweeps are not
-	// comparable across time and this is the clearest case of it on file.  NOT
-	// VALIDATED ON HARDWARE. The refutation's mechanism was that full centring buys
-	// 0.9 cm of planned margin against a 6.3-6.6 cm crosstrack shortfall, and that
-	// argument is untouched by this measurement: if the simulator tracks its lane
-	// better than the car does, this gain is overstated. The whole adjustable range
-	// is 31 mm of plan (measured on 8 scenarios, 304 waypoints moved). Re-measure on
-	// the Pi before trusting the magnitude.  The inner-wall scoring flag is NOT the
-	// lever here: its entire effect across the corpus is 3 collisions and 2 laps, and
-	// at the shipped placement it is exactly zero. See
-	// simulation.obstacles_inner_wall_terminal.
+	// How far a squeezed plateau moves from the clamped limit toward the midpoint of
+	// its free gap; 0.0 clamped, 1.0 full centring.
 	SignLaneGapCentreFrac float64 `json:"sign_lane_gap_centre_frac" yaml:"sign_lane_gap_centre_frac" mapstructure:"sign_lane_gap_centre_frac"`
 
-	// Half-width of the full-offset plateau.  REVERTED 0.40 -> 0.25 on 2026-09-12.
-	// The 0.40 was set the previous evening from a bag study that still stands on its
-	// own terms: over 141 bags the believed pillar sits p50 +0.122 m past the
-	// centreline on the legal side for crossing FAILURES, +0.044 for crossing
-	// successes, -0.198 m for already-legal passes, and the failures lose it at the
-	// CARROT rather than in the plan -- planned stages differ 3-5 cm between fail and
-	// success while the observed steer_target differs 0.241 m, because the lookahead
-	// sits on the RAMP on 47% of closest approaches and the ramp near a crossing
-	// pillar is itself illegal. Widening the plateau to cover the ramp follows from
-	// that.  What did not follow is the VALUE. Two problems with how 0.40 was chosen:
-	// 1. Every one of those 141 bags was RECORDED AT 0.25. The number was derived
-	// from hardware and never tested against hardware; 0.40 has run in at most four
-	// rounds, three of them the night it was reverted. 2. The sweep that cleared it
-	// was read on the wrong columns. "0.40 matches 0.25 on collisions and laps" is
-	// true -- and in-time, which nobody looked at, is where the whole difference
-	// lives.  Measured on the 256 corpus, both arms in ONE invocation, with the
-	// shipped gap_centre 1.0 and the corner-arc adjudication in place:  arm
-	// collisions (wall/sign)  laps>=3  in-time  escapes/lap hold 0.40      25 (2/23)
-	// 222      191       7.01 hold 0.25      21 (4/17)              225      218
-	// 4.34  +27 rounds in time and 37% fewer escapes. Joined against the per-pair
-	// cell taxonomy (scripts/sim/diag_pair_cells.py), 0.25 improves EVERY cell group
-	// and hurts none -- including the crossings that motivated widening it: across a
-	// corner 16 -> 14 collisions of 186, same-section 24 -> 21 of 218. That was the
-	// one objection worth testing and it does not hold.  The mechanism is NOT the
-	// demanded radius, which barely moves (0.331 m at 0.25 vs 0.334 m at 0.40)
-	// because what sets it is the LATERAL to cover, not the longitudinal available.
-	// It is time spent off-centre: the plateau lives on the straights, and hardware
-	// escapes cluster on straights at 2.4-2.9x the corner rate. A narrower plateau
-	// returns the chassis to the centreline sooner.  0.50 remains refuted and for an
-	// unrelated reason: a section holds two signs 1.00 m apart, so at 0.50 adjacent
-	// plateaux MEET and one sign's plan governs another's pass (wrong-side 58%
-	// against a 13% base rate).
+	// Half-width (m) of the full-offset plateau around each routed sign.
 	SignLaneHoldM float64 `json:"sign_lane_hold_m" yaml:"sign_lane_hold_m" mapstructure:"sign_lane_hold_m"`
 
 	// Fraction of the full lane offset actually applied.
@@ -389,29 +145,16 @@ type NavigationSignsSignRouter struct {
 	// Suppress the older per-waypoint deformation while the lane planner drives.
 	SignLaneSuppressDeform bool `json:"sign_lane_suppress_deform" yaml:"sign_lane_suppress_deform" mapstructure:"sign_lane_suppress_deform"`
 
-	// Steer toward a narrow LIDAR object ahead that the camera has not classified.
-	// Suppressed once a sign is committed -- then the pass-side lane owns the lateral
-	// decision.  SHIPS OFF: the sensor premise is sound and this control law is not.
-	// Measured back-to-back on the 256 corpus 2026-09-06, false -> true:  off    on
-	// in-time  148   146 laps>=1  179   172 U-TURNS    2    38   (27/256 runs)
-	// rev-run    1     7 unscored   1     7 timeouts  69    65   the only real gain
-	// stuck     32    30  Steering toward a narrow return turns the robot around:
-	// U-turns 19x and rev-runs 7x, both of which end rounds, against a handful of
-	// recovered timeouts. The LIDAR really does resolve the pillars -- a return
-	// exists at the camera's bearing on 98-100% of detections at a median 3.8-6.6 cm
-	// width -- so the information is there. Acting on it by STEERING is what fails;
-	// feeding it to discovery, or using it to bias the classifier's region of
-	// interest, does not require pointing the chassis at the sign.
+	// Steer toward a narrow LIDAR object ahead the camera has not classified;
+	// suppressed once a sign is committed. SHIPS OFF; refuted.
 	SignLidarAlign bool `json:"sign_lidar_align" yaml:"sign_lidar_align" mapstructure:"sign_lidar_align"`
 
-	// Heading deadband and gain of the steer-at-the-return law, with its own cap.
-	// sign_lidar_align's U-turn refutation turns on this gain: do not raise while it
-	// ships off.
+	// Heading deadband (degrees) of the steer-at-the-return law; do not raise while
+	// it ships off.
 	SignLidarAlignDeadbandDeg float64 `json:"sign_lidar_align_deadband_deg" yaml:"sign_lidar_align_deadband_deg" mapstructure:"sign_lidar_align_deadband_deg"`
 
-	// Reached depth past a pulled line at which the align branch hands a detected but
-	// unclassified return over, and the width a return may span before it stops
-	// looking pillar-shaped to the test.
+	// Reached depth (m) past a pulled line at which the align branch hands over a
+	// detected but unclassified return.
 	SignLidarAlignDepthM float64 `json:"sign_lidar_align_depth_m" yaml:"sign_lidar_align_depth_m" mapstructure:"sign_lidar_align_depth_m"`
 
 	// Half-angle of the forward cone (degrees) searched for an unclassified LIDAR
@@ -453,21 +196,8 @@ type NavigationSignsSignRouter struct {
 	// sign slot.
 	SlotRepointMargin float64 `json:"slot_repoint_margin" yaml:"slot_repoint_margin" mapstructure:"slot_repoint_margin"`
 
-	// A LIDAR return landing within this distance of a sign the router is still
-	// routing around is attributed to that sign and withheld from the reactive escape
-	// trigger -- the planner owns it, so the escape maneuver must not fire and
-	// reverse the robot out of a gap the planner aimed for. Sized as the sign's own
-	// half-diagonal (0.035 m for a 50x50 mm footprint) plus ~0.085 m of pose and
-	// mapping error. Do NOT raise this much further: the wall behind a sign can be as
-	// close as ~0.15 m in a narrow corridor, and masking that wall too would remove a
-	// guard nothing else replaces. Set to 0.0 to disable the split. Assign evidence
-	// to the rulebook 24 legal cells (2 per section) instead of clustering camera
-	// reports freely. Measured over 125 bags: routing error 23.3% -> 15.0%, worst
-	// believed-sign peak 24 -> 7, runs over the physical max 32/125 -> 0/125,
-	// position changes per run 44.9 -> 3.1, and zero re-points or colour flips while
-	// the router is COMMITTED. SHIPS OFF: it replaces the map every Obstacles figure
-	// in this repo was measured against, and the simulator cannot screen it (its sign
-	// map is exact, so all of the above collapses to zero).
+	// Assign sign evidence to the rulebook's 24 legal grid cells instead of
+	// clustering camera reports freely. ON; the simulator cannot screen it.
 	SlotSignMap bool `json:"slot_sign_map" yaml:"slot_sign_map" mapstructure:"slot_sign_map"`
 
 	// Rescue a target that has gone stale mid-approach.

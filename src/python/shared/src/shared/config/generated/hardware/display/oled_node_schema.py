@@ -13,7 +13,7 @@ class HardwareDisplayOledNode(StrictModel):
     )
     ui_refresh_rate_hz: float = Field(
         ...,
-        description="Keys use the fields' validation_alias, which accepts both the lowercase spelling below and the SHOUT_CASE UI_REFRESH_RATE_HZ / DISPLAY_BACKEND env-var names -- pydantic only matches a TOML key against the alias when one is declared.",
+        description="OLED redraw cadence in Hz; the telemetry bridge's ui_summary_rate_hz is matched to it.",
     )
     display_backend: str = Field(
         ...,

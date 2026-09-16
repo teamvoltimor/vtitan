@@ -3,11 +3,8 @@
 package vision
 
 type HardwareVisionDetector struct {
-	// THE one shipped detection-confidence floor, shared by all three vision
-	// backends. The hailo backends (hailo.toml, hailo_streaming.toml) no longer
-	// declare their own copy: their pydantic fields resolve it back to this line, so
-	// a backend change is deliberate (env HAILO_MIN_CONFIDENCE /
-	// DETECTOR_MIN_CONFIDENCE), never a forgotten literal.
+	// Shipped detection-confidence floor shared by all vision backends; below it a
+	// detection never reaches the navigator.
 	MinConfidence float64 `json:"min_confidence" yaml:"min_confidence" mapstructure:"min_confidence"`
 
 	// Default model path used by test/debug callers that build a detector with no

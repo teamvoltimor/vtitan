@@ -34,15 +34,15 @@ class HardwareCameraRpicam(StrictModel):
     )
     camera_af_mode: str = Field(
         ...,
-        description='Focus. The Module 3 Wide\'s autofocus hunts continuously while the robot is driving and only settles once it stops, which reads as a blurred frame for most of a run. MANUAL parks the voice coil at a fixed dioptre instead.  0.8 D is ~1.25 m, the lens\'s hyperfocal distance (f=2.75mm, f/2.2, 1.4um pixels, 2px circle of confusion): sharp from ~0.6 m to infinity, which spans the whole useful sign-detection range. Bench-verify before racing -- the theoretical hyperfocal assumes this module\'s dioptre scale is calibrated. "manual" | "auto" | "continuous"',
+        description='Autofocus mode; "manual" parks the lens at camera_lens_position, the other two let it hunt. "manual" | "auto" | "continuous"',
     )
     camera_lens_position: float = Field(
         ...,
-        description='2026-09-11: was 0.8 D (focus 1.25 m, in-focus from 0.63 m). MEASURED over 7149 red/green boxes on four hardware rounds, range from the 0.10 m sign height and a 621.9 px focal: p10 0.19 / p50 0.40 / p90 0.68 m, with 83.6% INSIDE the old near limit and 99.9% inside 1.0 m. The lens was focused past nearly everything it actually sees. 1.25 D focuses 0.80 m and spans 0.485-2.29 m, giving up only range where 0.0% of detections occur.  Chosen for the DECISION range, not the median box: the median is dominated by frames of a sign already being passed, whose verdict was settled earlier. What matters is first-usable-detection 0.824 m down to router commitment 0.469 m, and 0.485 m sits right on that lower edge. 1.43 D (0.446-1.62 m) centres the window better and is the value to try once the dioptre scale is bench-verified -- which it still is not, on either driver. dioptres (1/distance_m); required when af_mode is manual',
+        description='Lens focus in dioptres (1/distance_m); required when af_mode is manual. Higher dioptres focus nearer.',
     )
     camera_awb_mode: str = Field(
         ...,
-        description='Colour and noise. These reach the Hailo detector, so the shipped values are the ones that leave today\'s image UNCHANGED (they match rpicam-vid\'s own defaults) -- the keys exist so the settings stop being unreachable, not to move the vision baseline behind your back.  The intended race setting is camera_awb_mode = "fluorescent": red/green sign classification is threshold-based, and auto AWB re-tints the frame as the framing changes. Flip it only after re-checking those thresholds against venue footage -- a wrong fixed preset is worse than "auto". "auto" | "tungsten" | "fluorescent" | "indoor" | "daylight" | "cloudy"',
+        description='White balance preset; prefer "fluorescent" for the venue over "auto", which re-tints. "auto" | "tungsten" | "fluorescent" | "indoor" | "daylight" | "cloudy"',
     )
     camera_noise_reduction_mode: str = Field(
         ..., description='"auto" | "off" | "fast" | "high_quality" | "minimal"'
@@ -53,11 +53,11 @@ class HardwareCameraRpicam(StrictModel):
     )
     camera_metering_mode: str = Field(
         ...,
-        description='Auto-exposure steering. Both are IGNORED once camera_exposure_time_us is set, because that turns AE off entirely -- which is the real answer if the white mat is fooling the meter. Correcting a fooled meter with +ev instead just lengthens the shutter, and a long shutter is what smears signs in corners. "centre" | "spot" | "average" | "custom"',
+        description='Auto-exposure metering zone; ignored once camera_exposure_time_us disables AE. "centre" | "spot" | "average" | "custom"',
     )
     camera_exposure_value: float = Field(
         ...,
-        description='"spot" is tempting when the mat dominates, but it meters the frame CENTRE and signs are not reliably centred -- it often ends up metering bare mat. stops of compensation; positive lifts an under-exposed frame',
+        description='Exposure compensation in stops; positive lifts an under-exposed frame.',
     )
     camera_exposure_mode: str = Field(
         ...,

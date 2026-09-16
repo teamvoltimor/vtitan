@@ -7,9 +7,7 @@ type HardwareDisplayOledNode struct {
 	// /dev/i2c-N ioctl).
 	DisplayBackend string `json:"display_backend" yaml:"display_backend" mapstructure:"display_backend"`
 
-	// Keys use the fields' validation_alias, which accepts both the lowercase
-	// spelling below and the SHOUT_CASE UI_REFRESH_RATE_HZ / DISPLAY_BACKEND env-var
-	// names -- pydantic only matches a TOML key against the alias when one is
-	// declared.
+	// OLED redraw cadence in Hz; the telemetry bridge's ui_summary_rate_hz is matched
+	// to it.
 	UiRefreshRateHz float64 `json:"ui_refresh_rate_hz" yaml:"ui_refresh_rate_hz" mapstructure:"ui_refresh_rate_hz"`
 }

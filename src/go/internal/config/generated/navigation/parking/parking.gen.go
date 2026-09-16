@@ -3,27 +3,15 @@
 package parking
 
 type NavigationParkingParking struct {
-	// Pursue the parking bay after the final lap, or stop in the finish section.
-	// False ships: the bay is geometrically unreachable (0.194 m chassis, 0.20 m bay)
-	// and chasing it costs far more than it can pay. Blind, 256 corpus, OFF vs ON:
-	// in-time 158 vs 62, collisions 4 vs 51, timeouts 61 vs 110, with laps>=3
-	// identical at 159.
+	// Pursue the parking bay after the final lap. False ships: the bay is
+	// geometrically unreachable and chasing it costs far more than it can pay.
 	AttemptAfterFinalLap bool `json:"attempt_after_final_lap" yaml:"attempt_after_final_lap" mapstructure:"attempt_after_final_lap"`
 
 	// give up after this many control ticks (20s @ 20Hz)
 	DefaultMaxFrames int `json:"default_max_frames" yaml:"default_max_frames" mapstructure:"default_max_frames"`
 
-	// Build the parking lot from the START POSE when the metadata carries none.
-	// Without this, parking is UNREACHABLE CODE on hardware: blind runs give the
-	// navigator only starting_conditions, so the factory finds no parking_lot and
-	// returns None. Measured over 255 bags, a ParkController has never been
-	// constructed -- 0 of 227 readable, 67 of which reached three laps. Every parking
-	// figure in this repo comes from the simulator. The lot needs no sensing: in
-	// Obstacles the robot STARTS INSIDE IT, so the start pose is the lot, fins 1.5
-	// chassis lengths (0.45 m) apart along the wall. ON because 'it never tried' is a
-	// worse failure than 'it tried and could not'. It will probably still fail -- 6
-	// mm of depth slack, 1.16 deg of heading tolerance against the rule's 6.0 -- and
-	// that is geometry, not this flag.
+	// Build the parking lot from the start pose when the metadata has none. On, so
+	// parking is reachable on hardware.
 	DeriveLotFromInBayStart bool `json:"derive_lot_from_in_bay_start" yaml:"derive_lot_from_in_bay_start" mapstructure:"derive_lot_from_in_bay_start"`
 
 	// closest approach to a parking-bay marker fin

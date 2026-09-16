@@ -19,10 +19,8 @@ type HardwareMotorsBts7960 struct {
 	// sysfs PWM controller index (/sys/class/pwm/pwmchip<N>).
 	Pwmchip int `json:"pwmchip" yaml:"pwmchip" mapstructure:"pwmchip"`
 
-	// Held permanently HIGH at connect() -- these gate the module's
-	// overcurrent/thermal protection, not direction. Physical BCM number vs the
-	// module's own R_EN/L_EN silkscreen doesn't matter now that both are always HIGH
-	// (it mattered under the old shared-PWM/EN-toggle design; see git log).
+	// BCM pin for R_EN; held permanently HIGH at connect() to gate the module's
+	// overcurrent/thermal protection, not direction.
 	REnPin int `json:"r_en_pin" yaml:"r_en_pin" mapstructure:"r_en_pin"`
 
 	// LPWM, software PWM (reverse -- parking/recovery only, tolerates the jitter)

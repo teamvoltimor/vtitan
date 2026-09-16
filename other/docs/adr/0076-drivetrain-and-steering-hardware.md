@@ -36,6 +36,11 @@ uses the one free hardware engine on GPIO13 (frequent, performance-critical);
 reverse rides software PWM on GPIO26 because only parking and recovery use it and
 it tolerates jitter. One `pwm-2chan` overlay exports both hardware channels.
 
+`R_EN`/`L_EN` gate the module's overcurrent/thermal protection, not direction.
+The physical BCM pin versus the module's own R_EN/L_EN silkscreen no longer
+matters because both are always HIGH; it mattered only under the old
+shared-PWM / EN-toggle design.
+
 Enables are asserted only after both PWM channels are confirmed at 0 duty; the
 GPIO lines are actively driven low (`op,dl`, not the ineffective `pd`), re-driven
 on service exit via `ExecStopPost`, and re-driven on driver disconnect, because a
@@ -49,6 +54,15 @@ lowered as a tuning action; `steering_limit_deg` is the navigator's policy, and 
 validator rejects a limit above the physical maximum (see 0050). `servo_slew_rate_rad_s
 = 2.4` is a loaded bench measurement and must not be read from the steering-
 position topic, which is only an echo of the command.
+
+`max_steering_rate` is the cornering policy, not the hardware model: lowered 2.0
+to 1.2 rad/s on 2026-08-28 and still binding 8.2 to 13.1 percent of driving
+ticks, while `servo_slew_rate_rad_s` budgets the bay pause. The bay servo pause
+is 50 ticks (2.50 s) per reversal at 1.2 rad/s, cut to 25 (1.25 s) once 2.4
+replaced it; the measured exit duration fell 30.5 to 5.3 s over the same change
+at unchanged net rotation, so the tick budget and the exit duration are the same
+change at two scales (reconciled against `src/config/navigation/motion/pursuit.toml`,
+which ships `servo_slew_rate_rad_s = 2.4`).
 
 Reverse is about 40 percent slower than forward at identical duty (336.6 against
 193.7 deg/s), attributed to brushed-motor timing advance, so escape reverse bursts
@@ -92,6 +106,20 @@ travel less than a symmetric model predicts.
 - 654e57e6 2026-09-02: `max_speed_mps = 0.58` measured, not the feel-based 1.0.
 - 0fecf09a and 73693f53 2026-09-11: split the servo's real slew rate from the
   command rate limiter; 2.4 rad/s measured (bay exit 30.5 to 5.3 s).
+- 2026-09-11 loaded bench derivation: the wheel stopped about 20 deg short of the
+  far lock at a 0.90 s hold, so 150 deg in 0.90 s is 2.91 rad/s (about 1.02 s
+  full swing; about 2.9 rad/s over the 170 deg lock-to-lock). 2.4 leaves 23
+  percent margin over the measured swing, while 2.9 leaves 3 percent on a 20 deg
+  read by eye and would under-budget the bay pause and dead-reckon an angle not
+  reached. `max_wheel_angle_deg` multiplies into the same swing and is itself
+  unverified.
+- `/motor/steering_position` is an echo (slope 180/pi, lag 0, R^2 = 1.000000),
+  so no bag can settle the rate; the gyro gives only a lower bound of about 1.27
+  rad/s at p90.
+- 2026-08-28: `run_20260828_220533` showed the controller saturating
+  `max_steering_rate` at hard corners (0.6 rad = rate x 0.3 s window). Past sim
+  sweeps only tested RAISING it (1.5x and 3.0x, both worse, 107 against 114); the
+  lowered exact value is untested.
 
 ## Cross-references
 

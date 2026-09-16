@@ -6,41 +6,23 @@ type NavigationMotionSpeed struct {
 	// Optional corner mps override in m/s; absent means the base tier applies.
 	CornerMps *float64 `json:"corner_mps,omitempty,omitzero" yaml:"corner_mps,omitempty" mapstructure:"corner_mps,omitempty"`
 
-	// Contact zone (<0.10 m clearance), the heading limiter's floor at >=57 deg, and
-	// the stuck-escape forward nudge.  Raised 2026-08-09 from 0.050 m/s. The old
-	// value was exactly the friction floor -- the robot was commanded its own
-	// stiction threshold, and commanded it precisely when the steering is near full
-	// lock and tyre scrub is at its worst, i.e. least command at greatest load.
-	// Hardware spent 16% (CW) and 21% (CCW) of driving ticks there, all of it from
-	// the heading limiter rather than from clearance.  The cost is open-loop travel:
-	// the steering servo slews at a fixed 2.0 rad/s, so full lock from centre takes
-	// 0.61 s, during which the robot covers 6.2 cm instead of 3.1 cm, against 0.103 m
-	// of lateral margin. That budget is in METRES, which is why this tier must not be
-	// re-scaled by a motor change.  Was creep_frac = 0.65.
+	// Contact zone, the heading limiter's floor, and the stuck-escape nudge (m/s).
 	CreepMps float64 `json:"creep_mps" yaml:"creep_mps" mapstructure:"creep_mps"`
 
 	// Open track: >0.50 m clearance, and every heading error below the 57 deg crawl
 	// threshold. At the ceiling today. Was fast_frac = 1.0.
 	FastMps float64 `json:"fast_mps" yaml:"fast_mps" mapstructure:"fast_mps"`
 
-	// Upper bound on any tier. At or above the drivetrain ceiling means "flat out";
-	// the accessors clamp, so a value the motor cannot reach is inert rather than
-	// fiction. Was max_frac = 1.0.
+	// Upper bound (m/s) on any tier; the accessors clamp, so an unreachable value is
+	// inert.
 	MaxMps float64 `json:"max_mps" yaml:"max_mps" mapstructure:"max_mps"`
 
 	// Moderate clearance (0.25-0.50 m) and the blind corridor-follow before direction
-	// settles.  This is what the zone is WORTH, not which zone applies. The graduated
-	// ladder cost 33% of lap time when it first shipped (CW 134.9 s -> 179.3 s, CCW
-	// 161.7 s -> 200.9 s, both past the 180 s limit), but the cause was the heading
-	// limiter routing ordinary cornering through here. That is fixed where the zone
-	// is chosen, in CoreNavigator, so these keep their meaning for the cases that
-	// genuinely do want a lower speed.  Was medium_frac = 0.85.
+	// settles (m/s).
 	MediumMps float64 `json:"medium_mps" yaml:"medium_mps" mapstructure:"medium_mps"`
 
-	// Least speed that overcomes friction and actually moves the robot. A floor on
-	// the tiers below, not a tier itself. Measured no-load and in a straight line;
-	// the true floor under full steering lock is higher (tyre scrub) and has never
-	// been measured.  Was min_frac = 0.32.
+	// Friction floor (m/s) that actually moves the robot; a clamp on the tiers below,
+	// not a tier.
 	MinMps float64 `json:"min_mps" yaml:"min_mps" mapstructure:"min_mps"`
 
 	// Optional obstacles fast mps override in m/s; absent means the base tier
