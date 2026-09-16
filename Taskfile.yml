@@ -185,6 +185,6 @@ tasks:
       frontend needs its own copy; re-run this after replacing either source
       file.
     cmds:
-      - cp other/assets/voltimor-logo-square.webp other/assets/voltimor-logo-banner.webp other/apps/auto-annotator/frontend/public/
-      - cp other/assets/voltimor-logo-square.webp other/assets/voltimor-logo-banner.webp other/apps/frontend/public/
+      - cp other/assets/voltimor-logo-rounded-square.webp other/assets/voltimor-logo-banner.webp other/apps/auto-annotator/frontend/public/
+      - cp other/assets/voltimor-logo-rounded-square.webp other/assets/voltimor-logo-banner.webp other/apps/frontend/public/
       - echo "[OK] Synced logo assets to other/apps/auto-annotator/frontend/public and other/apps/frontend/public"

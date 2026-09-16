@@ -6,10 +6,7 @@
 > 🕊️ Este proyecto está dedicado a la memoria de **Javier Pérez** ([@kaucrow](https://github.com/kaucrow)), amigo y colega, y de **Luna Margarita**, compañera de doce años. La [dedicatoria completa](memorial.md) vive en [`memorial.md`](memorial.md).
 
 <p align="center">
-    <picture>
-        <source media="(prefers-color-scheme: dark)" srcset="other/assets/voltimor-logo-square-dark.webp">
-        <img src="other/assets/voltimor-logo-square.webp" alt="Logo del Team Voltimor" width="400">
-    </picture>
+    <img src="other/assets/voltimor-logo-rounded-square.webp" alt="Logo del Team Voltimor" width="400">
     <br>
     <i>Logo del Equipo</i>
 </p>
