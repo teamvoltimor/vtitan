@@ -399,7 +399,10 @@ sim_tick_period_levels = [0.0, 0.5, 0.9, 0.99]
 # the barrier belief, the corridor exemption and barrier_span_along_wall, all of
 # which are dead code in the corpus. Even at a zero red rate this is not inert:
 # a magenta detection exercises the discard path, which nothing reaches today.
-vision_emits_barrier = false
+# ON since 2026-09-16: inert on the corpus (14 either way, identical set) and it is the only
+# thing that exercises the deployed barrier belief in simulation. Its companion
+# vision_barrier_red_rate stays 0.0 -- at 0.30 the corpus goes 14 -> 48. See the schema.
+vision_emits_barrier = true
 
 # Probability a barrier detection arrives as a RED pillar instead of magenta.
 # This is the failure that matters: magenta is discarded correctly, so a barrier
