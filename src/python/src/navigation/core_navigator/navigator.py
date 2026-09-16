@@ -32,6 +32,7 @@ from src.navigation.clearances import (
 from src.navigation.control.controllers import (
     CollisionAvoidanceController,
     EscapeManeuver,
+    ManeuverType,
     StuckDetector,
     WaypointController,
     bumper_gap_ahead,
@@ -207,6 +208,7 @@ class CoreNavigator(EscapeRecovery):
         self._dwell_place: tuple[float, float] | None = None
         self._dwell_place_fires = 0
         self._retracing = False
+        self._setup_legs_left = 0
 
         self._build_challenge_controllers(sign_router)
 
@@ -1878,6 +1880,11 @@ class CoreNavigator(EscapeRecovery):
                     if maneuver.steering:
                         self._escape_steer_sign = math.copysign(1.0, maneuver.steering)
                 self._escape_count += 1
+                if maneuver.maneuver_type is ManeuverType.K_TURN and maneuver.speed < 0.0:
+                    # Arm the setup reverses that may follow this leg: see
+                    # _setup_reverse_leg. Armed here, at the FRONT-threat
+                    # escape, not on side corrections or stuck escapes.
+                    self._setup_legs_left = self._escape.setup_reverse_legs
                 # Fitted AFTER escalation, not before: escalation doubles the
                 # duration to walk a wedged chassis out, and a doubled reverse
                 # into a tight rear gap is the failure this cap exists to stop.
@@ -1892,6 +1899,18 @@ class CoreNavigator(EscapeRecovery):
                 # Hand over the snapshot rather than letting it be rebuilt: it
                 # carries the risk verdict and the trigger ray that caused this
                 # escape, and this is the only tick they can be attributed to.
+                self._drive_active_maneuver(
+                    robot_x, robot_y, robot_yaw, phase=NavigatorPhase.ESCAPE_TRIGGERED, base=debug,
+                )
+                return
+
+        # Not CRITICAL any more, but not yet with the room a turn needs either:
+        # back straight instead of re-approaching what was just escaped.
+        if scan is not None:
+            setup = self._setup_reverse_leg(scan, forward_clearance)
+            if setup is not None:
+                self._begin_maneuver(self._fit_reverse_to_rear_gap(setup, scan))
+                self._debug = debug
                 self._drive_active_maneuver(
                     robot_x, robot_y, robot_yaw, phase=NavigatorPhase.ESCAPE_TRIGGERED, base=debug,
                 )

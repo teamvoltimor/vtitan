@@ -108,6 +108,7 @@ class EscapeManeuverParams(NavigationEscapeEscape):
                 ("k_turn_fit_rear_gap", self.obstacles_k_turn_fit_rear_gap),
                 ("k_turn_tail_clearance_m", self.obstacles_k_turn_tail_clearance_m),
                 ("escalate_doubles_duration", self.obstacles_escalate_doubles_duration),
+                ("setup_reverse_room_m", self.obstacles_setup_reverse_room_m),
                 ("escape_mirrors_reverse", self.obstacles_escape_mirrors_reverse),
                 (
                     "escape_side_follows_committed_sign",

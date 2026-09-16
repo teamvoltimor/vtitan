@@ -144,6 +144,13 @@ in-time / 28 laps>=3 / 9 timed out; 1.8 gave 29 / 34 / 0; 2.3 gave 31 / 33 / 0;
   arc blind through the rear occlusion band. Measured INERT: 13 corpus failures,
   identical set, and 0009 (the one scenario a doubled K-turn kills) fails either
   way. Not shipped off; the knob exists for the next hardware round.
+- 2026-09-16: `setup_reverse_room_m` / `setup_reverse_legs` added and REFUTED,
+  shipped off. After a FRONT-threat K-turn the chassis chained straight legs
+  until the front gap reached 0.35 m. It bought the room (0.08 to 0.35 m) and
+  the planner still re-approached with the pillar 35 deg off the nose at 0.3 m:
+  corpus 13 to 15 at 0.35 m x 2 legs, and every other arm (0.30, 0.40 x 3)
+  broke more. The escape does not lack room after all; it lacks a re-approach
+  target that is not the one it just escaped from.
 
 ## Cross-references
 

@@ -180,6 +180,21 @@
       "description": "Retire the router's committed sign when an escape latches, so the plan it returns to is not the one that drove into it. Ships off.",
       "x-journal": "adr:0092-escape-does-not-retire-committed-sign"
     },
+    "setup_reverse_room_m": {
+      "type": "number",
+      "description": "Forward bumper gap the chassis needs before it re-approaches after a FRONT-threat K-turn. While the gap is under this, the escape chains STRAIGHT setup reverses (up to setup_reverse_legs, each one k_turn_min_s long, authorised like any reverse) instead of driving back at what it just escaped. On this chassis the turn radius is what the room has to fit. 0 disables.",
+      "x-journal": "adr:0055-escape-maneuver-selection"
+    },
+    "obstacles_setup_reverse_room_m": {
+      "type": "number",
+      "description": "Obstacles-only override of setup_reverse_room_m. Measured 2026-09-15: after an escape the planner hands back the same target 97% of the time and 62% re-fire within 2 s; the escape gains 9.8 cm, which is not a turning radius.",
+      "x-journal": "adr:0055-escape-maneuver-selection"
+    },
+    "setup_reverse_legs": {
+      "type": "integer",
+      "description": "Maximum straight setup reverses chained after one K-turn before the chassis re-approaches regardless.",
+      "x-journal": "adr:0055-escape-maneuver-selection"
+    },
     "escape_dwell_seconds": {
       "type": "number",
       "description": "Seconds the chassis must have stayed inside escape_dwell_radius_m before an escape is allowed to switch its committed side. 0.0 disables the gate, which is how it ships. It exists because the attempt COUNTER is anti-correlated with the failure it was built for: measured over the 786 escape latches of the 2026-09-15 session, escalate_after_attempts fired on 24% of latches in a clean 3-lap round whose longest stay in a 0.30 m circle was 8 s, and on 0% in the round that spent 98 of its 183 s pinned inside one. The wedged robot does not sit still: it covers 22.3 m of path for 0.14 m of net displacement, and every thrash clears the 3 cm reset that the counter and the stuck detector both watch. Dwell measures the thing that actually distinguishes them. At 12 s the separation is perfect on that session: silent in all five rounds whose longest stay is under 25 s, including the only scoreable one (worst case 8.9 s), and firing 2-7 times in every round with a 35-170 s stall.",
@@ -238,6 +253,9 @@
     "side_correction_follows_committed_sign",
     "obstacles_side_correction_follows_committed_sign",
     "escape_retires_committed_sign",
+    "setup_reverse_room_m",
+    "obstacles_setup_reverse_room_m",
+    "setup_reverse_legs",
     "escape_dwell_seconds",
     "escape_dwell_radius_m",
     "escape_dwell_cooldown_s",

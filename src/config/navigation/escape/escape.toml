@@ -39,6 +39,14 @@ obstacles_escalate_doubles_duration = true
 # committed side only -- it deliberately does NOT double the duration the way
 # escalate_after_attempts does, since the windows it fires in are already 56-95% k_turn
 # ticks and the k_turn still turns against the plan 57% of the time. See the schema.
+setup_reverse_room_m = 0.0
+# REFUTED 2026-09-16, ships OFF. Backing straight until the front gap reaches 0.35 m (2 legs)
+# does buy the room (0.08 -> 0.35 m measured), and the planner then re-approaches with the pillar
+# 35 deg off the nose at 0.3 m and dies the same way: corpus 13 -> 15 (breaks 0006, 0012);
+# 0.30 m breaks 0004 and 0012; 0.40 m x3 legs breaks 0004, 0006, 0012. The room is not the
+# missing piece; the re-approach target is. See adr:0055.
+obstacles_setup_reverse_room_m = 0.0
+setup_reverse_legs = 2
 escape_dwell_seconds = 0.0
 escape_dwell_radius_m = 0.30
 escape_dwell_cooldown_s = 10.0

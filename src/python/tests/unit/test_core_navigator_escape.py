@@ -1050,3 +1050,88 @@ class TestLockedKTurnDeclinesIntoTheTail:
         maneuver = self._locked_k_turn(tuning, +1.0)
 
         assert nav._decline_lock_into_tail(maneuver, scan, 1.5, 0.5, 0.0, self._pillar(-0.07, 0.19)) == maneuver
+
+
+class TestSetupReverseBuysRoomBeforeReapproach:
+    """After a FRONT-threat K-turn, back straight until the gap fits a turn.
+
+    Measured over 105 hardware escape episodes: the escape gains a median 9.8
+    cm and the planner then hands back the same target 97% of the time, so 62%
+    re-fire within two seconds. ``setup_reverse_room_m`` chains up to
+    ``setup_reverse_legs`` straight legs after the K-turn until the forward
+    bumper gap reaches it. REFUTED on the corpus (13 to 15: the room is bought
+    and the planner re-approaches into the pillar anyway) and shipped OFF;
+    these tests pin the mechanism for the knob, enabled explicitly. See
+    adr:0055-escape-maneuver-selection.
+    """
+
+    _ROOM_M = 0.35
+
+    @staticmethod
+    def _navigator(waypoints, tuning, scan, *, obstacles: bool) -> CoreNavigator:
+        gateway = FakeGateway(Pose(x=1.5, y=0.5, yaw=0.0), scan)
+        router = (
+            SignRouter(
+                [SignSpec(x=50.0, y=50.0, color=SignColor.RED)],
+                config=SignRouterConfig.from_tuning(tuning.sign_router),
+            )
+            if obstacles
+            else None
+        )
+        return CoreNavigator(
+            gateway=gateway, waypoints=waypoints, num_laps=1, tuning=tuning, sign_router=router
+        )
+
+    @staticmethod
+    def _open_rear_scan() -> LidarScan:
+        return LidarScan(ranges_m=tuple(create_scan_with_sectors(front=0.20, back=3.0)), angles_rad=tuple(ANGLES))
+
+    def test_chains_straight_legs_until_the_room_is_there(self, waypoints, tuning):
+        scan = self._open_rear_scan()
+        nav = self._navigator(waypoints, tuning, scan, obstacles=True)
+        nav._escape = nav._escape.model_copy(update={"setup_reverse_room_m": self._ROOM_M})
+        room = self._ROOM_M
+        nav._setup_legs_left = nav._escape.setup_reverse_legs
+
+        first = nav._setup_reverse_leg(scan, forward_clearance=room - 0.05)
+
+        assert first is not None
+        assert first.steering == 0.0, "a setup leg is straight: it exists to buy room, not to swing"
+        assert first.speed == nav._escape.rev_speed
+        assert first.duration_frames == nav._escape.k_turn_min_frames(tuning.control.control_hz)
+        assert nav._setup_legs_left == nav._escape.setup_reverse_legs - 1
+
+        # Room reached: no more legs, and the arming is spent.
+        assert nav._setup_reverse_leg(scan, forward_clearance=room + 0.01) is None
+        assert nav._setup_legs_left == 0
+
+    def test_the_leg_budget_caps_the_chain(self, waypoints, tuning):
+        scan = self._open_rear_scan()
+        nav = self._navigator(waypoints, tuning, scan, obstacles=True)
+        nav._escape = nav._escape.model_copy(update={"setup_reverse_room_m": self._ROOM_M})
+        room = self._ROOM_M
+        nav._setup_legs_left = nav._escape.setup_reverse_legs
+
+        legs = 0
+        while nav._setup_reverse_leg(scan, forward_clearance=room - 0.05) is not None:
+            legs += 1
+        assert legs == nav._escape.setup_reverse_legs
+
+    def test_not_armed_means_no_leg(self, waypoints, tuning):
+        scan = self._open_rear_scan()
+        nav = self._navigator(waypoints, tuning, scan, obstacles=True)
+        assert nav._setup_legs_left == 0
+        assert nav._setup_reverse_leg(scan, forward_clearance=0.05) is None
+
+    def test_shipped_off_means_no_leg_even_when_armed(self, waypoints, tuning):
+        scan = self._open_rear_scan()
+        nav = self._navigator(waypoints, tuning, scan, obstacles=True)
+        assert nav._escape.setup_reverse_room_m == 0.0, "refuted on the corpus, ships off"
+        nav._setup_legs_left = 3
+        assert nav._setup_reverse_leg(scan, forward_clearance=0.05) is None
+
+    def test_open_challenge_never_backs_up_for_room(self, waypoints, tuning):
+        scan = self._open_rear_scan()
+        nav = self._navigator(waypoints, tuning, scan, obstacles=False)
+        nav._setup_legs_left = 3
+        assert nav._setup_reverse_leg(scan, forward_clearance=0.05) is None

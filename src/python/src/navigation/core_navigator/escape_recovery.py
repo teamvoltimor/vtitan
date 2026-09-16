@@ -323,6 +323,44 @@ class EscapeRecovery:
         )
         return replace(maneuver, steering=0.0)
 
+    def _setup_reverse_leg(self, scan: LidarScan, forward_clearance: float) -> EscapeManeuver | None:
+        """A straight reverse to buy the room a turn needs, or None to re-approach.
+
+        Measured over 105 hardware escape episodes: the escape works (median
+        9.8 cm of gap gained) and then the planner hands back the same target
+        97% of the time, so the robot drives straight back at what it just
+        escaped and 62% re-fire inside two seconds. Nine centimetres is not a
+        turning radius. This chains up to ``setup_reverse_legs`` straight legs
+        of ``k_turn_min_s`` after a FRONT-threat K-turn until the forward
+        bumper gap reaches ``setup_reverse_room_m``, and only then lets the
+        planner re-approach. Armed by the escape that fired, spent here.
+
+        Straight, always: the leg exists to buy room, and a steered reverse
+        swings the tail into ground the chassis has not seen. Authorised like
+        any other reverse (``_reversing_into_unseen_wall``) and capped like one
+        (the caller fits it to the rear gap); a refusal spends the remaining
+        legs rather than trying again next tick against the same wall.
+        """
+        room = self._escape.setup_reverse_room_m
+        if room <= 0.0 or self._setup_legs_left <= 0 or self._active_maneuver is not None:
+            return None
+        if forward_clearance >= room:
+            self._setup_legs_left = 0
+            return None
+        self._setup_legs_left -= 1
+        leg = EscapeManeuver(
+            maneuver_type=ManeuverType.K_TURN,
+            steering=0.0,
+            speed=self._escape.rev_speed,
+            duration_frames=self._escape.k_turn_min_frames(self._tuning.control.control_hz),
+            priority=1,
+        )
+        if self._reversing_into_unseen_wall(leg, scan):
+            self._setup_legs_left = 0
+            return None
+        logger.info("Setup reverse: forward gap %.2f m under %.2f m, %d leg(s) left", forward_clearance, room, self._setup_legs_left)
+        return leg
+
     def _trail_confirms_reverse(self, reverse_distance: float) -> bool:
         """Whether the pose trail vouches for a reverse of ``reverse_distance``.
 
