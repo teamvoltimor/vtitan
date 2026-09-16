@@ -100,7 +100,7 @@ Cada número es medido, no estimado, y puede rastrearse hasta el código y la me
         1. [La pantalla OLED, el único instrumento en pista](#la-pantalla-oled-el-único-instrumento-en-pista)
         1. [La segunda pila (stack) en Go, y por qué no corre en carrera](#la-segunda-pila-stack-en-go-y-por-qué-no-corre-en-carrera)
     2. [Modelo de detección YOLO](#modelo-de-detección-yolo)
-        1. [El modelo y su pipeline](#el-modelo-y-su-pipeline)
+        1. [El modelo y su cadena de procesamiento](#el-modelo-y-su-cadena-de-procesamiento)
         2. [Datos de entrenamiento](#datos-de-entrenamiento)
         3. [Cómo lo medimos (y qué cambió por eso)](#cómo-lo-medimos-y-qué-cambió-por-eso)
         4. [Qué pasa cuando la visión falla](#qué-pasa-cuando-la-visión-falla)
@@ -163,7 +163,7 @@ vtitan/
 │   ├── ml/hailo/ ml/weights/  # Entrenamiento del detector y pesos publicados
 │   ├── scripts/       #   Utilidades de desarrollo (configuración de SSH para el robot)
 │   └── tasks/         #   Tareas del Taskfile raíz (fleet.yml, platform.yml, infra.yml)
-└── .github/           # Workflows de CI
+└── .github/           # Flujos de trabajo de CI
 ```
 
 | Carpeta | Contenido |
@@ -190,7 +190,7 @@ Según lo que quieras revisar, esta es la ruta más corta:
 - **Cómo se instala el sistema en las placas**: [`other/docs/pi-setup.md`](other/docs/pi-setup.md) y `other/deploy/ansible/`; automatizado por los comandos `task rpi:provision:*` de [Arranque rápido](#arranque-rápido-y-reproducibilidad).
 - **Las piezas del robot en 3D**: [`models/README.md`](models/README.md). Los `.stl` se abren directamente en el visor 3D de GitHub, sin instalar nada. Los diagramas y el arnés, en [`schemes/README.md`](schemes/README.md); las vistas del robot, en [`v-photos/README.md`](v-photos/README.md).
 - **Cómo verificamos que algo funciona**: [`tests.md`](tests.md), que describe los cuatro niveles de prueba y el protocolo con el que aceptamos o descartamos un cambio.
-- **El historial del proyecto**: bitácora de ingeniería en [`other/docs/bitacora-ingenieria.md`](other/docs/bitacora-ingenieria.md), prototipos previos en [`other/docs/development/previous-prototypes/`](other/docs/development/previous-prototypes/klevor-v0.1.md), y los tags de git (`v1.0` regional, `v1.1` y `v1.2` posteriores) con mensajes de commit convencionales.
+- **El historial del proyecto**: bitácora de ingeniería en [`other/docs/bitacora-ingenieria.md`](other/docs/bitacora-ingenieria.md), prototipos previos en [`other/docs/development/previous-prototypes/`](other/docs/development/previous-prototypes/klevor-v0.1.md), y las etiquetas de git (`v1.0` regional, `v1.1` y `v1.2` posteriores) con mensajes de commit convencionales.
 
 Además de las carpetas obligatorias, el repositorio contiene:
 
@@ -200,8 +200,8 @@ Además de las carpetas obligatorias, el repositorio contiene:
 - `other/apps/` con procesos independientes: `other/apps/backend/` y `other/apps/frontend/` (telemetría), `other/apps/auto-annotator/` (anotación asistida), `other/apps/hugo-docs/` (sitio de documentación navegable), `other/apps/gazebo/` (entorno de ejecución del simulador) y `other/apps/landing/` (página de presentación).
 - `other/ml/hailo/` con el entrenamiento y la compilación del detector YOLO, `other/ml/weights/` con los pesos publicados.
 - `other/deploy/ansible/` con el provisionamiento de las placas; las tareas que lo ejecutan (`task rpi:*`, `task windows:provision:*`) están definidas en `other/tasks/fleet.yml`.
-- `other/scripts/` con utilidades de desarrollo (configuración de SSH para el robot) y `.github/` con los workflows de CI.
-- `other/data/` es la carpeta de salida en runtime: `other/data/live/` y `other/data/sim/` guardan los bags, fotos y videos que producen las corridas del robot y del simulador. En el repositorio solo está su estructura (archivos `.gitkeep`); el contenido se llena al ejecutar `task robot:pull-runs` (bags desde la Pi 5), `task robot:pull-videos` (videos por ronda) o las corridas de simulación, y no se versiona.
+- `other/scripts/` con utilidades de desarrollo (configuración de SSH para el robot) y `.github/` con los flujos de trabajo de CI.
+- `other/data/` es la carpeta de salida en tiempo de ejecución: `other/data/live/` y `other/data/sim/` guardan los bags, fotos y videos que producen las corridas del robot y del simulador. En el repositorio solo está su estructura (archivos `.gitkeep`); el contenido se llena al ejecutar `task robot:pull-runs` (bags desde la Pi 5), `task robot:pull-videos` (videos por ronda) o las corridas de simulación, y no se versiona.
 
 ## Arranque rápido y reproducibilidad
 
@@ -235,7 +235,7 @@ task test             # Python + Go, todos los módulos (ver Pruebas, más abajo
 
 ```bash
 task robot:deploy         # Código + detector HEF → recompilar colcon → reiniciar servicios
-task robot:watch-vision   # Detecciones en vivo, una línea por frame
+task robot:watch-vision   # Detecciones en vivo, una línea por fotograma
 task robot:pull-runs      # Descargar los bags MCAP de las carreras
 ```
 
@@ -253,7 +253,7 @@ task robot:test-motors             # Prueba de humo de hardware: rango de servo 
 ### Provisionado desde cero (instalar el sistema en las Raspberry Pi)
 
 ```bash
-task windows:provision:pi5         # Provisionar la Pi 5 con Ansible (tags opcionales)
+task windows:provision:pi5         # Provisionar la Pi 5 con Ansible (etiquetas opcionales)
 task rpi:provision:all             # Ambas placas, en tmux, tras regrabar la SD
 task rpi:ansible:check BOARD=pi5   # Ensayo en seco y diferencias del provisionador
 ```
@@ -279,9 +279,9 @@ El **flujo de pruebas completo** está documentado en [`tests.md`](tests.md): lo
 
 ### Versionado
 
-Marcamos hitos del proyecto con tags de git. `v1.0` es el estado con el que vTitan compitió en el evento regional de la WRO 2026; `v1.1` y `v1.2` son los estados posteriores que se desplegaron y corrieron rondas. Las notas de cada versión, con qué cambió y por qué, están en [`CHANGELOG.md`](CHANGELOG.md).
+Marcamos hitos del proyecto con etiquetas de git. `v1.0` es el estado con el que vTitan compitió en el evento regional de la WRO 2026; `v1.1` y `v1.2` son los estados posteriores que se desplegaron y corrieron rondas. Las notas de cada versión, con qué cambió y por qué, están en [`CHANGELOG.md`](CHANGELOG.md).
 
-Entre tags el historial es continuo, con mensajes de commit convencionales (`fix(robot):`, `docs(readme):`, `perf(nav):`) y firmados con GPG. Cualquier resultado medido en este documento (tasas del corpus, FPS del detector, consumo de potencia) puede rastrearse hasta el código exacto que lo produjo vía el historial.
+Entre etiquetas el historial es continuo, con mensajes de commit convencionales (`fix(robot):`, `docs(readme):`, `perf(nav):`) y firmados con GPG. Cualquier resultado medido en este documento (tasas del corpus, FPS del detector, consumo de potencia) puede rastrearse hasta el código exacto que lo produjo vía el historial.
 
 Un detalle de convención que usamos y no es estándar: el `!` en el tipo (`feat(sim)!:`) marca un cambio que **rompe la comparabilidad de resultados anteriores**, no solo la compatibilidad de una interfaz. Un número medido antes de uno de esos commits no se resta con uno medido después.
 
@@ -731,7 +731,7 @@ $$v_{teórico} = \frac{1824}{60} \cdot \pi \cdot 0.07 \approx 6.7\ \text{m/s}$$
 
 **Medición en banco, con carga.** El motor nunca ve 6000 RPM en pista. La ley medida en banco (cargado, cinta métrica contra lo que el encoder cree recorrer) es afín: $\text{rpm} = 434.6 \cdot \text{duty} - 86.7$ ($R^2 = 0.9999$), con zona muerta en duty 0.200 y un techo físico de 348 RPM de rueda a duty 1.0, es decir **1.28 m/s**. El robot opera además con el ciclo de trabajo limitado al 50% por térmica, y los perfiles de velocidad de carrera (CREEP/SLOW/MEDIUM/FAST) viven dentro de ese presupuesto: la prealimentación afín `duty = 0.20 + 0.8 · rpm/max_rpm` (medida, con la misma zona muerta) les asigna ciclos de trabajo de 0.295 a 0.419.
 
-**Resultado en pista.** El techo real medido es **~0.58 m/s**. No es un límite físico del motor: es el resultado combinado del tope del 50% de duty, de la zona muerta con carga (20% del duty se gasta en vencer la fricción) y de los perfiles de velocidad que el gobernador impone. La brecha contra el techo cinemático (~11x) queda así explicada: es la diferencia entre el motor sin carga del datasheet y el motor cargado del banco con su ciclo de trabajo limitado. La cadena completa de esta medición (y del error de cuantización que antes la limitaba a 0.45 m/s) está en `src/config/hardware/motors/profiles/rev-hd-hex-motor-6000rpm/encoder.toml` y en la sección del [lazo de velocidad](#algoritmo-pid).
+**Resultado en pista.** El techo real medido es **~0.58 m/s**. No es un límite físico del motor: es el resultado combinado del tope del 50% de duty, de la zona muerta con carga (20% del duty se gasta en vencer la fricción) y de los perfiles de velocidad que el gobernador impone. La brecha contra el techo cinemático (~11x) queda así explicada: es la diferencia entre el motor sin carga de la hoja de datos y el motor cargado del banco con su ciclo de trabajo limitado. La cadena completa de esta medición (y del error de cuantización que antes la limitaba a 0.45 m/s) está en `src/config/hardware/motors/profiles/rev-hd-hex-motor-6000rpm/encoder.toml` y en la sección del [lazo de velocidad](#algoritmo-pid).
 
 ## Arquitectura de energía y sensores
 
@@ -905,13 +905,13 @@ width="350">
 
 El GY-BNO085 es nuestro sensor de orientación inercial (IMU). Lo usamos para que el robot mantenga rumbo en los cruces y cuente las vueltas dadas tanto en el Open Challenge como en el Obstacle Challenge, aunque exista algún problema mecánico que lo desvíe de su trayectoria.
 
-**Cómo lo usamos (y cómo no).** El BNO085 no alimenta un PID de rumbo: alimenta la **pose**. Corre en modo UART-RVC a 100 Hz, una fusión interna de 6 ejes (giroscopio + acelerómetro, sin magnetómetro) que el chip calcula por sí mismo. Elegimos descartar el magnetómetro a propósito: sobre la pista conviven tres motores, un chasis metálico y la electrónica de potencia, y un rumbo por campo magnético sería vulnerable a todo eso. La contrapartida es la deriva del datasheet (~0.5°/min), que acotamos por otras vías (ver abajo). Esta decisión, con su comparación cuantitativa contra el modo de 9 ejes, está documentada en `other/docs/adr/0079-imu-6axis-and-yaw-reference.md`.
+**Cómo lo usamos (y cómo no).** El BNO085 no alimenta un PID de rumbo: alimenta la **pose**. Corre en modo UART-RVC a 100 Hz, una fusión interna de 6 ejes (giroscopio + acelerómetro, sin magnetómetro) que el chip calcula por sí mismo. Elegimos descartar el magnetómetro a propósito: sobre la pista conviven tres motores, un chasis metálico y la electrónica de potencia, y un rumbo por campo magnético sería vulnerable a todo eso. La contrapartida es la deriva de la hoja de datos (~0.5°/min), que acotamos por otras vías (ver abajo). Esta decisión, con su comparación cuantitativa contra el modo de 9 ejes, está documentada en `other/docs/adr/0079-imu-6axis-and-yaw-reference.md`.
 
-**Calibración y referencia de rumbo.** El modo RVC no expone rutinas de calibración al usuario: la calibración de gyro/acelerómetro la hace el chip en su arranque. Nuestra parte del proceso es la **referencia de yaw**, y es deliberadamente simple:
+**Calibración y referencia de rumbo.** El modo RVC no expone rutinas de calibración al usuario: la calibración de giroscopio/acelerómetro la hace el chip en su arranque. Nuestra parte del proceso es la **referencia de yaw**, y es deliberadamente simple:
 
 1. El robot se enciende y se coloca en la pose de salida (puede quedar girado 90° o 180° respecto al pasillo; es irrelevante).
 2. Al presionar el botón de inicio, el estimador fija un desplazamiento (offset): ese rumbo pasa a ser 0°. Todo el yaw del robot es relativo a esa referencia (`reset_heading_reference` en `src/python/src/state_machine/estimator.py`).
-3. Durante la ronda, el drift se acota con un filtro complementario contra el mundo «Manhattan» de la pista: cada pared es paralela o perpendicular al pasillo, así que el promedio circular de los ángulos medidos por el LIDAR recupera el heading absoluto y corrige la deriva del IMU.
+3. Durante la ronda, la deriva se acota con un filtro complementario contra el mundo «Manhattan» de la pista: cada pared es paralela o perpendicular al pasillo, así que el promedio circular de los ángulos medidos por el LIDAR recupera el rumbo absoluto y corrige la deriva del IMU.
 
 La implementación maneja dos variables: `yaw_deg` (orientación relativa desde el inicio de la ronda) y `relative_yaw`, que acumula las vueltas sin saltar en ±180°. Dividiendo `relative_yaw` entre 90 y redondeando hacia abajo sabemos cuántos tramos rectos recorrió; cuando el cociente llega a ±12, el robot sabe que está en su zona de estacionamiento y avanza un poco más hasta detenerse (en el Open Challenge).
 
@@ -1033,7 +1033,7 @@ Pantalla monocroma de 128x64 píxeles conectada por I2C. Cumple una función de 
 
 Convertidor reductor que toma la tensión de la batería y entrega **5 V a 5 A por salida USB-C**, dedicado exclusivamente a la Raspberry Pi 5. Es una rama independiente de la del servo y la del motor: las tres cuelgan de la batería por separado, de modo que el consumo del tren motriz no puede provocar una caída de tensión en el computador y reiniciarlo a mitad de una ronda.
 
-El dimensionamiento merece una aclaración, porque la tabla de consumo suma por componente y aquí esa suma sería engañosa. El AI HAT+, la cámara, el LIDAR y el puente IMU no se alimentan del KL89576 directamente: se alimentan del riel de 5 V de la propia Pi 5, y la Pi Zero entera (motor, nivel-shifter, OLED, encoder) recibe su alimentación por el VBUS del puerto USB de la Pi 5. Es decir, los 5 A de la especificación de la Pi 5 **ya incluyen** a todo lo conectado a la placa, y el pico del AI HAT+ (2.5 A) no se suma dos veces. El presupuesto real de la rama es: pico de la placa con sus periféricos (5 A, valor de especificación oficial que cubre el AI HAT+) más LIDAR (0.6 A) e IMU (0.03 A), ambos casi constantes, contra los 5 A del convertidor.
+El dimensionamiento merece una aclaración, porque la tabla de consumo suma por componente y aquí esa suma sería engañosa. El AI HAT+, la cámara, el LIDAR y el puente IMU no se alimentan del KL89576 directamente: se alimentan del riel de 5 V de la propia Pi 5, y la Pi Zero entera (motor, adaptador de nivel, OLED, encoder) recibe su alimentación por el VBUS del puerto USB de la Pi 5. Es decir, los 5 A de la especificación de la Pi 5 **ya incluyen** a todo lo conectado a la placa, y el pico del AI HAT+ (2.5 A) no se suma dos veces. El presupuesto real de la rama es: pico de la placa con sus periféricos (5 A, valor de especificación oficial que cubre el AI HAT+) más LIDAR (0.6 A) e IMU (0.03 A), ambos casi constantes, contra los 5 A del convertidor.
 
 Ese margen es deliberadamente fino y lo monitoreamos en vez de sobredimensionarlo sin medir: el indicador `vcgencmd get_throttled` de la Pi 5 reporta cualquier caída de tensión, y es la misma señal con la que verificamos (0x0, sin eventos) que la Pi Zero alimentada por VBUS funciona sin caída de tensión (undervoltage) en carrera. Si el margen algún día se cerrara, el punto de vigilancia es el consumo conjunto placa+NPU, no el convertidor.
 
@@ -1085,15 +1085,15 @@ del LIDAR quedó resuelta: 0.08 m, ver ADR 0014.) -->
 
 #### Calibración
 
-Cada sensor del robot tiene una parte calibrada contra medición propia, no contra datasheet. Este es el inventario:
+Cada sensor del robot tiene una parte calibrada contra medición propia, no contra la hoja de datos. Este es el inventario:
 
 | Qué | Método | Valor |
 |-----|--------|-------|
 | Pulsos por vuelta del encoder | Cinta métrica: distancia conocida recorrida contra la que el robot cree haber recorrido (`task robot:calibrate-encoder`) | 60 pulsos/vuelta en el HD Hex. Se heredó el 676 del motor retirado, se midió 86 y se corrigió a 60 |
 | Ley motor-duty en banco | Motor cargado, duty barrido, rpm medidas contra cinta | $\text{rpm} = 434.6 \cdot \text{duty} - 86.7$ ($R^2 = 0.9999$); zona muerta en duty 0.200 |
-| Referencia de yaw del IMU | Reset del offset al presionar el botón de inicio: ese rumbo pasa a ser 0° (`reset_heading_reference`) | Todo el yaw de la ronda es relativo a esa referencia |
-| Calibración gyro/acelerómetro | Rutina del chip (modo RVC) en su arranque; no intervenimos | De fábrica |
-| Latencia cámara→detección | Medida end-to-end sobre bags reales | **0.85 s** (ejecuciones del 2026-09-06); el rango LIDAR del ciclo actual cubre el hueco |
+| Referencia de yaw del IMU | Reinicio del desplazamiento (offset) al presionar el botón de inicio: ese rumbo pasa a ser 0° (`reset_heading_reference`) | Todo el yaw de la ronda es relativo a esa referencia |
+| Calibración giroscopio/acelerómetro | Rutina del chip (modo RVC) en su arranque; no intervenimos | De fábrica |
+| Latencia cámara→detección | Medida de punta a punta sobre bags reales | **0.85 s** (ejecuciones del 2026-09-06); el rango LIDAR del ciclo actual cubre el hueco |
 | Rango de la visión | Modelo pinhole contra barrido LIDAR: cuando hay medición LIDAR al rumbo de la cámara, manda el LIDAR; el pinhole queda de respaldo | Error del pinhole: ~3.6 cm a 1.5 m, ~14 cm a 3 m |
 | Radio de giro del chasis | Medido en banco | 0.29 m, usado como límite duro en simulación y control |
 | Simulador | Ajustado contra grabaciones reales; conclusiones previas a la calibración descartadas | Ver [Simulador y corpus de escenarios](#simulador-y-corpus-de-escenarios) |
@@ -1384,7 +1384,7 @@ La migración a Go se tomó como un reemplazo a largo plazo de ROS2 (arranque m�
 
 Para detectar los obstáculos del Obstacle Challenge de manera confiable usamos un detector YOLO entrenado por nosotros y compilado para el AI HAT+. Esta sección documenta el modelo completo: qué es, con qué datos se entrenó, cómo lo medimos y qué decisiones tomamos a partir de esas mediciones.
 
-#### El modelo y su pipeline
+#### El modelo y su cadena de procesamiento
 
 | Aspecto | Valor |
 |---------|-------|
@@ -1393,7 +1393,7 @@ Para detectar los obstáculos del Obstacle Challenge de manera confiable usamos 
 | Formato desplegado | ONNX compilado a HEF (Hailo-8) con Hailo Model Zoo |
 | NMS | Embebido en el HEF, score 0.20, IoU 0.70 |
 | Umbral de despliegue | 0.45 en el detector (las detecciones por debajo no llegan al navegador); 0.25 en el enrutador de señales, para confirmación tardía |
-| Rendimiento (throughput) | 101.5 FPS el HEF solo (`hailortcli run`); la cadena completa (captura → escala tipo letterbox → NPU → decodificación → publicación) corre a **15 Hz**, limitada por el temporizador de captura, no por el modelo |
+| Rendimiento (throughput) | 101.5 FPS el HEF solo (`hailortcli run`); la cadena completa (captura → escala con relleno (letterbox) → NPU → decodificación → publicación) corre a **15 Hz**, limitada por el temporizador de captura, no por el modelo |
 
 Los primeros prototipos ejecutaban detección solo con CPU sobre la Raspberry Pi 5, a ~1-2 imágenes por segundo (~700 ms por imagen), demasiado lento para reaccionar a obstáculos a velocidad de carrera. El AI HAT+ movió la inferencia al NPU, y con ella reorganizamos la cadena de procesamiento: el nodo de visión abre la cámara directamente y alimenta los fotogramas al NPU sin pasar por un intermedio de ROS para las imágenes, eliminando ese salto de la latencia.
 
@@ -1906,7 +1906,7 @@ flowchart TD
     PI5 -.->|PCIe| NPU
     NPU -.->|detecciones 15 Hz| PI5
     PI5 -.->|ROS2 DDS, 29 tópicos| ZERO
-    ZERO -.->|pose, odometria| PI5
+    ZERO -.->|pose, odometría| PI5
     IMU -.->|UART-RVC| ZERO
     ENC -.->|pulsos| ZERO
     ZERO -.->|RPWM adelante| HB
@@ -1979,7 +1979,7 @@ Y tres compensaciones que no son de pieza sino de diseño:
 
 | Descartado | Elegido | Qué lo decidió |
 |---|---|---|
-| **IMU en 9 ejes** (con magnetómetro) | **6 ejes en modo UART-RVC** | Sobre la pista conviven tres motores, chasis metálico y electrónica de potencia. Un rumbo por campo magnético es vulnerable a todo eso. Aceptamos a cambio la deriva del datasheet (~0.5°/min) y la acotamos por otras vías |
+| **IMU en 9 ejes** (con magnetómetro) | **6 ejes en modo UART-RVC** | Sobre la pista conviven tres motores, chasis metálico y electrónica de potencia. Un rumbo por campo magnético es vulnerable a todo eso. Aceptamos a cambio la deriva de la hoja de datos (~0.5°/min) y la acotamos por otras vías |
 | **Lazo P sobre error angular** | **Pure pursuit** | El lazo P era estable solo por debajo de **~0.07 m/s**; a velocidad de carrera saturaba el servo entre −70.2° y +70.2° durante carreras enteras. La ganancia estaba ajustada contra un modelo de dirección delantera, y el chasis real es de 4 ruedas en contrafase. No era cuestión de reajustar, sino de cambiar la ley de control |
 | **Conmutación de anticipación** (0.16 m / 0.32 m) | **Rampa de mezcla continua** | La conmutación ocurría a **~2.5 Hz** y cada una multiplicaba la curvatura por cuatro, con un zigzag visible (pico medio de \|steer\| de 0.306 a 0.398) sin ganancia lateral real |
 
@@ -2079,7 +2079,7 @@ Riesgos identificados del robot, con su mitigación o su estado. Incluimos tambi
 | Pull-down físico ausente en `LPWM` del BTS7960 | Pulso de motor espurio al arrancar la Pi | `LPWM` solo se usa en reversa (estacionamiento/recuperación, fluctuación tolerada por diseño); la ruta de carrera usa `RPWM` por PWM de hardware | **Mitigado parcialmente** - pull-down físico en cola |
 | Sobrepeso cerca del límite de 1.5 kg | Descalificación | Pieza por pieza contra carga medida | Vigilado |
 | El simulador es optimista respecto a la pista real | Fallos en pista que la simulación no muestra | Calibración del simulador contra mediciones reales; ninguna conclusión se da por válida solo en sim | Mitigado parcialmente |
-| Modo ciego con FOV limitado (~2.3 m) | 78% de los fallos en modo ciego ocurren en la primera vuelta | Velocidad reducida, prioridad de paso estrecho por seguridad | Conocido - aceptado |
+| Modo ciego con campo de visión (FOV) limitado (~2.3 m) | 78% de los fallos en modo ciego ocurren en la primera vuelta | Velocidad reducida, prioridad de paso estrecho por seguridad | Conocido - aceptado |
 | Contingencia de ronda equivocada (la ronda se ejecutó como el desafío incorrecto, 2026-09-06) | Puntaje nulo en la ronda real | Remuestreo del puente en SYSTEM_RESET; tiempo de espera de 180 s | Mitigado tras el fallo |
 | Peso del sistema: arranque lento y servicios caídos en el arranque | Robot no listo al llamar a pista | Unidades systemd con `Restart`/`on-failure`; arranque reducido desde ~3 min | Mitigado |
 

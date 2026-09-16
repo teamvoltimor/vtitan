@@ -57,7 +57,7 @@ flowchart TD
     PI5 -.->|PCIe| NPU
     NPU -.->|detecciones 15 Hz| PI5
     PI5 -.->|ROS2 DDS, 29 tópicos| ZERO
-    ZERO -.->|pose, odometria| PI5
+    ZERO -.->|pose, odometría| PI5
     IMU -.->|UART-RVC| ZERO
     ENC -.->|pulsos| ZERO
     ZERO -.->|RPWM adelante| HB
