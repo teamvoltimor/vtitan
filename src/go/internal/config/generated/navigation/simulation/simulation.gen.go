@@ -190,6 +190,19 @@ type NavigationSimulationSimulation struct {
 	// fail a placement the rules allow.
 	StartCollisionWindowS float64 `json:"start_collision_window_s" yaml:"start_collision_window_s" mapstructure:"start_collision_window_s"`
 
+	// Probability that a barrier detection is reported as a RED pillar instead of
+	// MAGENTA. This is the failure that matters -- a magenta detection is discarded
+	// correctly, so a barrier that is always magenta screens nothing. MEASURED
+	// 2026-09-15 by locating the lot from its own LIDAR cluster and scoring the
+	// detections that land on it: 60% in run_20260915_140852, 4% in 141413, 9% in
+	// 141832. The control holds -- ZERO green detections land on the lot in those
+	// three, where a green pillar cannot stand. A fourth round is excluded because
+	// the car toppled three objects in it and its cluster map is not trustworthy. THE
+	// SPREAD IS THE POINT: 4% to 60% is not a rate, it is a range, and a single
+	// constant would model none of those rounds. Ships at 0.0; sweep it rather than
+	// quoting a mean.
+	VisionBarrierRedRate float64 `json:"vision_barrier_red_rate" yaml:"vision_barrier_red_rate" mapstructure:"vision_barrier_red_rate"`
+
 	// Standard deviation of the per-detection camera BEARING error, in radians. The
 	// emulator projects every sign from its TRUE bearing, so the only angular error a
 	// simulated run carries is the pose estimate's -- and the camera's own scatter is
@@ -255,6 +268,15 @@ type NavigationSimulationSimulation struct {
 
 	// Emulated camera range (m) at which a sign is detected on about half of frames.
 	VisionDetectR50M float64 `json:"vision_detect_r50_m" yaml:"vision_detect_r50_m" mapstructure:"vision_detect_r50_m"`
+
+	// Emit the parking barrier as camera detections. The emulator projects SIGNS
+	// only, so the barrier -- a physical object the real camera sees on every lap --
+	// is invisible in simulation, and with it the whole defence built against it: the
+	// aspect gate, the barrier belief, the corridor exemption and
+	// `barrier_span_along_wall` are all dead code in the corpus. Even at a zero red
+	// rate this is not inert: a MAGENTA detection exercises the discard path and the
+	// aspect gate, neither of which any scenario reaches today.
+	VisionEmitsBarrier bool `json:"vision_emits_barrier" yaml:"vision_emits_barrier" mapstructure:"vision_emits_barrier"`
 
 	// Probability that an otherwise-visible sign produces NO detection on a given
 	// tick, on top of the range model. Hardware carries a detection on 11.6% of ticks

@@ -153,6 +153,7 @@ class SimulatedHardwareGateway:
         wall_heading: bool = True,
         tuning: NavigationTuning | None = None,
         context: SimulatorContext | None = None,
+        barrier_blocks: list[SignSpec] | None = None,
     ) -> None:
         if context is None:
             context = _DEFAULT_SIMULATOR_CONTEXT
@@ -182,6 +183,7 @@ class SimulatedHardwareGateway:
         self._rng = rng or np.random.default_rng(0)
         self._lidar_noise_std = lidar_noise_std
         self._signs = signs
+        self._barrier_blocks = barrier_blocks or []
 
         # Full 360 sweep, robot frame, 0 = forward, +pi/2 = left, -pi/2 = right.
         self._angles = np.linspace(-math.pi, math.pi, lidar_rays)
@@ -215,6 +217,8 @@ class SimulatedHardwareGateway:
         self._imu_model = ImuErrorModel(self._errors, self._error_rng)
         # Its own stream too, for the same reason -- see _detectable_signs.
         self._vision_rng = np.random.default_rng(seed_seq.spawn(1)[0])
+        # Separate stream: see _barrier_observations.
+        self._barrier_rng = np.random.default_rng(seed_seq.spawn(1)[0])
         self._elapsed_s = 0.0
         # Detections that have been "captured" but have not yet finished the
         # perception pipeline. The real one takes a MEASURED 0.85 s end to end
@@ -474,6 +478,43 @@ class SimulatedHardwareGateway:
         fresh = self._capture_vision_detections()
         return self._through_vision_pipeline(fresh)
 
+    def _barrier_observations(self, believed: Pose | None) -> list[TrafficSignObservation]:
+        """The parking barrier, as the camera reports it -- magenta, sometimes RED.
+
+        The emulator projects SIGNS only, so the barrier is invisible in
+        simulation and every defence built against it is dead code in the
+        corpus: the aspect gate, the barrier belief, the corridor exemption and
+        `barrier_span_along_wall`.
+
+        Emitting it magenta is already not inert, because the discard path runs.
+        But the failure that ENDS rounds is the fraction arriving as RED, which
+        reaches the sign map as a pillar -- measured 2026-09-15 at 60% in one
+        round and 4-9% in two others, by locating the lot from its own LIDAR
+        cluster. Ships at 0.0 because 4-60% is a range, not a rate.
+
+        Uses its OWN rng stream: drawing from `_vision_rng` would shift every
+        subsequent sign draw and silently change what the camera sees of the
+        pillars.
+        """
+        sim = self.tuning.simulation
+        if not sim.vision_emits_barrier or not self._barrier_blocks:
+            return []
+        obs = emulate_sign_observations(
+            self._barrier_blocks,
+            Waypoint(self._state.x, self._state.y),
+            self._state.yaw,
+            tuning=self.tuning,
+            believed_pos=Waypoint(believed.x, believed.y) if believed is not None else None,
+            believed_yaw=believed.yaw if believed is not None else None,
+        )
+        rate = sim.vision_barrier_red_rate
+        if rate <= 0.0:
+            return obs
+        return [
+            replace(o, color=SignColor.RED) if self._barrier_rng.random() < rate else o
+            for o in obs
+        ]
+
     def _corrupt_detections(
         self, observations: list[TrafficSignObservation], origin: Pose | None = None
     ) -> list[TrafficSignObservation]:
@@ -621,6 +662,7 @@ class SimulatedHardwareGateway:
             ]
             return self._corrupt_detections([obs for obs in observations if obs is not None], pose)
         true_pose = Pose(x=self._state.x, y=self._state.y, yaw=self._state.yaw)
+        barrier = self._barrier_observations(believed)
         return self._corrupt_detections(
             emulate_sign_observations(
                 signs,
@@ -634,7 +676,7 @@ class SimulatedHardwareGateway:
             # reprojects through the BELIEVED pose when it has one, so rotating
             # about anything else would not be a bearing error.
             believed if believed is not None else true_pose,
-        )
+        ) + barrier
 
     # Simulation stepping
 
