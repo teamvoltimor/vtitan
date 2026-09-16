@@ -41,3 +41,7 @@ class NavigationBlindNavLocalization(StrictModel):
         ...,
         description='Fraction of the local cost the global fit must beat before it replaces the local pose; otherwise the wall model is presumed wrong.',
     )
+    relocalize_min_width_spread_m: float = Field(
+        ...,
+        description='Minimum spread (max minus min) among the four believed corridor widths before a global relocalization may run at all. Below it the believed free space is 4-fold rotationally symmetric, so four poses explain any scan equally well and the search is not merely expensive, it is ill posed: MEASURED on run_20260915_140358 it teleported the estimate from (1.5, 0.1) to (1.75, 2.93) -- the 180 degree rotational copy about the track centre -- and flipped yaw by 179 degrees, and two winners 1.96 m apart scored within 0.4% of each other. The Obstacles Challenge fixes all four corridors at 1000 mm, so the spread there is exactly 0 and the search never runs; Open varies them (600/1000), and on run_20260907_205830, the round whose estimate was lost for 48 s and which this search recovered, the spread is 0.40 m for 91% of ticks, from t=7.5s. The 9% below are the opening ticks before any width is estimated, where the model really is symmetric. Set to 0.0 to restore the unconditional behaviour.',
+    )

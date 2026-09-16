@@ -289,6 +289,10 @@ class TrackWalls:
         if isinstance(geometry, dict):
             geometry = corridor_geometry_from_widths(geometry)
         self.inner_block = geometry.inner_block
+        self.geometry = geometry
+        """Kept, not just consumed: the widths are what say whether this layout is
+        rotationally symmetric, and a caller matching a scan against these walls
+        needs to know that before trusting an absolute answer."""
 
         self._segments = self._build_segments(self.inner_block)
         # Pre-stack segment endpoints for vectorised raycasting.

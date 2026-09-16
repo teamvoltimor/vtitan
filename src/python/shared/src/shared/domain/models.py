@@ -324,6 +324,20 @@ class CorridorGeometry:
         """Return the average corridor width across all four sides."""
         return (self.north_width_m + self.south_width_m + self.east_width_m + self.west_width_m) / 4
 
+    @property
+    def width_spread_m(self) -> float:
+        """How much the four corridors differ -- i.e. how ASYMMETRIC this layout is.
+
+        Zero means the four corridors are the same width, which makes the free
+        space 4-fold rotationally symmetric: four poses, one per quarter turn
+        about the track centre, explain any scan equally well. Anything that
+        resolves an absolute position by matching a scan against these walls is
+        then answering a question the geometry does not determine, and this is
+        the number that says so.
+        """
+        widths = (self.north_width_m, self.south_width_m, self.east_width_m, self.west_width_m)
+        return max(widths) - min(widths)
+
     def to_widths_dict(self) -> dict[Section, float]:
         """Return corridor widths keyed by their section."""
         return {

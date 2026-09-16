@@ -388,10 +388,19 @@ class TestGlobalRelocalization:
         So the protection is made explicit here rather than inherited from the
         cost: a symmetric model must refuse the search BECAUSE it is symmetric,
         not because the arithmetic happened to stay quiet.
+
+        Asserted on the CALL, not on ``relocalization_count``. Written against
+        the count first, this test passed with the guard disabled: on an
+        unexplainable sweep no candidate is materially better, so
+        ``relocalize_accept_ratio`` rejects the winner and the count stays 0
+        whatever the guard does. It would have shipped as a regression test that
+        watched the wrong thing.
         """
         localizer, walls = _localizer_for(_UNIFORM_1000)
         truth = (2.5, 1.5, math.pi / 2)
         unexplainable = np.full(len(_ANGLES), 1.0)
+        calls = []
+        localizer._relocalize_globally = lambda *a, **_k: calls.append(a) or None
 
         estimate = Waypoint(truth[0], truth[1])
         for i in range(shipped_group(LocalizationParams).relocalize_after_scans * 3):
@@ -399,11 +408,30 @@ class TestGlobalRelocalization:
 
         assert localizer.last_fit_cost is not None
         assert localizer.last_fit_cost > shipped_group(LocalizationParams).relocalize_cost_threshold, (
-            "test is void unless the scan really does score badly everywhere -- "
-            "otherwise the cost guard is what kept the search silent, not the symmetry guard"
+            "test is void unless the scan really does score badly everywhere -- otherwise the "
+            "streak never builds and nothing would have called the search in the first place"
         )
-        assert localizer.relocalization_count == 0
+        assert calls == []
         assert walls.point_in_free_space(estimate.x, estimate.y)
+
+    def test_an_asymmetric_layout_does_call_the_search_on_the_same_sweep(self) -> None:
+        """The control for the test above, on the same unexplainable sweep.
+
+        Without this, ``calls == []`` could mean the guard worked or could mean
+        the streak never reached the trigger at all -- and those are the two
+        readings a regression test must not be able to confuse.
+        """
+        localizer, _walls = _localizer_for(_MIXED_WIDTHS)
+        truth = (2.5, 1.5, math.pi / 2)
+        unexplainable = np.full(len(_ANGLES), 1.0)
+        calls = []
+        localizer._relocalize_globally = lambda *a, **_k: calls.append(a) or None
+
+        estimate = Waypoint(truth[0], truth[1])
+        for i in range(shipped_group(LocalizationParams).relocalize_after_scans * 3):
+            estimate = localizer.estimate_position(estimate, truth[2], unexplainable, _ANGLES, now_s=i * 0.05)
+
+        assert calls, "the streak must reach the trigger here, or the symmetric test proves nothing"
 
     def test_an_asymmetric_layout_still_rescues_under_the_same_conditions(self) -> None:
         """The other half of the guard: it must not silence the rescue it was added around.

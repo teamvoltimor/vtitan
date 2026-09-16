@@ -68,6 +68,7 @@ class LidarLocalizer:
         self._relocalize_after_scans = params.relocalize_after_scans
         self._relocalize_grid_step_m = params.relocalize_grid_step_m
         self._relocalize_accept_ratio = params.relocalize_accept_ratio
+        self._relocalize_min_width_spread_m = params.relocalize_min_width_spread_m
         self._last_estimate_time_s: float | None = None
         self._pending_jump_xy: Waypoint | None = None
         self._bad_fit_streak = 0
@@ -253,7 +254,7 @@ class LidarLocalizer:
         else:
             self._bad_fit_streak = 0
 
-        if self._bad_fit_streak >= self._relocalize_after_scans:
+        if self._bad_fit_streak >= self._relocalize_after_scans and self._model_can_be_matched():
             rescued = self._relocalize_globally(yaw, ranges, angles, best_cost)
             if rescued is not None:
                 return rescued
@@ -302,6 +303,39 @@ class LidarLocalizer:
         residual = np.abs(predicted[0] - ranges[informative])
         np.minimum(residual, self._residual_clip, out=residual)
         return float(np.mean(residual**2))
+
+    def _model_can_be_matched(self) -> bool:
+        """Can a scan pick ONE pose out of this wall model, or only a set of four?
+
+        The global search resolves an absolute position by scoring candidates
+        across the whole track. That is only a well-posed question when the
+        believed corridors differ: with all four the same width the free space
+        is 4-fold rotationally symmetric about the track centre, and each
+        quarter-turn copy of the true pose explains the scan exactly as well.
+        The search then returns whichever near-tie the arithmetic reaches first.
+
+        MEASURED on run_20260915_140358, an Obstacles round, which fixes all
+        four corridors at 1000 mm: the estimate was teleported from (1.5, 0.1)
+        to (1.75, 2.93) -- the 180 degree copy about the centre (1.5, 1.5) --
+        and its yaw flipped by 179 degrees. On the same round, two winners
+        1.96 m apart scored within 0.4% of one another, and a 1.37 m pair
+        recurred on five separate scans. Those are not noise; they are the
+        symmetry answering.
+
+        This is deliberately NOT a check on the phase or the challenge. The bay
+        is where it was found, because the parking lot is the one feature that
+        would break the symmetry and it is absent from the wall model, but the
+        defect belongs to the geometry and the guard belongs with the geometry.
+        It also means the localizer needs nothing from the navigator: the
+        gateway calls it from the LIDAR callback and does not know the phase.
+
+        The rescue this search exists for is preserved. On run_20260907_205830,
+        the Open round whose estimate was lost for 48 s, the believed widths
+        differ by 0.40 m for 91% of ticks, from t=7.5s -- the remaining 9% are
+        the opening ticks before any width has been estimated, where the model
+        genuinely is symmetric and a global answer would be a guess.
+        """
+        return self._walls.geometry.width_spread_m >= self._relocalize_min_width_spread_m
 
     def _relocalize_globally(
         self,

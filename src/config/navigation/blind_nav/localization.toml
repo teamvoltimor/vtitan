@@ -12,3 +12,8 @@ relocalize_cost_threshold = 0.03
 relocalize_after_scans = 15
 relocalize_grid_step_m = 0.03
 relocalize_accept_ratio = 0.5
+# 0.05 m, not 0: the widths are ESTIMATED, so four nominally equal corridors are
+# never bitwise equal. Obstacles fixes all four at 1000 mm (spread 0.000 measured
+# over 6450 ticks of two rounds) and Open separates them by 0.400, so anything
+# between those two is the same decision.
+relocalize_min_width_spread_m = 0.05
