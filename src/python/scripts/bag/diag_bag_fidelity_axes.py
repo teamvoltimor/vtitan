@@ -33,8 +33,10 @@ AXES, in the order they were worth modelling:
 4. **Cruise** -- commanded versus ACHIEVED speed while a sign is committed. The
    ratio is the point: a planner tuned where the two are equal plans distances
    the chassis never covers.
-5. **Steering** -- magnitude, per-tick change and sign flips on non-manoeuvre
-   ticks only.
+5. **Steering** -- magnitude, per-tick change and sign flips on normal_drive
+   ticks with no manoeuvre. ``bay_exit`` is excluded explicitly: it sets no
+   manoeuvre type and commands full lock by design, so counting it once read
+   as an 8-17% saturation divergence that was really the bay.
 6. **Start pose** -- where the round actually began, against what
    ``measure_start_pose`` reported.
 
@@ -80,6 +82,7 @@ from scripts.common.stats import percentile
 
 if TYPE_CHECKING:
     from collections.abc import Callable
+    from typing import Any
 
 _SCAN_STRIDE = 5
 _ESCAPE_STEER_FLOOR = 0.3
@@ -165,6 +168,22 @@ def _vision_lines(
     )
 
 
+
+def _is_cruise(snap: Any) -> bool:
+    """A tick the steering and cruise axes may read: normal_drive with no manoeuvre.
+
+    ``active_maneuver_type is None`` is NOT enough. The in-bay exit runs as its
+    own phase with no manoeuvre type set, and its pocket legs command full lock
+    on 97-100% of their ticks by design. Measured 2026-09-16 over
+    run_20260915_140852/141413/140358: filtering on the manoeuvre alone reported
+    8-17% saturated cruise steering against 0% in the simulator, and every one
+    of those ticks was ``bay_exit``. On normal_drive proper the chassis saturates
+    0.0-0.9%, which the simulator matches. The simulator half never starts in
+    the bay unless ``obstacles_start_in_bay`` is on, so the two halves only
+    compare when both read the same phase.
+    """
+    return snap.active_maneuver_type is None and str(getattr(snap.phase, "value", snap.phase)) == "normal_drive"
+
 def main() -> int:
     parser = create_bags_parser(__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     args = parser.parse_args()
@@ -219,7 +238,7 @@ def main() -> int:
         achieved = streams.drive_speed_mps()
         ach_t = np.array([t for t, _ in achieved])
         ach_v = np.array([v for _t, v in achieved])
-        committed = [(t, s) for t, s in rows if s.committed_sign_x_m is not None and s.active_maneuver_type is None]
+        committed = [(t, s) for t, s in rows if s.committed_sign_x_m is not None and _is_cruise(s)]
         print(
             format_committed(
                 committed_ticks=len(committed),
@@ -229,7 +248,7 @@ def main() -> int:
             )
         )
 
-        steer = [s.commanded_steering_norm for _t, s in rows if s.commanded_steering_norm is not None and s.active_maneuver_type is None]
+        steer = [s.commanded_steering_norm for _t, s in rows if s.commanded_steering_norm is not None and _is_cruise(s)]
         for line in format_steering(steer, duration):
             print(line)
 

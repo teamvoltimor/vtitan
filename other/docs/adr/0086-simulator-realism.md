@@ -166,8 +166,13 @@ deg approach.
 - A pre-shared-table sim-vs-hardware divergence audit failed on exactly the 120 to
   160 / 160 to 180 boundary, because the hardware band table lumped them and the
   sim split them.
-- The sim error budget still does not reach the chassis's about 1.42x understeer,
-  so those results stay incomparable.
+- The "1.42x understeer invisible in sim" is stale. Measured 2026-09-16 with the
+  same angle-bucketed table on both sides (`diag_bag_sim_fidelity.py --yaw` against
+  a ground-truth probe of `AckermannKinematics`), the yaw-gain curve matches bucket
+  by bucket: 0.57-0.60 vs 0.57-0.58 at 10-20 deg, 0.38-0.46 vs 0.33-0.39 at 30-45,
+  0.21-0.29 vs 0.23-0.26 above 45. `yaw_gain` plus the speed-tracking floor IS the
+  understeer model. The one bucket that differs (2-5 deg, hardware 0.75-1.04) is the
+  +1.5..+3 road-wheel deg trim, not gain.
 - `known_start` belief-offset isolation: blind assumes the canonical South start,
   so a run beginning elsewhere carries a rigid belief offset (p50 1.58 m over the
   corpus) for its whole length; `known_start` seeds from ground truth to isolate
