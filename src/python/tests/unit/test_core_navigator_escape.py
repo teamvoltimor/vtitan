@@ -509,6 +509,26 @@ class TestEscapeEscalation:
             f"escalation must start on the side opposite the one that just failed, got {signs}"
         )
 
+    def test_gate_only_escalation_switches_side_without_doubling(self, waypoints, tuning):
+        """With ``escalate_doubles_duration`` off, escalation is a GATE, not a ladder.
+
+        The side switch is the part a wedge never reached; doubling a locked
+        reverse doubles the arc it sweeps blind through the rear occlusion band,
+        and on the corpus the doubled K-turn is the one that shoves an unmapped
+        pillar past the legal displacement in a single manoeuvre. Obstacles
+        ships it off. See adr:0055-escape-maneuver-selection.
+        """
+        nav = self._navigator(waypoints, tuning)
+        nav._escape = nav._escape.model_copy(update={"escalate_doubles_duration": False})
+        maneuver = self._maneuver(steering=0.4, duration=6)
+        nav._escape_count = nav._tuning.escape.escalate_after_attempts + 1
+
+        result = nav._maybe_escalate(maneuver)
+
+        assert result.duration_frames == maneuver.duration_frames
+        assert math.copysign(1.0, result.steering) == -nav._escape_steer_sign
+        assert abs(result.steering) == pytest.approx(abs(maneuver.steering))
+
     def test_duration_caps_at_max_escape_frames(self, waypoints, tuning):
         nav = self._navigator(waypoints, tuning)
         maneuver = self._maneuver(

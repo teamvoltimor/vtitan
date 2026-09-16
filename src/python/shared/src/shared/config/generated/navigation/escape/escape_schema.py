@@ -76,6 +76,14 @@ class NavigationEscapeEscape(StrictModel):
         ...,
         description='Keep feeding the sign router while a maneuver holds the chassis. Ships off and unvalidated.',
     )
+    escalate_doubles_duration: bool = Field(
+        ...,
+        description='Whether an escalated escape also DOUBLES its duration (capped at max_escape_s) on top of switching side. Doubling a locked reverse doubles the arc it sweeps blind through the rear occlusion band.',
+    )
+    obstacles_escalate_doubles_duration: bool = Field(
+        ...,
+        description='Obstacles-only override of escalate_doubles_duration. Off: escalation only switches the side. Measured 2026-09-16: the escalated (doubled) K-turn is the one that shoves an unmapped pillar 57 mm in one manoeuvre, and the wedged rounds are already 56-95% K-turn, so more of it adds nothing.',
+    )
     escalate_after_attempts: int = Field(
         ...,
         description='Consecutive escapes before escalating (longer duration, opposite side)',

@@ -27,6 +27,12 @@ side_correction_s = 0.20
 side_correction_blends = false
 tick_router_during_maneuver = false
 escalate_after_attempts = 3
+escalate_doubles_duration = true
+# Measured 2026-09-16 and left ON: turning the doubling off is INERT on the corpus (13 failures,
+# identical set) and on hardware the escalation count rarely reaches the threshold at all
+# (0% inside the wedges, see adr:0055). The knob stays so the next round can flip it with a
+# one-line change, but nothing measured yet earns it.
+obstacles_escalate_doubles_duration = true
 
 # The dwell gate. OFF (0.0) until a hardware round backs it: it is measured on recorded
 # runs, not simulated ones, because the corpus has no wedge to gate. It switches the

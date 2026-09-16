@@ -627,6 +627,12 @@ class EscapeRecovery:
             start_sign=-self._escape_steer_sign,
         )
         steering = abs(maneuver.steering) * side if maneuver.steering else 0.0
+        if not self._escape.escalate_doubles_duration:
+            # A GATE, not a ladder: the side switch is the part a wedge never
+            # reached; doubling a locked reverse doubles the arc it sweeps
+            # blind through the rear occlusion band, and the corpus shows the
+            # doubled K-turn shoving an unmapped pillar 57 mm in one go.
+            return replace(maneuver, steering=steering)
         return replace(
             maneuver,
             steering=steering,

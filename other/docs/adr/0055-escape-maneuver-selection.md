@@ -138,6 +138,12 @@ in-time / 28 laps>=3 / 9 timed out; 1.8 gave 29 / 34 / 0; 2.3 gave 31 / 33 / 0;
   minimum K-turn: the straight leg would be cut to a stutter and the stuck nudge
   then drove FORWARD into the pillar ahead (0014). Straight reverse is the same
   answer the K-turn already gives to a shut wanted side.
+- 2026-09-16: `escalate_doubles_duration` added and left ON: with the doubling
+  off, escalation is a gate (side switch only). Rationale: the wedged rounds are
+  already 56-95 percent K-turn and the doubled locked reverse sweeps twice the
+  arc blind through the rear occlusion band. Measured INERT: 13 corpus failures,
+  identical set, and 0009 (the one scenario a doubled K-turn kills) fails either
+  way. Not shipped off; the knob exists for the next hardware round.
 
 ## Cross-references
 
