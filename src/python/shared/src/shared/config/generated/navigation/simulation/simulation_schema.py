@@ -123,7 +123,7 @@ class NavigationSimulationSimulation(StrictModel):
     )
     vision_color_flip_rate: float = Field(
         ...,
-        description='Probability that a detection reports the OPPOSITE colour. UNMEASURED, so it ships at 0.0 rather than at a guess -- defaulting an invented error rate would make the simulator wrong in a new way rather than more realistic. The knob exists because colour confusion is the dominant real perception failure (the magenta parking barrier reaches the sign map as a RED pillar at p50 confidence 0.79) and the emulator copies ground-truth colour directly, so that entire failure mode is currently unscreenable. Needs a bag-derived confusion rate before it can ship non-zero.',
+        description='Probability that a detection reports the OPPOSITE colour; ships the measured marginal rate, applied i.i.d. per detection.',
     )
     vision_bearing_scatter_rad: float = Field(
         ...,
