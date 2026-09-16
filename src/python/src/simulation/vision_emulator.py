@@ -101,7 +101,12 @@ def emulate_sign_observations(
             TrafficSignObservation(
                 world_x_m=report_pos.x + distance * math.cos(report_bearing),
                 world_y_m=report_pos.y + distance * math.sin(report_bearing),
-                color=SignColor.RED if sign.color == SignColor.RED else SignColor.GREEN,
+                # PRESERVE the spec's colour. This used to coerce anything
+                # non-RED to GREEN, which was harmless while only signs were
+                # projected -- and silently turned the parking barrier's two
+                # MAGENTA blocks into phantom GREEN pillars the moment the
+                # barrier was emitted, breaking 27 scenarios and fixing none.
+                color=sign.color,
                 confidence=detection_confidence,
                 detected_at_timestamp=0.0,
             ),
@@ -181,7 +186,12 @@ def emulate_sign_detections(
         y_max = cy + pixel_height / 2.0
         detections.append(
             Detection(
-                color=SignColor.RED if sign.color == SignColor.RED else SignColor.GREEN,
+                # PRESERVE the spec's colour. This used to coerce anything
+                # non-RED to GREEN, which was harmless while only signs were
+                # projected -- and silently turned the parking barrier's two
+                # MAGENTA blocks into phantom GREEN pillars the moment the
+                # barrier was emitted, breaking 27 scenarios and fixing none.
+                color=sign.color,
                 confidence=confidence,
                 bbox=(x_min, y_min, x_max, y_max),
                 x=cx,
