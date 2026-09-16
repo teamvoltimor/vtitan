@@ -649,7 +649,7 @@ Y el mismo conjunto despiezado, del mismo modelo de SolidWorks del que se export
 	<i>Vista despiezada de vTitan: chasis inferior, tren de transmisión, sistema de dirección y electrónica</i>
 </p>
 
-La misma vista despiezada con cada pieza numerada, y su tabla de elementos (el número de la tabla corresponde al globo de la vista):
+La misma vista despiezada con cada pieza numerada, y su tabla de elementos con el enlace a cada archivo disponible (el número de la tabla corresponde al globo de la vista):
 
 <p align="center">
 	<img src="v-photos/vtitan/vtitan-breakdown-enumerated.webp" alt="Vista despiezada de vTitan con cada pieza numerada" width="800">
@@ -657,47 +657,50 @@ La misma vista despiezada con cada pieza numerada, y su tabla de elementos (el n
 	<i>Vista despiezada numerada: cada globo enlaza con la tabla de elementos</i>
 </p>
 
-| N° | Pieza en el CAD | Cantidad |
-|:---:|---|---:|
-| 1 | `MONOCHASIS_VOLTIMOR_CAR MAX` | 1 |
-| 2 | `RING_MV_ULTIMATE` | 4 |
-| 3 | `SUPER_RUEDA_VOLTIMOR_2` | 4 |
-| 4 | `PIÑÓN DE 40 DIENTES MECANISMO DIRECCIÓN` | 2 |
-| 5 | `PIÑÓN DE 20 DIENTES MECANISMO DIRECCIÓN` | 4 |
-| 6 | `CUBIERTA DE RING VOLTIMOR_NEW` | 4 |
-| 7 | `aro de fijacion axial de caucho` | 4 |
-| 8 | `buje guia de cruceta` | 4 |
-| 9 | `BASE DE SISTEMA DE TRANSMISION` | 2 |
-| 10 | `PIÑÓN PARA CORREA 164XXL 33 DIENTES` | 2 |
-| 11 | `PIÑÓN DE 40 DIENTES MECANISMO DIRECCIÓN - SERVO con cajera` | 1 |
-| 12 | `PIÑÓN DE 40 DIENTES MECANISMO DIRECCIÓN - arrastre` | 1 |
-| 13 | `SERVO INJORA 14 kg` | 1 |
-| 14 | `PIÑÓN 90 VOLTIMOR CRUCETA 10 DIENTES` | 4 |
-| 15 | `PIÑÓN 90 VOLTIMOR 20 DIENTES` | 4 |
-| 16 | `ROLINERA 3 x 7 x 2` | 8 |
-| 17 | `ROLINERA 6.35 x 9.525 x 3.175` | 5 |
-| 18 | `PIÑÓN DE 20 DIENTES MECANISMO RUEDA VOLTIMOR` | 4 |
-| 19 | `PIÑÓN 90 VOLTIMOR 15 x 8 DIENTES` | 4 |
-| 20 | `Camera Module 3 v8` | 1 |
-| 21 | `Ovonic AIR LIPO BATTERY` | 1 |
-| 22 | `raspberry_pi5` | 1 |
-| 23 | `slamtec rplidar c1` | 1 |
-| 24 | `SUPLEMENTO DE BANCADA DE MOTOR PEQUENO VOLTIMOR` | 1 |
-| 25 | `REV-41-1600 motor` | 1 |
-| 26 | `ENGRANAJE UNIFICADO DE MOTOR REV 36 DIENTES` | 1 |
-| 27 | `TAPA DE BANCADA DE MOTOR REV` | 1 |
-| 28 | `BRAZO DE TENSOR 2 LARGO` | 1 |
-| 29 | `RODILLO NUEVO TENSOR` | 2 |
-| 30 | `BRAZO DE TENSOR 3` | 1 |
-| 31 | `soporte superior Voltimor` | 1 |
-| 32 | `Case raspberry cam` | 1 |
-| 33 | `soporte inferior de camara` | 1 |
-| 34 | `soporte de camara superior` | 1 |
-| 35 | `soporte de camara brazo intermedio` | 1 |
-| 36 | `Raspberry Pi Zero 2 W` | 1 |
-| 37 | `Klunox` | 1 |
-| 38 | `adafruit APDS9960` | 1 |
-| 39 | `IBT-2` | 1 |
+| N° | Pieza | Cantidad | STL | STEP |
+|:---:|---|:---:|---|---|
+| 1 | Monochasis v3 | 1 | [STL](models/vtitan/stl-files/monochasis-v3.stl) | pendiente |
+| 2 | Ring Mv v2 | 4 | [STL](models/vtitan/stl-files/ring-mv-v2.stl) | pendiente |
+| 3 | Rueda vTitan | 4 | [STL](models/vtitan/stl-files/rueda-vtitan.stl) | pendiente |
+| 4 | Piñón de 40 dientes de dirección | 2 | pendiente | [STEP](models/vtitan/step-files/pinon-40-dientes-direccion.step) |
+| 5 | Piñón de 20 dientes de dirección (v2) | 4 | [STL](models/vtitan/stl-files/pinon-20-dientes-direccion-v2.stl) | pendiente |
+| 6 | Cubierta de ring | 4 | [STL](models/vtitan/stl-files/cubierta-de-ring.stl) | [STEP](models/vtitan/step-files/cubierta-de-ring.step) |
+| 7 | Aro de fijación axial de caucho | 4 | [STL](models/vtitan/stl-files/aro-de-fijacion-axial-de-caucho.stl) | [STEP](models/vtitan/step-files/aro-de-fijacion-axial-de-caucho.step) |
+| 8 | Buje guía de cruceta | 4 | [STL](models/vtitan/stl-files/buje-guia-de-cruceta.stl) | [STEP](models/vtitan/step-files/buje-guia-de-cruceta.step) |
+| 9 | Base del sistema de transmisión (corto) | 2 | pendiente | [STEP](models/vtitan/step-files/base-de-sistema-de-transmision-corto.step) |
+| 10 | Piñón de 33 dientes de correa | 2 | [STL](models/vtitan/stl-files/pinon-33-dientes-correa-dentada.stl) | [STEP](models/vtitan/step-files/pinon-33-dientes-correa-dentada.step) |
+| 11 | Piñón de 40 dientes de servo, con cajera | 1 | [STL](models/vtitan/stl-files/pinon-40-dientes-servo-cajera.stl) | [STEP](models/vtitan/step-files/pinon-40-dientes-servo-cajera.step) |
+| 12 | Piñón de 40 dientes de dirección, arrastre | 1 | [STL](models/vtitan/stl-files/pinon-40-dientes-direccion-arrastre.stl) | pendiente |
+| 13 | Servo de dirección (INJORA 14 kg) | 1 | pendiente | pendiente |
+| 14 | Piñón 90 de cruceta, 10 dientes | 4 | [STL](models/vtitan/stl-files/pinon-90-cruceta-10-dientes.stl) | [STEP](models/vtitan/step-files/pinon-90-cruceta-10-dientes.step) |
+| 15 | Piñón cónico de 20 dientes | 4 | [STL](models/vtitan/stl-files/pinon-conico-20-dientes.stl) | [STEP](models/vtitan/step-files/pinon-conico-20-dientes.step) |
+| 16 | Rolinera 3 x 7 x 2 | 8 | pendiente | [STEP](models/vtitan/step-files/rolinera-3-7-2.step) |
+| 17 | Rolinera 6.35 x 9.525 x 3.175 | 5 | pendiente | [STEP](models/vtitan/step-files/rolinera-6.35-9.525-3.175.step) |
+| 18 | Piñón de 20 dientes de rueda dentada (v2) | 4 | [STL](models/vtitan/stl-files/pinon-20-dientes-rueda-dentada-v2.stl) | pendiente |
+| 19 | Piñón cónico 15 x 8 dientes | 4 | [STL](models/vtitan/stl-files/pinon-conico-15x8-dientes.stl) | [STEP](models/vtitan/step-files/pinon-conico-15x8-dientes.step) |
+| 20 | Cámara Camera Module 3 v8 | 1 | pendiente | [STEP](models/vtitan/step-files/camera-module-3-v8.step) |
+| 21 | Batería Ovonic Air LiPo | 1 | pendiente | [STEP](models/vtitan/step-files/ovonic-air-lipo-battery.step) |
+| 22 | Raspberry Pi 5 | 1 | pendiente | [STEP](models/vtitan/step-files/raspberry-pi-5.step) |
+| 23 | RPLiDAR C1 | 1 | pendiente | [STEP](models/vtitan/step-files/rplidar-c1.step) |
+| 24 | Suplemento de bancada de motor pequeño | 1 | [STL](models/vtitan/stl-files/suplemento-de-bancada-motor-pequeno.stl) | pendiente |
+| 25 | Motor REV-41-1600 | 1 | pendiente | pendiente |
+| 26 | Engranaje unificado de motor REV, 36 dientes | 1 | [STL](models/vtitan/stl-files/engranaje-unificado-motor-rev-36-dientes.stl) | pendiente |
+| 27 | Tapa de bancada de motor REV | 1 | [STL](models/vtitan/stl-files/tapa-de-bancada-motor-rev.stl) | pendiente |
+| 28 | Brazo de tensor v2 largo | 1 | [STL](models/vtitan/stl-files/brazo-de-tensor-v2-largo.stl) | pendiente |
+| 29 | Rodillo tensor v2 | 2 | [STL](models/vtitan/stl-files/rodillo-tensor-v2.stl) | pendiente |
+| 30 | Brazo de tensor v3 | 1 | [STL](models/vtitan/stl-files/brazo-de-tensor-v3.stl) | pendiente |
+| 31 | Soporte superior | 1 | [STL](models/vtitan/stl-files/soporte-superior.stl) | [STEP](models/vtitan/step-files/soporte-superior.step) |
+| 32 | Carcasa de la cámara | 1 | pendiente | pendiente |
+| 33 | Soporte inferior de cámara | 1 | [STL](models/vtitan/stl-files/soporte-camara-inferior.stl) | pendiente |
+| 34 | Soporte de cámara superior | 1 | [STL](models/vtitan/stl-files/soporte-camara-superior.stl) | pendiente |
+| 35 | Soporte de cámara, brazo intermedio | 1 | [STL](models/vtitan/stl-files/soporte-camara-brazo-intermedio.stl) | pendiente |
+| 36 | Raspberry Pi Zero 2 W | 1 | pendiente | pendiente |
+| 37 | Klunox | 1 | pendiente | pendiente |
+| 38 | Sensor de color APDS9960 | 1 | pendiente | pendiente |
+| 39 | Puente H IBT-2 (BTS7960) | 1 | pendiente | pendiente |
+
+> [!NOTE]
+> **pendiente** significa que el archivo todavía no está publicado en `models/` y queda por agregar.
 
 El conjunto se ordena en tres capas: el **chasis inferior** perforado sostiene el motor y el servomotor en sus encajes centrales; sobre él se monta el **tren de transmisión** (correas dentadas hacia los dos ejes, y de cada eje a los engranajes cónicos de cada rueda); y el **monochasis** cierra el conjunto y fija la electrónica. Los ejes usan pernos de transmisión de LEGO, elegidos por su ajuste rígido y porque evitan mecanizar un eje a medida.
 
