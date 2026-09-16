@@ -34,7 +34,7 @@ not a summary of the code.
 | pass side / routing | `diag_bag_pass_*.py`, `diag_bag_pair_crossing*.py`, `diag_bag_cross_attempt.py`, `diag_bag_exec_failures.py`, `diag_bag_side_correction_outcome.py`, `diag_bag_reverse_budget.py`, `diag_bag_lane_reconstruct.py` | did the router command the legal side, and did the chassis get there; separate routing from execution |
 | signs | `diag_bag_sign_*.py`, `diag_bag_green_loss.py`, `diag_bag_colour_split.py` | discovery, colour voting, track birth, believed-layout reconstruction |
 | commitment | `diag_bag_commit_*.py` | when and why the router committed to a sign |
-| escape / stuck | `diag_bag_escape*.py`, `diag_bag_dwell_loop.py`, `diag_bag_creep_stall.py`, `diag_bag_blend_reachability.py` | the reactive layer: when it fires, which side, and what it buys |
+| escape / stuck | `diag_bag_escape*.py`, `diag_bag_dwell_loop.py`, `diag_bag_creep_stall.py`, `diag_bag_blend_reachability.py` | the reactive layer: when it fires, which side, and what it buys. `diag_bag_escape_counter.py` prices the escalation ladder, which never reaches its third attempt |
 | bay / parking | `diag_bag_bay_*.py`, `diag_bag_barrier_gate.py`, `diag_bay_slip.py`, `diag_bag_parking_attempts.py` | the pocket and parking manoeuvres |
 | contact / clearance | `diag_bag_contact_*.py`, `diag_bag_proximity.py`, `diag_bag_side_ray_robustness.py`, `diag_bag_subfloor_ranges.py`, `diag_bag_wedge_trace.py`, `diag_bag_scan_occupancy.py` | how close contact came, and LIDAR dropouts under it |
 | localizer / LIDAR | `diag_localizer_*.py`, `diag_bag_localizer_divergence.py`, `diag_bag_lidar_proposer.py`, `diag_bag_mask_*.py`, `diag_bag_rear_sector_measured.py`, `diag_bag_lidar_frame_census.py`, `diag_bag_yaw_frame_offset.py`, `diag_yaw_flip_replay.py` | pose and scan matching against the believed track; the census prints BOTH frames, because the mount offset was read wrong once |
@@ -55,7 +55,7 @@ same one-script-one-question rule.
 |---|---|---|
 | Open Challenge population | `diag_open_*.py` | direction, laps, narrow corridors, corner geometry over the 640-case space |
 | sign routing | `diag_sign_*.py` | lane building, pass side, hits, pairs, and router-flag A/Bs |
-| A/B tuning harnesses | `diag_today_stack_ab.py`, `diag_vision_range_ab.py` | the same sample under two tunings, with the control printed |
+| A/B tuning harnesses | `diag_today_stack_ab.py`, `diag_vision_range_ab.py`, `diag_sign_slot_ab.py` | the same sample under two tunings, with the control printed; the slot-map A/B compares failing SETS, not counts |
 | bay / parking | `diag_bay_*.py`, `diag_park_*.py`, `diag_pair_cells.py` | pocket entry/exit and parking feasibility |
 | escape / blend | `diag_escape_*.py`, `diag_flush_*.py` | escape duration and side-correction blends |
 | localizer / LIDAR | `diag_localization.py`, `diag_sim_lidar_proposer.py` | pose recovery and the LIDAR cluster proposer |
