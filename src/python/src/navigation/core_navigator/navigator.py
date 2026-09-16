@@ -1844,6 +1844,15 @@ class CoreNavigator(EscapeRecovery):
                 and self._tuning.sign_router.retrace_escape
                 and self._retrace_steer(robot_x, robot_y, robot_yaw) is not None
             )
+            if maneuver:
+                maneuver = self._decline_lock_into_tail(
+                    maneuver,
+                    scan,
+                    robot_x,
+                    robot_y,
+                    robot_yaw,
+                    self._sign_router.routed_sign_positions_by_corridor if self._sign_router is not None else (),
+                )
             if maneuver and self._reversing_into_unseen_wall(maneuver, scan):
                 # Blocked at both ends: fall through to the capped creep-speed
                 # publish below rather than backing into an unseen wall. The

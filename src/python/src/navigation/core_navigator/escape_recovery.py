@@ -15,7 +15,8 @@ import math
 from dataclasses import replace
 from typing import TYPE_CHECKING
 
-from shared.domain.enums import NavigatorPhase
+from shared.config.constants import RobotSpecs, TrafficSignSpecs
+from shared.domain.enums import NavigatorPhase, Section
 from shared.domain.models import NavigatorDebugSnapshot, Pose, Waypoint
 
 from src.navigation.control.controllers import (
@@ -24,12 +25,13 @@ from src.navigation.control.controllers import (
     bumper_gap_ahead,
     bumper_gap_behind,
 )
+from src.navigation.control.controllers.collision_avoidance.sectors import ranges_beyond_chassis
 from src.navigation.ports import DriveCommand, LidarScan
 from src.navigation.utils import trail_clearance_behind
 
 if TYPE_CHECKING:
     from collections import deque
-    from collections.abc import Callable
+    from collections.abc import Callable, Sequence
 
     from shared.config.navigation_tuning import NavigationTuning
     from shared.config.navigation_tuning.escape import EscapeManeuverParams
@@ -206,6 +208,120 @@ class EscapeRecovery:
             fits,
         )
         return replace(maneuver, duration_frames=fits)
+
+    def _decline_lock_into_tail(
+        self,
+        maneuver: EscapeManeuver,
+        scan: LidarScan,
+        robot_x: float,
+        robot_y: float,
+        robot_yaw: float,
+        known_xy: Sequence[tuple[Waypoint, Section]],
+    ) -> EscapeManeuver:
+        """Reverse STRAIGHT instead of locked when the tail would sweep into something.
+
+        Ackermann reverse with the wheels turned toward one side backs the rear
+        axle along an arc curving to THAT side while the nose swings the other
+        way, so the tail moves back and sideways into the lane beside its own
+        flank. The wanted-side gate in ``_k_turn_steer_sign`` checks the side the
+        nose goes to; nothing checked the strip the tail sweeps, which is where
+        the pillar the chassis was passing sits when the wall ahead fires the
+        escape. Measured on the corpus: five of six pillar pushes accrued IN
+        REVERSE, the locked K-turn shoving a pillar at 100-135 deg of bearing
+        and 0.19-0.24 m from the chassis centre 6-57 mm per manoeuvre, while a
+        straight reverse from the same pose clears it by ~8 cm.
+
+        The swept strip, in the chassis frame: from the rear bumper back by the
+        manoeuvre's own reverse distance, and sideways from the tail-side flank
+        out by ``k_turn_tail_clearance_m``. A strip rather than a quadrant so a
+        corridor wall running parallel to the chassis at a normal lateral gap
+        does not count -- the tail curves a few centimetres toward it and clears
+        it, and declining on it stalls the escape the corridor needs.
+
+        Two sources, because the pillar sits in the LIDAR's rear occlusion band
+        far more often than not: the raw scan with self-returns removed, and the
+        mapped sign positions the router already owns (shrunk by the pillar's
+        half-width, since the map holds the centre). Straight reverse is the
+        K-turn's own answer to a shut wanted side, so the downstream behaviour
+        (no side learned, escalation base kept) is already defined.
+
+        This is the operator's rule applied to the manoeuvre rather than the
+        trigger: do not attempt what does not fit, back up straight to make the
+        room, and let the planner re-approach.
+        """
+        reach = self._escape.k_turn_tail_clearance_m
+        if reach <= 0.0 or maneuver.speed >= 0.0 or maneuver.steering == 0.0 or self._retracing:
+            return maneuver
+        if maneuver.maneuver_type is not ManeuverType.K_TURN:
+            return maneuver
+        tail_side = 1.0 if maneuver.steering > 0.0 else -1.0  # +1 = tail curves LEFT
+        reverse_m = abs(maneuver.speed) * maneuver.duration_frames / self._tuning.control.control_hz
+        along_min = -(RobotSpecs.LENGTH / 2 + reverse_m)
+        along_max = 0.0
+        lateral_max = RobotSpecs.WIDTH / 2 + reach
+
+        def inside(px: float, py: float, shrink: float = 0.0) -> bool:
+            lateral = tail_side * py - shrink
+            return along_min <= px <= along_max and 0.0 <= lateral <= lateral_max
+
+        nearest = math.inf
+        what = ""
+        ranges = ranges_beyond_chassis(
+            scan.ranges_m, scan.angles_rad, self._tuning.sign_router.escape_mask_chassis_margin_m
+        )
+        for r, a in zip(ranges, scan.angles_rad, strict=True):
+            if not math.isfinite(r) or r < self._tuning.lidar_sectors.min_valid_range_m:
+                continue
+            if r >= self._tuning.lidar_sectors.no_data_range_m:
+                continue
+            # Sensor frame to chassis-centre frame: the LIDAR sits ahead of centre.
+            px = r * math.cos(a) + RobotSpecs.LIDAR_MOUNT_X_OFFSET
+            py = r * math.sin(a)
+            if inside(px, py):
+                d = math.hypot(px, py)
+                if d < nearest:
+                    nearest, what = d, "scan"
+        cos_y, sin_y = math.cos(-robot_yaw), math.sin(-robot_yaw)
+        half_sign = TrafficSignSpecs.WIDTH / 2
+        for point, _section in known_xy:
+            dx, dy = point.x - robot_x, point.y - robot_y
+            px = dx * cos_y - dy * sin_y
+            py = dx * sin_y + dy * cos_y
+            if inside(px, py, shrink=half_sign):
+                d = math.hypot(px, py)
+                if d < nearest:
+                    nearest, what = d, "mapped sign"
+        if not math.isfinite(nearest):
+            return maneuver
+        # Only trade the lock for a straight reverse that can actually run. When
+        # the rear room is under one minimum K-turn, ``_fit_reverse_to_rear_gap``
+        # would cut the straight leg to a few frames that deliver nothing, and
+        # the corpus shows what follows: a stutter of 0.1 s reverses, then the
+        # stuck nudge drives FORWARD into the pillar ahead. Between two
+        # manoeuvres that both touch something, the one that at least rotates
+        # the nose away is the lesser harm, so the lock stands.
+        rear = self._collision_controller.rear_sector(scan.ranges_m, scan.angles_rad)
+        if rear.measured:
+            room = bumper_gap_behind(rear.min_range_m) - self._clearance.contact_dist
+            straight_min = abs(maneuver.speed) * self._escape.k_turn_min_frames(self._tuning.control.control_hz) / self._tuning.control.control_hz
+            if room < straight_min:
+                logger.info(
+                    "Locked K-turn kept despite %s %.2f m beside the tail: straight reverse has %.2f m of rear room, under %.2f",
+                    what,
+                    nearest,
+                    room,
+                    straight_min,
+                )
+                return maneuver
+        logger.info(
+            "Locked K-turn declined: %s %.2f m in the strip the tail sweeps (%s, %.2f m back, %.2f m out) - reversing straight",
+            what,
+            nearest,
+            "left" if tail_side > 0 else "right",
+            reverse_m,
+            reach,
+        )
+        return replace(maneuver, steering=0.0)
 
     def _trail_confirms_reverse(self, reverse_distance: float) -> bool:
         """Whether the pose trail vouches for a reverse of ``reverse_distance``.

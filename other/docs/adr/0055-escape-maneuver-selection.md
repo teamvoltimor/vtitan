@@ -126,6 +126,18 @@ in-time / 28 laps>=3 / 9 timed out; 1.8 gave 29 / 34 / 0; 2.3 gave 31 / 33 / 0;
   module constant.
 - 2026-09-05: `min_history_for_distance` written out from a Python literal; the
   shipped value was unchanged, so naming it changed nothing.
+- 2026-09-16: decline the locked K-turn when the TAIL would sweep into
+  something (`k_turn_tail_clearance_m`, Obstacles 0.10 m of lateral reach beyond
+  the flank, Open off). In reverse the tail curves toward the steer side while
+  the nose swings away; the wanted-side gate in 0050 checks the nose side only.
+  A swept STRIP (rear bumper back by the reverse distance, flank out by the
+  reach), not a quadrant: a quadrant at 0.30 m declined on parallel corridor
+  walls and broke 0001 and 0014. Sources are the raw scan with self-returns
+  removed AND the mapped sign positions, because the pillar beside the tail sits
+  in the rear occlusion band. Kept locked when the rear room is under one
+  minimum K-turn: the straight leg would be cut to a stutter and the stuck nudge
+  then drove FORWARD into the pillar ahead (0014). Straight reverse is the same
+  answer the K-turn already gives to a shut wanted side.
 
 ## Cross-references
 
@@ -226,6 +238,14 @@ in-time / 28 laps>=3 / 9 timed out; 1.8 gave 29 / 34 / 0; 2.3 gave 31 / 33 / 0;
 - The cases reaching two or more are the ones whose reverse leg was squeezed by
   the rear-gap fit, so the ladder counts a BLOCKED escape and forgets a free one;
   it escalates on the robot that cannot move, not the robot losing the rounds.
+- Tail swing, 2026-09-16, corpus at baseline 25: of the six pillar-push failures
+  five accrued most of the displacement IN REVERSE during a locked K-turn fired by
+  the wall ahead (trigger bearing -26 to +29 deg), the pillar being passed sitting
+  at 100-135 deg of bearing and 0.19-0.24 m from the chassis centre, shoved 6-57
+  mm per manoeuvre; the same pose reversed straight clears it by about 8 cm. The
+  four scenarios `dfdb23dc` broke (0005, 0006, 0010, 0012) and 0004 complete with
+  the gate on; 0009 does not, its pillar is unmapped at 0.35 m inside the blind
+  band and an ESCALATED (doubled) K-turn sweeps 72 deg into it.
 - K-turn trap, 2026-09-14: the escalated manoeuvre feeds the K-turn, and the
   K-turn was measured turning against the plan on 57 percent of episodes, so make
   the response right before making the ladder reachable.

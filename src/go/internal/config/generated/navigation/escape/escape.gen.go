@@ -65,6 +65,15 @@ type NavigationEscapeEscape struct {
 	// Maximum K-turn duration (CRITICAL risk)
 	KTurnMaxS float64 `json:"k_turn_max_s" yaml:"k_turn_max_s" mapstructure:"k_turn_max_s"`
 
+	// Decline the locked K-turn and reverse STRAIGHT when anything (raw scan or a
+	// mapped sign) sits in the strip the TAIL sweeps: from the rear bumper back by the
+	// manoeuvre's reverse distance, and out from the tail-side flank by this lateral
+	// reach (m). In reverse the tail curves toward the steer side while the nose
+	// swings away; the wanted-side gate only checks the nose side. Kept locked when
+	// the rear room is under one minimum K-turn, since the straight leg would be cut
+	// to nothing. 0 disables.
+	KTurnTailClearanceM float64 `json:"k_turn_tail_clearance_m" yaml:"k_turn_tail_clearance_m" mapstructure:"k_turn_tail_clearance_m"`
+
 	// Minimum K-turn duration (s) at OBSTACLE risk; converted to control ticks at
 	// load.
 	KTurnMinS float64 `json:"k_turn_min_s" yaml:"k_turn_min_s" mapstructure:"k_turn_min_s"`
@@ -86,6 +95,11 @@ type NavigationEscapeEscape struct {
 	// Obstacles-only override of k_turn_fit_rear_gap: cap the K-turn reverse by the
 	// rear room the LIDAR actually measures.
 	ObstaclesKTurnFitRearGap bool `json:"obstacles_k_turn_fit_rear_gap" yaml:"obstacles_k_turn_fit_rear_gap" mapstructure:"obstacles_k_turn_fit_rear_gap"`
+
+	// Obstacles-only override of k_turn_tail_clearance_m: the pillar the chassis is
+	// passing sits beside the rear flank, inside the LIDAR's rear occlusion band, so
+	// the mapped sign positions are often the only thing that can see it.
+	ObstaclesKTurnTailClearanceM float64 `json:"obstacles_k_turn_tail_clearance_m" yaml:"obstacles_k_turn_tail_clearance_m" mapstructure:"obstacles_k_turn_tail_clearance_m"`
 
 	// Obstacles value for side_correction_follows_committed_sign; only Obstacles has
 	// a committed pass side. SHIPS ON, and it is the key that carries the effect:

@@ -14,8 +14,9 @@ from dataclasses import replace
 
 import numpy as np
 import pytest
-from shared.config.constants import RobotSpecs
+from shared.config.constants import RobotSpecs, TrafficSignSpecs
 from shared.config.navigation_tuning import NavigationTuning
+from shared.domain.enums import Section
 from shared.domain.models import Detection, IMUReading, Pose, SignColor, Waypoint
 
 from src.config.tuning_helpers import tuning_with_overrides
@@ -905,3 +906,127 @@ class TestDwellGate:
             if nav._maybe_dwell_flip(self._maneuver(), 0.06, 0.0).steering < 0:
                 fires += 1
         assert fires == cap, "a fourth switch in the same place is not the missing ingredient"
+
+
+class TestLockedKTurnDeclinesIntoTheTail:
+    """A locked reverse must not swing the TAIL into something beside it.
+
+    In reverse the nose swings toward the steer side and the tail the other
+    way. The wanted-side gate in ``_k_turn_steer_sign`` checks the nose side;
+    nothing checked the rear quadrant the tail sweeps, which is where the
+    pillar the chassis was passing sits when the wall ahead fires the escape.
+    Measured on the corpus: five of six pillar pushes accrued in that swing.
+    ``k_turn_tail_clearance_m`` declines the lock and reverses straight, the
+    K-turn's existing answer to a shut wanted side. Obstacles only.
+    """
+
+    _POSE = Pose(x=1.5, y=0.5, yaw=0.0)
+
+    @staticmethod
+    def _front_blocked() -> LidarScan:
+        return LidarScan(ranges_m=tuple(create_scan_with_sectors(front=0.06)), angles_rad=tuple(ANGLES))
+
+    @staticmethod
+    def _navigator(waypoints, tuning, scan, *, obstacles: bool) -> CoreNavigator:
+        gateway = FakeGateway(Pose(x=1.5, y=0.5, yaw=0.0), scan)
+        router = (
+            SignRouter(
+                [SignSpec(x=50.0, y=50.0, color=SignColor.RED)],
+                config=SignRouterConfig.from_tuning(tuning.sign_router),
+            )
+            if obstacles
+            else None
+        )
+        return CoreNavigator(
+            gateway=gateway, waypoints=waypoints, num_laps=1, tuning=tuning, sign_router=router
+        )
+
+    @staticmethod
+    def _locked_k_turn(tuning, sign: float) -> EscapeManeuver:
+        return EscapeManeuver(
+            maneuver_type=ManeuverType.K_TURN,
+            steering=sign * tuning.escape.rev_steer_norm(),
+            speed=tuning.escape.rev_speed,
+            duration_frames=tuning.escape.k_turn_max_frames(tuning.control.control_hz),
+        )
+
+    def _pillar(self, along_m: float, left_m: float) -> list[tuple[Waypoint, Section]]:
+        """A mapped sign at chassis-frame (``along_m``, ``left_m``) for a yaw-0 pose."""
+        return [(Waypoint(self._POSE.x + along_m, self._POSE.y + left_m), Section.NORTH)]
+
+    def test_obstacles_declines_the_lock_when_a_mapped_pillar_sits_beside_the_tail(self, waypoints, tuning):
+        scan = self._front_blocked()
+        nav = self._navigator(waypoints, tuning, scan, obstacles=True)
+        maneuver = self._locked_k_turn(tuning, +1.0)  # nose swings right, tail swings LEFT
+
+        declined = nav._decline_lock_into_tail(maneuver, scan, 1.5, 0.5, 0.0, self._pillar(-0.07, 0.19))
+
+        assert declined.steering == 0.0, "rear-left pillar beside the flank is inside the strip the tail sweeps"
+        assert declined.speed == maneuver.speed
+        assert declined.duration_frames == maneuver.duration_frames
+
+    def test_a_wall_ahead_of_the_rear_bumper_line_is_not_the_tail_strip(self, waypoints, tuning):
+        scan = self._front_blocked()
+        nav = self._navigator(waypoints, tuning, scan, obstacles=True)
+        maneuver = self._locked_k_turn(tuning, +1.0)
+
+        # Same lateral offset, but level with the FRONT axle: the nose swings
+        # away from it and the tail never reaches it.
+        assert nav._decline_lock_into_tail(maneuver, scan, 1.5, 0.5, 0.0, self._pillar(+0.10, 0.19)) == maneuver
+
+    def test_a_pillar_on_the_nose_side_does_not_decline(self, waypoints, tuning):
+        scan = self._front_blocked()
+        nav = self._navigator(waypoints, tuning, scan, obstacles=True)
+        maneuver = self._locked_k_turn(tuning, +1.0)
+
+        # Same pillar mirrored to the rear-RIGHT: the tail swings away from it.
+        assert nav._decline_lock_into_tail(maneuver, scan, 1.5, 0.5, 0.0, self._pillar(-0.07, -0.19)) == maneuver
+
+    def test_a_pillar_beyond_the_limit_does_not_decline(self, waypoints, tuning):
+        scan = self._front_blocked()
+        nav = self._navigator(waypoints, tuning, scan, obstacles=True)
+        maneuver = self._locked_k_turn(tuning, +1.0)
+        reach = tuning.escape.for_obstacles_challenge().k_turn_tail_clearance_m
+        beyond = RobotSpecs.WIDTH / 2 + reach + TrafficSignSpecs.WIDTH / 2 + 0.05
+
+        assert nav._decline_lock_into_tail(maneuver, scan, 1.5, 0.5, 0.0, self._pillar(-0.07, beyond)) == maneuver
+
+    def test_a_raw_return_beside_the_tail_declines_without_a_map(self, waypoints, tuning):
+        # 0.25 m at +140 deg from the sensor lands at (-0.07, 0.16) from the
+        # chassis centre: beside the rear-left flank, outside the body, inside
+        # the strip the tail sweeps.
+        base = create_scan_with_sectors(front=0.06)
+        ranges = [
+            0.25 if abs(a - math.radians(140.0)) < math.radians(3.0) else r
+            for r, a in zip(base, ANGLES, strict=False)
+        ]
+        scan = LidarScan(ranges_m=tuple(ranges), angles_rad=tuple(ANGLES))
+        nav = self._navigator(waypoints, tuning, scan, obstacles=True)
+        maneuver = self._locked_k_turn(tuning, +1.0)
+
+        assert nav._decline_lock_into_tail(maneuver, scan, 1.5, 0.5, 0.0, []).steering == 0.0
+
+    def test_the_lock_stands_when_the_straight_reverse_has_no_room(self, waypoints, tuning):
+        # Rear arc reading a gap under one minimum K-turn: the straight leg
+        # would be cut to a few frames by the rear-gap fit and deliver nothing,
+        # so the lock is the lesser harm and is kept.
+        sectors = tuning.lidar_sectors
+        zones = tuning.clearance.for_obstacles_challenge()
+        rear_range = RobotSpecs.LIDAR_TO_REAR_BUMPER + zones.contact_dist + 0.02
+        base = create_scan_with_sectors(front=0.06)
+        ranges = [
+            rear_range if abs(wrap_angle(a - math.pi)) <= math.radians(sectors.threat_half_fov_deg) else r
+            for r, a in zip(base, ANGLES, strict=False)
+        ]
+        scan = LidarScan(ranges_m=tuple(ranges), angles_rad=tuple(ANGLES))
+        nav = self._navigator(waypoints, tuning, scan, obstacles=True)
+        maneuver = self._locked_k_turn(tuning, +1.0)
+
+        assert nav._decline_lock_into_tail(maneuver, scan, 1.5, 0.5, 0.0, self._pillar(-0.07, 0.19)) == maneuver
+
+    def test_open_challenge_is_untouched(self, waypoints, tuning):
+        scan = self._front_blocked()
+        nav = self._navigator(waypoints, tuning, scan, obstacles=False)
+        maneuver = self._locked_k_turn(tuning, +1.0)
+
+        assert nav._decline_lock_into_tail(maneuver, scan, 1.5, 0.5, 0.0, self._pillar(-0.07, 0.19)) == maneuver

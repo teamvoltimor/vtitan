@@ -106,6 +106,7 @@ class EscapeManeuverParams(NavigationEscapeEscape):
             name: obstacle_value
             for name, obstacle_value in (
                 ("k_turn_fit_rear_gap", self.obstacles_k_turn_fit_rear_gap),
+                ("k_turn_tail_clearance_m", self.obstacles_k_turn_tail_clearance_m),
                 ("escape_mirrors_reverse", self.obstacles_escape_mirrors_reverse),
                 (
                     "escape_side_follows_committed_sign",

@@ -38,6 +38,14 @@ class NavigationEscapeEscape(StrictModel):
         ...,
         description='Obstacles-only override of k_turn_fit_rear_gap: cap the K-turn reverse by the rear room the LIDAR actually measures.',
     )
+    k_turn_tail_clearance_m: float = Field(
+        ...,
+        description="Decline the locked K-turn and reverse STRAIGHT when anything (raw scan or a mapped sign) sits in the strip the TAIL sweeps: from the rear bumper back by the manoeuvre's reverse distance, and out from the tail-side flank by this lateral reach (m). In reverse the tail curves toward the steer side while the nose swings away; the wanted-side gate only checks the nose side. Kept locked when the rear room is under one minimum K-turn, since the straight leg would be cut to nothing. 0 disables.",
+    )
+    obstacles_k_turn_tail_clearance_m: float = Field(
+        ...,
+        description="Obstacles-only override of k_turn_tail_clearance_m: the pillar the chassis is passing sits beside the rear flank, inside the LIDAR's rear occlusion band, so the mapped sign positions are often the only thing that can see it.",
+    )
     slalom_reverse_s: float = Field(
         ..., description='Time spent reversing during slalom'
     )

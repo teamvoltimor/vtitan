@@ -10,6 +10,13 @@ k_turn_min_s = 0.54
 k_turn_max_s = 1.08
 k_turn_fit_rear_gap = false
 obstacles_k_turn_fit_rear_gap = true
+k_turn_tail_clearance_m = 0.0
+# ON for Obstacles since 2026-09-16: in the corpus 5 of 6 pillar pushes accrued IN REVERSE,
+# the locked K-turn (fired by the WALL ahead) backing the tail into the pillar the chassis
+# was passing, 0.15-0.20 m beside the rear flank inside the LIDAR's rear occlusion band.
+# Lateral reach beyond the flank of the strip the tail sweeps; the strip runs back by the
+# manoeuvre's own reverse distance. 0.08-0.15 give the same verdict on the 9 moving scenarios.
+obstacles_k_turn_tail_clearance_m = 0.10
 slalom_reverse_s = 0.40
 slalom_forward_s = 0.50
 stuck_move_threshold = 0.03

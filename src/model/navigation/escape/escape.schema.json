@@ -44,6 +44,16 @@
       "description": "Obstacles-only override of k_turn_fit_rear_gap: cap the K-turn reverse by the rear room the LIDAR actually measures.",
       "x-journal": "adr:0055-escape-maneuver-selection"
     },
+    "k_turn_tail_clearance_m": {
+      "type": "number",
+      "description": "Decline the locked K-turn and reverse STRAIGHT when anything (raw scan or a mapped sign) sits in the strip the TAIL sweeps: from the rear bumper back by the manoeuvre's reverse distance, and out from the tail-side flank by this lateral reach (m). In reverse the tail curves toward the steer side while the nose swings away; the wanted-side gate only checks the nose side. Kept locked when the rear room is under one minimum K-turn, since the straight leg would be cut to nothing. 0 disables.",
+      "x-journal": "adr:0055-escape-maneuver-selection"
+    },
+    "obstacles_k_turn_tail_clearance_m": {
+      "type": "number",
+      "description": "Obstacles-only override of k_turn_tail_clearance_m: the pillar the chassis is passing sits beside the rear flank, inside the LIDAR's rear occlusion band, so the mapped sign positions are often the only thing that can see it.",
+      "x-journal": "adr:0055-escape-maneuver-selection"
+    },
     "slalom_reverse_s": {
       "type": "number",
       "description": "Time spent reversing during slalom",
@@ -190,6 +200,8 @@
     "k_turn_max_s",
     "k_turn_fit_rear_gap",
     "obstacles_k_turn_fit_rear_gap",
+    "k_turn_tail_clearance_m",
+    "obstacles_k_turn_tail_clearance_m",
     "slalom_reverse_s",
     "slalom_forward_s",
     "stuck_move_threshold",
