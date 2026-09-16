@@ -147,3 +147,11 @@ state.)
   exactly the objects that stop returning after lap 0, and none disappear in the
   round described as merely nudging a pillar. The surviving parking wall reads
   1.9/2.2/2.5 returns per tick across the laps its partner reads 0.00.
+- Collision-split probe validation: on the 256 corpus a rest against a ghosted
+  parking fin read park 33 while the collision total stayed 83; with solid fins the
+  same rest matched no probe and fell through to NONE, so the split stopped summing
+  to its total (wall 49 / sign 1 / park 0 against wall 49 / sign 1 / park 33
+  ghosted).
+- Parking-reversal trace: all 9 reversals on a subset64 lane-on run landed after
+  the third lap beside the north bay, spinning about 186 deg every about 2 s with
+  laps clean; sighted park=False gave 0/64.

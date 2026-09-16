@@ -229,3 +229,11 @@ that removes reverse authorization rather than fixing it.
 - Use an early-window control (`_EARLY_WINDOW_TICKS = 400`, about 20 s and 12
   percent of a ~3300-tick in-time median run): whole-run columns fan out about 12x
   while the early ones stay flat, so escape activity is a symptom, not a cause.
+- Escape-gate census: 82.1 percent of escapes come from the forward-path gate, and
+  about 92 percent of them in every failing bucket fire outside +/-10 deg.
+- Speed-cap census: 57.5 percent of all 329,428 speed-capped ticks exist only
+  because of the 12.2 cm correction, and failing runs sit capped for 50.1 percent
+  of their ticks.
+- Method: an early version of the trigger-ray instrumentation reported a plausible
+  p50 range of 9.5 cm across all 256 runs, which through `bumper_gap_ahead` is a
+  6.7 cm gap, above the 5 cm gate, so it sampled the tick before the latch.

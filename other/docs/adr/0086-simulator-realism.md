@@ -168,3 +168,7 @@ deg approach.
   sim split them.
 - The sim error budget still does not reach the chassis's about 1.42x understeer,
   so those results stay incomparable.
+- `known_start` belief-offset isolation: blind assumes the canonical South start,
+  so a run beginning elsewhere carries a rigid belief offset (p50 1.58 m over the
+  corpus) for its whole length; `known_start` seeds from ground truth to isolate
+  it.

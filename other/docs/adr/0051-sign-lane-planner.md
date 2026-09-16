@@ -121,6 +121,11 @@ centre bias the corridor width selected (ADR 0028). It must never flatten that.
   blind 99 to 102, collisions 20 to 17; Open 128/128 both arms. Retracts the
   deform-sense evidence: `sign_deform_magnitude_m` is a counterfactual under
   suppression, computed unconditionally and never applied.
+- Blind subset64 lane arm: OFF 64/64 collisions, laps>=3 1, in-time 0; lane ON
+  59/64, laps>=3 5, in-time 3, against a sighted 234 to 70 over the corpus.
+- At offset_frac 1.0 a centred sign pins the lane on the clamp floor for a whole
+  straight (wall 3 to 23); raising `lateral_offset` to 0.33 bought sign hits back
+  at 12 new wall hits.
 
 ## Cross-references
 
@@ -278,3 +283,7 @@ centre bias the corridor width selected (ADR 0028). It must never flatten that.
   medians and steering flips: the robot can reach a contact-free offset and then
   give it back into contact, which separates a hunting controller from one that
   never got there.
+- `sign_aware_speed` slows within 1.40 m of every sign, and in-time is only
+  27/256 to begin with.
+- Retracing rather than swinging the reverse keeps the mask-off sign gain (sign
+  57 to 41) without its 13 wall collisions.

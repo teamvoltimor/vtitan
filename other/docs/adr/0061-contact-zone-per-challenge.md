@@ -117,3 +117,5 @@ of the K-turn reduction while keeping 7 cm of stopping room rather than 4 cm.
   first CRITICAL tick, accumulate pose path length and the `forward_clearance_m`
   gap consumed until standstill or reversal. The reverse gap leaves about 8 mm
   against a 0.078 m bumper and cannot clear a 2.7 cm stuck detector.
+- Escape-gate sweep pre-registration on 256: primary pass-side 122/256, wall guard
+  17, secondary clean laps>=3 76.

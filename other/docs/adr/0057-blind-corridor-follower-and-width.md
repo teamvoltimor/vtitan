@@ -129,6 +129,11 @@ mistake and it wrongly excluded the 0.10 arm.
   (0.8 / 0.8 / 0.25); the 270 deg servo (55 to 85 deg at the road wheel)
   multiplied all three by 1.55x, so the unit refactor froze the old fractions at
   their 55 deg values and a servo swap can no longer retune the loop.
+- 2026-08-29: the corner-steer split shipped on an Open result alone (96 to
+  125/128).
+- 2026-08-27: the Obstacles reference row was 127/256 and predates the yaw_gain
+  calibration, and its mode was never recorded, so later collision counts (for
+  example 169) are not comparable to it.
 
 ## Cross-references
 
@@ -220,3 +225,5 @@ mistake and it wrongly excluded the 0.10 arm.
   runs, measuring speed rather than stalling.
 - A CW bag ran crosstrack 0.09 to 0.15 through the corner, never crossed the
   0.30 `LOOKAHEAD_TRANSITION`, and the robot ended 0.10 m from the wall.
+- Centring-zero standing cost: the creep traverses a corridor pinned about 0.18 m
+  off one wall and enters corner 1 from there.

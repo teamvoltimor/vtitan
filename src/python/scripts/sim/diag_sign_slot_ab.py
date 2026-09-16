@@ -15,8 +15,7 @@ evidence is worth freezing.
 THREE ARMS, and they are not interchangeable:
 
 * ``ev=X`` raises the publication floor. Costs anticipation -- the sign is
-  published later, and the 2026-09-11 budget put 62% of the missing 1.4 m of
-  anticipation in perception already.
+  published later.
 * ``margin=M`` requires the winning colour to beat the runner-up by M before the
   cell has a colour at all. Refuses to guess rather than delaying.
 * ``thaw=X`` leaves publication untouched and narrows the FREEZE: a committed
@@ -29,45 +28,16 @@ Arms combine: ``thaw=1.5,margin=0.5``.
 ``ctl`` is the control and should be run in every session. It sets the floor to
 an impossible value so NOTHING publishes, and it must therefore fail everywhere.
 An arm list without it cannot tell "this knob does nothing" from "this patch is
-not on the path" -- and that distinction has already cost this repo a night:
-the first version of this A/B patched ``sign_discovery.ObservedSignMap``, which
-the production router no longer uses, and returned byte-identical output that
-read as a clean refutation.
+not on the path". The first version of this A/B patched a map the production
+router no longer uses and returned byte-identical output that read as a clean
+refutation.
 
-MEASURED 2026-09-15 on the committed 16, fail = collision, wrong-side pass, or
-under 3 laps::
+The measured outcome of these arms is recorded in adr:0088.
 
-    base                 7   (0000 0003 0004 0008 0009 0013 0014)
-    ctl                 16   control fails everywhere, as it must
-    ev=1.5               9   fixes 0000 0013, breaks 0006 0007 0010 0012
-    ev=2.0              10   the same, plus 0011
-    margin=0.5           6   fixes 0013, breaks nothing
-    thaw=1.5             7   identical to base
-    thaw=3.0             5   fixes 0000 0013, breaks nothing
-    thaw=1.5,margin=0.5  6   fixes 0013, breaks nothing
-
-Those numbers are HISTORY. Every one of them was measured while the simulator's
-LIDAR occlusion band sat 180 degrees from where the chassis puts it.
-
-RE-MEASURED 2026-09-16 on the corrected band (commit c8b1ae79), same 16
-fixtures, same fail rule::
-
-    base          5   0003 0004 0005 0009 0014
-    ctl          16   control fails everywhere, as it must
-    thaw=3.0      6   fixes nothing, BREAKS 0008
-    margin=0.5    6   fixes nothing, BREAKS 0008
-
-So the arm is REFUTED, and the way it died is worth keeping. Its entire 7 -> 5
-was 0000 and 0013, and the band correction fixes both by another route -- they
-pass at base now. What is left of the colour mechanism is 0008, which no arm
-ever fixed (the robot is on top of the first pillar at 5 s with a single view),
-and both arms now turn it from a pass into a failure. A knob measured against a
-broken baseline was not merely overstated here; its sign flipped.
-
-Do not ship ``slot_colour_thaw_evidence`` on the strength of the old table.
-
-Comparison is by SET, not by count. Two arms that both fail seven scenarios are
-not the same arm, and a table of counts cannot say so.
+Output is compared by SET, not by count. Two arms that both fail seven scenarios
+are not the same arm, and a table of counts cannot say so. Each arm prints its
+failing count and set, then the fixtures it fixes and breaks against the first
+arm, each named by its four-digit fixture number.
 
 WHY THIS PATCHES CLASSES instead of setting a flag, which the repo otherwise
 avoids: ``diag_sign_router_flag_ab.py`` already A/Bs any BOOLEAN

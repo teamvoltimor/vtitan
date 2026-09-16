@@ -38,6 +38,9 @@ only 1.00, 1.50 or 2.00; lateral only 0.40, 0.60, 2.40 or 2.60; a section holds 
 apart; 1211 of 1282 signs sit at a section boundary and 0 of 1282 in a corner.
 These are strong enough to plan against: corners are guaranteed free runway.
 
+The counts behind that invariant: 604 signs at depth 1.00, 71 at 1.50 and 607 at
+2.00, none elsewhere.
+
 The clearance budget at a pass: a squeezed plateau leaves a 0.1814 m lane-to-sign
 gap. The simulator collides by exact SAT on the oriented chassis, so the required
 gap is `0.15*|sin yaw| + 0.097*|cos yaw| + 0.025`. At zero yaw the budget is
@@ -103,3 +106,13 @@ narrower chassis.
 - Judging by the robot's `current_corridor` instead of the sign's settled corridor
   reported about 21 routing errors in competition and 22 in practice, where the
   sign's corridor reported 1 and 0.
+- Crosstrack tail: a FREE sign carried about 10.6 cm of margin at the median
+  collision yaw; a collision there needs an excursion far past the 6.55 cm p90,
+  against a 19.96 cm worst-case-yaw requirement.
+- The 21 cm band reads 21.97 cm at passes against 21.11 cm at collisions inside
+  the one arc bucket; collisions land ON a bend vertex (bend gap p90 0.00 cm
+  against 44.79 cm), always the r=0.35 m bends a 1.0 m corridor plans, never
+  r=0.15 m of a 0.6 m one. Landing at a corner entry describes 99.4 percent of
+  collisions and 79.5 percent of passes (about 154 against 445).
+- An untouched centreline is not 0 but about -0.4 to -0.6, since WRO signs sit
+  10 cm off-centre toward the forbidden side.

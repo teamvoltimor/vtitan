@@ -42,6 +42,11 @@ less of hardware ticks, so it cannot move the alternation it was written for);
 `sign_lane_skip_unsatisfiable = false`; `advance_past_passed_waypoint = false`;
 `stale_target_rescue = false`; `sign_contact_evade`, `sign_lidar_align`.
 
+`slot_colour_thaw_evidence` (the slot-map colour A/B) is REFUTED and must not be
+shipped on the pre-correction table: re-measured on the corrected LIDAR occlusion
+band the old fixture-failure gain disappears and the arm's sign flips. A knob
+measured against a broken baseline did not merely overstate.
+
 ## Consequences
 
 - A refuted knob cannot silently become live; its measurement is one grep away.
@@ -66,6 +71,22 @@ less of hardware ticks, so it cannot move the alternation it was written for);
 - b982e109 2026-09-13: create ADR 0047.
 - f5fa3a61 2026-09-14: correct what `retrace_escape` is and which evidence refuted
   it.
+- `slow_dist` sweep, 256 corpus blind, in-time/clean/laps>=3/wall/park/timeouts/
+  stuck: 0.35 65/114/158/25/19/106/28; 0.25 62/112/159/30/19/110/26 (shipped);
+  0.20 65/108/153/30/17/108/29; 0.15 67/112/154/29/15/105/32; 0.13
+  64/110/155/31/15/107/30. In-time spans 62 to 67 over a 2.7x threshold range with
+  no ordering; timeouts and wall flat.
+- 2026-09-15: `slot_colour_thaw_evidence` A/B on 16 Obstacles fixtures, fail =
+  collision, wrong-side pass or under 3 laps. base 7 failing, ctl 16, `ev=1.5` 9,
+  `ev=2.0` 10, `margin=0.5` 6, `thaw=1.5` 7, `thaw=3.0` 5, `thaw=1.5,margin=0.5`
+  6. All measured while the simulator's LIDAR occlusion band sat 180 deg from where
+  the chassis puts it.
+- c8b1ae79 2026-09-16: re-measure the same 16 fixtures and fail rule on the
+  corrected band. base 5 (0003 0004 0005 0009 0014), ctl 16, `thaw=3.0` 6,
+  `margin=0.5` 6. The arm is REFUTED: its old 7 to 5 was entirely 0000 and 0013,
+  which the band correction fixes by another route (both pass at base now); the
+  only colour failure left is 0008, which no arm ever fixed (single view at 5 s on
+  top of the first pillar), and both arms now turn it from a pass into a failure.
 
 ## Cross-references
 
@@ -149,3 +170,13 @@ less of hardware ticks, so it cannot move the alternation it was written for);
 - `sign_lidar_propose` A/B, 16 fixtures x 6 seeds x 2 arms, blind: off in-time 59 /
   laps>=3 71 / collided 18 / pass-side 0; on 58 / 66 / 23 / 0. The off arm
   reproduces the `VISION_RANGE_MODEL` sweep's on arm (59/71/18/0).
+- The c8b1ae79 LIDAR band correction moves this A/B's fixture failures 7 to 5
+  while 0086 records the same correction moving the corpus 28 to 22; do not
+  conflate the two counts.
+- The first version of the slot-colour A/B patched
+  `sign_discovery.ObservedSignMap`, which the production router no longer uses,
+  and returned byte-identical output that read as a clean refutation; that is why
+  `ctl` is a mandatory arm.
+- The budget put 62 percent of the missing 1.4 m of anticipation in perception
+  already (2026-09-11 `ev=X` rationale); 0051 records the 1.4 m decay, not this
+  split.

@@ -16,11 +16,11 @@ the harness cannot account for how those runs ended, and no ratio on the row
 means anything until it is explained.
 
 ``success`` is deliberately not the headline: it also requires ``parked``, and
-parking is independently blocked by chassis-vs-pocket geometry, so it stays
-0/16 regardless of any driving change. ``laps>=3`` is the driving-success
-metric -- but it is LAP PROGRESS ONLY and counts runs the rules would have
-disqualified, so read ``clean`` beside it. On the 256 corpus at
-``OBSTACLES_CONTACT_DIST`` 0.05 the two read 82 and 76.
+parking is independently blocked by chassis-vs-pocket geometry, so it cannot
+move with any driving change. ``laps>=3`` is the driving-success metric -- but
+it is LAP PROGRESS ONLY and counts runs the rules would have disqualified, so
+read ``clean`` beside it (see ``adr:0087-test-methodology`` and
+``adr:0059-pass-side-travel-relative-and-scorer-independence``).
 
 Usage (from ``src``, with PYTHONPATH=.)::
 
@@ -39,7 +39,7 @@ ignore them.
 
 A flat sweep here has twice turned out to be a disconnected knob rather than a
 real result. If a mode reads byte-identical across a wide range, confirm the
-override actually reaches the navigator before concluding anything — see
+override actually reaches the navigator before concluding anything -- see
 ``_apply_patches`` and ``SweepConfig.tuning`` for the two that failed silently.
 """
 
@@ -81,10 +81,10 @@ import src.navigation.planning.sign_router as sign_router_module
 # that `simulator.py` imported and calls -- SignRouter, SignRouterConfig,
 # TrackModel, obstacles_from_metadata -- and the package `__init__` re-exports
 # only ScenarioSimulator, so aiming at the package raised AttributeError on the
-# first mode to use it (`offset`, 2026-09-06) and would have silently missed the
+# first mode to use it (`offset`) and would have silently missed the
 # rest. Patching where the name is BOUND is also the point made in the
 # lateral_offset block below: patching the defining module never reaches a
-# caller that bound the name at import time.
+# caller that bound the name at import time (see ``adr:0087-test-methodology``).
 import src.simulation.scenario_simulator.simulator as gateway_module
 from scripts.common.provenance import environment
 from scripts.common.scenarios import load_scenario, scenario_from_mapping, scenario_paths
@@ -201,13 +201,14 @@ _ACTIVATION_FOR_PROFILE = 0.12
 _PASSED_DIST_FOR_PROFILE = 0.24
 # The removed for_obstacles profile asked for FAST_SPEED 0.30 m/s, already above
 # the 0.156 m/s drivetrain ceiling -- which is precisely why that half of the
-# profile was measured to be inert. This is the same command the robot actually
-# received, and the accessors clamp anything above the ceiling anyway.
+# profile is inert. This is the same command the robot actually received, and
+# the accessors clamp anything above the ceiling anyway. See
+# ``adr:0085-speed-envelope``.
 _SPEED_FOR_PROFILE = 0.156
 
 # The implausible-jump guard as a MULTIPLE of the commanded top speed. Taken
-# from the shipped pair (localization 0.25 against the measured 0.156 m/s
-# ceiling) so a swept arm reproduces the same margin rather than inventing one.
+# from the shipped pair (localization 0.25 against the 0.156 m/s ceiling) so a
+# swept arm reproduces the same margin rather than inventing one.
 _JUMP_GUARD_HEADROOM = 0.25 / 0.156
 
 
@@ -254,8 +255,9 @@ class SweepConfig:
     implied displacement exceeds ``MAX_SPEED_MPS * dt``, so a guard set below
     the commanded tier rejects HONEST motion and the arm measures the guard
     rather than the speed. The shipped 0.25 was sized against the retired
-    motor's measured 0.156 m/s ceiling (1.6x headroom) and was never raised
-    with the 2026-08-27 profile, leaving it at HALF the commanded FAST of 0.50.
+    motor's 0.156 m/s ceiling (1.6x headroom) and was never raised with the
+    current profile, leaving it at HALF the commanded FAST of 0.50 (see
+    ``adr:0085-speed-envelope``).
     """
 
     creep_mps: float | None = None
@@ -268,10 +270,9 @@ class SweepConfig:
     This used to be a fraction of ``MAX_SPEED_MPS``, so a hardware speed profile
     rescaled it: the guard sped up in lockstep with the thing it guards against
     while the actuator stayed exactly as quick, and holding the rung steady
-    across profiles meant hand-computing a compensating fraction
-    (0.1014/0.234 = 0.43 under fastwide, against the shipped 0.65). Since
-    2026-08-21 the tiers are absolute, so the rung holds across profiles on its
-    own and that correction is no longer needed.
+    across profiles meant hand-computing a compensating fraction. The tiers are
+    now absolute, so the rung holds across profiles on its own and that
+    correction is no longer needed (see ``adr:0085-speed-envelope``).
     """
     arc_radius: float | None = None
     steer_kp: float | None = None
@@ -286,35 +287,37 @@ class SweepConfig:
     and the arm would measure nothing, the failure ``OBSTACLES_CONTACT_DIST``
     once caused.
 
-    Exists because the 46 -> 6 result that shipped the compensation was scored
+    Exists because the compensation shipped on the strength of a result scored
     by ``diag_pass_side_retire``'s own truth scorer with enforcement DISABLED,
     while the verdict that actually ends a round is the simulator's
     ``pass_side_violation``. Those are different scorers and had never been
-    compared on the same arm.
+    compared on the same arm (see
+    ``adr:0059-pass-side-travel-relative-and-scorer-independence``).
     """
 
     corner_steer_deg: float | None = None
     """Override ``CorridorFollowerParams.max_corner_steer_deg`` (shipped 21.25).
 
     The angle the blind creep's corner-turn and back-off branches command.
-    Split from ``MAX_CENTERING_STEER_DEG`` on 2026-08-29 because the shared
-    13.75 made the committed turn geometrically impossible: at
+    Split from ``MAX_CENTERING_STEER_DEG`` because the shared 13.75 made the
+    committed turn geometrically impossible: at
     ``radius = wheelbase / ((1 + rear_steer_ratio) * yaw_gain * tan(theta))``
     that angle needs 0.706 m against the 0.60 m ``TURN_CLEARANCE_M`` the turn
     is committed at, so the robot ran out of room mid-corner every time.
 
     **Only meaningful on a BLIND arm.** The corner branch lives in the blind
-    creep, so a sighted arm never reaches it and this knob is inert — an A/B on
+    creep, so a sighted arm never reaches it and this knob is inert -- an A/B on
     it in ``baseline`` mode returns byte-identical arms and answers nothing.
-    That mistake was made on 2026-08-30; see ``corner-steer`` in
-    ``_FIXED_MODES``.
+    That mistake was made once; see ``corner-steer`` in ``_FIXED_MODES`` and
+    ``adr:0057-blind-corridor-follower-and-width``.
     """
 
     centering_steer_deg: float | None = None
     """Override ``CorridorFollowerParams.max_centering_steer_deg`` (shipped 13.75).
 
     The heading-damping clamp, deliberately left at the pre-split value: it is
-    sized against the 2026-08-03 limit cycle, not against corner geometry.
+    sized against the centring limit cycle, not against corner geometry (see
+    ``adr:0057-blind-corridor-follower-and-width``).
     Present so an arm can move both halves together and show the split itself
     is what mattered rather than the raised angle.
     """
@@ -323,12 +326,14 @@ class SweepConfig:
     """Override ``WaypointParams.replan_blend_ticks`` (shipped 20; 0 = the old
     instant swap).
 
-    How many ticks a replanned centreline is faded in over. Added 2026-08-30
-    after hardware showed every first-lap width-belief update stepping crosstrack
-    ~0.30 m in one tick, throwing heading error past CRAWL and pinning the robot
-    at creep speed. Obstacles replans on the same path, so the same fade applies
-    -- but its replans are driven by sign discovery as well as corridor width,
-    so the two corpora are not interchangeable evidence for it.
+    How many ticks a replanned centreline is faded in over. Added after hardware
+    showed every first-lap width-belief update stepping crosstrack in one tick,
+    throwing heading error past CRAWL and pinning the robot at creep speed.
+    Obstacles replans on the same path, so the same fade applies -- but its
+    replans are driven by sign discovery as well as corridor width, so the two
+    corpora are not interchangeable evidence for it (see
+    ``adr:0057-blind-corridor-follower-and-width`` and
+    ``adr:0088-refuted-config-knobs``).
     """
 
     contact_dist: float | None = None
@@ -344,30 +349,31 @@ class SweepConfig:
     ``clear_obstacles_contact_dist=True`` to make it reach the navigator.
 
     The escape gate: ``assess_risk`` returns CRITICAL below this bumper-frame
-    gap, which is what actually begins an escape maneuver. Added 2026-08-30
-    after ``diag_escape_mask.py --census`` showed 100% of CRITICAL ticks across
-    the corpus (28,664 of 28,664) only fire because of the 12.2 cm LIDAR-mount
-    offset fix (``6c727c87``, 2026-08-22) -- in the pre-fix body-centred frame
-    NONE of them would have. That fix was already known to trade collisions for
-    escape thrash (195->57 collisions, timeouts 19->132); this constant has
-    never been re-measured against the corrected frame it now runs in.
+    gap, which is what actually begins an escape maneuver. The 12.2 cm
+    LIDAR-mount offset fix (``6c727c87``) moved every forward reading closer
+    without moving the threshold, so in the pre-fix body-centred frame the gate
+    fired on a different geometry entirely; this constant has never been
+    re-measured against the corrected frame it now runs in (see
+    ``adr:0080-lidar-mount-and-scan-plane`` and
+    ``adr:0056-raw-and-masked-scan``).
     """
 
     obstacles_contact_dist: float | None = None
     """Override ``ClearanceZones.obstacles_contact_dist`` (SHIPPED 0.04 m since
-    ``adaf194``; it was 0.05 before, and 0.04 is only valid PAIRED with
-    ``min_valid_range`` 0.044 -- see the ``clearance-floor`` mode).
+    ``adaf194``; 0.04 is only valid PAIRED with ``min_valid_range`` 0.044 --
+    see the ``clearance-floor`` mode).
 
-    The Obstacles-only form of ``contact_dist`` above, and since 2026-09-02 the
-    one that is actually live: it ships set, so leaving this field None does
-    NOT mean "no override", it means "the shipped 0.05". Both fields reach the
+    The Obstacles-only form of ``contact_dist`` above, and the one that is
+    actually live: it ships set, so leaving this field None does NOT mean "no
+    override", it means "the shipped value". Both fields reach the
     same navigator threshold on this harness, which runs Obstacles scenarios
     exclusively, so setting either to the same value must produce IDENTICAL
     rows -- that equivalence is the point of sweeping both, and the
     ``obstacles-contact-dist`` mode below asserts it rather than assuming it.
     Two overrides on this script have already failed to reach the navigator
     silently (see ``_apply_patches`` and ``SweepConfig.tuning``), and this one
-    travels a per-challenge resolution keyed on ``sign_router`` presence.
+    travels a per-challenge resolution keyed on ``sign_router`` presence (see
+    ``adr:0061-contact-zone-per-challenge``).
 
     Prefer this one for anything intended to ship: ``contact_dist`` moves the
     shared zone and so moves the Open Challenge too.
@@ -398,19 +404,20 @@ class SweepConfig:
     slow_dist: float | None = None
     """Override ``ClearanceZones.slow_dist`` (shipped 0.25 m). The OBSTACLE-risk
     boundary one rung above ``contact_dist`` -- swept alongside it because
-    ``diag_escape_mask.py``'s OBSTACLE-tick fraction (26-43% across outcomes)
-    dwarfs the CRITICAL fraction (2-6%), so the speed-cap zone may matter more
-    than the escape gate itself.
+    ``diag_escape_mask.py``'s OBSTACLE-tick fraction dwarfs the CRITICAL
+    fraction, so the speed-cap zone may matter more than the escape gate itself
+    (see ``adr:0061-contact-zone-per-challenge``).
     """
 
     centering_gain: float | None = None
     """Override ``CorridorFollowerParams.centering_gain_deg_per_m`` (shipped 0.0).
 
-    Zeroed 2026-08-22 because centring starved the direction-inference gate of
-    the square-to-corridor scans it needs. That blocker was fixed on 2026-08-30
-    by the corner-steer split, so the zero is now an unretested legacy: its
-    standing cost is that the creep traverses a corridor pinned ~0.18 m off one
-    wall and enters the first corner from there.
+    Zeroed because centring starved the direction-inference gate of the
+    square-to-corridor scans it needs. That blocker was later fixed by the
+    corner-steer split, so the zero is now an unretested legacy: its standing
+    cost is that the creep traverses a corridor pinned off one wall and enters
+    the first corner from there (see
+    ``adr:0057-blind-corridor-follower-and-width``).
     """
 
     strip_obstacles: bool = False
@@ -429,7 +436,7 @@ class SweepConfig:
     """Delete only the parking lot, keeping the traffic signs physical."""
 
     ghost_signs: bool = False
-    """Keep signs in the metadata — so ``SignRouter`` still routes around them —
+    """Keep signs in the metadata -- so ``SignRouter`` still routes around them -
     but remove them from the track's collision/raycast set.
 
     Separates "the router aims badly" from "the sign stopped the run". With
@@ -466,7 +473,7 @@ class SweepConfig:
     Chassis half-diagonal + ``WALL_CLEARANCE_MARGIN_M``. Lowering it lets a
     deformation push further toward the wall (more sign clearance, less wall
     clearance); raising it does the reverse. Read the wall/sign split, never the
-    total — this knob trades directly between the two.
+    total -- this knob trades directly between the two.
 
     Expressed as the TOTAL because that is the quantity the geometry arguments
     in the investigation doc are written in, but the tunable is the MARGIN, so
@@ -476,14 +483,15 @@ class SweepConfig:
     real_sensor_errors: bool = False
     """Perturb the estimate the way the real robot's sensors do.
 
-    Every corpus number this script has ever produced was measured on PERFECT
+    Without it every corpus number this script produces is measured on PERFECT
     sensing -- no IMU drift, no yaw bias, no gyro scale error, no noise, no
-    placement residual -- because ``sensor_errors`` was never passed at all.
-    That is the last flag still defaulting to the easy side, and it flatters
-    exactly the kind of change that leans on a clean pose.
+    placement residual -- because ``sensor_errors`` would never be passed at
+    all. That is the last flag still defaulting to the easy side, and it
+    flatters exactly the kind of change that leans on a clean pose.
 
-    Uses ``REAL_SENSOR_ERRORS``, sized from three real bags rather than
-    invented, so a result here is about the hardware's actual error budget.
+    Uses ``REAL_SENSOR_ERRORS``, taken from real bags rather than invented, so
+    a result here is about the hardware's actual error budget (see
+    ``adr:0086-simulator-realism``).
     Note it forces LIDAR localization on (any sensor error does), which blind
     already does, so this is not a second change smuggled in alongside.
     """
@@ -493,9 +501,10 @@ class SweepConfig:
 
     Only meaningful alongside ``blind``. Blind otherwise assumes the canonical
     South start, so a run beginning anywhere else carries a rigid belief offset
-    (measured p50 1.58 m over the corpus) for its whole length. This isolates
+    for its whole length. This isolates
     that offset without making the run sighted: the layout and the sign
-    positions are still withheld and still have to be discovered.
+    positions are still withheld and still have to be discovered (see
+    ``adr:0086-simulator-realism``).
     """
 
     blind: bool = False
@@ -515,8 +524,8 @@ class SweepConfig:
     ``_active_sign_candidates``, which engages a sign at ``activation_dist``
     and retires it beyond ``passed_dist`` in the same pass: invert the order and
     every sign is engaged and marked passed on the same tick, from a metre away,
-    permanently. Nothing in the router guards this -- it is the 256/256-collision
-    cliff at activation 1.30.
+    permanently. Nothing in the router guards this -- it is the collision cliff
+    at activation 1.30 (see ``adr:0051-sign-lane-planner``).
     """
 
     activation_dist: float | None = None
@@ -534,7 +543,7 @@ class SweepConfig:
     """Attempt the parking maneuver after the final lap.
 
     ``False`` scores the run on laps alone. The parking blocks stay on the mat
-    and stay collidable — only the maneuver is skipped. Sign avoidance is the
+    and stay collidable -- only the maneuver is skipped. Sign avoidance is the
     open problem and parking sits downstream of it, so while avoidance is being
     measured a clean three-lap run should read as a clean three-lap run instead
     of as a ParkController give-up.
@@ -542,13 +551,12 @@ class SweepConfig:
     Drives ``ParkingParams.ATTEMPT_AFTER_FINAL_LAP`` as well as the controller
     wiring, so the two cannot disagree.
 
-    DEFAULT FLIPPED TO FALSE 2026-09-05, tracking the shipped default. It has
-    to track it: a sweep whose baseline is not the round the robot actually
-    drives measures a configuration nobody ships. Every arm measured before
-    that date pursued the bay after its laps, and on the 256 corpus that alone
-    accounts for ``in-time`` 62 against 158 and 51 collisions against 4 -- so
-    NO pre-flip sweep number is comparable to a post-flip one, whatever else
-    the arm changed.
+    DEFAULT FLIPPED TO FALSE, tracking the shipped default. It has to track it:
+    a sweep whose baseline is not the round the robot actually drives measures a
+    configuration nobody ships. Arms run before the flip pursued the bay after
+    their laps, which alone moves ``in-time`` and collisions, so NO pre-flip
+    sweep number is comparable to a post-flip one, whatever else the arm
+    changed (see ``adr:0062-sim-contact-model-and-parking``).
     """
 
     known_signs: bool = False
@@ -585,11 +593,10 @@ class SweepConfig:
     scenarios_dir: str | None = None
     """Run against a generated corpus instead of the committed 16 fixtures.
 
-    Every figure in ``docs/sign-avoidance-investigation.md`` before 2026-08-01
-    was taken over the same 16, which is a small sample for a space this size
-    and under-represents configurations that need two signs interacting. A
-    corpus is reproducible from the generator and its seed rather than
-    committed:
+    The committed fixtures are a small sample for a space this size and
+    under-represent configurations that need two signs interacting. A corpus is
+    reproducible from the generator and its seed rather than committed (see
+    ``adr:0087-test-methodology``):
 
         go run ./cmd/simgen generate --challenge obstacles             --num-scenarios 200 --seed 2026 --output-dir <dir>
     """
@@ -606,16 +613,16 @@ class SweepConfig:
     depth_pin: bool | None = None
     """Override ``SignRouterParams.depth_pin`` (default True).
 
-    ``False`` is the pre-pin arm every figure in the investigation doc older
-    than 2026-08-01 was measured against.
+    ``False`` is the pre-pin arm the earlier figures in the investigation doc
+    were measured against (see ``adr:0051-sign-lane-planner``).
     """
 
     pin_corner_guard: bool | None = None
     """Override ``SignRouterParams.pin_corner_guard`` (default True).
 
-    ``False`` restores the depth pin exactly as it was measured on 2026-08-01,
-    before the robot-position squareness re-check landed. Only meaningful with
-    ``depth_pin=True``.
+    ``False`` restores the depth pin exactly as it was before the
+    robot-position squareness re-check landed. Only meaningful with
+    ``depth_pin=True``. See ``adr:0051-sign-lane-planner``.
     """
 
     stale_target_rescue: bool | None = None
@@ -647,8 +654,9 @@ class SweepConfig:
     Arms the short pursuit lookahead whenever a routed sign is within
     activation distance, since crosstrack (measured against the raw path)
     never rises during a sign pass to arm it on its own. Traced as the likely
-    cause of a consistent ~6.5cm shortfall between the commanded avoidance
-    line and the chassis when it draws level with a sign.
+    cause of a consistent shortfall between the commanded avoidance line and
+    the chassis when it draws level with a sign (see
+    ``adr:0051-sign-lane-planner``).
     """
 
     pin_heading_guard: bool | None = None
@@ -676,8 +684,8 @@ class SweepConfig:
     corridor, instead of only overriding the pursuit target within
     ``activation_dist``. Structurally different from every other knob in this
     dataclass: the rest change when or how hard the existing carrot-chase
-    fires, and all of them have measured flat or worse against the ~6.5cm
-    shortfall. See ``navigation.planning.sign_lane``.
+    fires, and all of them have measured flat or worse against the shortfall.
+    See ``navigation.planning.sign_lane`` and ``adr:0051-sign-lane-planner``.
     """
 
     sign_lane_ramp: float | None = None
@@ -691,9 +699,9 @@ class SweepConfig:
     """Move a squeezed sign-lane plateau toward the midpoint of its free gap.
 
     ``0.0`` (shipped) is the clamped placement. See
-    ``sign_router.pass_lateral``. Refuted at 2026-08-20 under STRICT inner-wall
-    scoring; pair this with ``obstacles_inner_wall_terminal`` to separate the
-    geometry from the criterion.
+    ``sign_router.pass_lateral``. Refuted under STRICT inner-wall scoring; pair
+    this with ``obstacles_inner_wall_terminal`` to separate the geometry from
+    the criterion (see ``adr:0051-sign-lane-planner``).
     """
 
     sign_lane_hold: float | None = None
@@ -707,33 +715,37 @@ class SweepConfig:
     """Override ``SignRouterParams.sign_lane_split_overlap`` (default False).
 
     Splits overlapping plateaux at their midpoint. A plan governed by another
-    spec's plateau is wrong-side 58% of the time against a 13% base rate.
+    spec's plateau is wrong-side far more often than the base rate (see
+    ``adr:0051-sign-lane-planner``).
     """
 
     sign_lane_depth_consistent_corridor: bool | None = None
     """Override ``SignRouterParams.sign_lane_depth_consistent_corridor`` (default False).
 
     Decides a corner sign's face by which straight its DEPTH lies along instead
-    of which face is nearest. Upstream of the relabel: measured 2026-08-26,
-    42.1% of published specs are filed on the perpendicular face even after the
-    relabel has run, confined to boundary signs (0 of 153 mid-straight).
+    of which face is nearest. Upstream of the relabel: published specs are
+    still filed on the perpendicular face even after the relabel has run,
+    confined to boundary signs (see
+    ``adr:0064-corridor-by-depth-and-clearance-budget``).
     """
 
     sign_lane_relabel_unsatisfiable: bool | None = None
     """Override ``SignRouterParams.sign_lane_relabel_unsatisfiable`` (default False).
 
     Moves a sign to the other face of its corner when its clamped lane target
-    lands on the forbidden side of it. 45/45 inverted specs are satisfiable
-    under the other face. Preferred over the skip form, which deletes the lane.
+    lands on the forbidden side of it. The inverted specs are satisfiable under
+    the other face. Preferred over the skip form, which deletes the lane (see
+    ``adr:0051-sign-lane-planner``).
     """
 
     sign_lane_skip_unsatisfiable: bool | None = None
     """Override ``SignRouterParams.sign_lane_skip_unsatisfiable`` (default False).
 
     Drops a sign from the lane profile when its own clamped target lands on the
-    forbidden side of it. Corner-diagonal specs plan wrong-side 29% of the time
-    against 5% for specs inside their corridor's straight. Read SIGN against
-    WALL: planning no lane also removes avoidance geometry.
+    forbidden side of it. Corner-diagonal specs plan wrong-side far more often
+    than specs inside their corridor's straight. Read SIGN against WALL:
+    planning no lane also removes avoidance geometry (see
+    ``adr:0051-sign-lane-planner``).
     """
 
     sign_lane_offset_frac: float | None = None
@@ -749,9 +761,10 @@ class SweepConfig:
     """Override ``SignRouterParams.retrace_escape`` (default False).
 
     Reverse along ground the chassis just occupied instead of along an arc.
-    Aimed at keeping mask-off's sign gain (57 -> 41) without its wall cost
-    (0 -> 13), and at removing the reverse guard's dependence on a rear sector
-    the next chassis may not have.
+    Aimed at keeping mask-off's sign gain without its wall cost, and at removing
+    the reverse guard's dependence on a rear sector the next chassis may not
+    have (see ``adr:0088-refuted-config-knobs`` and
+    ``adr:0056-raw-and-masked-scan``).
     """
 
     retrace_dist: float | None = None
@@ -779,9 +792,10 @@ class SweepConfig:
     """Override ``SignRouterParams.explore_lap_speed_frac`` (default 1.0, off).
 
     Speed ceiling for the first lap of a BLIND Obstacles run, as a fraction of
-    the normal ceiling. Targets the measured shape of blind failure: 78% of it
-    happens during lap 1, because a corridor's signs cannot be seen until the
-    robot is inside that corridor -- but they persist for laps 2-3.
+    the normal ceiling. Targets the shape of blind failure: most of it happens
+    during lap 1, because a corridor's signs cannot be seen until the robot is
+    inside that corridor -- but they persist for laps 2-3 (see
+    ``adr:0051-sign-lane-planner``).
     """
 
     ingest_range: float | None = None
@@ -800,10 +814,9 @@ class SweepConfig:
 
     How far an observation may sit from an existing track and still be folded
     into it rather than starting a new one. Too tight and ONE physical sign
-    becomes several tracks -- measured 2.50x as many lane specs as true signs,
-    with 47% of them past a corner where the WRO layout guarantees no sign sits.
-    Safe up to ~0.50 m: two real signs in a section are always 1.00 m apart, so
-    below half that no merge can join distinct signs.
+    becomes several tracks. Safe up to ~0.50 m: two real signs in a section are
+    always 1.00 m apart, so below half that no merge can join distinct signs
+    (see ``adr:0058-sign-discovery-range-and-barrier-belief``).
     """
 
     min_hits: int | None = None
@@ -822,9 +835,9 @@ class SweepConfig:
     anything closer than it can measure, so at the old 0.05 every floor reading
     was discarded as invalid and a chassis nosed into a corner had its whole
     forward cone thrown away. NEVER sweep this alone: paired with
-    ``obstacles_contact_dist`` 0.04 it was measured Python sighted 149 -> 151
-    (collisions 8 -> 6), but each half alone measured WORSE than either
-    endpoint. Use the ``clearance-floor`` mode, which moves both together.
+    ``obstacles_contact_dist`` 0.04 it moves the pair together, but each half
+    alone measures WORSE than either endpoint. Use the ``clearance-floor``
+    mode, which moves both together (see ``adr:0088-refuted-config-knobs``).
     """
 
     robot_corridor_flip_ticks: int | None = None
@@ -836,14 +849,15 @@ class SweepConfig:
     pillar already being tracked -- which is how one physical sign ends up with
     nine fragments and its colour vote split across them.
 
-    Swept for the first time 2026-09-10. The gate's mechanism was validated
-    when it was added and its ALTERNATIVES were refuted (continuous distance:
-    227-267/256 vs 202; corner-blend slack: 195-207, non-monotonic), as were
-    two downstream dedups at publication time (skip 209, fold 231). None of
-    that examined this NUMBER. Higher trades responsiveness for stability: too
+    The gate's mechanism was validated when it was added and its ALTERNATIVES
+    were refuted (continuous distance, corner-blend slack, and two downstream
+    dedups at publication time) -- but none of that examined this NUMBER.
+    Higher trades responsiveness for stability: too
     high and a genuine corridor change is rejected long enough to associate
     observations into the WRONG track, which is the failure the gate exists to
-    prevent, so read the SIGN column and not just the headline.
+    prevent, so read the SIGN column and not just the headline (see
+    ``adr:0063-corridor-flip-and-sense-guards`` and
+    ``adr:0088-refuted-config-knobs``).
     """
 
     obstacles_center_bias: float | None = None
@@ -863,9 +877,10 @@ class SweepConfig:
     """Override ``SignRouterParams.sign_lane_corner_entry_m`` (default 0.0).
 
     Corner-arc runway the lane may borrow to transition over. The lever
-    against the lane's inner-square collisions: 1211 of the corpus's 1282
-    signs sit at a section boundary, where the straight has no near-side
-    runway at all. Only meaningful with ``sign_lane_planner=True``.
+    against the lane's inner-square collisions: nearly every corpus sign sits
+    at a section boundary, where the straight has no near-side runway at all.
+    Only meaningful with ``sign_lane_planner=True`` (see
+    ``adr:0063-corridor-flip-and-sense-guards``).
     """
 
     sign_lane_suppress_deform: bool | None = None
@@ -882,15 +897,15 @@ class SweepConfig:
     How close a LIDAR return must land to a sign the router is routing around
     to be withheld from the CRITICAL escape trigger. ``0.0`` disables the
     mapped/unmapped split, restoring the behaviour where the escape maneuver
-    fires on every sign pass — which is the comparison every measurement of the
+    fires on every sign pass -- which is the comparison every measurement of the
     split has to be read against.
     """
 
     corridor_flip_ticks: int | None = None
     """Override ``SignRouterParams.corridor_flip_ticks`` (default 5).
 
-    ``1`` is the pre-fix arm: a discovered sign's corridor — and therefore the
-    world axis its deformation treats as lateral — was reassigned on every tick
+    ``1`` is the pre-fix arm: a discovered sign's corridor -- and therefore the
+    world axis its deformation treats as lateral -- was reassigned on every tick
     from an estimate that keeps moving, so a sign on a corner boundary flipped
     between two orthogonal axes at 20 Hz.
     """
@@ -898,7 +913,7 @@ class SweepConfig:
     def tuning(self) -> NavigationTuning:
         """Materialise the ``NavigationTuning`` this config asks for.
 
-        Starts from plain defaults, not ``for_obstacles()`` — the point of the
+        Starts from plain defaults, not ``for_obstacles()`` -- the point of the
         sweep is to re-derive that profile, so it must not be baked into the
         baseline.
 
@@ -1041,21 +1056,22 @@ class ScenarioOutcome:
     ``timed_out``, and has ``laps`` short of target, so it lands in no counter
     at all and the RESULT row reads as if nothing happened. That is the same
     trap as reading collisions alone -- the run failed, on the rule the
-    challenge is actually scored by, and the number has to be on the row.
+    challenge is actually scored by, and the number has to be on the row (see
+    ``adr:0059-pass-side-travel-relative-and-scorer-independence``).
     """
 
     pass_side_signs: tuple[int, ...] = ()
     """Indices of the signs passed on the wrong side."""
 
     stuck: bool = False
-    """The simulator's no-progress bailout fired — a FOURTH terminal verdict.
+    """The simulator's no-progress bailout fired -- a FOURTH terminal verdict.
 
     Found by ``unscored`` after pass-side was added, which is what that column
     is for: it was the residue left once collisions, timeouts and pass-side
     were all accounted for."""
 
     uturns: int = 0
-    """Heading reversals detected during the run — see ``_UTurnDetector``."""
+    """Heading reversals detected during the run -- see ``_UTurnDetector``."""
 
     corner_uturns: int = 0
     """How many of ``uturns`` happened in a corner zone rather than a straight."""
@@ -1077,17 +1093,16 @@ class ScenarioOutcome:
     Counted per ENGAGEMENT, not per tick: a latched maneuver holds its phase
     for its whole duration, so ticking would report duration, not frequency.
     Normalise by laps driven before comparing arms -- an arm that survives
-    longer gets more escapes for free (see the corner-escape rate mistake in
-    the 2026-08-16 notes)."""
+    longer gets more escapes for free (see
+    ``adr:0055-escape-maneuver-selection``)."""
 
     escape_ticks: int = 0
     """Ticks spent with the escape machinery driving, not pure pursuit.
 
     The TIMEOUT counterpart to ``escape_starts``. Frequency and duration come
-    apart badly here: at ``OBSTACLES_CONTACT_DIST`` 0.10 the corpus logs ~685
-    escapes per lap, and whether that is a robot briefly twitching 685 times or
-    a robot that is escaping for most of its round is not answerable from the
-    count. Only this says which."""
+    apart badly here: a large per-lap escape count does not say whether the
+    robot briefly twitches many times or escapes for most of its round. Only
+    this says which (see ``adr:0055-escape-maneuver-selection``)."""
 
     total_ticks: int = 0
     """Ticks the run lasted, so ``escape_ticks`` can be read as a fraction."""
@@ -1127,8 +1142,9 @@ class ScenarioOutcome:
     the cone reading cannot be used to argue about what the gate saw. This one
     comes from the corridor itself, and it carries the discriminator the scalar
     gap throws away: near 0 rad is something standing in the road, out at the
-    lane edge is the robot turning into a wall. The 2026-09-02 anatomy run
-    found failing runs escaping 200-340 times a lap and could not say which."""
+    lane edge is the robot turning into a wall. Without this discriminator a
+    raw escape count cannot say which (see
+    ``adr:0055-escape-maneuver-selection``)."""
 
     trigger_ray_range_m: tuple[float, ...] = ()
     """Raw range of that same ray. Raw, not a bumper gap -- pairing a range with
@@ -1177,19 +1193,21 @@ class ScenarioOutcome:
     """For a SIGN collision, whether the struck sign is at a section BOUNDARY.
 
     Cross-tabulated with ``sign_lane_clamped`` because the two are NOT the
-    same split: boundary signs run roughly half clamped, half free, so
-    "198/199 collisions are at boundaries" does not by itself establish that
-    the collisions are at squeezed plateaux."""
+    same split: boundary signs run roughly half clamped, half free, so "most
+    collisions are at boundaries" does not by itself establish that the
+    collisions are at squeezed plateaux (see
+    ``adr:0064-corridor-by-depth-and-clearance-budget``)."""
 
     collision_crosstrack_m: float | None = None
     """|crosstrack| against the navigator's own planned path on the last tick
     before a collision.
 
     The test that separates the two collision populations. A FREE sign carries
-    ~10.6 cm of margin at the median collision yaw, so a collision there
-    requires an excursion far past the 6.55 cm p90 -- if these really are
-    gross excursions this reads large, and the sub-centimetre clearance-budget
-    model simply does not apply to them."""
+    margin at the median collision yaw, so a collision there requires an
+    excursion far past the crosstrack p90 -- if these really are gross
+    excursions this reads large, and the sub-centimetre clearance-budget model
+    simply does not apply to them (see
+    ``adr:0064-corridor-by-depth-and-clearance-budget``)."""
 
     planned_gap_m: float | None = None
     """Distance from the struck sign to the navigator's ACTUAL planned path at
@@ -1251,9 +1269,8 @@ class ScenarioOutcome:
     harness's own budget is ``OBSTACLES_MAX_STEPS * CONTROL_DT`` = 300 s, so a run could
     take 250 s, be counted a three-lap success here, and be stopped by the
     judges. The gap only became reachable once the kinematics started clamping
-    to the measured 0.156 m/s drivetrain: a clean three-lap run now takes
-    ~130 s, leaving 50 s of margin instead of the ~140 s it had at the speed
-    profile's unreachable 0.5 m/s.
+    to the 0.156 m/s drivetrain, which lengthens a clean three-lap run toward
+    the official limit (see ``adr:0085-speed-envelope``).
     """
 
 
@@ -1377,8 +1394,8 @@ class _EscapeTracker:
         # Bearing (rad, 0 = ahead) and range of the ray the escape verdict was
         # actually minimised over. The clearance column above is the front
         # CONE; this is the forward PATH CORRIDOR that `assess_risk` gates on,
-        # and the 2026-09-02 anatomy run could not tell a sign in the road from
-        # a wall swinging into the lane because it only had the cone.
+        # and the cone alone cannot tell a sign in the road from a wall
+        # swinging into the lane. See ``adr:0055-escape-maneuver-selection``.
         self.trigger_bearing_rad: list[float] = []
         self.trigger_ray_range_m: list[float] = []
         # Last clearance the navigator actually computed. Carried forward
@@ -1393,12 +1410,11 @@ class _EscapeTracker:
         # NOT on every tick a ray was computed.
         #
         # Carrying the most recent ray forward the way the clearance above does
-        # measures the wrong thing here, and measurably so: it reported a p50
-        # range of 9.5 cm across all 256 corpus runs, which `bumper_gap_ahead`
-        # turns into a 6.7 cm gap -- ABOVE the 0.05 m gate, i.e. a geometry
-        # that by construction did not trigger anything. It was sampling the
-        # last ordinary driving tick before the maneuver latched. Gating on the
-        # verdict itself is what makes this column the trigger.
+        # measures the wrong thing here: it samples the last ordinary driving
+        # tick before the maneuver latched, whose bumper gap sits above the gate
+        # and so by construction did not trigger anything. Gating on the verdict
+        # itself is what makes this column the trigger (see
+        # ``adr:0055-escape-maneuver-selection``).
         self._last_trigger_ray: tuple[float, float] | None = None
         self._last_trigger_step: int | None = None
 
@@ -1496,28 +1512,26 @@ def _without_signs(metadata: dict[str, Any]) -> dict[str, Any]:
 def _classify_collision(metadata: dict[str, Any], pose: tuple[float, float, float]) -> CollisionKind:
     """Name what the chassis was overlapping when the run ended.
 
-    "Collisions" is a single counter covering three unrelated failures — outer
+    "Collisions" is a single counter covering three unrelated failures -- outer
     wall, inner keep-out block, and an actual sign or parking block. Sweeping a
     sign-avoidance parameter against a number dominated by wall contacts
     measures the wrong thing, so every sweep reports the split.
 
     The two obstacle probes are built by REMOVAL, so each one tests the class it
     is not named after: ``_without_signs`` leaves the parking blocks standing.
-    Pairing them the other way round — which this did — reported every sign
+    Pairing them the other way round -- which this did -- reported every sign
     strike as ``park`` and every parking strike as ``sign``, i.e. it inverted
     the split it exists to provide, and made a sign-avoidance sweep look like it
     was moving nothing but parking outcomes.
 
     The probes run against a chassis inflated by ``_CONTACT_EPSILON_M`` a side,
     because they test OVERLAP and a SOLID surface stops the chassis before it
-    overlaps anything. Measured 2026-09-04 on the 256 corpus, the same tree one
-    line apart: with the fins ghosted the split read ``wall 49 sign 1 park 33``,
-    and with them solid (shipped since ``905a9b15``) it read ``wall 49 sign 1
-    park 0`` — while the collision TOTAL stayed 83 in both. The 33 runs still
-    ended on the parking lot; a zero-gap rest simply matched none of the three
-    probes and fell through to ``NONE``, so the split silently stopped summing
-    to the total it splits. Same false negative ``905a9b15`` fixed for
-    ``diag_bay_start``'s TOUCHED, in a different diagnostic.
+    overlaps anything. With the parking fins ghosted the split can read a
+    resting chassis as ``park`` while the collision TOTAL stays the same; a
+    zero-gap rest matched none of the three probes and fell through to
+    ``NONE``, so the split silently stopped summing to the total it splits.
+    Same false negative ``905a9b15`` fixed for ``diag_bay_start``'s TOUCHED, in
+    a different diagnostic (see ``adr:0062-sim-contact-model-and-parking``).
     """
     x, y, yaw = pose
     widths = corridor_widths_from_metadata(metadata)
@@ -1706,9 +1720,10 @@ def _lane_is_clamped(spec: Any, direction: Direction | None) -> bool | None:
     That makes this the decisive attribute for a struck sign. A CLAMPED sign's
     plateau is already saturated, so raising ``lateral_offset`` (yaw-aware or
     otherwise) moves it by exactly zero; only the clamp bound itself is a
-    lever there. A FREE sign carries ~8 cm of margin against the ~19.96 cm
-    worst-case-yaw requirement, well beyond the 6.55 cm p90 crosstrack, so a
-    collision at one cannot be explained by plan geometry.
+    lever there. A FREE sign carries margin against the worst-case-yaw
+    requirement, well beyond the crosstrack p90, so a collision at one cannot
+    be explained by plan geometry (see
+    ``adr:0064-corridor-by-depth-and-clearance-budget``).
     """
     corridor = corridor_for_position(spec.x, spec.y)
     plateau = _lane_plateau_m(spec, corridor, direction)
@@ -1866,7 +1881,7 @@ def _apply_patches(config: SweepConfig, metadata: dict[str, Any]) -> list[tuple[
         # inline, so the only way to hold the first two and hand back the third
         # is to intercept the router's construction. Splits "blind fails
         # because discovery is too slow/wrong" from "blind fails because the
-        # estimated layout costs path accuracy" — two very different fixes.
+        # estimated layout costs path accuracy" -- two very different fixes.
         original_router = gateway_module.SignRouter
         restore.append((gateway_module, "SignRouter", original_router))
         known = sign_router_module.signs_from_metadata(metadata)
@@ -1900,10 +1915,10 @@ def _apply_patches(config: SweepConfig, metadata: dict[str, Any]) -> list[tuple[
         # defining module never reached it) and builds the config explicitly via
         # ``SignRouterConfig.from_tuning(...)`` (so the zero-arg default path is
         # dead code). The override therefore silently did nothing, which is
-        # exactly what an "inert knob" looks like — every `offset` and
+        # exactly what an "inert knob" looks like -- every `offset` and
         # `masked-offset` figure taken while that was true measured the default
-        # 0.20 four times over. Patch both modules so neither binding can
-        # reintroduce the same silent no-op.
+        # instead of the swept value. Patch both modules so neither binding can
+        # reintroduce the same silent no-op (see ``adr:0087-test-methodology``).
         original_cfg = gateway_module.SignRouterConfig
         restore.append((gateway_module, "SignRouterConfig", original_cfg))
         restore.append((sign_router_module, "SignRouterConfig", sign_router_module.SignRouterConfig))
@@ -2102,9 +2117,9 @@ class SweepResult:
 
         Lap progress only. It asks nothing about how the run ended, so a run
         that drives its three laps and then passes a sign on the forbidden side
-        -- or hits a wall, or wedges -- still counts here. On the 256 corpus at
-        ``OBSTACLES_CONTACT_DIST`` 0.05 that is 82 against 76 clean, i.e. six
-        runs of the headline are runs the rules would have thrown out.
+        -- or hits a wall, or wedges -- still counts here. Some of the headline
+        are runs the rules would have thrown out, which is why ``clean`` is read
+        beside it (see ``adr:0087-test-methodology``).
 
         Kept, not corrected in place, because it is the right denominator for a
         driving change: a fix that makes the robot complete more laps should
@@ -2133,7 +2148,7 @@ class SweepResult:
 
     @property
     def scenarios_with_uturn(self) -> int:
-        """Scenarios that reversed at least once — the breadth, against the total's depth."""
+        """Scenarios that reversed at least once -- the breadth, against the total's depth."""
         return sum(1 for o in self.outcomes if o.uturns)
 
     @property
@@ -2248,8 +2263,8 @@ class SweepResult:
         Answers whether any LATERAL widening is reachable. A collision in a
         CLAMPED cell sits on a saturated plateau (18.14 cm gap), so the only
         geometric lever left there is the clamp bound itself; a collision in a
-        FREE cell sits at 27.86 cm with ~8 cm of margin, which plan geometry
-        cannot explain at all. Compare against the corpus exposure -- boundary
+        FREE cell sits at 27.86 cm with margin, which plan geometry cannot
+        explain at all. Compare against the corpus exposure -- boundary
         signs are roughly half clamped, half free -- rather than reading the
         raw counts, or the layout's own skew will look like a result.
         """
@@ -2264,8 +2279,8 @@ class SweepResult:
         """Multi-line breakdown of sign collisions by clamped/free plateau.
 
         Reports crosstrack and phase within each, because the headline split
-        establishes only that ~39% of collisions happen where the plan had
-        ~10.6 cm of margin -- it does not say what consumed it. Escape and
+        establishes only that many collisions happen where the plan had margin
+        -- it does not say what consumed it. Escape and
         u-turn phases are broken out separately: those are controller
         arbitration driving into a sign, which no amount of tracking accuracy
         or lane geometry addresses.
@@ -2384,8 +2399,9 @@ class SweepResult:
             # Both terminal states, and neither is inferable from the rest of
             # the row: a run that ends without collision, without finishing and
             # without timing out is stuck OR pass-side-terminated, and those
-            # want different fixes. Attributing the 2026-08-26 stuck move (5 ->
-            # 10) needed a second sweep purely because this was absent.
+            # want different fixes. Attributing a stuck move once needed a
+            # second sweep purely because this was absent (see
+            # ``adr:0088-refuted-config-knobs``).
             f"stuck={o.stuck} timed_out={o.timed_out} "
             # Rule 9.21 and the U-turn count, PER RUN rather than only summed.
             # The aggregates move together (uturns 11 / rev-run 14 shipped, 10 /
@@ -2427,10 +2443,9 @@ def _verdict_bucket(outcome: ScenarioOutcome, target_laps: int) -> str:
     if outcome.laps >= target_laps:
         # Checked BEFORE `timed_out`, which is the harness's max_steps budget
         # and keeps running through the parking attempt. Ordering it the other
-        # way filed runs that had ALREADY driven their laps under "timeout" --
-        # the smoke test showed that bucket averaging 5.33 laps against a
-        # target of 3, i.e. counting successful driving as the failure this
-        # report exists to explain.
+        # way filed runs that had ALREADY driven their laps under "timeout",
+        # i.e. counting successful driving as the failure this report exists to
+        # explain (see ``adr:0087-test-methodology``).
         return "laps-done"
     if outcome.timed_out:
         return "timeout"
@@ -2440,26 +2455,24 @@ def _verdict_bucket(outcome: ScenarioOutcome, target_laps: int) -> str:
 def report_timeout_anatomy(workers: int, config: SweepConfig) -> None:
     """Where the clock actually goes, split by how each run ended.
 
-    Written for one question: the corpus is TIMEOUT-bound, not collision-bound
-    (126/256 expiries at the 0.10 contact zone, 48 at 0.05), and no counter
-    yet says what those runs were DOING. ``escapes per lap`` cannot answer it
-    -- it is a frequency, and it is also confounded, because a run that
-    survives longer earns more escapes for free.
+    Written for one question: the corpus is TIMEOUT-bound, not collision-bound,
+    and no counter yet says what those runs were DOING. ``escapes per lap``
+    cannot answer it -- it is a frequency, and it is also confounded, because a
+    run that survives longer earns more escapes for free.
 
     The two hypotheses have opposite fixes, so the report is built to separate
     them rather than to score an arm:
 
     * SPURIOUS -- the escape keeps firing on signs the router deliberately
-      routed past at ~0.175 m. Then trigger distance-to-nearest-sign clusters
-      tight and low, and the fix is more zone work.
+      routed past. Then trigger distance-to-nearest-sign clusters tight and low,
+      and the fix is more zone work.
     * GENUINE -- the robot really is arriving that close, from tracking error
-      (cross-track at sign passes is 4.63 cm median against 5.6 cm of plan
-      margin). Then triggers are spread and often far from any sign, and no
-      threshold value saves you; lowering it further just converts escapes
-      into collisions.
+      against a thin plan margin. Then triggers are spread and often far from
+      any sign, and no threshold value saves you; lowering it further just
+      converts escapes into collisions.
 
-    The 2026-09-02 pass answered neither, because both readings it had were
-    taken through the wrong window: the trigger clearance column is the front
+    An earlier pass answered neither, because both readings it had were taken
+    through the wrong window: the trigger clearance column is the front
     CONE while the escape gate is ``assess_risk`` over the forward PATH
     CORRIDOR, and distance-to-nearest-sign says a sign was near without saying
     the sign was what the gate saw. The bearing columns close that -- they come
@@ -2473,8 +2486,9 @@ def report_timeout_anatomy(workers: int, config: SweepConfig) -> None:
 
     Reads the shipped tuning rather than sweeping anything, deliberately. This
     is a measurement of the configuration that is actually going to run, and
-    the corpus takes ~25 min a pass -- an arm comparison here would double that
-    while answering a question nobody has asked yet.
+    the corpus takes a long time a pass -- an arm comparison here would double
+    that while answering a question nobody has asked yet. See
+    ``adr:0055-escape-maneuver-selection``.
     """
     scenarios = _scenarios(config)
     with ProcessPoolExecutor(max_workers=workers) as pool:
@@ -2609,11 +2623,11 @@ def _print_bearing_histogram(buckets: dict[str, list[ScenarioOutcome]]) -> None:
 def _print_trigger_ray_sanity(outcomes: Sequence[ScenarioOutcome], config: SweepConfig) -> None:
     """Check the recorded trigger rays against the threshold that fired them.
 
-    Exists because the first version of this instrumentation was wrong in a way
-    no column revealed: it reported a plausible-looking 9.5 cm p50 that,
-    through ``bumper_gap_ahead``, is a 6.7 cm gap -- above the 5 cm gate, so
-    those rays cannot have triggered anything. Every bearing conclusion drawn
-    from them would have described the tick BEFORE the escape.
+    Exists because an earlier version of this instrumentation was wrong in a
+    way no column revealed: it reported a plausible-looking p50 whose
+    ``bumper_gap_ahead`` sat ABOVE the gate, so those rays cannot have triggered
+    anything. Every bearing conclusion drawn from them would have described the
+    tick BEFORE the escape (see ``adr:0055-escape-maneuver-selection``).
 
     A ray whose bumper gap is not below the contact zone is therefore a bug in
     this script, not a finding, and it says so rather than printing a number
@@ -2684,15 +2698,16 @@ window narrower than that would reject genuine causes on detector lag alone.
 def rev_run_pairing(outcomes: list[ScenarioOutcome]) -> str:
     """Order rule 9.21 offences against U-turns, instead of only counting both.
 
-    The per-run overlap (7 of 9 violations carry a U-turn, against a 3.9% base
-    rate) establishes ASSOCIATION only. Causation needs the U-turn to come
-    FIRST: a reversal that completes after the illegal run has already started
+    Per-run overlap establishes ASSOCIATION only. Causation needs the U-turn to
+    come FIRST: a reversal that completes after the illegal run has already
+    started
     is a consequence of being stuck, not its cause, and would be tuned against
     in exactly the wrong direction.
 
     Buckets each violation by the lead of its nearest preceding U-turn, where
     "preceding" is measured against ``rev_run_origin_step`` -- the tick the
-    offence STARTED -- not against the tick it was detected on.
+    offence STARTED -- not against the tick it was detected on (see
+    ``adr:0059-pass-side-travel-relative-and-scorer-independence``).
     """
     violations = [o for o in outcomes if o.reverse_run_violation]
     if not violations:
@@ -2771,12 +2786,12 @@ def _cross_track_errors(args: tuple[int, float | None]) -> list[float]:
 
     Run with signs and parking stripped, deliberately. With signs present the
     router deforms the lookahead target on purpose, so distance-to-nominal-path
-    measures intended avoidance rather than tracking error — and the run ends
+    measures intended avoidance rather than tracking error -- and the run ends
     in a collision after a few hundred ticks anyway. Stripping them gives the
     honest "how far off its own line does the chassis sit" number that the
     +-6.7 cm sign-pass slack budget has to be compared against.
 
-    ``lookahead`` dominates this measurement — a longer lookahead cuts corners —
+    ``lookahead`` dominates this measurement -- a longer lookahead cuts corners -
     so it is an explicit argument rather than whatever the default happens to
     be. ``None`` means the shipped default.
     """
@@ -2839,16 +2854,17 @@ classified from is 0.5 cm (see this module's sign-crosstrack results).
 def _is_middle_sign(x: float, y: float) -> bool:
     """True if this sign sits mid-section rather than on a section BOUNDARY.
 
-    The split that separates the two candidate causes of pass yaw. 1211 of the
-    corpus's 1282 signs sit at a boundary, immediately beside a corner, where
-    the chassis may still be rotating out of the turn; a middle sign is the
+    The split that separates the two candidate causes of pass yaw. Nearly
+    every corpus sign sits at a boundary, immediately beside a corner, where the
+    chassis may still be rotating out of the turn; a middle sign is the
     only case with a corner-free approach on both sides. If the yaw is
     concentrated at boundaries it is corner-driven, and the lever is corner
     exit; if it is flat across both, the lane ramp itself is doing it and the
     lever is ramp length and approach speed.
 
     Depth is the along-corridor coordinate: x for the SOUTH/NORTH corridors,
-    y for EAST/WEST, matching ``sign_lane._axis_coords``.
+    y for EAST/WEST, matching ``sign_lane._axis_coords`` (see
+    ``adr:0064-corridor-by-depth-and-clearance-budget``).
     """
     corridor = corridor_for_position(x, y)
     depth = x if corridor in (Section.SOUTH, Section.NORTH) else y
@@ -3001,7 +3017,8 @@ class _SignPassSample:
 
     struck_middle: bool | None
     """Whether the sign that ended the run was mid-section. ``None`` if no sign
-    collision. Read against the 1211/71 boundary/middle exposure, not raw."""
+    collision. Read against the boundary/middle exposure, not raw (see
+    ``adr:0064-corridor-by-depth-and-clearance-budget``)."""
 
     near_yaw_deg: list[float]
     """Chassis angle to the corridor axis on those same ticks.
@@ -3019,10 +3036,10 @@ class _SignPassSample:
     raw centimetres across the corpus would mix two different targets. 1.0 is
     the lane fully delivered; 0.0 is the plan running straight through the
     sign's own lateral; negative is the plan on the side the pass is forbidden
-    to use. An untouched centreline is NOT 0 but roughly -0.4 to -0.6, since
-    WRO signs sit 10 cm off-centre toward that forbidden side -- so the
-    interesting threshold for "the lane did nothing" is negative, and any
-    positive reading is some amount of lane actually delivered.
+    to use. An untouched centreline is NOT 0 but negative, since WRO signs sit
+    10 cm off-centre toward that forbidden side -- so the interesting threshold
+    for "the lane did nothing" is negative, and any positive reading is some
+    amount of lane actually delivered.
 
     The control for the collision-side reading of the same quantity, and the
     thing that decides whether that reading means anything. Measuring only at
@@ -3085,19 +3102,19 @@ class _SignPassSample:
     direction: Direction
     """The round's travel direction, so pass statistics can be split by it.
 
-    Added 2026-09-03: on the 256 corpus CW violates pass-side in 49.3% of runs
-    against CCW's 38.5%, and the two get very different lane room -- CW takes
-    the full 27.86 cm offset, CCW clamps to 18.14 cm. Pooling them hides both
-    halves of that."""
+    The two directions get very different lane room -- CW takes the full
+    27.86 cm offset, CCW clamps to 18.14 cm -- so pooling them hides both halves
+    of that (see
+    ``adr:0059-pass-side-travel-relative-and-scorer-independence``)."""
 
     pass_side_violated: bool
     """Did this run end on a wrong-side pass?
 
     The split that separates "the TAIL of tracking error causes violations"
     from "the lane is not delivered": compare the same statistic on runs that
-    offended against runs that did not. The medians alone cannot -- at +7.53 cm
-    of systematic error against 18-28 cm of room, no run should violate, yet
-    40-50% do."""
+    offended against runs that did not. The medians alone cannot, because the
+    systematic error is small against the room and yet many runs still offend
+    (see ``adr:0059-pass-side-travel-relative-and-scorer-independence``)."""
 
     estimate_err_m: float | None
     """Distance from the struck sign to the routed position the lane was built
@@ -3356,9 +3373,9 @@ _CORNER_ENTRY_TOL_M = 0.01
 """Bend gap below which the lane counts as landing ON the corner entry.
 
 A centimetre rather than zero only to absorb the millimetre rounding applied at
-waypoint generation; the distribution this splits is bimodal, with the
-collision column reading 0.00 cm at p90 and the pass column 44.79 cm, so
-nothing sits near the threshold for it to arbitrate.
+waypoint generation; the distribution this splits is bimodal, so nothing sits
+near the threshold for it to arbitrate (see
+``adr:0064-corridor-by-depth-and-clearance-budget``).
 """
 
 _WIDE_CORNER_MIN_R_M = 0.25
@@ -4128,15 +4145,15 @@ def _report_approach_decomposition(columns: tuple[tuple[str, list[_Approach]], .
     """Split the approach gap against the two things that can set it.
 
     The gap is NOT a planner constant -- on the sighted plan, with true widths
-    and true sign positions, it reads 2.22 cm median across all 1282 corpus
-    signs and never clusters at 21 (see ``report_lane_geometry``). So the tight
-    collision band has to be produced at run time, and there are only two
+    and true sign positions, it is small and does not cluster (see
+    ``report_lane_geometry``). So the tight collision band has to be produced at
+    run time, and there are only two
     candidates in a blind run: where the sign sits relative to a corner as the
     held plan believes it, and how wide the plan believes the corridor is.
 
     ``bend gap`` is the first: along-path distance from the laned waypoint to
-    the nearest turn. If the 21 cm band is "the closest approach is one bend
-    away", it shows up here and the pass column will not share it.
+    the nearest turn. If the band is "the closest approach is one bend away",
+    it shows up here and the pass column will not share it.
 
     ``arc radius`` is the second, and it is the width belief without the frame
     risk of reading a section label under a rotational lock:
@@ -4190,12 +4207,13 @@ def _report_corner_entry_population(
 ) -> None:
     """Size the population the 21 cm band turned out to describe.
 
-    The band itself is refuted as a collision signature -- it reads 21.97 cm at
-    passes against 21.11 cm at collisions inside the one arc bucket. What
-    survives is the pair that produced that mix: collisions are the signs whose
-    lane lands ON a bend vertex (``bend gap`` p90 0.00 cm against 44.79 cm), and
-    the bends that host a closest approach are always the r=0.35 m ones a 1.0 m
-    corridor plans, never the r=0.15 m of a 0.6 m one.
+    The band itself is refuted as a collision signature -- it reads the same at
+    passes and at collisions inside the one arc bucket. What survives is the
+    pair that produced that mix: collisions are the signs whose lane lands ON a
+    bend vertex (``bend gap`` p90 at zero against a clear pass column), and the
+    bends that host a closest approach are always the ones a 1.0 m corridor
+    plans, never those of a 0.6 m one (see
+    ``adr:0064-corridor-by-depth-and-clearance-budget``).
 
     Neither of those is a rate until it has a denominator, which is what this
     adds: the same two conditions applied to passes and collisions alike, so
@@ -4232,11 +4250,12 @@ def _report_corner_entry_population(
 def _report_entry_split(columns: tuple[tuple[str, list[_Approach]], ...]) -> None:
     """Within the corner-entry population, split by whether the path is TURNING there.
 
-    The question left standing. Landing at a corner entry describes 99.4% of
-    collisions and 79.5% of passes alike, so it cannot be the mechanism on its
-    own -- something has to separate the ~154 that collide from the ~445 that do
+    The question left standing. Landing at a corner entry describes most
+    collisions and most passes alike, so it cannot be the mechanism on its own
+    -- something has to separate the ones that collide from the ones that do
     not, and it has to be measured at the same point, which is why
-    ``delivered_frac`` rides on ``_Approach``.
+    ``delivered_frac`` rides on ``_Approach`` (see
+    ``adr:0064-corridor-by-depth-and-clearance-budget``).
 
     ``on_arc`` is the candidate: the lane is laid across waypoints, and an arc
     inside the borrowed corner window is shifted while an arc beyond it is not
@@ -4445,7 +4464,8 @@ def _report_delivery_by_branch(samples: list[_SignPassSample]) -> None:
     corridor group ALONE, while the plan the chassis drives is
     ``apply_sign_lanes`` composing every group across the whole path. A
     ``DELIVERED`` sign measuring short on the polyline is that gap, and with
-    staleness refuted at 0.22 cm p90 there is nothing else left for it to be.
+    staleness refuted there is nothing else left for it to be (see
+    ``adr:0064-corridor-by-depth-and-clearance-budget``).
 
     Read 1.0 as the full plateau and anything below ~0 as the plan running on the
     forbidden side. ``CLAMPED_SHIFT`` is the built-in control: it is short by its
@@ -4534,13 +4554,13 @@ def report_sign_pass_crosstrack(workers: int, configs: list[SweepConfig]) -> Non
                 head_b = [h for smp in got for h in smp.head_boundary]
                 yaw_b = [y for smp in got for y in smp.yaw_boundary]
                 hits = sum(1 for smp in got if smp.collided_with_sign)
-                # Signed radial, carried into the screen 2026-09-03: the pass
-                # error is a SYSTEMATIC OUTWARD BIAS (84.1% outward, +7.53cm
-                # median) rather than scatter, so this -- not |error|, which
-                # hides the sign, and not the pass-side count, which is far too
-                # coarse to screen on -- is the statistic that names the
-                # mechanism. An arm that leaves outward% at 84 has not touched
-                # the thing the boundary collisions come from.
+                # Signed radial in the screen: the pass error is a SYSTEMATIC
+                # OUTWARD BIAS rather than scatter, so this -- not |error|,
+                # which hides the sign, and not the pass-side count, which is
+                # far too coarse to screen on -- is the statistic that names the
+                # mechanism. An arm that leaves the outward share untouched has
+                # not touched the thing the boundary collisions come from (see
+                # ``adr:0059-pass-side-travel-relative-and-scorer-independence``).
                 radial = [e for smp in got for e in smp.near_outward]
                 out_share = sum(1 for e in radial if e > 0) / len(radial) if radial else 0.0
                 print(
@@ -4600,13 +4620,14 @@ def report_sign_pass_crosstrack(workers: int, configs: list[SweepConfig]) -> Non
             flush=True,
         )
 
-    # The split the pooled rows cannot make. At +7.5 cm of systematic error
-    # against 18-28 cm of planned room NO run should offend, yet 40-50% do, so
-    # the offence has to live in the TAIL rather than the level -- and the two
-    # directions are not the same problem: CW takes the full 27.86 cm lane
-    # offset where CCW clamps to 18.14, yet CW offends MORE. Compare the same
-    # statistic on runs that offended against runs that did not; a level that
-    # is equal across those two columns is not what ends rounds.
+    # The split the pooled rows cannot make. The systematic error is small
+    # against the planned room, yet many runs still offend, so the offence has
+    # to live in the TAIL rather than the level -- and the two directions are
+    # not the same problem: CW takes the full 27.86 cm lane offset where CCW
+    # clamps to 18.14, yet CW offends MORE. Compare the same statistic on runs
+    # that offended against runs that did not; a level that is equal across
+    # those two columns is not what ends rounds (see
+    # ``adr:0059-pass-side-travel-relative-and-scorer-independence``).
     for label, direction in (("CCW", "counterclockwise"), ("CW", "clockwise")):
         for offended in (False, True):
             sel = [
@@ -4633,8 +4654,9 @@ def report_sign_pass_crosstrack(workers: int, configs: list[SweepConfig]) -> Non
     # contributes ticks only up to the violation while a clean run contributes
     # three full laps including easy straights -- the offending bucket
     # over-samples hard moments by construction, which alone would raise its
-    # median with no causal role for the radial at all. (Same shape as the
-    # 2026-08-30 waypoint-stall correlation, where the arrow ran backwards.)
+    # median with no causal role for the radial at all. (Same shape as a
+    # waypoint-stall correlation whose arrow ran backwards: see
+    # ``adr:0059-pass-side-travel-relative-and-scorer-independence``.)
     #
     # So compare a MATCHED window: each run truncated to its first `window`
     # sign-pass ticks, `window` chosen so nearly every run reaches it. If the
@@ -4807,8 +4829,8 @@ def report_sign_pass_crosstrack(workers: int, configs: list[SweepConfig]) -> Non
             if head_b and head_m:
                 _yaw_row("path-heading err, BOUNDARY", head_b)
                 _yaw_row("path-heading err, MIDDLE", head_m)
-            # Collisions per pass-tick, since boundary signs outnumber middle
-            # ones ~17:1 in the corpus and raw counts would say nothing.
+            # Collisions per pass-tick, since boundary signs far outnumber
+            # middle ones and raw counts would say nothing.
             hits_mid = sum(1 for s in samples if s.struck_middle is True)
             hits_bnd = sum(1 for s in samples if s.struck_middle is False)
             print(
@@ -4846,29 +4868,29 @@ _SWEPT_MODES: dict[str, Callable[[float], SweepConfig]] = {
     # both together (short=v, long=2v), which cannot answer whether the
     # straight-line tracking error is what drives pass-side: the corner value
     # moves with it and corners are where the other half of the trade lives.
-    # Added 2026-09-03 after an Open sweep found LOOKAHEAD_LONG 0.32 -> 0.24
-    # cutting straight-line |CTE| 6.19cm -> 3.50cm, i.e. from outside the
-    # plan's 5.6cm margin on the tight half of signs to inside it.
+    # Added after an Open sweep found LOOKAHEAD_LONG 0.32 -> 0.24 cutting
+    # straight-line |CTE| from outside the plan's margin on the tight half of
+    # signs to inside it.
     # Run as `lookahead-long 0.32 0.24 --corpus`; 0.32 IS the shipped value, so
-    # that arm is the baseline and the pair is a clean one-field A/B.
+    # that arm is the baseline and the pair is a clean one-field A/B (see
+    # ``adr:0052-pursuit-target-selection``).
     # `PursuitParams` has no `for_obstacles_challenge`, so unlike CONTACT_DIST
     # this override is NOT shadowed on the Obstacles path.
     "lookahead-long": lambda v: SweepConfig(f"lookahead_long {v:{_FORMAT_2F}}", lookahead_long=v),
     "arc": lambda v: SweepConfig(f"arc_radius {v:{_FORMAT_2F}}", arc_radius=v),
     # The UPSTREAM lever for the split colour vote. Four DOWNSTREAM fixes for
-    # the same duplicate-track problem are refuted on this corpus (skip-publish
-    # 209/256, fold 231, continuous distance 227-267, corner-blend 195-207,
-    # against a 202 baseline), and their own conclusion says to look upstream of
-    # publication instead. This is that: the hysteresis on the robot's settled
-    # corridor, which the association gate keys on. Shipped at 5 and never
-    # swept. Run `flip-ticks 5 10 20 40 --corpus`; 5 IS shipped, so that arm is
-    # the baseline.
+    # the same duplicate-track problem are refuted on this corpus, and their own
+    # conclusion says to look upstream of publication instead. This is that: the
+    # hysteresis on the robot's settled corridor, which the association gate
+    # keys on. Shipped at 5. Run `flip-ticks 5 10 20 40 --corpus`; 5 IS shipped,
+    # so that arm is the baseline (see ``adr:0063-corridor-flip-and-sense-guards``
+    # and ``adr:0058-sign-discovery-range-and-barrier-belief``).
     # MUST be blind. ``ScenarioSimulator`` derives ``discover_signs = blind and
     # not is_open_challenge``, so a SIGHTED run hands the router the true signs
     # and ``ObservedSignMap`` never runs at all -- the corridor gate this sweeps
     # cannot fire, and all arms come back byte-identical. Measured that way once
-    # (5/10/20/40 all at 12 collisions, 189 laps>=3, 152 in-time) before the
-    # cause was found; that run was VOID, not a null result. The `blind-` prefix
+    # (all four arms byte-identical) before the cause was found; that run was
+    # VOID, not a null result. The `blind-` prefix
     # on this file's discovery axes is load-bearing, not decoration.
     "blind-flip-ticks": lambda v: SweepConfig(
         f"blind, robot corridor flip_ticks {int(v)}",
@@ -4879,12 +4901,13 @@ _SWEPT_MODES: dict[str, Callable[[float], SweepConfig]] = {
     # The `adaf194` pair, which only works TOGETHER, so this moves both from one
     # value: 0 = the PRE-FIX arm (0.050 / 0.050), 1 = SHIPPED (0.044 / 0.040).
     # A preset rather than a continuous axis because the two halves have no
-    # functional relationship -- each was measured WORSE alone than either
-    # endpoint, so any intermediate combination is known to be meaningless.
+    # functional relationship -- each half alone is WORSE than either endpoint,
+    # so any intermediate combination is known to be meaningless.
     # Run `clearance-floor 0 1 --corpus`; arm 1 is what master ships today, so
     # arm 0 is the baseline and a NEGATIVE result means adaf194 should be
     # reverted. Its original evidence predates the turn-radius fix and the
-    # restructure, which is why this needs re-measuring at all.
+    # restructure, which is why this needs re-measuring at all (see
+    # ``adr:0088-refuted-config-knobs``).
     "clearance-floor": lambda v: SweepConfig(
         "clearance floor SHIPPED 0.044/0.040" if v else "clearance floor PRE-FIX 0.050/0.050",
         min_valid_range=0.044 if v else 0.05,
@@ -4944,26 +4967,26 @@ _SWEPT_MODES: dict[str, Callable[[float], SweepConfig]] = {
     # How much of the avoidance offset the LANE carries, the carrot override
     # still commanding the full value at the pass. This is the wall-collision
     # lever: at 1.0 a centred sign pins the lane on clamp_lateral's floor for
-    # a whole straight (wall 3 -> 23 over the corpus). Read the SIGN column
-    # against the WALL column here -- the whole question is where the two
-    # curves cross, not whether either moves.
+    # a whole straight. Read the SIGN column against the WALL column here --
+    # the whole question is where the two curves cross, not whether either
+    # moves (see ``adr:0051-sign-lane-planner``).
     # Where the Obstacles centreline sits, toward the inner block. Run WITH the
     # lane on, since that is the configuration it has to hold up in. Geometry
     # says 0.0 (signs sit 0.10 m either side of a 1.0 m corridor's centre, so
     # centred is symmetric); the tracker's documented outward drift says
     # otherwise. This is the arbitration.
     # How far out discovery may ingest an observation, BLIND with the lane on.
-    # The measured bottleneck: publish distance is capped at the 2.0 m default
-    # and 25% of signs are published already inside ACTIVATION_DIST_M, so the
-    # lane never gets the runway that makes it work sighted. Watch the SIGN
-    # column: reaching further means acting on smaller, noisier bounding boxes
+    # The bottleneck: publish distance is capped at the 2.0 m default and many
+    # signs are published already inside ACTIVATION_DIST_M, so the lane never
+    # gets the runway that makes it work sighted. Watch the SIGN column:
+    # reaching further means acting on smaller, noisier bounding boxes
     # (see MIN_RELIABLE_BBOX_HEIGHT_PX), so a gain here can be paid for in
     # mis-placed signs deforming the path toward a hazard that is not there.
     # Reconnaissance-lap speed cap, BLIND with the lane on. Read laps>=1 first:
     # this exists to survive lap 1, and everything downstream is conditional on
     # that. Then read in-time, because a slow first lap is paid for in clock --
-    # the round limit is 180 s and a clean three-lap run already takes ~130 s,
-    # so there is not much to spend.
+    # the round limit is 180 s and a clean three-lap run already uses much of
+    # it, so there is not much to spend.
     # How much of the path ahead a lane rebuild may not move, BLIND. Targets
     # the ramp-behind-the-chassis failure: a sign discovered 1.5 m into a
     # corridor rebuilds a lane whose approach ramp is already behind the
@@ -4977,9 +5000,9 @@ _SWEPT_MODES: dict[str, Callable[[float], SweepConfig]] = {
     # the mask may be suppressing the last-resort reactive layer for precisely
     # the signs nothing else is covering. 0.0 disables the mask entirely.
     # The middle rung against the mask trade. Read all three columns: this
-    # aims to keep mask-off's sign gain (57 -> 41) WITHOUT its wall cost
-    # (0 -> 13), so a result that just moves collisions between the two
-    # columns has not achieved anything.
+    # aims to keep mask-off's sign gain WITHOUT its wall cost, so a result that
+    # just moves collisions between the two columns has not achieved anything
+    # (see ``adr:0056-raw-and-masked-scan``).
     # How far back a retrace runs before the robot drives forward again. Too
     # short and it has not cleared the sign it backed away from; too long and
     # it is spending clock and re-approaching from further out. Run with the
@@ -5040,21 +5063,21 @@ _SWEPT_MODES: dict[str, Callable[[float], SweepConfig]] = {
         sign_lane_offset_frac=v,
     ),
     # clamp_lateral's total clearance (chassis half-diagonal + margin),
-    # crossed with the lane. Named "wall" throughout, but every wall collision
-    # traced under the lane on subset64 was against the INNER SQUARE, not the
-    # outer wall -- go_obstacles_0020/0032/0042/0044/0061/0063 all died within
-    # ~0.17 m of the block, i.e. about one chassis half-diagonal, and 4 cm
-    # PAST the clamped lane rather than on it. Green signs route inward, so
+    # crossed with the lane. Named "wall" throughout, but the wall collisions
+    # traced under the lane were against the INNER SQUARE, not the outer wall:
+    # the chassis died about one chassis half-diagonal from the block, just past
+    # the clamped lane rather than on it. Green signs route inward, so
     # the lane parks the chassis beside the block for a whole straight and any
     # tracking overshoot clips its corner. clamp_lateral applies this margin to
     # both sides, so this is the direct lever on that. Shipped total is
     # 0.179 + 0.04 = 0.219.
     # Corner-arc runway the lane may borrow. The targeted lever at the traced
-    # mechanism: 1211 of 1282 corpus signs sit at a section boundary, so for
-    # ~94% of them the straight has NO near-side runway and the lane starts at
-    # full offset against a centred arc. Corners are provably empty (0 of 1282
-    # signs), so the arc is free to transition through. Read the wall column
-    # first here -- this exists to buy back the 3 -> 23 the lane cost.
+    # mechanism: nearly every corpus sign sits at a section boundary, so the
+    # straight has NO near-side runway and the lane starts at full offset
+    # against a centred arc. Corners are provably empty, so the arc is free to
+    # transition through. Read the wall column first here -- this exists to buy
+    # back the wall collisions the lane cost (see
+    # ``adr:0064-corridor-by-depth-and-clearance-budget``).
     "lane-entry": lambda v: SweepConfig(
         f"lane corner entry {v:{_FORMAT_2F}}",
         sign_lane_planner=True,
@@ -5066,21 +5089,20 @@ _SWEPT_MODES: dict[str, Callable[[float], SweepConfig]] = {
     # geometry later and with an estimate. A runway gain measured sighted is
     # therefore an upper bound, and the shippable number is this one.
     # Does the corner steer cap BIND on a sign approach, and does raising it
-    # let the chassis close the error? Recorded 2026-09-03: through the whole
-    # 3-second pre-violation divergence the commanded steering sits at 21.3 deg
-    # against a MAX_CORNER_STEER_DEG of 21.25 and 0% saturation of the 85 deg
-    # full lock -- the loop sees 56-73 deg of angle error and is allowed a
-    # quarter of the authority. NOTE this contradicts the 2026-08-30 finding
-    # that the constant is INERT (0 ticks); that was measured elsewhere, so
-    # this sweep is the arbiter. If the observed command does not move with the
-    # value, the constant is still inert and the 21.3 match is a coincidence.
+    # let the chassis close the error? Through a pre-violation divergence the
+    # commanded steering sits near a MAX_CORNER_STEER_DEG and saturates little
+    # of the full lock, while the loop sees a much larger angle error. NOTE this
+    # contradicts an earlier finding that the constant is INERT on sighted runs;
+    # that was measured elsewhere, so this sweep is the arbiter. If the observed
+    # command does not move with the value, the constant is still inert and the
+    # match is a coincidence (see ``adr:0057-blind-corridor-follower-and-width``).
     # Time, not authority. The pre-violation trace shows the loop commanding a
-    # 0.26 m turn radius (21 deg of wheel, 0% saturated) while the chassis still
-    # loses ground: with the sign gap closing 26 -> 19 cm it has only tenths of
-    # a metre to execute a lane step of up to 27.86 cm. SIGN_AWARE_SPEED caps to
-    # slow_mps while a correction is in flight, which buys exactly the missing
-    # variable. It read null on the yaw-screen, but that scored yaw and heading
-    # pooled; the metric that matters here is pass-side. v!=0 enables.
+    # sane turn radius while the chassis still loses ground: with the sign gap
+    # closing it has only tenths of a metre to execute a lane step of up to
+    # 27.86 cm. SIGN_AWARE_SPEED caps to slow_mps while a correction is in
+    # flight, which buys exactly the missing variable. It read null on the
+    # yaw-screen, but that scored yaw and heading pooled; the metric that
+    # matters here is pass-side. v!=0 enables.
     "sign-speed-blind": lambda v: SweepConfig(
         f"sign-aware speed {'on' if v else 'off'} blind",
         blind=True,
@@ -5110,9 +5132,10 @@ _SWEPT_MODES: dict[str, Callable[[float], SweepConfig]] = {
     #   * speed.max_mps -- CoreNavigator clamps the selected tier to it, so
     #     `speed 0.6` without this was byte-identical to `speed 0.5`.
     #   * localization.MAX_SPEED_MPS -- the implausible-jump guard, shipped at
-    #     0.25 against the RETIRED motor's measured 0.156 m/s. Left alone, every
+    #     0.25 against the retired motor's 0.156 m/s ceiling. Left alone, every
     #     arm above 0.25 measures how often honest motion is rejected as a
-    #     scan-match snap, which is not what this mode is asking.
+    #     scan-match snap, which is not what this mode is asking (see
+    #     ``adr:0085-speed-envelope``).
     #
     # The guard keeps its shipped 1.6x headroom over the commanded tier
     # (0.25 / 0.156) so it stays a guard rather than becoming a second variable.
@@ -5134,8 +5157,9 @@ _SWEPT_MODES: dict[str, Callable[[float], SweepConfig]] = {
     # 2.0 is already tuned.
     "steer-rate": lambda v: SweepConfig(f"max_steering_rate {v:{_FORMAT_2F}}", max_steering_rate=v),
     # The other half of that coupling. Values are ABSOLUTE m/s, so the rung
-    # holds where you put it across every hardware profile -- before 2026-08-21
-    # this took a fraction and had to be hand-compensated per profile.
+    # holds where you put it across every hardware profile -- it used to take a
+    # fraction and had to be hand-compensated per profile (see
+    # ``adr:0085-speed-envelope``).
     "creep": lambda v: SweepConfig(f"creep_mps {v:{_FORMAT_3F}}", creep_mps=v),
     "offset": lambda v: SweepConfig(f"lateral_offset {v:{_FORMAT_3F}}", lateral_offset=v),
     # The offset sweep CROSSED with lidar_blind. This was how the escape layer
@@ -5146,7 +5170,7 @@ _SWEPT_MODES: dict[str, Callable[[float], SweepConfig]] = {
     # question without blinding the safety layer to a whole obstacle class: it
     # toggles only whether a ROUTED sign can trigger the escape. Prefer it.
     # `masked-offset` is kept because the historical table in
-    # docs/sign-avoidance-investigation.md cites it — but note that table was
+    # docs/sign-avoidance-investigation.md cites it -- but note that table was
     # taken while the offset override was silently disconnected, so it does not
     # currently reproduce and should not be trusted without re-measuring.
     "masked-offset": lambda v: SweepConfig(
@@ -5176,9 +5200,10 @@ _SWEPT_MODES: dict[str, Callable[[float], SweepConfig]] = {
     # corridor is ever reassigned and every value reads identical. Sweeping it
     # sighted would report a flat knob and mean nothing by it.
     # park=False for the same reason the doc keeps laps>=3 as the headline:
-    # with parking on, every one of the 16 ends its run on the parking block and
-    # the collision kind reads "park 16/16" whatever the router did, which hides
-    # exactly the sign-pass difference this arm exists to measure.
+    # with parking on, every fixture ends its run on the parking block and the
+    # collision kind reads "park" whatever the router did, which hides exactly
+    # the sign-pass difference this arm exists to measure (see
+    # ``adr:0062-sim-contact-model-and-parking``).
     "corridor-flip": lambda v: SweepConfig(
         f"BLIND corridor_flip_ticks {int(v)}",
         corridor_flip_ticks=int(v),
@@ -5194,22 +5219,23 @@ _SWEPT_MODES: dict[str, Callable[[float], SweepConfig]] = {
     # would ship.
     "wall-tuned": lambda v: SweepConfig(f"wall {v:{_FORMAT_3F}} @ act {_ACTIVATION_DIST_TUNED_1:{_FORMAT_2F}}", wall_clearance=v, activation_dist=_ACTIVATION_DIST_TUNED_1),
     # The corner dead zone, measured at the tuned activation distance. Tracing
-    # the 1.20->1.30 cliff showed deform_waypoint returning the waypoint
-    # UNTOUCHED 0.20 m from a sign at grid depth 1.0: the lookahead target had
-    # crossed into the corner, is_squarely_in_corridor rejected every
-    # candidate, and avoidance switched itself off during the final approach.
-    # This buffer is how far past the corner span a target may sit and still be
-    # deformed, so it is the direct control on that dead zone.
-    # Re-measure the activation curve on top of the tuned buffer. The 1.20->1.30
-    # collapse was traced to the corner dead zone, so if that diagnosis is right
-    # a wider buffer should flatten the cliff rather than merely shift it --
-    # which is also what decides whether the activation peak is safe to adopt on
+    # the activation cliff showed deform_waypoint returning the waypoint
+    # UNTOUCHED near a sign at grid depth 1.0: the lookahead target had crossed
+    # into the corner, is_squarely_in_corridor rejected every candidate, and
+    # avoidance switched itself off during the final approach. This buffer is
+    # how far past the corner span a target may sit and still be deformed, so it
+    # is the direct control on that dead zone (see
+    # ``adr:0051-sign-lane-planner``).
+    # Re-measure the activation curve on top of the tuned buffer. The collapse
+    # was traced to the corner dead zone, so if that diagnosis is right a wider
+    # buffer should flatten the cliff rather than merely shift it -- which is
+    # also what decides whether the activation peak is safe to adopt on
     # hardware, where pose error would otherwise tip runs across it.
     # Activation and passed distance raised TOGETHER, holding the 0.10 m gap
     # that keeps activation below passed. The plateau ends at 1.20 only because
     # PASSED_DIST_M sits there: past it a sign is engaged and marked passed on
     # the same tick, from a metre away, and retired for the rest of the run --
-    # which is the 256/0 cliff, not any geometric limit. This asks whether the
+    # which is a hard cliff, not any geometric limit. This asks whether the
     # pair wants to move up, or whether 1.00 is a real optimum.
     # THE COMPETITION CONFIGURATION. No scenario file exists on the mat, so the
     # router discovers signs from the camera rather than being handed them.
@@ -5249,26 +5275,25 @@ _FIXED_MODES: dict[str, list[SweepConfig]] = {
     # WHY THIS ORDER. Measured on the 256 corpus over the driven lane (not the
     # centreline -- the centreline frame understates the corner cases and was
     # wrong once already), consecutive sign pairs split into 8 cells: 4 band
-    # transitions x {same section, across a corner}. 581 of 1026 pairs are
-    # CROSSINGS, 239 of them across a corner. The tightest radius the PLAN
-    # demands between two opposite-band signs is ~0.33 m same-section and
-    # ~0.18 m across a corner (calibrated: the method reads 12% low against the
-    # configured 0.45 m arc), against a chassis floor of R = 0.053 + 1.86v --
-    # 0.462 m at 0.22 m/s. So EVERY band change in the corpus demands a radius
-    # the chassis does not have at cruise speed, and the same-section case does
-    # it on a base path that is a STRAIGHT: the lane manufactures all of it.
+    # transitions x {same section, across a corner}, and many pairs are
+    # CROSSINGS. The tightest radius the PLAN demands between two opposite-band
+    # signs is below the chassis floor of R = 0.053 + 1.86v. So EVERY band
+    # change in the corpus demands a radius the chassis does not have at cruise
+    # speed, and the same-section case does it on a base path that is a
+    # STRAIGHT: the lane manufactures all of it (see
+    # ``adr:0049-corner-arcs-per-corridor-and-commit-distance``).
     #
     # Three ways out, and each cell can only afford some of them:
-    #   * ramp -- start the transition earlier. Same-section crossings have
-    #     1.26 m of runway and a straight base, so there is room to spend.
+    #   * ramp -- start the transition earlier. Same-section crossings have room
+    #     to spend on a straight base.
     #   * hold -- a narrower plateau returns runway between two plateaux.
-    #     Suspect: measured radius barely moves (0.331 at 0.25 vs 0.334 at
-    #     0.40), because what sets the radius is the LATERAL to cover, not the
-    #     longitudinal available. This arm exists to confirm that null.
+    #     Suspect: the radius barely moves, because what sets the radius is the
+    #     LATERAL to cover, not the longitudinal available. This arm exists to
+    #     confirm that null.
     #   * corner_entry -- how much corner arc a lane borrows. At 0.50 two lanes
-    #     either side of a corner claim the SAME arc (1413 waypoints, every
-    #     scenario). Adjudication fixed the double-shift; this asks whether
-    #     borrowing that much arc is worth anything at all.
+    #     either side of a corner claim the SAME arc. Adjudication fixed the
+    #     double-shift; this asks whether borrowing that much arc is worth
+    #     anything at all.
     #
     # NOT COVERED HERE: slowing down through the band change, which is the only
     # lever the across-corner cells can use (their arc is already at the floor
@@ -5287,14 +5312,14 @@ _FIXED_MODES: dict[str, list[SweepConfig]] = {
     # Obstacles inner wall crossed with three lane placements.
     #
     # WHY. `clamp_lateral` hands the whole squeeze to the pillar, so a
-    # gap-centred plateau is the maximin placement. Measured on 2026-08-20 it
-    # moved the SIGN column exactly as the geometry predicts (199 -> 168 at
-    # frac 1.0) and lost far more to the WALL (3 -> 61), for 229/256 against
-    # 202/256. It was reverted on that basis. But the wall column was scored
-    # with INNER_WALL terminal, which no rule says -- so the refutation rests
-    # entirely on the one column a stricter-than-the-event criterion inflates.
-    # Under the real rule those strikes are not round-ending and the verdict
-    # may invert.
+    # gap-centred plateau is the maximin placement. It moved the SIGN column
+    # exactly as the geometry predicts but lost far more to the WALL, and was
+    # reverted on that basis. But the wall column was scored with INNER_WALL
+    # terminal, which no rule says -- so the refutation rests entirely on the
+    # one column a stricter-than-the-event criterion inflates. Under the real
+    # rule those strikes are not round-ending and the verdict may invert (see
+    # ``adr:0051-sign-lane-planner`` and
+    # ``adr:0059-pass-side-travel-relative-and-scorer-independence``).
     #
     # READ ALL OF collisions / stuck / timeouts / laps>=3. Dropping INNER_WALL
     # from the terminal set makes it SOLID instead (the simulator derives
@@ -5303,9 +5328,9 @@ _FIXED_MODES: dict[str, list[SweepConfig]] = {
     # the no-progress bailout. That trades collisions for timeouts and is NOT
     # a win. The strict arms are what makes that separable.
     #
-    # The two fracs are the strict optimum (0.40, 211) and the sign-column
-    # optimum (1.00, 168 signs / 61 walls) -- the arm the real rule should
-    # favour most if the mechanism is what it looks like.
+    # The two fracs are the strict optimum and the sign-column optimum -- the
+    # arm the real rule should favour most if the mechanism is what it looks
+    # like.
     "inner-wall-rule": [
         SweepConfig("clamped plateau, STRICT inner wall (shipped baseline)", blind=True),
         SweepConfig("clamped plateau, REAL inner-wall rule", blind=True, obstacles_inner_wall_terminal=False),
@@ -5319,7 +5344,7 @@ _FIXED_MODES: dict[str, list[SweepConfig]] = {
         SweepConfig("defaults"),
         SweepConfig("for_obstacles (removed)", lookahead_short=_ACTIVATION_FOR_PROFILE, lookahead_long=_PASSED_DIST_FOR_PROFILE, fast_mps=_SPEED_FOR_PROFILE),
     ],
-    # Separates "the tracker broke" from "sign avoidance failed" — run this
+    # Separates "the tracker broke" from "sign avoidance failed" -- run this
     # first on any change; no aggregate collision count can tell them apart.
     "diagnose": [
         SweepConfig("everything physical"),
@@ -5349,17 +5374,19 @@ _FIXED_MODES: dict[str, list[SweepConfig]] = {
     ],
     # Does the shipped under-turn compensation reduce the verdict that actually
     # ENDS a round? It shipped on diag_pass_side_retire's own truth scorer with
-    # enforcement disabled (46 -> 6 wrong-side passes); the simulator's
-    # pass_side_violation is a different scorer and was never A/B'd against it.
+    # enforcement disabled; the simulator's pass_side_violation is a different
+    # scorer and was never A/B'd against it (see
+    # ``adr:0059-pass-side-travel-relative-and-scorer-independence``).
     # BOTH ARMS BLIND: sighted skips the creep entirely, and the compensated
     # value only reaches the Obstacles resolution path.
     "yaw-comp": [
         SweepConfig("compensation OFF (1.0)", blind=True, yaw_gain_compensation=1.0),
         SweepConfig("compensation SHIPPED (0.55)", blind=True, yaw_gain_compensation=0.55),
     ],
-    # Is the 2026-08-29 corner-steer split worth anything on OBSTACLES? It is
-    # shipped and live on the robot on the strength of an OPEN result alone
-    # (96 -> 125/128), and its Obstacles effect has never been measured.
+    # Is the corner-steer split worth anything on OBSTACLES? It is shipped and
+    # live on the robot on the strength of an OPEN result alone, and its
+    # Obstacles effect has never been measured (see
+    # ``adr:0057-blind-corridor-follower-and-width``).
     #
     # BOTH ARMS ARE BLIND, and that is the whole point. The corner-turn branch
     # lives in the blind creep, so in a sighted arm the constant is inert -- the
@@ -5368,20 +5395,21 @@ _FIXED_MODES: dict[str, list[SweepConfig]] = {
     # "no experiment". See MAX_CORNER_STEER_DEG on SweepConfig.
     #
     # The second arm doubles as the REFERENCE ROW the Obstacles numbers have
-    # been missing. The 2026-08-27 row (127/256) predates the yaw_gain
-    # calibration and its mode was never recorded, so "169 collisions is a
-    # regression from 127" compares across a kinematics change and possibly a
-    # mode change at once. This arm is today's shipped configuration, in blind,
-    # on the current corpus -- comparable by construction.
+    # been missing. Older rows predate the yaw_gain calibration and their mode
+    # was never recorded, so comparing collisions against one mixes a kinematics
+    # change and possibly a mode change at once. This arm is today's shipped
+    # configuration, in blind, on the current corpus -- comparable by
+    # construction.
     "corner-steer": [
         SweepConfig("blind, corner 13.75 (pre-split)", blind=True, corner_steer_deg=13.75),
         SweepConfig("blind, corner 21.25 (shipped)", blind=True, corner_steer_deg=21.25),
     ],
-    # Re-test of CENTERING_GAIN_DEG_PER_M, zeroed 2026-08-22 because centring
-    # starved the direction-inference gate. That starvation was root-caused on
-    # 2026-08-30 to the corner geometry instead, and fixed, so the zero is now
-    # an unretested legacy carrying a standing cost: the creep crosses a
-    # corridor pinned ~0.18 m off one wall and enters corner 1 from there.
+    # Re-test of CENTERING_GAIN_DEG_PER_M, zeroed because centring starved the
+    # direction-inference gate. That starvation was later root-caused to the
+    # corner geometry instead, and fixed, so the zero is now an unretested
+    # legacy carrying a standing cost: the creep crosses a corridor pinned off
+    # one wall and enters corner 1 from there (see
+    # ``adr:0057-blind-corridor-follower-and-width``).
     #
     # Blind for the same reason as corner-steer -- the centring term is the
     # creep's, so a sighted arm cannot see it.
@@ -5391,18 +5419,16 @@ _FIXED_MODES: dict[str, list[SweepConfig]] = {
         SweepConfig("blind, centering 10.0", blind=True, centering_gain=10.0),
     ],
     # Is the escape gate itself too aggressive for the frame it now runs in?
-    # `diag_escape_mask.py --census --corpus` (2026-08-30) found EVERY CRITICAL
-    # tick in the corpus (28,664 of 28,664) only fires because of the 12.2 cm
-    # LIDAR-mount offset fix -- in the pre-fix body-centred frame none of them
-    # would have. That fix was already known to trade collisions for escape
-    # thrash (195->57 collisions, timeouts 19->132 at the time), and
-    # CONTACT_DIST/SLOW_DIST have never been re-measured against the corrected
-    # frame. The same census also found episode COUNT, not the CRITICAL-tick
-    # rate, separates outcomes -- runs that finish 3 laps late hit 57.7
-    # episodes/run against 19.0 for in-time ones, while the CRITICAL fraction
-    # barely moves (2.3-5.9%) -- so a looser gate that stops re-triggering is
-    # the theory this sweep tests, not a gate that fires less in the first
-    # place.
+    # `diag_escape_mask.py --census --corpus` found that CRITICAL ticks only
+    # fire because of the 12.2 cm LIDAR-mount offset fix -- in the pre-fix
+    # body-centred frame none of them would have. That fix was already known to
+    # trade collisions for escape thrash, and CONTACT_DIST/SLOW_DIST have never
+    # been re-measured against the corrected frame. The same census also found
+    # episode COUNT, not the CRITICAL-tick rate, separates outcomes -- the
+    # CRITICAL fraction barely moves -- so a looser gate that stops
+    # re-triggering is the theory this sweep tests, not a gate that fires less
+    # in the first place (see ``adr:0056-raw-and-masked-scan`` and
+    # ``adr:0061-contact-zone-per-challenge``).
     #
     # BLIND, for consistency with corner-steer/centering-gain above -- the
     # escape path itself is shared with Open, but this sweep is scoped to
@@ -5427,14 +5453,14 @@ _FIXED_MODES: dict[str, list[SweepConfig]] = {
     # it reduce pass-side? The forward-path filter admits a ray on "ahead of the
     # SENSOR", and the sensor sits 2.78 cm behind the bumper plane, so at the
     # ranges that trip the gate (<7.78 cm) anything beyond 69 deg is alongside
-    # the chassis. Measured 2026-09-02: 82.1% of escapes come from this gate,
-    # and ~92% of them in every FAILING bucket fire outside +/-10 deg.
+    # the chassis. Most escapes come from this gate, and the failing buckets
+    # fire well outside straight ahead (see
+    # ``adr:0061-contact-zone-per-challenge``).
     #
-    # PRE-REGISTERED. Primary: pass-side (122/256 baseline). Guard: wall
-    # collisions (17 baseline) -- the risk is the mirror of the bug, since
-    # something at 70-90 deg is a real hazard when the robot TURNS into it, just
-    # not one a reversing escape addresses. Secondary: clean laps>=3 (76).
-    # Decide on 256, never a subset: this gate did not bind at 16 or 128.
+    # PRE-REGISTERED. Primary: pass-side. Guard: wall collisions -- the risk is
+    # the mirror of the bug, since something at 70-90 deg is a real hazard when
+    # the robot TURNS into it, just not one a reversing escape addresses.
+    # Secondary: clean laps>=3. Decide on 256, never a subset.
     "ahead-of-bumper": [
         SweepConfig("blind, ahead of SENSOR (shipped)", blind=True, ahead_of_bumper=False),
         SweepConfig("blind, ahead of BUMPER", blind=True, ahead_of_bumper=True),
@@ -5461,18 +5487,18 @@ _FIXED_MODES: dict[str, list[SweepConfig]] = {
     # correction moved every forward reading 12.2 cm CLOSER. A threshold that
     # did not move while the readings did is now effectively 12.2 cm wider
     # than it was designed to be, and `diag_escape_mask.py --census --corpus`
-    # measures the consequence: 57.5% of all 329,428 speed-capped ticks exist
-    # ONLY because of the correction, and failing runs sit capped for 50.1% of
-    # their ticks. This is the speed-cap zone, NOT the escape gate -- the
-    # CRITICAL fraction at the RESOLVED obstacles threshold (0.05) is 0.0% in
-    # every outcome bucket, so no CONTACT_DIST value reaches these ticks.
+    # measures the consequence: a large share of all speed-capped ticks exist
+    # ONLY because of the correction. This is the speed-cap zone, NOT the escape
+    # gate -- the CRITICAL fraction at the RESOLVED obstacles threshold is
+    # negligible in every outcome bucket, so no CONTACT_DIST value reaches these
+    # ticks.
     #
     # SCREEN ON `in-time`, NOT on escapes or capped-tick share. The capped
     # fraction is the mechanism, not the goal, and it falls by construction as
     # the threshold drops -- reading it as the result would confirm the
     # intervention rather than test it. Read wall collisions alongside: this
-    # trades clock against margin, and the compensated default already pays
-    # for its 8 in-time runs with wall collisions 19 -> 30.
+    # trades clock against margin, and the compensated default already pays for
+    # its in-time runs with more wall collisions.
     #
     # 0.35 is an ANCHOR, not a candidate. It is the direction check -- if
     # `in-time` improves going UP as well as down, the metric is not
@@ -5484,34 +5510,23 @@ _FIXED_MODES: dict[str, list[SweepConfig]] = {
     #
     # BLIND, matching `escape-gate` and `corner-steer`, so the arms compare.
     #
-    # MEASURED 2026-09-05, 256 corpus, one invocation, as in-time/clean/laps>=3
-    # /wall/park/timeouts/stuck:
+    # REFUTED: `in-time` is flat across a wide range of the threshold with NO
+    # ordering, so every perturbation "wins" by a few runs in both directions.
+    # Timeouts and wall collisions are equally flat. The capped-tick share is a
+    # correct measurement of a mechanism that does not reach the outcome;
+    # retuning this constant buys nothing, and since it is shared with Open
+    # there is no case for spending the Open run to adopt a value inside the
+    # noise band (see ``adr:0088-refuted-config-knobs``).
     #
-    #   0.35  65 / 114 / 158 / 25 / 19 / 106 / 28
-    #   0.25  62 / 112 / 159 / 30 / 19 / 110 / 26   <- shipped
-    #   0.20  65 / 108 / 153 / 30 / 17 / 108 / 29
-    #   0.15  67 / 112 / 154 / 29 / 15 / 105 / 32
-    #   0.13  64 / 110 / 155 / 31 / 15 / 107 / 30
+    # The 0.35 ANCHOR is the wrong-direction check that makes that call safe,
+    # and it must stay. Without it the middle arms read as a clean monotone
+    # trend; with it, the two arms at OPPOSITE ends of the sweep both beat the
+    # shipped value, which is the signature of noise. Any future arm added here
+    # must keep a wrong-direction anchor for the same reason.
     #
-    # REFUTED. `in-time` spans 62-67 across a 2.7x range of the threshold with
-    # NO ordering, and the shipped value sits at the BOTTOM of that band --
-    # i.e. every perturbation "wins" by 2-5 runs, in both directions. Timeouts
-    # (105-110) and wall collisions (25-31) are equally flat. The 57.5%
-    # capped-tick figure is a correct measurement of a mechanism that does not
-    # reach the outcome; retuning this constant buys nothing, and since it is
-    # shared with Open there is no case for spending a 640-case Open run to
-    # adopt a value inside the noise band.
-    #
-    # The 0.35 ANCHOR is what makes that call safe, and it is why the row is
-    # kept. Dropping it leaves 62 -> 65 -> 67 descending and reads as a clean
-    # monotone trend; with it, the two arms at OPPOSITE ends of the sweep both
-    # beat shipped by ~3, which is the signature of noise. Any future arm added
-    # here must keep a wrong-direction anchor for the same reason.
-    #
-    # The one ordered column is park collisions (19/19/17/15/15), monotone
-    # across all five arms where nothing else is. Not chased: parking is
-    # separately geometry-blocked (0.194 m chassis into a 0.20 m bay), so the
-    # gradient has nothing to buy.
+    # The one ordered column is park collisions, monotone across all arms where
+    # nothing else is. Not chased: parking is separately geometry-blocked, so
+    # the gradient has nothing to buy.
     "slow-dist": [
         SweepConfig("blind, slow 0.35 (anchor, wrong way)", blind=True, slow_dist=0.35),
         SweepConfig("blind, slow 0.25 (shipped)", blind=True, slow_dist=0.25),
@@ -5532,9 +5547,9 @@ _FIXED_MODES: dict[str, list[SweepConfig]] = {
     # and which reads as a real result. Row 4 is the pre-ship 0.10 baseline,
     # kept so the A/B this value was adopted on stays reproducible in-tree.
     #
-    # Relabelled 2026-09-02: `obstacles_contact_dist = 0.05` now SHIPS, so the
-    # old row 1 ("no override") no longer means 0.10 and the old row 4
-    # ("must match row 1") asserted an equality that had become false.
+    # `obstacles_contact_dist` now SHIPS, so the "no override" row no longer
+    # means the shared zone and the old equality assertion had become false (see
+    # ``adr:0061-contact-zone-per-challenge``).
     "obstacles-contact-dist": [
         SweepConfig("blind, shipped (OBSTACLES_CONTACT_DIST 0.05 from TOML)", blind=True),
         SweepConfig(
@@ -5585,19 +5600,20 @@ _FIXED_MODES: dict[str, list[SweepConfig]] = {
         SweepConfig("lane, fully blind (signs discovered)", sign_lane_planner=True, blind=True),
     ],
     # Are the observed heading reversals the PARKING maneuver or the driving?
-    # Traced on go_obstacles_0000 (subset64, lane on): all 9 reversals landed
-    # after the third lap was already counted, at (1.7-1.8, 2.4-2.6) beside the
-    # north parking bay, spinning ~186 deg every ~2 s; the laps themselves were
-    # clean. Parking is a known-blocked problem (chassis-vs-pocket geometry),
-    # so if the reversals vanish with park=False they are its failure mode and
-    # not a cornering defect -- and the in-time shortfall is then mostly clock
-    # burnt after the driving is already done, which is a different fix.
+    # Traced with the lane on, every reversal landed after the third lap was
+    # already counted, beside the north parking bay, spinning in place while the
+    # laps themselves were clean. Parking is a known-blocked problem
+    # (chassis-vs-pocket geometry), so if the reversals vanish with park=False
+    # they are its failure mode and not a cornering defect -- and the in-time
+    # shortfall is then mostly clock burnt after the driving is already done,
+    # which is a different fix.
     # Blind arms included because parking is only ever attempted AFTER three
     # laps, so a park=False arm isolates the DRIVING phase exactly: any
-    # reversal it still reports happened while the robot was lapping. Sighted
-    # park=False measured 0/64 -- if blind park=False is also 0, there is no
-    # cornering defect anywhere and every reversal ever seen is the parking
-    # maneuver.
+    # reversal it still reports happened while the robot was lapping. With
+    # park=False on the sighted arm there are none -- if blind park=False is
+    # also zero, there is no cornering defect anywhere and every reversal ever
+    # seen is the parking maneuver (see
+    # ``adr:0062-sim-contact-model-and-parking``).
     "lane-park": [
         SweepConfig("lane, sighted, parking ON", sign_lane_planner=True, park=True),
         SweepConfig("lane, sighted, parking OFF", sign_lane_planner=True, park=False),
@@ -5619,38 +5635,38 @@ _FIXED_MODES: dict[str, list[SweepConfig]] = {
         SweepConfig("blind, hysteresis off", blind=True, commit_hysteresis=False),
         SweepConfig("blind, hysteresis on", blind=True, commit_hysteresis=True),
     ],
-    # Does the offset arrive in time? 182/182 surviving collisions are lag
-    # (diag_failure_split.py), and the symmetric taper is only at 0.125 when a
-    # sign activates. Baseline 0.0 shares the invocation, so the comparison is
-    # immune to the warm-pool hazard.
+    # Does the offset arrive in time? Nearly all surviving collisions are lag
+    # (diag_failure_split.py), and the symmetric taper starts small when a sign
+    # activates. Baseline 0.0 shares the invocation, so the comparison is immune
+    # to the warm-pool hazard.
     # What the depth pin is worth. Both arms in one run, deliberately: the pin
-    # first appeared mid-session and its 182 -> 119 was briefly mis-attributed
-    # to an unrelated harness fix measured in a different invocation.
+    # first appeared mid-session and its effect was briefly mis-attributed to an
+    # unrelated harness fix measured in a different invocation (see
+    # ``adr:0051-sign-lane-planner``).
     "pin": [
         SweepConfig("blind, pin off (pre-pin baseline)", blind=True, park=False, depth_pin=False),
         SweepConfig("blind, pin on", blind=True, park=False, depth_pin=True),
         SweepConfig("sighted, pin off", park=False, depth_pin=False),
         SweepConfig("sighted, pin on", park=False, depth_pin=True),
     ],
-    # Item 2a: the 11 wall collisions the depth pin introduced (0 -> 11), and
-    # whether the robot-position squareness re-check in `pin_depth` closes them.
-    # That re-check landed 2026-08-11 inside an unrelated commit, ten days after
-    # the 11 was measured, so nothing here has ever been read against it.
+    # Item 2a: the wall collisions the depth pin introduced, and whether the
+    # robot-position squareness re-check in `pin_depth` closes them. That
+    # re-check landed inside an unrelated commit after the collisions were
+    # counted, so nothing here has ever been read against it.
     #
     # Three arms, ONE invocation, in the same configuration the pin was
-    # attributed in (blind, park=False): pin off reproduces the 182/0-wall
-    # baseline, guard off must reproduce 11 wall / 108 sign / 137 in-time or the
-    # knob is not wired to the thing being toggled, and guard on is what ships.
-    # The guard can only cost sign collisions -- it suppresses the pin on a
-    # subset of ticks -- so read the wall AND sign columns together.
-    # Lookahead is the only one of seven knobs screened (`yaw-screen`) that
-    # reduces the boundary-sign tracker lag, which is ~2/3 of the pass yaw and
-    # the larger half of a 5.94 cm clearance budget. But the screen reports
-    # SIGN collisions only, and the relationship is non-monotonic there --
-    # 0.16 gives 195/256 against a 199 baseline while the shorter 0.12, which
-    # cuts the lag furthest, gives 202. Shortening the lookahead changes
-    # cornering everywhere, so the wall column and laps>=3 are what decide
-    # whether 0.16 is an improvement or another sign-for-wall trade.
+    # attributed in (blind, park=False): pin off reproduces the pin-free
+    # baseline, guard off must reproduce the pin-on collision split or the knob
+    # is not wired to the thing being toggled, and guard on is what ships. The
+    # guard can only cost sign collisions -- it suppresses the pin on a subset
+    # of ticks -- so read the wall AND sign columns together.
+    # Lookahead is the only one of the screened knobs (`yaw-screen`) that
+    # reduces the boundary-sign tracker lag, which is most of the pass yaw and
+    # the larger half of the clearance budget. But the screen reports SIGN
+    # collisions only, and the relationship is non-monotonic there, so
+    # shortening the lookahead changes cornering everywhere; the wall column and
+    # laps>=3 are what decide whether it is an improvement or another
+    # sign-for-wall trade (see ``adr:0052-pursuit-target-selection``).
     "blind-lookahead": [
         SweepConfig("blind, lookahead 0.20/0.40 (shipped)", blind=True, sign_lane_planner=True),
         *(
@@ -5699,40 +5715,33 @@ _FIXED_MODES: dict[str, list[SweepConfig]] = {
     # other sign mode here the arms differ in mechanism, not magnitude. Read
     # the wall column as carefully as the sign one: a lane is a deliberately
     # off-centre line through a 1.0 m corridor, which is the trade the offset
-    # sweep already lost once (raising lateral_offset to 0.33 bought sign hits
-    # back at the price of 12 new wall hits).
+    # sweep already lost once (raising lateral_offset bought sign hits back at
+    # the price of new wall hits).
     #
-    # Measured on the FULL 256 corpus, sighted, with SIGN_LANE_CORNER_ENTRY_M
-    # at its 0.50 default (the parameter that dominates everything else here
-    # -- see its docstring; without it the whole feature is worth ~2%):
-    #   OFF (baseline)     234 collisions (wall 3 sign 231)  laps>=3  22  in-time  19
-    #   lane, no override   70            (wall 5 sign  65)  laps>=3 186  in-time 128
-    #   lane + override     64            (wall 7 sign  57)  laps>=3 192  in-time  82
-    # Read the in-time column, not the collision column: the override buys 6
-    # more three-lap finishes and loses 46 inside the round limit, because its
-    # depth pin holds the commanded point abeam a sign rather than letting it
-    # advance. That answer REVERSES without corner runway, where the lane
-    # cannot reach its own line unaided and the override is what rescues it
-    # (subset64: lane alone 61/64, lane + override 55/64, baseline 56/64) --
-    # so never read these two arms without checking which runway they ran at.
+    # Run with SIGN_LANE_CORNER_ENTRY_M at its 0.50 default (the parameter that
+    # dominates everything else here -- see its docstring; without it the whole
+    # feature is worth little). Read the in-time column, not the collision
+    # column: the override buys more three-lap finishes and loses many inside
+    # the round limit, because its depth pin holds the commanded point abeam a
+    # sign rather than letting it advance. That answer REVERSES without corner
+    # runway, where the lane cannot reach its own line unaided and the override
+    # is what rescues it -- so never read these two arms without checking which
+    # runway they ran at (see ``adr:0051-sign-lane-planner``).
     # One arm, the shipped blind default, run for its ATTRIBUTION rather than
     # for a comparison: with the lane shipped on, blind's remaining failure is
-    # 230/256 sign collisions, and the open question is how many of those the
+    # mostly sign collisions, and the open question is how many of those the
     # escape drove into versus how many it never got a chance to prevent. Read
     # `escapes N/lap` and `collisions within 40 ticks` from the RESULT row, and
     # `since_escape` per scenario with --verbose. Normalise by laps driven --
     # raw escape totals are not comparable across arms.
     #
-    # Measured on the FULL 256 corpus: only 20/230 sign collisions land within
-    # 40 ticks of an escape (0.78 escapes/lap) -- the escape is silent for the
-    # other 210, matching the 2026-08-16 finding that blind collisions mostly
-    # happen with the escape never firing at all. The `sign-mask` split in the
-    # same RESULT row answers WHY: 108/230 struck signs were already in
-    # `routed_sign_positions` (masked from the CRITICAL trigger, so the
-    # proximity-gated-unmask idea can plausibly reach them) but 122/230 were
+    # The `sign-mask` split in the same RESULT row answers WHY: some struck signs
+    # were already in `routed_sign_positions` (masked from the CRITICAL trigger,
+    # so the proximity-gated-unmask idea can plausibly reach them) but many were
     # never routed at all (a discovery/routing gap upstream of the mask --
-    # unmasking changes nothing for these). Roughly even split: the mask is a
-    # real, sizeable lever, but not the majority of the remaining failure.
+    # unmasking changes nothing for these). So the mask is a real, sizeable
+    # lever, but not the majority of the remaining failure (see
+    # ``adr:0056-raw-and-masked-scan``).
     "blind-arc": [
         SweepConfig("blind, shipped defaults (lane ON)", blind=True),
     ],
@@ -5742,18 +5751,17 @@ _FIXED_MODES: dict[str, list[SweepConfig]] = {
     # one and lost everything else.
     #
     # It also refuted the premise they were screened under. Pass yaw is
-    # corner-concentrated (boundary 16.03 deg vs middle 6.46), but REDUCING it
-    # buys nothing: the lookahead arm cut yaw 16.03 -> 13.43 and path-heading
-    # 10.20 -> 8.21 while sign-collisions moved 103 -> 101. These two cut
-    # collisions (103 -> 86 and -> 88) while leaving yaw alone or slightly
-    # worse, so whatever they do, it is not via pass yaw. Do not re-derive the
-    # corner-exit story from the yaw correlation -- arc radius is refuted
-    # outright (102 vs 103 at r=0.35).
+    # corner-concentrated, but REDUCING it buys nothing: the lookahead arm cut
+    # yaw and path-heading while sign-collisions barely moved. These two cut
+    # collisions while leaving yaw alone or slightly worse, so whatever they do,
+    # it is not via pass yaw. Do not re-derive the corner-exit story from the
+    # yaw correlation -- arc radius is refuted outright (see
+    # ``adr:0052-pursuit-target-selection``).
     #
-    # steer-rate raises a demand the real actuator has to meet, and the ~1.42x
+    # steer-rate raises a demand the real actuator has to meet, and the
     # understeer is invisible here, so treat a win as sim-only until a round
-    # says otherwise. sign-aware speed slows within 1.40 m of EVERY sign, so
-    # in-time is the column it is most likely to lose on.
+    # says otherwise. sign-aware speed slows near EVERY sign, so in-time is the
+    # column it is most likely to lose on.
     # Does the shipped corner tie-break survive the sensors the robot has?
     #
     # Every corpus number behind SIGN_LANE_DEPTH_CONSISTENT_CORRIDOR was taken
@@ -5798,25 +5806,26 @@ _FIXED_MODES: dict[str, list[SweepConfig]] = {
     # be confidently rotated. Read this against the sighted `lane` numbers:
     # a gain that survives sighted but vanishes blind is a localizer result,
     # not a lane result.
-    # Measured subset64: OFF 64/64 collisions, laps>=3 1, in-time 0; lane ON
-    # 59/64, laps>=3 5, in-time 3. Real but small -- and the contrast with
-    # sighted (234 -> 70 over the corpus) is the finding, not the 5. The lane
-    # is aimed through the believed pose, so a pose locked onto a rotated
-    # solution puts a correct maneuver in the wrong place. Blind is bounded by
-    # the localizer, not by the avoidance maneuver; measured, not inferred.
-    # Before corner runway existed this arm was 64/64 either way, i.e. exactly
-    # zero -- so the lane does now reach blind, it just cannot outrun a wrong
-    # pose.
+    # Blind subset comparison: the lane ON gains a few laps and in-time runs but
+    # the effect is real and small -- and the contrast with sighted (a large
+    # collision drop over the corpus) is the finding, not the small blind gain.
+    # The lane is aimed through the believed pose, so a pose locked onto a
+    # rotated solution puts a correct maneuver in the wrong place. Blind is
+    # bounded by the localizer, not by the avoidance maneuver; measured, not
+    # inferred. Before corner runway existed this arm was identical on both
+    # sides, so the lane does now reach blind, it just cannot outrun a wrong
+    # pose (see ``adr:0051-sign-lane-planner``).
     # Third arm matters: SIGN_LANE_SUPPRESS_DEFORM was decided in SIGHTED mode,
     # where the lane has a full corridor of runway and the carrot override is
     # only a time tax. Blind has no such runway -- a sign discovered 1.5 m into
     # a corridor cannot be planned around, only reacted to -- so the sighted
     # answer should not be assumed to carry over.
     # The point of the exercise: mask OFF so the escape may fire on a sign
-    # (the only measured blind gain, sign 57 -> 41), with the reverse RETRACED
-    # rather than swung, to avoid the 13 wall collisions that gain cost. Read
-    # the WALL column against the middle arm, not against the shipped default
-    # -- the comparison that matters is "same sign gain, less wall damage".
+    # (the main measured blind gain), with the reverse RETRACED rather than
+    # swung, to avoid the wall collisions that gain cost. Read the WALL column
+    # against the middle arm, not against the shipped default -- the comparison
+    # that matters is "same sign gain, less wall damage" (see
+    # ``adr:0088-refuted-config-knobs``).
     "blind-retrace": [
         SweepConfig("blind, mask ON (shipped)", blind=True, sign_lane_planner=True),
         SweepConfig("blind, mask OFF, arc reverse", blind=True, sign_lane_planner=True, escape_mask_radius=0.0),
@@ -5847,20 +5856,20 @@ _FIXED_MODES: dict[str, list[SweepConfig]] = {
 }
 """Modes with a fixed comparison set, ignoring any CLI values."""
 
-# Candidate levers against the boundary-sign tracker lag, which is ~2/3 of the
-# pass yaw (11.33 deg path-heading error at a boundary sign against 5.82 at a
-# mid-section one) and the larger half of a 5.94 cm clearance budget. Screened
-# on whether they move that angle, not just the collision count: the angle is
-# the mechanism, and a knob that moves collisions WITHOUT it did so some other
-# way and needs explaining before it is trusted.
+# Candidate levers against the boundary-sign tracker lag, which is most of the
+# pass yaw and the larger half of the clearance budget. Screened on whether
+# they move that angle, not just the collision count: the angle is the
+# mechanism, and a knob that moves collisions WITHOUT it did so some other way
+# and needs explaining before it is trusted (see
+# ``adr:0052-pursuit-target-selection``).
 _YAW_SCREEN_ARMS = [
     SweepConfig("shipped", blind=True, sign_lane_planner=True),
     SweepConfig("lookahead 0.12/0.24", blind=True, sign_lane_planner=True, lookahead_short=0.12, lookahead_long=0.24),
     SweepConfig("lookahead 0.16/0.32", blind=True, sign_lane_planner=True, lookahead_short=0.16, lookahead_long=0.32),
     # Purpose-built and never measured on the corpus. Caps to slow_mps while
     # the router has a correction in flight -- more time to rotate through the
-    # corner-adjacent pass. Watch in-time: it slows within 1.40 m of EVERY
-    # sign and in-time is only 27/256 to begin with.
+    # corner-adjacent pass. Watch in-time: it slows near EVERY sign and in-time
+    # is low to begin with.
     SweepConfig("sign-aware speed", blind=True, sign_lane_planner=True, sign_aware_speed=True),
     # A longer ramp spreads the same lateral travel over more distance, so the
     # path itself bends less where the chassis is already busy with a corner.
@@ -5891,10 +5900,10 @@ _YAW_SCREEN_ARMS = [
 _TRUE_DEPTHS_M = (1.0, 1.5, 2.0)
 """The only along-corridor depths a WRO sign ever takes.
 
-Measured over all 256 corpus scenarios (1282 signs): 604 at 1.00, 71 at 1.50,
-607 at 2.00, nothing else. Lateral is disjoint from this -- only 0.40/0.60 near
-and 2.40/2.60 far -- which is what makes a sign's own axis decidable without
-consulting the corridor classifier.
+Every corpus sign takes one of these, nothing else. Lateral is disjoint from
+this -- only 0.40/0.60 near and 2.40/2.60 far -- which is what makes a sign's
+own axis decidable without consulting the corridor classifier (see
+``adr:0064-corridor-by-depth-and-clearance-budget``).
 """
 
 _DEPTH_TOL_M = 0.05
@@ -5915,11 +5924,12 @@ def _run_spec_validity(args: tuple[int, SweepConfig]) -> list[tuple[float, float
 
     Answers whether the "specs past the corner cannot be real" reading holds.
     That reading came from ``inside_straight`` (``CORNER_MIN <= depth <=
-    CORNER_MAX``), and the measured layout puts 1211 of 1282 signs at depth
-    EXACTLY 1.00 or 2.00 -- the interval's own bounds. So 94.5% of signs sit on
-    a knife edge where any displacement decides the verdict, and the share
-    landing "past the corner" says nothing on its own. The magnitude does:
-    a millimetre of overshoot is that knife edge, a metre is real displacement.
+    CORNER_MAX``), and the layout puts nearly every sign at depth EXACTLY 1.00
+    or 2.00 -- the interval's own bounds. So almost every sign sits on a knife
+    edge where any displacement decides the verdict, and the share landing
+    "past the corner" says nothing on its own. The magnitude does: a
+    millimetre of overshoot is that knife edge, a metre is real displacement
+    (see ``adr:0064-corridor-by-depth-and-clearance-budget``).
 
     Recorded per published spec: believed-frame depth, how far past the nearest
     corner bound it sits (0.0 when inside), the belief offset at that tick, and
@@ -5981,8 +5991,9 @@ def _run_spec_validity(args: tuple[int, SweepConfig]) -> list[tuple[float, float
                 #
                 # NOT `corridor_for_position(spec) != corridor` -- that is the
                 # function the router derives `corridor` from, so it returns 0%
-                # by construction. (Measured 0/2458, and it is a tautology, not
-                # a result; the same circular test wasted a day on 2026-08-25.)
+                # by construction. It is a tautology, not a result; the same
+                # circular test wasted a day (see
+                # ``adr:0087-test-methodology``).
                 #
                 # The layout invariant decides it independently: along-corridor
                 # depth is only ever 1.00/1.50/2.00 and lateral only ever
@@ -6202,11 +6213,11 @@ def main() -> int:
         )
         # `sign-crosstrack V...` runs one arm per LOOKAHEAD_LONG value, so the
         # mechanism behind a pass-side result can be checked instead of assumed.
-        # A `lookahead-long` A/B on 2026-09-03 moved pass-side only 111 -> 109
-        # on the 256 corpus, which has two incompatible readings -- the arm
-        # never reduced cross-track here, or it did and pass-side is not
+        # A `lookahead-long` A/B has two incompatible readings -- the arm never
+        # reduced cross-track, or it did and pass-side is not
         # cross-track-driven -- and nothing in the RESULT row separates them
-        # (its crosstrack figures cover CLAMPED signs only, n=4).
+        # (its crosstrack figures cover CLAMPED signs only, a small sample; see
+        # ``adr:0052-pursuit-target-selection``).
         if args.mode == "sign-crosstrack" and args.values:
             arms = [replace(arms[0], label=f"sign-crosstrack la_long {v:{_FORMAT_2F}}", lookahead_long=v) for v in args.values]
         # `yaw-screen N` runs only the first N arms. Each arm is a full pass
@@ -6217,10 +6228,10 @@ def main() -> int:
             arms = arms[: int(args.values[0])]
         # ...and `--arms` picks them out of order, which is what a PREFIX count
         # cannot do. The lookahead arms sit at positions 2-3 and were refuted
-        # 2026-09-03 (no effect on boundary yaw, heading, or signed radial), so
-        # reaching the untested steer-rate and arc arms at 7-9 by prefix means
-        # paying for two known-dead passes first. 1-based, matching how the
-        # rows print and how `--arms` already reads for the fixed modes.
+        # (no effect on boundary yaw, heading, or signed radial), so reaching
+        # the untested steer-rate and arc arms at 7-9 by prefix means paying for
+        # two known-dead passes first. 1-based, matching how the rows print and
+        # how `--arms` already reads for the fixed modes.
         if args.arms:
             try:
                 arms = [arms[i - 1] for i in args.arms]
@@ -6238,8 +6249,8 @@ def main() -> int:
     if args.strip_parking:
         configs = [replace(c, strip_parking=True) for c in configs]
     if args.arms:
-        # Each arm is a full pass over the scenario set -- four of them against
-        # the 256 corpus is ~50 min. Once a mode's equivalence rows have passed,
+        # Each arm is a full pass over the scenario set, so four against the
+        # 256 corpus is a long run. Once a mode's equivalence rows have passed,
         # re-running them to look at one arm's per-scenario detail buys nothing.
         # 1-based to match how the RESULT rows read on screen.
         try:

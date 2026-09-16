@@ -136,6 +136,12 @@ narrow prior could not fire before the wall arrived.
 - f3ca48b1 2026-09-15: three refuted attempts at the mid-turn steering bleed,
   recorded beside the knob. 14 to 29 percent of turns bleed; 82 to 88 percent
   release with median 1.19 to 1.39 rad owed.
+- Open: `LOOKAHEAD_LONG` 0.32 to 0.24 cut straight-line |CTE| 6.19 to 3.50 cm,
+  from outside the 5.6 cm plan margin on the tight half of signs to inside it.
+- Yaw-screen scorecard: pass yaw is corner-concentrated 16.03 against 6.46 deg;
+  the lookahead cut yaw 16.03 to 13.43 and path-heading 10.20 to 8.21 while sign
+  collisions moved 103 to 101; the two picked arms cut collisions 103 to 86 and to
+  88 with yaw flat or worse; the arc radius is refuted (102 against 103 at r=0.35).
 
 ## Cross-references
 
@@ -229,3 +235,9 @@ narrow prior could not fire before the wall arrived.
 - `diag_bag_open_oscillation.py` counts per-rung speed occupancy and
   lookahead-ramp occupancy to name the ladder in force; the motor profile
   overrides the 0.24 m Open ladder.
+- A 256-corpus lookahead-long A/B moved pass-side 111 to 109 only, with no RESULT
+  column separating "no cross-track reduction" from "pass-side is not
+  cross-track-driven".
+- Boundary-sign tracker lag is 11.33 deg path-heading error at a boundary against
+  5.82 mid-section, about two-thirds of pass yaw and the larger half of the 5.94 cm
+  clearance budget.

@@ -349,3 +349,6 @@ cannot score it because it never emits a magenta detection.
   percent figure is a single-ray number.
 - The vision emulator still has perfect range, so the camera-vs-LIDAR range
   comparison cannot be reproduced in sim; a known limit.
+- Depth histogram behind the axis invariant, measured over all 256 corpus
+  scenarios (1282 signs): 604 at depth 1.00, 71 at 1.50, 607 at 2.00, nothing
+  else; lateral only 0.40/0.60/2.40/2.60.

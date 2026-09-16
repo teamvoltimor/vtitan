@@ -27,32 +27,12 @@ So the ladder is not mis-tuned. It is guarding a failure mode (the wedged robot)
 that is not the failure mode the rounds actually die of (the robot that escapes
 and returns).
 
-MEASURED, 2026-09-15 rounds::
-
-    bag      triggers  count=1  count=2  >=3   post-escape travel at reset
-    140358        49       47        2    0    p50 0.039 m in 0.20 s
-    140852        25       22        2    1    p50 0.039 m in 0.17 s
-    102714       189      159       24    6    p50 0.042 m in 0.20 s
-
-84-96% of triggers are attempt number one, and the counter clears about two
-tenths of a second after the escape ends, on four centimetres. Not one reset
-fired under the threshold -- minimum 0.034 m against a floor of 0.03 -- which is
-the check that this measurement shares production's anchor rather than
-approximating it.
-
-The handful that do reach 2 or more are the ones whose reverse leg was squeezed
-by the rear-gap fit, so the ladder counts a BLOCKED escape and forgets a free
-one. It escalates on the robot that cannot move, which is not the robot that is
-losing the rounds.
-
-TRAP before acting on this: raising the counter is not obviously a fix. The
-escalated manoeuvre feeds the K-turn, and the K-turn was measured turning
-AGAINST the plan on 57% of episodes (2026-09-14). Make the response right
-before making the ladder reachable.
+The measured census of these triggers, the post-escape reset travel, and the
+K-turn caveat that goes with acting on it are recorded in adr:0055.
 
 WHAT THIS PRINTS
 
-* the histogram above -- ``escape_count`` on each tick the counter increments,
+* the latch histogram -- ``escape_count`` on each tick the counter increments,
   which is the tick an escape is latched;
 * the travel between the END of the escape manoeuvre and the tick the counter
   falls back to zero, against ``stuck_move_threshold``, plus how long that took.

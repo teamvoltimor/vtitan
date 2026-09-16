@@ -110,3 +110,9 @@ does not merge. Changes that break comparability carry `!` in the commit type.
   idle, the source of the parallel harness's 5.6x on 24 cases.
 - The historical Open pass-rate chain of 96, 125 and 126 was all measured on the
   single pinned `start_cell = 0` spawn that `balanced128` replaced.
+- `laps>=3` vs `clean` reads 82 and 76 on the 256 corpus at
+  `OBSTACLES_CONTACT_DIST` 0.05, so six runs of the headline were disqualified by
+  the rule they were counted under.
+- Two `diag_sign_sweep.py` overrides silently measured the default instead of the
+  swept value (a `lateral_offset` zero-arg factory and an `OBSTACLES_CONTACT_DIST`
+  shadowing); prove the arm reaches the navigator before believing a flat sweep.

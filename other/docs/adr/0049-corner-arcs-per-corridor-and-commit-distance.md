@@ -177,3 +177,10 @@ verdict.
   limit cycle) and the achieved corner radius (`path_length / |total heading
   change|`) against the ring-reconstructed planned radius. No ADR yet owns the
   oscillation attribution itself; it sits between 0049 and 0052.
+- Band-change feasibility screen: over the driven lane the 256 corpus splits into
+  8 sign-pair cells; 581 of 1026 pairs are crossings, 239 across a corner. The
+  tightest planned radius is about 0.33 m same-section and 0.18 m across a corner
+  (the method reads 12 percent low against the configured 0.45 m arc), against a
+  chassis floor `R = 0.053 + 1.86v` (0.462 m at 0.22 m/s). The `hold` lever barely
+  moves the radius (0.331 at 0.25 against 0.334 at 0.40); at 0.50 two lanes claim
+  the same corner arc (1413 waypoints in every scenario).

@@ -184,8 +184,9 @@ in-time / 28 laps>=3 / 9 timed out; 1.8 gave 29 / 34 / 0; 2.3 gave 31 / 33 / 0;
   the robot nowhere.
 - Escapes are counted as EPISODES (contiguous latched-manoeuvre runs separated by
   a 1.0 s gap), not by `escape_count`: `escape_count` reads 1 on 96 percent of
-  triggers because it resets on the escape's own reverse, so it cannot segment
-  episodes.
+  triggers because it resets about 3 to 4 cm of ordinary driving AFTER the
+  manoeuvre ends (the end-of-manoeuvre re-anchor, p50 0.039 to 0.042 m), not on
+  the escape's own reverse, so it cannot segment episodes.
 - Trigger bearings are published on a 0..2*pi convention and must be wrapped to
   +/-180 deg before the front/rear split.
 - Rotation and duration transfer from the simulator almost exactly (sim 22.2 deg /
@@ -214,3 +215,17 @@ in-time / 28 laps>=3 / 9 timed out; 1.8 gave 29 / 34 / 0; 2.3 gave 31 / 33 / 0;
   because the time cap binds first.
 - A single k_turn burst reached about 275 deg of chassis yaw, so wrapping a
   whole-escape delta reports the short way round.
+- Counter census over the 2026-09-15 rounds, one row per bag as triggers / count=1
+  / count=2 / count>=3 and post-escape travel at reset: 140358 49/47/2/0, p50
+  0.039 m in 0.20 s; 140852 25/22/2/1, p50 0.039 m in 0.17 s; 102714 189/159/24/6,
+  p50 0.042 m in 0.20 s. 84 to 96 percent of triggers are attempt number one, and
+  the counter clears about two tenths of a second after the escape ends.
+- The anchor check: not one reset fired under the threshold, minimum 0.034 m
+  against a floor of 0.03 m, which is what shows the measurement shares
+  production's anchor rather than approximating it.
+- The cases reaching two or more are the ones whose reverse leg was squeezed by
+  the rear-gap fit, so the ladder counts a BLOCKED escape and forgets a free one;
+  it escalates on the robot that cannot move, not the robot losing the rounds.
+- K-turn trap, 2026-09-14: the escalated manoeuvre feeds the K-turn, and the
+  K-turn was measured turning against the plan on 57 percent of episodes, so make
+  the response right before making the ladder reachable.
