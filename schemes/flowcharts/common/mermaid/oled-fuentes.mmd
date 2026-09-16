@@ -1,0 +1,64 @@
+%% Referencias (no se renderizan, solo para mantenimiento futuro)
+%% Que topico alimenta cada LINEA de cada pagina del OLED. El arbol de
+%% decision que elige la pagina esta en common/mermaid/oled-paginas.mmd.
+%% Codigo: vtitan_drivers/oled_display_node.py, los metodos _render_*
+%% Las tres campos de /system_status los publican TRES nodos distintos y el
+%% OLED los fusiona por nombre en _diagnostics_callback: ningun nodo escribe
+%% un campo de otro, por eso no pueden contradecirse.
+%%   - state_machine_node: IMU, LiDAR, Hailo, Drive, Network, ChallengeMode
+%%   - vision_node: VisionModel, el unico que sabe que modelo se cargo de verdad
+%%   - telemetry_bridge_node: su propio estado de enlace
+%% MODE y Laps/objetivo NO se leen de constantes: vienen del jumper via
+%% /system_status y de /race_metrics. Poner aqui OPEN_CHALLENGE_LAPS daria
+%% el objetivo equivocado en cuanto las dos cifras difieran.
+
+flowchart LR
+    subgraph FUENTES["TÓPICOS DE ENTRADA"]
+        SS["/system_status<br/>DiagnosticArray"]
+        RM["/race_metrics<br/>JSON"]
+        UIS["/ui/telemetry_summary<br/>desde telemetry_bridge"]
+        MDS["/motor/drive_speed"]
+        MSP["/motor/steering_position"]
+        BH["/button/hold"]
+        RS["/robot_state"]
+    end
+
+    subgraph PAGINAS["LÍNEAS DE CADA PÁGINA"]
+        B1["BOOT CHECK<br/>✓/✗ de los 6 componentes"]
+        R1["READY: IP"]
+        R2["READY: modelo de visión"]
+        R3["READY / BOOT: MODE"]
+        C1["RACING: F, L, R en cm"]
+        C2["RACING: Yaw"]
+        C3["RACING: detección (solo Obstacles)"]
+        C4["RACING: V, velocidad"]
+        C5["RACING: St, dirección"]
+        C6["RACING / FINISHED: vueltas y objetivo"]
+        F1["FINISHED: tiempo total"]
+        F2["FINISHED: COMPLETE o E-STOP"]
+        H1["HOLDING: segundos y acción"]
+        SEL["QUÉ PÁGINA se dibuja<br/>ver oled-paginas.mmd"]
+    end
+
+    RS --> SEL
+    BH -->|"un hold en curso<br/>gana a cualquier estado"| SEL
+    BH --> H1
+    RS -->|"la acción del hold<br/>depende del estado"| H1
+
+    SS --> B1
+    SS --> R1
+    SS --> R2
+    SS --> R3
+    SS -->|"ChallengeMode decide<br/>si la detección se pinta"| C3
+
+    UIS --> C1
+    UIS --> C2
+    UIS --> C3
+    MDS --> C4
+    MSP --> C5
+    RM --> C6
+    RM --> F1
+    RM -->|"vueltas contra el objetivo<br/>del propio /race_metrics"| F2
+
+    classDef topico fill:#eef,stroke:#446
+    class SS,RM,UIS,MDS,MSP,BH,RS topico

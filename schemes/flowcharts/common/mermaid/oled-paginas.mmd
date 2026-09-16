@@ -1,0 +1,61 @@
+%% Referencias (no se renderizan, solo para mantenimiento futuro)
+%% Logica interna de oled_display_node. Sus ENTRADAS como nodo ROS2 estan en
+%% common/mermaid/nodos-ros2-telemetria.mmd; aqui esta lo que hace con ellas.
+%% Codigo: vtitan_drivers/oled_display_node.py, metodo _update_display
+%% Corre en la Pi Zero, dentro del proceso pi_zero_peripherals_node.
+%% Es un LifecycleNode: el temporizador solo existe entre on_activate y
+%% on_deactivate, asi que fuera de ACTIVE no se dibuja ni una pagina.
+%% La cadena de if/elif de _update_display es una PRIORIDAD, no un menu:
+%% el orden de las ramas es el que decide, y el hold gana a cualquier estado.
+%% Gracia del jumper inestable: _CHALLENGE_MODE_UNSTABLE_GRACE_SEC = 5.0 s
+%% Vueltas objetivo de reserva si /race_metrics no las trae: _DEFAULT_TARGET_LAPS = 3
+%% IP omitida cuando vale OFFLINE/FETCHING.../unknown/- (_NO_IP_VALUES)
+
+flowchart TD
+    TIMER(["Temporizador UI_REFRESH_RATE_HZ<br/>_update_display"])
+    HOLD{"¿/button/hold<br/>held_sec &gt; 0?"}
+    STATE{"/robot_state"}
+
+    TIMER --> HOLD
+    HOLD -->|"sí, gana a todo"| PHOLD
+    HOLD -->|no| STATE
+
+    PHOLD["<b>HOLDING</b><br/>segundos retenidos<br/>y qué va a disparar<br/>POWER OFF / STOP / RESTART"]
+
+    STATE -->|BOOT_CHECK| JUMPER
+    STATE -->|READY| PREADY
+    STATE -->|RACING| PRACING
+    STATE -->|FINISHED| PFIN
+    STATE -->|"cualquier otro"| PBLANK
+
+    JUMPER{"Diagnóstico ChallengeMode<br/>en /system_status"}
+    JUMPER -->|"estable"| PBOOT
+    JUMPER -->|"inestable &lt; 5 s"| PDETECT
+    JUMPER -->|"inestable &ge; 5 s"| PFAULT
+
+    PBOOT["<b>BOOT CHECK</b><br/>lista de 6 componentes<br/>IMU, LiDAR, Hailo, Drive,<br/>Network, ChallengeMode<br/>✓ / ✗ / ? por componente"]
+    PDETECT["<b>BOOT CHECK</b><br/>Detecting challenge mode...<br/>ventana normal de arranque"]
+    PFAULT["<b>CHECK JUMPER</b><br/>reasentar el cap GPIO23/GND"]
+    PREADY["<b>READY TO START</b><br/>IP solo si la hay<br/>modelo de visión cargado<br/>MODE del jumper<br/>Press to START"]
+    PRACING["<b>RACING</b><br/>rejilla fija de 4x2<br/>izquierda: F/L/R en cm y vueltas<br/>derecha: velocidad, dirección, yaw<br/>y la detección, solo en Obstacles"]
+    PFIN["<b>RACE FINISHED</b><br/>vueltas contra el objetivo<br/>tiempo total<br/>COMPLETE o E-STOP"]
+    PBLANK["pantalla en blanco"]
+
+    DEDUP{"¿los bytes del fotograma<br/>cambiaron?"}
+    PHOLD --> DEDUP
+    PBOOT --> DEDUP
+    PDETECT --> DEDUP
+    PFAULT --> DEDUP
+    PREADY --> DEDUP
+    PRACING --> DEDUP
+    PFIN --> DEDUP
+    PBLANK --> DEDUP
+
+    DEDUP -->|no| SKIP(["no se escribe nada:<br/>la escritura I2C es el coste real"])
+    DEDUP -->|si| I2C(["show_image sobre I2C"])
+    DEDUP -->|si| MIRROR(["publica /ui/oled_mirror"])
+
+    classDef pagina fill:#eef,stroke:#446
+    classDef fallo fill:#fee,stroke:#a44
+    class PHOLD,PBOOT,PDETECT,PREADY,PRACING,PFIN,PBLANK pagina
+    class PFAULT fallo

@@ -97,6 +97,7 @@ Cada número es medido, no estimado, y puede rastrearse hasta el código y la me
         2. [Calibración](#calibración)
 7. **[Arquitectura de software y estrategia para superar obstáculos](#arquitectura-de-software-y-estrategia-para-superar-obstáculos)**
     1. [Arquitectura ROS2 y reparto entre dos computadores](#arquitectura-ros2-y-reparto-entre-dos-computadores)
+        1. [La pantalla OLED, el único instrumento en pista](#la-pantalla-oled-el-único-instrumento-en-pista)
         1. [La segunda pila (stack) en Go, y por qué no corre en carrera](#la-segunda-pila-stack-en-go-y-por-qué-no-corre-en-carrera)
     2. [Modelo de detección YOLO](#modelo-de-detección-yolo)
         1. [El modelo y su pipeline](#el-modelo-y-su-pipeline)
@@ -1119,9 +1120,257 @@ El software está organizado en cinco paquetes ROS2:
 | `vtitan_state_machine` | Máquina de estados de carrera y grabación de bags |
 | `vtitan_vision` | Cámara e inferencia de detección |
 
+Visto como componentes, el reparto queda así. `vtitan_bringup` es la única caja que no participa en la comunicación: no declara ningún ejecutable, solo los archivos de lanzamiento que arrancan a las demás.
+
+<!-- mermaid-src: schemes/flowcharts/common/mermaid/paquetes-ros2.mmd -->
+```mermaid
+flowchart LR
+    subgraph PI5["RASPBERRY PI 5 - percepción y planificación"]
+        VIS["vtitan_vision<br/>cámara + inferencia Hailo<br/>1 nodo"]
+        NAV["vtitan_navigation<br/>pasillo, plan, escapes<br/>1 nodo"]
+        SM["vtitan_state_machine<br/>estados, bags, telemetría<br/>3 nodos"]
+        IMUP["vtitan_drivers (IMU)<br/>BNO085 UART-RVC"]
+        LID["sllidar_ros2<br/>paquete de terceros"]
+    end
+
+    subgraph ZERO["RASPBERRY PI ZERO 2 W - control en tiempo real"]
+        MOT["vtitan_drivers (motores)<br/>ackermann_motor_node<br/>proceso propio"]
+        PER["vtitan_drivers (periféricos)<br/>botón + OLED + jumper<br/>un solo proceso"]
+    end
+
+    BRING["vtitan_bringup<br/>solo launch files, sin ejecutables"]
+
+    BRING -.->|lanza| PI5
+    BRING -.->|lanza| ZERO
+
+    LID -->|"/scan"| NAV
+    VIS -->|"/vision/detections"| NAV
+    IMUP -->|"/imu/data"| NAV
+    MOT -->|"/joint_states"| NAV
+    NAV -->|"/ackermann_cmd"| MOT
+
+    SM <-->|"estado, modo, vueltas"| NAV
+    SM <-->|"estado, botón, jumper"| PER
+
+    classDef externo fill:#eee,stroke:#999,stroke-dasharray: 4 3
+    class LID externo
+```
+
 Los nodos se comunican por **29 tópicos (topics) declarados en un único archivo de configuración** (`ros_topics.toml`) en lugar de estar escritos a mano en cada nodo. Esto evita una clase de error entera: un nodo que publica en `/lidar/scan` mientras otro escucha `/scan` compila, arranca y no funciona, sin ningún mensaje de error. Con los nombres centralizados, esa discrepancia no puede existir.
 
+Bajando al detalle, el grafo se parte en dos planos casi disjuntos. El **plano de carrera** es el que decide y actúa, y es el único que cruza la frontera entre las dos placas: solo dos tópicos la atraviesan en el lazo cerrado, `/ackermann_cmd` de ida y `/joint_states` de vuelta. Cada flecha sale de un `create_publisher`/`create_subscription` real del código, no de una descripción escrita a mano:
+
+<!-- mermaid-src: schemes/flowcharts/common/mermaid/nodos-ros2.mmd -->
+```mermaid
+flowchart LR
+    subgraph PI5["RASPBERRY PI 5 - percepción y planificación"]
+        LIDAR(["sllidar_node<br/>(sllidar_ros2)"])
+        IMU(["imu<br/>bno08x_uart_rvc_node"])
+        VISION(["vision<br/>vision_node"])
+        NAVE(["track_navigator<br/>track_navigator_node"])
+        SMN(["state_machine<br/>state_machine_node"])
+    end
+
+    subgraph ZERO["RASPBERRY PI ZERO 2 W - control en tiempo real"]
+        MOTOR(["ackermann_motor_node"])
+        BTN(["button_node"])
+        CHAL(["challenge_mode_node"])
+    end
+
+    LIDAR -->|"/scan"| NAVE
+    LIDAR -->|"/scan"| VISION
+    IMU -->|"/imu/data"| NAVE
+    VISION -->|"/vision/detections"| NAVE
+    NAVE -->|"/nav_debug"| VISION
+
+    NAVE ==>|"/ackermann_cmd"| MOTOR
+    MOTOR ==>|"/joint_states"| NAVE
+
+    LIDAR -->|"/scan (vivacidad)"| SMN
+    IMU -->|"/imu/data (vivacidad)"| SMN
+    VISION -->|"/vision/detections (vivacidad)"| SMN
+    NAVE -->|"/race/laps_completed"| SMN
+    NAVE -->|"/race/current_corridor"| SMN
+    NAVE -->|"/ackermann_cmd"| SMN
+    SMN -->|"/robot_state"| NAVE
+    SMN -->|"/robot_state"| VISION
+    SMN -->|"/challenge_mode/active"| NAVE
+    SMN -->|"/challenge_mode/active"| VISION
+    SMN -->|"/ackermann_cmd (parada)"| MOTOR
+
+    BTN -->|"/button/event"| SMN
+    CHAL -->|"/challenge_mode/jumper_inserted"| SMN
+
+    linkStyle 5,6 stroke-width:3px
+```
+
+El **plano de observación** cuelga de los mismos tópicos pero no participa en ninguna decisión: graba los bags, pinta el OLED y agrega las lecturas que este muestra. Es casi enteramente de una dirección, y sus dos únicas vías de vuelta hacia el plano de carrera (el botón remoto y el ajuste de parámetros de visión) son de operador de banco, no de control de carrera:
+
+<!-- mermaid-src: schemes/flowcharts/common/mermaid/nodos-ros2-telemetria.mmd -->
+```mermaid
+flowchart LR
+    subgraph CARRERA["PLANO DE CARRERA (ver nodos-ros2.mmd)"]
+        SENS["sllidar_node / imu<br/>/scan, /imu/data"]
+        NAVE["track_navigator<br/>/ackermann_cmd, /odom"]
+        SMN["state_machine<br/>/robot_state, /race_metrics, /system_status"]
+        VISION["vision_node<br/>/vision/detections, /camera/image_raw"]
+        MOTOR["ackermann_motor_node<br/>/joint_states, /motor/*"]
+        BTN["button_node<br/>/button/hold"]
+    end
+
+    subgraph OBS["PLANO DE OBSERVACIÓN"]
+        TEL(["telemetry_bridge<br/>telemetry_bridge_node<br/>Pi 5"])
+        BAG(["bag_recorder<br/>bag_recorder_node<br/>Pi 5"])
+        OLED(["oled_display_node<br/>Pi Zero"])
+    end
+
+    SENS -->|"/scan, /imu/data"| TEL
+    NAVE -->|"/ackermann_cmd"| TEL
+    NAVE -.->|"/odom (clave opcional)"| TEL
+    SMN -->|"/robot_state"| TEL
+    VISION -->|"/vision/detections"| TEL
+    MOTOR -->|"/joint_states"| TEL
+
+    SMN -->|"/robot_state"| BAG
+    VISION -->|"/camera/image_raw"| BAG
+    BAG -->|"/bag_recorder/run_path"| VISION
+
+    SMN -->|"/robot_state, /race_metrics, /system_status"| OLED
+    MOTOR -->|"/motor/drive_speed, /motor/steering_position, /motor/status"| OLED
+    BTN -->|"/button/hold"| OLED
+    VISION -->|"/system_status (nombre del modelo)"| OLED
+    TEL -->|"/ui/telemetry_summary"| OLED
+    OLED -->|"/ui/oled_mirror"| SINMIRROR
+    SINMIRROR["sin suscriptor en el repo<br/>se lee con ros2 topic echo<br/>o por un puente externo"]
+
+    TEL -.->|"/button/event<br/>botón remoto, solo en banco"| SMN
+    TEL -.->|"servicio set_parameters"| VISION
+
+    classDef espejo fill:#fff,stroke:#666,stroke-dasharray: 5 4
+    class SENS,NAVE,SMN,VISION,MOTOR,BTN espejo
+```
+
+En ninguno de los tres diagramas aparece el backend de telemetría en Go. Es deliberado: **en competencia el robot corre sin red**, así que ese enlace no existe durante una ronda, y dibujarlo sugeriría una dependencia que la pista no tiene. `telemetry_bridge_node` sí se queda, porque su salida `/ui/telemetry_summary` es de donde la página RACING del OLED saca las distancias y el yaw. El estado del backend y la política de migración a Go están más abajo, en su propia subsección.
+
 Un detalle que ilustra el nivel de restricción real: el SoC de la Pi Zero 2 W tiene **exactamente dos generadores de PWM por hardware**. Uno está tomado por el servo de dirección, que necesita mantener una posición absoluta y no tolera fluctuaciones. El otro se asigna a la marcha adelante del motor. La marcha atrás, que solo se usa en maniobras de estacionamiento y recuperación a baja velocidad, funciona con PWM por software y sí tolera esa fluctuación. Es un reparto deliberado de un recurso escaso, no una casualidad.
+
+#### La pantalla OLED, el único instrumento en pista
+
+En competencia el robot corre sin red: no hay panel de telemetría, no hay SSH, no hay consola. La pantalla OLED de 128x64 es literalmente lo único que el operador puede leer antes de pulsar el botón, y el botón es lo único que puede tocar. Eso convierte a `oled_display_node` en algo más que un adorno: es la interfaz completa del robot en pista, y por eso su lógica está diagramada igual que la de navegación.
+
+El nodo no tiene un menú ni páginas que se roten. Una cadena de prioridad decide qué se dibuja en cada tick, y el orden de las ramas *es* la decisión: un botón retenido gana a cualquier estado, porque el operador está usando el único control que tiene y necesita saber qué va a pasar antes de soltarlo.
+
+<!-- mermaid-src: schemes/flowcharts/common/mermaid/oled-paginas.mmd -->
+```mermaid
+flowchart TD
+    TIMER(["Temporizador UI_REFRESH_RATE_HZ<br/>_update_display"])
+    HOLD{"¿/button/hold<br/>held_sec &gt; 0?"}
+    STATE{"/robot_state"}
+
+    TIMER --> HOLD
+    HOLD -->|"sí, gana a todo"| PHOLD
+    HOLD -->|no| STATE
+
+    PHOLD["<b>HOLDING</b><br/>segundos retenidos<br/>y qué va a disparar<br/>POWER OFF / STOP / RESTART"]
+
+    STATE -->|BOOT_CHECK| JUMPER
+    STATE -->|READY| PREADY
+    STATE -->|RACING| PRACING
+    STATE -->|FINISHED| PFIN
+    STATE -->|"cualquier otro"| PBLANK
+
+    JUMPER{"Diagnóstico ChallengeMode<br/>en /system_status"}
+    JUMPER -->|"estable"| PBOOT
+    JUMPER -->|"inestable &lt; 5 s"| PDETECT
+    JUMPER -->|"inestable &ge; 5 s"| PFAULT
+
+    PBOOT["<b>BOOT CHECK</b><br/>lista de 6 componentes<br/>IMU, LiDAR, Hailo, Drive,<br/>Network, ChallengeMode<br/>✓ / ✗ / ? por componente"]
+    PDETECT["<b>BOOT CHECK</b><br/>Detecting challenge mode...<br/>ventana normal de arranque"]
+    PFAULT["<b>CHECK JUMPER</b><br/>reasentar el cap GPIO23/GND"]
+    PREADY["<b>READY TO START</b><br/>IP solo si la hay<br/>modelo de visión cargado<br/>MODE del jumper<br/>Press to START"]
+    PRACING["<b>RACING</b><br/>rejilla fija de 4x2<br/>izquierda: F/L/R en cm y vueltas<br/>derecha: velocidad, dirección, yaw<br/>y la detección, solo en Obstacles"]
+    PFIN["<b>RACE FINISHED</b><br/>vueltas contra el objetivo<br/>tiempo total<br/>COMPLETE o E-STOP"]
+    PBLANK["pantalla en blanco"]
+
+    DEDUP{"¿los bytes del fotograma<br/>cambiaron?"}
+    PHOLD --> DEDUP
+    PBOOT --> DEDUP
+    PDETECT --> DEDUP
+    PFAULT --> DEDUP
+    PREADY --> DEDUP
+    PRACING --> DEDUP
+    PFIN --> DEDUP
+    PBLANK --> DEDUP
+
+    DEDUP -->|no| SKIP(["no se escribe nada:<br/>la escritura I2C es el coste real"])
+    DEDUP -->|si| I2C(["show_image sobre I2C"])
+    DEDUP -->|si| MIRROR(["publica /ui/oled_mirror"])
+
+    classDef pagina fill:#eef,stroke:#446
+    classDef fallo fill:#fee,stroke:#a44
+    class PHOLD,PBOOT,PDETECT,PREADY,PRACING,PFIN,PBLANK pagina
+    class PFAULT fallo
+```
+
+Dos detalles que el diagrama hace explícitos. El primero es que **la escritura I2C es el coste real**, no el dibujo: el nodo compara los bytes del fotograma con el anterior y no escribe nada si no cambiaron. El segundo es que `BOOT_CHECK` no es una página sino tres, y cuál sale depende del tiempo: mientras la lectura del jumper es inestable muestra un "Detecting challenge mode..." neutro, y solo pasados 5 segundos escala a la advertencia de reasentar el cap. Un fallo de arranque normal y uno real se ven distintos.
+
+Ninguna línea de ninguna página se calcula aquí. Cada valor viene de un tópico, y las tres fuentes que alimentan `/system_status` son tres nodos distintos que el OLED fusiona por nombre, así que ninguno puede escribir el campo de otro ni contradecirlo:
+
+<!-- mermaid-src: schemes/flowcharts/common/mermaid/oled-fuentes.mmd -->
+```mermaid
+flowchart LR
+    subgraph FUENTES["TÓPICOS DE ENTRADA"]
+        SS["/system_status<br/>DiagnosticArray"]
+        RM["/race_metrics<br/>JSON"]
+        UIS["/ui/telemetry_summary<br/>desde telemetry_bridge"]
+        MDS["/motor/drive_speed"]
+        MSP["/motor/steering_position"]
+        BH["/button/hold"]
+        RS["/robot_state"]
+    end
+
+    subgraph PAGINAS["LÍNEAS DE CADA PÁGINA"]
+        B1["BOOT CHECK<br/>✓/✗ de los 6 componentes"]
+        R1["READY: IP"]
+        R2["READY: modelo de visión"]
+        R3["READY / BOOT: MODE"]
+        C1["RACING: F, L, R en cm"]
+        C2["RACING: Yaw"]
+        C3["RACING: detección (solo Obstacles)"]
+        C4["RACING: V, velocidad"]
+        C5["RACING: St, dirección"]
+        C6["RACING / FINISHED: vueltas y objetivo"]
+        F1["FINISHED: tiempo total"]
+        F2["FINISHED: COMPLETE o E-STOP"]
+        H1["HOLDING: segundos y acción"]
+        SEL["QUÉ PÁGINA se dibuja<br/>ver oled-paginas.mmd"]
+    end
+
+    RS --> SEL
+    BH -->|"un hold en curso<br/>gana a cualquier estado"| SEL
+    BH --> H1
+    RS -->|"la acción del hold<br/>depende del estado"| H1
+
+    SS --> B1
+    SS --> R1
+    SS --> R2
+    SS --> R3
+    SS -->|"ChallengeMode decide<br/>si la detección se pinta"| C3
+
+    UIS --> C1
+    UIS --> C2
+    UIS --> C3
+    MDS --> C4
+    MSP --> C5
+    RM --> C6
+    RM --> F1
+    RM -->|"vueltas contra el objetivo<br/>del propio /race_metrics"| F2
+
+    classDef topico fill:#eef,stroke:#446
+    class SS,RM,UIS,MDS,MSP,BH,RS topico
+```
+
+Eso es deliberado en los dos sitios donde costó caro. `Model:` lo publica `vision_node`, el único que sabe qué modelo se cargó de verdad, después de que un nombre escrito a mano aquí llevara tiempo divergiendo del desplegado sin que nada lo notara. Y el objetivo de vueltas sale de `/race_metrics`, no de la constante del Open Challenge: usar la constante reportaría "E-STOP" en una ronda de Obstacles terminada correctamente, en cuanto las dos cifras difieran.
 
 #### La segunda pila (stack) en Go, y por qué no corre en carrera
 

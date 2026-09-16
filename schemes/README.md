@@ -9,7 +9,7 @@ schemes/
 ├── ackermann-steering-system.webp      geometría Ackermann (la alternativa que NO usamos)
 ├── counter-phase-steering-system.webp  dirección en contrafase (la que sí usamos)
 ├── flowcharts/
-│   ├── common/      lógica compartida por los dos desafíos
+│   ├── common/      lógica compartida y arquitectura de software
 │   ├── open/        Open Challenge
 │   ├── obstacles/   Obstacle Challenge
 │   └── _legacy/     diagramas de versiones anteriores, conservados
@@ -32,6 +32,30 @@ Cada diagrama existe **tres veces**, y las tres salen del mismo `.mmd`:
 la vuelta, escape ante colisión y atasco, conteo de vueltas, esquiva genérica,
 interacciones entre subsistemas). `open/` y `obstacles/` lo **referencian en vez
 de redibujarlo**, que es la razón de que exista la separación.
+
+Seis de los diagramas de `common/` no describen comportamiento sino
+**estructura**, y conviene leerlos en este orden:
+
+| Archivo | Qué dibuja |
+|---|---|
+| `subsistemas.mmd` | Hardware: energía y datos entre batería, cómputo, sensores y actuación |
+| `paquetes-ros2.mmd` | Los cinco paquetes ROS2 y en qué placa corre cada uno |
+| `nodos-ros2.mmd` | Plano de carrera: los 8 nodos que deciden y actúan, tópico a tópico |
+| `nodos-ros2-telemetria.mmd` | Plano de observación: bags, OLED y el puente, que solo escuchan |
+| `oled-paginas.mmd` | Dentro de `oled_display_node`: la cadena de prioridad que elige la página |
+| `oled-fuentes.mmd` | Qué tópico alimenta cada línea de cada página del OLED |
+
+Las aristas de `nodos-ros2*.mmd` salen de un `create_publisher` o
+`create_subscription` real, y los nombres de tópico de `src/config/ros_topics.toml`
+(la fuente única, ADR 0017). Si se añade o renombra un tópico, esos dos
+diagramas son lo que hay que actualizar junto al código. Los dos de `oled-*`
+siguen a `vtitan_drivers/oled_display_node.py`: `_update_display` para el árbol
+de decisión y los métodos `_render_*` para las líneas de cada página.
+
+Los cinco **solo dibujan lo que corre en competencia**. El backend de telemetría
+en Go y su panel quedan fuera a propósito: en pista el robot no tiene red, así
+que ese enlace no existe durante una ronda y dibujarlo sugeriría una dependencia
+que no hay. Cada `.mmd` lo declara en sus notas `%%`, que no se renderizan.
 
 Las líneas que empiezan por `%%` dentro de un `.mmd` son notas de mantenimiento
 (referencias a código, cifras de barridos). No se renderizan nunca y se

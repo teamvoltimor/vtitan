@@ -1,0 +1,43 @@
+%% Referencias (no se renderizan, solo para mantenimiento futuro)
+%% Vista GRUESA. El detalle nodo a nodo esta en common/mermaid/nodos-ros2.mmd
+%% Paquetes: src/python/ros2_ws/src/<paquete>/setup.py (console_scripts)
+%% Reparto por placa: vtitan_bringup/launch/rpi5_nodes.launch.py y rpi_zero_nodes.launch.py
+%% Prosa: README.md, "Arquitectura ROS2 y reparto entre dos computadores"
+%% Energia y sensores fisicos: common/mermaid/subsistemas.mmd
+%% vtitan_bringup NO tiene ejecutables: solo launch files, por eso se dibuja
+%% como una caja que arranca a las otras y no como un participante DDS.
+%% DELIBERADAMENTE FUERA: el backend de telemetria en Go (vtitan-backend.
+%% service) y su panel. No corre en el lazo de carrera y en competencia el
+%% robot no tiene red, asi que dibujarlo sugeriria una dependencia que no
+%% existe. Su estado y su politica de migracion los explica el README.
+
+flowchart LR
+    subgraph PI5["RASPBERRY PI 5 - percepción y planificación"]
+        VIS["vtitan_vision<br/>cámara + inferencia Hailo<br/>1 nodo"]
+        NAV["vtitan_navigation<br/>pasillo, plan, escapes<br/>1 nodo"]
+        SM["vtitan_state_machine<br/>estados, bags, telemetría<br/>3 nodos"]
+        IMUP["vtitan_drivers (IMU)<br/>BNO085 UART-RVC"]
+        LID["sllidar_ros2<br/>paquete de terceros"]
+    end
+
+    subgraph ZERO["RASPBERRY PI ZERO 2 W - control en tiempo real"]
+        MOT["vtitan_drivers (motores)<br/>ackermann_motor_node<br/>proceso propio"]
+        PER["vtitan_drivers (periféricos)<br/>botón + OLED + jumper<br/>un solo proceso"]
+    end
+
+    BRING["vtitan_bringup<br/>solo launch files, sin ejecutables"]
+
+    BRING -.->|lanza| PI5
+    BRING -.->|lanza| ZERO
+
+    LID -->|"/scan"| NAV
+    VIS -->|"/vision/detections"| NAV
+    IMUP -->|"/imu/data"| NAV
+    MOT -->|"/joint_states"| NAV
+    NAV -->|"/ackermann_cmd"| MOT
+
+    SM <-->|"estado, modo, vueltas"| NAV
+    SM <-->|"estado, botón, jumper"| PER
+
+    classDef externo fill:#eee,stroke:#999,stroke-dasharray: 4 3
+    class LID externo

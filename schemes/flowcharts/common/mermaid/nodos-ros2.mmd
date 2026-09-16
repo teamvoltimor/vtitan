@@ -1,0 +1,58 @@
+%% Referencias (no se renderizan, solo para mantenimiento futuro)
+%% PLANO DE CARRERA. El plano de observacion (telemetria, OLED, grabacion de
+%% bags, backend Go) esta en common/mermaid/nodos-ros2-telemetria.mmd, y la
+%% vista gruesa por paquetes en common/mermaid/paquetes-ros2.mmd.
+%% Nombres de topico: src/config/ros_topics.toml (fuente unica, ADR 0017)
+%% Los paquetes de ros2_ws son reexportaciones finas: el codigo vive en
+%% src/python/src/ros2/<area>/. Cada arista sale de un create_publisher /
+%% create_subscription real, no de la prosa del README.
+%% Reparto por placa: vtitan_bringup/launch/rpi5_nodes.launch.py,
+%% rpi_zero_nodes.launch.py y race.launch.py (el navegador y el grabador).
+%% Los topicos [simulation] (/sim/*) NO estan aqui: no existen en el robot.
+%% state_machine_node SUSCRIBE /ackermann_cmd ademas de publicarlo: lee de ahi
+%% la velocidad y direccion reales para /race_metrics, en vez de recalcularlas.
+
+flowchart LR
+    subgraph PI5["RASPBERRY PI 5 - percepción y planificación"]
+        LIDAR(["sllidar_node<br/>(sllidar_ros2)"])
+        IMU(["imu<br/>bno08x_uart_rvc_node"])
+        VISION(["vision<br/>vision_node"])
+        NAVE(["track_navigator<br/>track_navigator_node"])
+        SMN(["state_machine<br/>state_machine_node"])
+    end
+
+    subgraph ZERO["RASPBERRY PI ZERO 2 W - control en tiempo real"]
+        MOTOR(["ackermann_motor_node"])
+        BTN(["button_node"])
+        CHAL(["challenge_mode_node"])
+    end
+
+    %% --- percepcion hacia la planificacion ---
+    LIDAR -->|"/scan"| NAVE
+    LIDAR -->|"/scan"| VISION
+    IMU -->|"/imu/data"| NAVE
+    VISION -->|"/vision/detections"| NAVE
+    NAVE -->|"/nav_debug"| VISION
+
+    %% --- lazo de control, el unico que cruza a la otra placa ---
+    NAVE ==>|"/ackermann_cmd"| MOTOR
+    MOTOR ==>|"/joint_states"| NAVE
+
+    %% --- arbitraje de la maquina de estados ---
+    LIDAR -->|"/scan (vivacidad)"| SMN
+    IMU -->|"/imu/data (vivacidad)"| SMN
+    VISION -->|"/vision/detections (vivacidad)"| SMN
+    NAVE -->|"/race/laps_completed"| SMN
+    NAVE -->|"/race/current_corridor"| SMN
+    NAVE -->|"/ackermann_cmd"| SMN
+    SMN -->|"/robot_state"| NAVE
+    SMN -->|"/robot_state"| VISION
+    SMN -->|"/challenge_mode/active"| NAVE
+    SMN -->|"/challenge_mode/active"| VISION
+    SMN -->|"/ackermann_cmd (parada)"| MOTOR
+
+    %% --- arranque y modo, leidos en el GPIO del Zero ---
+    BTN -->|"/button/event"| SMN
+    CHAL -->|"/challenge_mode/jumper_inserted"| SMN
+
+    linkStyle 5,6 stroke-width:3px

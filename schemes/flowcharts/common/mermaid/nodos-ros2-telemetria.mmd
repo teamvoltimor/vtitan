@@ -1,0 +1,69 @@
+%% Referencias (no se renderizan, solo para mantenimiento futuro)
+%% PLANO DE OBSERVACION. El plano de carrera esta en
+%% common/mermaid/nodos-ros2.mmd y la vista gruesa por paquetes en
+%% common/mermaid/paquetes-ros2.mmd.
+%% Nombres de topico: src/config/ros_topics.toml (fuente unica, ADR 0017)
+%% Las cajas con borde discontinuo son el plano de carrera visto desde aqui:
+%% se dibujan como una sola fuente para no repetir su grafo interno.
+%% Casi todo aqui es de UNA DIRECCION: el plano de observacion suscribe y no
+%% manda. Las dos unicas excepciones van marcadas y son de operador remoto.
+%% DELIBERADAMENTE FUERA: el backend de telemetria en Go (vtitan-backend.
+%% service), al que telemetry_bridge_node habla por gRPC. En competencia el
+%% robot corre SIN RED, asi que ese enlace no existe en pista y dibujarlo
+%% sugeriria una dependencia que la ronda no tiene. telemetry_bridge_node si
+%% se queda: publica /ui/telemetry_summary, de donde salen las lecturas
+%% F/L/R y el yaw de la pagina RACING del OLED. Ver el README para el
+%% estado del backend y la politica de migracion a Go.
+%% /odom aparece PUNTEADO porque su clave esta COMENTADA en ros_topics.toml:
+%% telemetry_bridge_node lo suscribe solo si la configuracion lo define.
+%% vision_node publica /system_status por su cuenta para nombrar el modelo
+%% realmente cargado, que es el unico campo que solo el conoce.
+%% /ui/oled_mirror NO tiene suscriptor en el repo: lo publica oled_display_node
+%% y la unica otra aparicion del nombre son las claves generadas de config
+%% (shared/config/generated/ros_topics_schema.py y su gemela en Go). Ni el
+%% backend Go ni el frontend lo consumen. Verificado por grep 2026-09-16.
+
+flowchart LR
+    subgraph CARRERA["PLANO DE CARRERA (ver nodos-ros2.mmd)"]
+        SENS["sllidar_node / imu<br/>/scan, /imu/data"]
+        NAVE["track_navigator<br/>/ackermann_cmd, /odom"]
+        SMN["state_machine<br/>/robot_state, /race_metrics, /system_status"]
+        VISION["vision_node<br/>/vision/detections, /camera/image_raw"]
+        MOTOR["ackermann_motor_node<br/>/joint_states, /motor/*"]
+        BTN["button_node<br/>/button/hold"]
+    end
+
+    subgraph OBS["PLANO DE OBSERVACIÓN"]
+        TEL(["telemetry_bridge<br/>telemetry_bridge_node<br/>Pi 5"])
+        BAG(["bag_recorder<br/>bag_recorder_node<br/>Pi 5"])
+        OLED(["oled_display_node<br/>Pi Zero"])
+    end
+
+    %% --- puente de telemetria ---
+    SENS -->|"/scan, /imu/data"| TEL
+    NAVE -->|"/ackermann_cmd"| TEL
+    NAVE -.->|"/odom (clave opcional)"| TEL
+    SMN -->|"/robot_state"| TEL
+    VISION -->|"/vision/detections"| TEL
+    MOTOR -->|"/joint_states"| TEL
+
+    %% --- grabacion de bags ---
+    SMN -->|"/robot_state"| BAG
+    VISION -->|"/camera/image_raw"| BAG
+    BAG -->|"/bag_recorder/run_path"| VISION
+
+    %% --- pantalla OLED ---
+    SMN -->|"/robot_state, /race_metrics, /system_status"| OLED
+    MOTOR -->|"/motor/drive_speed, /motor/steering_position, /motor/status"| OLED
+    BTN -->|"/button/hold"| OLED
+    VISION -->|"/system_status (nombre del modelo)"| OLED
+    TEL -->|"/ui/telemetry_summary"| OLED
+    OLED -->|"/ui/oled_mirror"| SINMIRROR
+    SINMIRROR["sin suscriptor en el repo<br/>se lee con ros2 topic echo<br/>o por un puente externo"]
+
+    %% --- las dos unicas vias de vuelta hacia el plano de carrera ---
+    TEL -.->|"/button/event<br/>botón remoto, solo en banco"| SMN
+    TEL -.->|"servicio set_parameters"| VISION
+
+    classDef espejo fill:#fff,stroke:#666,stroke-dasharray: 5 4
+    class SENS,NAVE,SMN,VISION,MOTOR,BTN espejo
