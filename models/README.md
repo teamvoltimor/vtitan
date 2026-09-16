@@ -115,7 +115,7 @@ Los nombres originales del diseñador (`-max`, `-ultimate`, `-nuevo`, `-editado`
 sabía, porque las piezas se publicaron todas en el mismo commit. El orden que
 recoge la numeración actual es el que confirmó el diseñador.
 
-> [!NOTE]
+> [!WARNING]
 > **Pendiente declarado.** Falta el manifiesto de impresión: material, altura de
 > capa, relleno, soportes y orientación de cama por pieza. Sin esos parámetros,
 > otra persona puede abrir los `.stl` pero no reproducir exactamente nuestras

@@ -32,7 +32,7 @@ separado. Cada iteración tiene su documento con qué cambió y por qué:
 - [Klevor v0.2](../other/docs/development/previous-prototypes/klevor-v0.2.md)
 - [Klevor v1.0](../other/docs/development/previous-prototypes/klevor-v1.0.md)
 
-> [!NOTE]
+> [!WARNING]
 > **Pendiente declarado.** De vTitan solo hay fotos del estado final. La
 > historia de iteración documentada con imágenes es la de Klevor, no la de
 > vTitan; las fases de diseño de esta temporada están contadas en texto en

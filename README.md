@@ -6,7 +6,10 @@
 > 🕊️ Este proyecto está dedicado a la memoria de **Javier Pérez** ([@kaucrow](https://github.com/kaucrow)), amigo y colega, y de **Luna Margarita**, compañera de doce años. La [dedicatoria completa](memorial.md) vive en [`memorial.md`](memorial.md).
 
 <p align="center">
-    <img src="other/assets/voltimor-logo-square.webp" alt="" width="400">
+    <picture>
+        <source media="(prefers-color-scheme: dark)" srcset="other/assets/voltimor-logo-square-dark.webp">
+        <img src="other/assets/voltimor-logo-square.webp" alt="Logo del Team Voltimor" width="400">
+    </picture>
     <br>
     <i>Logo del Equipo</i>
 </p>
@@ -291,6 +294,9 @@ Aquí repasamos nuestras temporadas anteriores en Futuros Ingenieros y lo que ap
 
 ### Klevor (WRO 2025)
 
+<details>
+<summary><b>Vistas de Klevor (seis vistas)</b></summary>
+
 <table>
         <tbody>
                 <tr>
@@ -350,6 +356,8 @@ alt="Vista inferior de Klevor" width="600">
         </tbody>
 </table>
 
+</details>
+
 Klevor es el **predecesor** de vTitan, participando en la temporada 2025 de la World Robot Olympiad en la categoría de Futuros Ingenieros, con el Team Steel Bot (quienes ahora participan bajo el nombre de Team Voltimor) y como todo proyecto fue evolucionando hasta culminar con la versión que tenemos hoy en día. 
 
 Para conocer a nuestro prototipo actual, vTitan, mejor, es importante recalcar que muchas de sus características, más específicamente en la electrónica y programación, son **directamente heredadas** de Klevor, con cambios nulos o mínimos entre un prototipo o el otro. Algunas de las **herencias** más importantes son:
@@ -375,6 +383,9 @@ Además, optamos por un modelo más robusto y pesado en comparación con los dem
 Debido a la gran cantidad de cambios que necesitamos, por diferentes motivos, teníamos que reestructurar el prototipo múltiples veces, por lo que terminamos confiando ciegamente en algunas características que no pudimos probar completamente.
 
 ### vTitan (WRO 2026)
+
+<details>
+<summary><b>Vistas de vTitan (seis vistas)</b></summary>
 
 <table>
         <tbody>
@@ -434,6 +445,8 @@ alt="Vista inferior de vTitan" width="600">
                 </tr>
         </tbody>
 </table>
+
+</details>
 
 vTitan es el **sucesor** de Klevor, participando en la temporada 2026 de la World Robot Olympiad en la categoría Futuros Ingenieros, con el Team Voltimor (anteriormente Team Steel Bot), y es un proyecto que se encuentra evolucionando hasta el día de hoy.
 
@@ -982,6 +995,7 @@ El BTS7960 está clasificado a **43 A**, lo que deja un margen amplio incluso so
 
 Este cambio también reordenó el análisis del resto de la ruta de potencia. Con el puente sobredimensionado, **el elemento más débil pasó a ser el interruptor de encendido**, cuya capacidad de conducción continua está muy por debajo del BTS7960 y de lo que puede entregar la batería. Lo dejamos documentado en el esquemático como el punto a vigilar, porque un componente sobredimensionado no elimina un cuello de botella: solo lo mueve de sitio.
 
+> [!WARNING]
 > **Pendiente declarado.** No hemos medido la capacidad de conducción continua del interruptor, así que el margen de esa rama es el único del presupuesto eléctrico que damos por cualitativo.
 
 | **Característica** | **L298N (anterior)** | **BTS7960 (actual)** |
