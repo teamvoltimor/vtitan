@@ -181,7 +181,14 @@ def main() -> int:
         if measured is not None:
             print(f"  measure_start_pose said ({measured.start_measured_x:.3f},{measured.start_measured_y:.3f})")
 
-        last = rows[-1][1]
+        # rows[-1] is the navigator's post-run RESET snapshot (phase
+        # NOT_YET_STEPPED, every counter back to zero), so reading the outcome
+        # off it reports laps=0 for a round that finished three. Take the last
+        # snapshot that still describes the round.
+        last = next(
+            (s for _t, s in reversed(rows) if getattr(s.phase, "name", None) != "NOT_YET_STEPPED"),
+            rows[-1][1],
+        )
         print(f"final: laps={last.laps_completed} wrong_side={last.wrong_side_pass_count} escape_count={last.escape_count}")
 
     print(
