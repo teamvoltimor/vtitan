@@ -1,13 +1,12 @@
 """The Gazebo robot description must describe the same car the headless sim drives.
 
-Two defects found together on 2026-08-22, both of which had been sitting in the
-committed URDF and neither of which anything checked:
+Two defects were found together in the committed URDF, neither of which
+anything checked:
 
-1. **It did not parse at all.** Three XML comments contained ``--``, which is
-   illegal inside a comment, so ``xacro.process_file`` raised ExpatError on line
-   4. Every Gazebo launch that depends on the robot description was therefore
-   dead, and nothing said so -- the failure is a launch-time parse error in a
-   path no test touched.
+1. **It did not parse at all.** XML comments contained ``--``, which is illegal
+   inside a comment, so ``xacro.process_file`` raised ExpatError. Every Gazebo
+   launch that depends on the robot description was therefore dead, and nothing
+   said so: the failure is a launch-time parse error in a path no test touched.
 
 2. **It was a front-steer car.** The rear wheels were plain ``continuous``
    joints bolted straight to ``base_link``, while the real chassis and
@@ -16,7 +15,8 @@ committed URDF and neither of which anything checked:
    the rear axle to the chassis centre, so the robot yaws TWICE as fast at a
    given steering angle. It is the same defect that was already found and fixed
    once on the headless side, where it had quietly made every gain tuned
-   against the sim hotter on the real robot.
+   against the sim hotter on the real robot. See
+   adr:0076-drivetrain-and-steering-hardware.
 
 These are cheap assertions about a file that is otherwise only exercised by
 launching Gazebo -- which does not run on Windows at all (the gz conda packages

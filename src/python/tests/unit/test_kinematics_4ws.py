@@ -1,8 +1,8 @@
 """Counter-phase four-wheel steering invariants.
 
 Both axles steer, by the same angle in opposite directions -- confirmed on the
-real chassis 2026-07-25, and the 1:1 front-to-rear angle re-verified by hand
-2026-08-15. That is not the textbook bicycle model, and the difference is not
+real chassis, with the 1:1 front-to-rear angle re-verified by hand. That is not
+the textbook bicycle model, and the difference is not
 subtle: the instantaneous centre of rotation moves from the rear axle to the
 chassis centre, so the robot yaws TWICE as fast at the same steering angle.
 
@@ -15,6 +15,7 @@ simply a different vehicle. There was no test covering it until this file.
 The geometry that the Obstacles sign-clearance analysis rests on
 (docs/sign-avoidance-investigation.md) assumes all of the below: a centre
 reference point, a symmetric footprint, and rear swing-out equal to nose swing-in.
+See adr:0076-drivetrain-and-steering-hardware.
 """
 
 from __future__ import annotations
@@ -97,14 +98,14 @@ class TestCounterPhaseDoublesTheYawRate:
 
 
 class TestMeasuredDeparturesFromTheIdealModel:
-    """The two terms added 2026-08-29, when the model was first checked against a bag.
+    """The two terms added when the model was first checked against a bag.
 
-    Replaying ``run_20260829_140424``'s own commands through this integrator
-    produced 3512 deg of yaw against the IMU's 1918, and reached commanded speed
-    far sooner than the drivetrain does. Both errors flattered the robot, which
-    is the direction that matters: a sim that corners better than the car
-    certifies tuning the car cannot execute. Re-measure with
-    ``scripts/bag/diag_bag_sim_fidelity.py``.
+    Replaying a bag's own commands through the integrator produced far more yaw
+    than the IMU measured, and reached commanded speed far sooner than the
+    drivetrain does. Both errors flattered the robot, which is the direction
+    that matters: a sim that corners better than the car certifies tuning the
+    car cannot execute. Re-measure with ``scripts/bag/diag_bag_sim_fidelity.py``.
+    See adr:0086-simulator-realism.
     """
 
     def test_yaw_gain_scales_the_turn_radius_inversely(self):
@@ -172,9 +173,10 @@ class TestMeasuredDeparturesFromTheIdealModel:
 class TestWheelPosesShowTheCounterPhase:
     """``wheel_poses`` exists so RViz can draw what this file asserts.
 
-    Until 2026-08-22 the live visualizer drew the robot as a single rigid box,
-    so the property this whole module is about -- the two axles turning against
-    each other -- was the one thing you could not see while watching a run.
+    The live visualizer once drew the robot as a single rigid box, so the
+    property this whole module is about -- the two axles turning against each
+    other -- was the one thing you could not see while watching a run. See
+    adr:0076-drivetrain-and-steering-hardware.
     """
 
     def test_the_axles_steer_in_opposite_directions(self):

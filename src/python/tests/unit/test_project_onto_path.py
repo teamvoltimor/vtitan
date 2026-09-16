@@ -1,12 +1,12 @@
 """``project_onto_path`` must measure in the path's frame, not a global one.
 
 The reason this primitive exists: the sign-avoidance tracking figures were
-taken as the difference of two GLOBAL coordinates, and two-thirds of legal sign
+taken as the difference of two GLOBAL coordinates, and many legal sign
 positions sit on a corner. On a corner that difference charges the robot for
 the turn it was supposed to be making, so a chassis perfectly on its arc reads
 as steadily diverging from the line it was commanded to hold. See
-``scripts/sim/diag_failure_split.py`` and the 46% "tracking failure" bucket it
-had to withdraw.
+adr:0059-pass-side-travel-relative-and-scorer-independence and
+adr:0064-corridor-by-depth-and-clearance-budget.
 
 The two load-bearing properties, in order:
 
@@ -86,7 +86,7 @@ class TestTheFrameItself:
 
     def test_it_projects_onto_the_segment_not_the_nearest_waypoint(self):
         # Mid-segment, where nearest-waypoint would overstate the offset by half
-        # the spacing -- enough to matter against a +-6.7 cm sign-pass budget.
+        # the spacing -- enough to matter against the sign-pass budget.
         coarse = [Waypoint(0.0, 0.0), Waypoint(1.0, 0.0)]
         assert project_onto_path(coarse, 0.5, 0.02).signed_offset_m == pytest.approx(0.02)
 

@@ -1,9 +1,9 @@
 """What the pose trail can say about the space behind the chassis.
 
-The mount lost its rear slot (2026-08-22), so every LIDAR-based reverse gate now
-refuses. The trail is the one remaining statement about that space that needs no
-rear vision: ground the chassis physically occupied. These pin what it may and
-may not claim.
+The mount lost its rear slot, so every LIDAR-based reverse gate now refuses. The
+trail is the one remaining statement about that space that needs no rear vision:
+ground the chassis physically occupied. These pin what it may and may not claim.
+See adr:0055-escape-maneuver-selection.
 """
 
 from __future__ import annotations

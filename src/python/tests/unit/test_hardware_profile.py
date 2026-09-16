@@ -1,10 +1,11 @@
 """Coverage for shared.config.hardware_profile and its consumers.
 
 The profile-overlay mechanism (VTITAN_HARDWARE_PROFILE -> profile_dirs() ->
-deep_merge onto the base config) landed in 090bc43 with no automated tests --
-only ad hoc manual runs. This locks down: env-var parsing, the unknown-profile
-failure mode, that a MISSING component profile is refused rather than guessed,
-and that RobotConstants.load_default() composes one profile per physical part.
+deep_merge onto the base config) lands on the component-overlay decision in
+adr:0070-hardware-profiles-and-challenge-overlays. This locks down: env-var
+parsing, the unknown-profile failure mode, that a MISSING component profile is
+refused rather than guessed, and that RobotConstants.load_default() composes one
+profile per physical part.
 
 The "unset env var reproduces base-only behavior" case this file used to pin is
 deliberately gone: the base config no longer describes a motor or a servo, so
@@ -79,11 +80,13 @@ class TestRobotConstantsProfileOverlay:
     def test_load_default_without_a_component_profile_refuses_to_guess(self, monkeypatch):
         """The whole point of stripping the motor and servo out of the base file.
 
-        Previously this asserted that a bare load returned 90/55 deg -- i.e.
-        that a run with no profile named silently modelled whichever servo
-        happened to be checked in. That is the failure mode that put a night of
-        motor tests on the wrong ceiling, and it is undetectable from behaviour
-        alone, so the contract is now inverted: refuse, and say what is missing.
+        Previously this asserted that a bare load returned the base servo
+        angles -- i.e. that a run with no profile named silently modelled
+        whichever servo happened to be checked in. That is the failure mode that
+        put a night of motor tests on the wrong ceiling, and it is undetectable
+        from behaviour alone, so the contract is now inverted: refuse, and say
+        what is missing. See
+        adr:0070-hardware-profiles-and-challenge-overlays.
         """
         monkeypatch.setenv("VTITAN_HARDWARE_PROFILE", "")
 
@@ -121,11 +124,11 @@ class TestRobotConstantsProfileOverlay:
         mixed = RobotConstants.load_default()
 
         assert mixed.steering.max_wheel_angle_deg == pytest.approx(55.0)
-        # Both literals track the profile files they come from. max_speed_mps
-        # was 0.234, then an estimated 1.0, and is 0.58 since the 2026-08-30
-        # bench. If a profile is re-measured, this moves with it -- the
-        # assertion is that the NAMED motor's value wins, not that the value is
-        # any particular one.
+        # Both literals track the profile files they come from, and the motor
+        # ceiling follows its own bench (see
+        # adr:0076-drivetrain-and-steering-hardware). If a profile is
+        # re-measured, this moves with it -- the assertion is that the NAMED
+        # motor's value wins, not that the value is any particular one.
         assert mixed.drivetrain.max_speed_mps == pytest.approx(0.58)
 
     def test_load_default_profile_overlay_leaves_untouched_sections_at_base_values(self, monkeypatch):
@@ -160,7 +163,8 @@ class TestRobotConstantsProfileOverlay:
         now declares only ``rear_steer_ratio`` and ``yaw_gain`` -- so a rig
         omitting them is no longer a partial overlay, it is an incomplete motor,
         and ``_require_component_facts`` correctly refuses it. The rig declares
-        all three, and inheritance is asserted on a key the base still owns.
+        all three, and inheritance is asserted on a key the base still owns. See
+        adr:0070-hardware-profiles-and-challenge-overlays.
         """
         profile_dir = tmp_path / "bench_rig"
         profile_dir.mkdir()

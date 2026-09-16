@@ -123,7 +123,11 @@ that removes reverse authorization rather than fixing it.
 - b645e3bf 2026-09-11: price the rear sector's blindness, find there is none.
   78-bag replay: 64167/64258 = 99.9 percent, 803/803 at reverse launch.
 - b7c2401a 2026-09-11: anchor the escape mask on the LIDAR cluster, not the
-  belief. Associated 86.7 percent, self-returns 1.3 percent.
+  belief. Associated 86.7 percent, self-returns 1.3 percent. On the 2026-09-11
+  Obstacles rounds the nearest return sat p50 0.248 and 0.154 m from the believed
+  sign against the 0.12 m radius, so the belief-anchored mask caught 0/209 and
+  60/316 of its intended ticks; the cluster-anchored mask caught 111/209 (53
+  percent) and 243/316 (77 percent).
 - 18ec157d 2026-09-14: select the forward lane from the bumper plane. Nine rounds,
   366 latches: 47 percent fired >60 deg off the nose, 98/366 (27 percent) at or
   behind the bumper.
@@ -200,3 +204,6 @@ that removes reverse authorization rather than fixing it.
 - The bare-minimum phantom was worth 30 runs on the 256-scenario Obstacles corpus.
 - On run_20260906_192424 the chassis read 0.125 m at -157 deg and 0.187 m at
   -172 deg.
+- A forward cone against a wall read about 9.97 m for the rest of the run; the
+  navigator held 0.24 m/s into the wall and `stuck_forward` stood down after six
+  ticks.

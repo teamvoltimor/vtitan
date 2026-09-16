@@ -77,6 +77,15 @@ because both publish to `/ackermann_cmd` and nothing arbitrates between them.
 - 1a6a46c3 2026-09-14: re-resolve per-challenge params on the router swap. 13,852
   driving ticks on Open tiers against 0 on Obstacles, in 9 of 9 rounds.
 - 6334fd94 2026-09-14: rebuild the challenge controllers on a switch.
+- 2026-08-06: a button-cycled rerun dropped straight back to FINISHED, because the
+  finished race's stale lap count beat the navigator's post-reset zero; only a
+  reboot cleared it.
+- 2026-09-11: the Pi 5 timed out at 10:58:30 and the Zero published the jumper at
+  10:58:51, 21 s late.
+- 2026-09-12: the in-bay lot derivation deployed 2026-09-11 was inert; `reset()`
+  rebuilt the controller from the raw metadata, got None and destroyed what
+  construction built, so three hardware rounds reached three laps with
+  `parking_engaged` null.
 
 ## Cross-references
 

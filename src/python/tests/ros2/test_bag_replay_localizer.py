@@ -1,12 +1,12 @@
 """Assert recorded race bags show a position estimate that tracks forward.
 
-The 2026-08-05 CCW failure was a position estimate that walked *backwards*
-along the robot's own heading: the robot drove east into the wall while its
-pose slid west, so pure pursuit never registered progress toward its waypoint,
-never advanced the plan, and drove straight into a corner with the steering
-near zero. Nothing in the logged pose looks wrong on its own -- the numbers are
-in-track and the implied speed is plausible. Only the *sign* of the motion
-relative to heading gives it away.
+A position estimate that walks *backwards* along the robot's own heading is
+invisible on its own: the numbers are in-track and the implied speed is
+plausible. Only the *sign* of the motion relative to heading gives it away.
+That was the failure behind the CCW runs that drove into a corner with the
+steering near zero, because pure pursuit never registered progress toward its
+waypoint and never advanced the plan (see
+adr:0084-localizer-divergence-and-relocalization).
 
 That is the invariant here, and it holds for any run regardless of layout,
 direction or corridor widths: while the robot is being commanded forward, the
@@ -45,23 +45,21 @@ _NAV_DEBUG_TOPIC = RosTopicConfig.load_default().navigation.nav_debug
 _ANALYSIS_WINDOW_S = 6.0
 # Blind direction inference re-seeds position outright when it overturns the
 # assumed direction (see _commit_direction), which is a deliberate
-# discontinuity, not motion -- both real captures committed by t=1.2s. Starting
-# after it keeps the speed bound a statement about tracking rather than about
-# a correction the robot is supposed to make.
+# discontinuity, not motion. Starting after it keeps the speed bound a
+# statement about tracking rather than about a correction the robot is
+# supposed to make.
 _SETTLE_S = 1.5
 
 
 def _bags() -> list[Path]:
     """The newest pulled run only.
 
-    Deliberately not the whole corpus. Sweeping every bag was tried first and
-    is genuinely informative -- 9 of 24 violate the forward-tracking invariant,
-    which is the historical record of runs that really did mislocalise -- but
-    those failures are permanent, so as a gate it would be red forever and stop
-    meaning anything. Asserting on the latest run makes it the check you want
-    after a race: it went green on the CW run that completed a lap and red on
-    the CCW run that drove into a corner. Use ``scripts/bag/diag_bag_summary.py``
-    and its siblings for the full sweep.
+    Deliberately not the whole corpus. Sweeping every bag is genuinely
+    informative: it is the historical record of runs that really did
+    mislocalise. But those failures are permanent, so as a gate it would be red
+    forever and stop meaning anything. Asserting on the latest run makes it the
+    check you want after a race. Use ``scripts/bag/diag_bag_summary.py`` and its
+    siblings for the full sweep.
     """
     if not _BAG_ROOT.is_dir():
         return []
@@ -98,8 +96,8 @@ def _forward_progress(bag_dir: Path) -> tuple[float, float] | None:
     logged pose is the one pure pursuit steered from, so it is the only
     trajectory whose sign means anything about the failure; a replay reseeded
     from a clean start diverges from it within a few ticks and then answers a
-    question nobody asked. (Confirmed while writing this: a replayed version
-    of this check passed the very run it was written to catch.)
+    question nobody asked (a replayed version of this check passed the very run
+    it was written to catch).
 
     Positive displacement means the estimate advanced the way the robot was
     pointing. ``None`` when the bag has no usable forward-driving window.
@@ -156,7 +154,8 @@ def test_estimate_does_not_track_backwards(bag_dir: Path) -> None:
         f"{bag_dir.name}: position estimate moved {abs(along):.3f} m *backwards* along its own "
         "heading while driving forward. Pure pursuit measures progress as distance to the next "
         "waypoint, so a receding estimate means the plan never advances and the robot drives "
-        "straight on with near-zero steering (see the 2026-08-05 CCW run)."
+        "straight on with near-zero steering (see "
+        "adr:0084-localizer-divergence-and-relocalization)."
     )
 
 
@@ -164,13 +163,12 @@ def test_estimate_does_not_track_backwards(bag_dir: Path) -> None:
 @pytest.mark.xfail(
     reason=(
         "The speed-bound guard does not currently bound anything. Measured across every pulled "
-        "bag -- including run_20260805_195501, which completed its lap successfully, and both "
-        "runs recorded after the guard shipped in 9e91981 -- the accepted estimates still imply "
-        "multiples of the drivetrain maximum. The guard's hysteresis turns a rejection into a "
-        "delay followed by acceptance in full, so a persistently wrong pull passes at its "
-        "original magnitude and only a single non-repeating outlier is ever stopped. Recorded as "
-        "xfail rather than a hard gate because it is red on good runs too: it is a known "
-        "shortcoming, not a regression, and it should flip to XPASS when the guard is reworked."
+        "bag, the accepted estimates still imply multiples of the drivetrain maximum. The guard's "
+        "hysteresis turns a rejection into a delay followed by acceptance in full, so a "
+        "persistently wrong pull passes at its original magnitude and only a single non-repeating "
+        "outlier is ever stopped. Recorded as xfail rather than a hard gate because it is red on "
+        "good runs too: it is a known shortcoming, not a regression, and it should flip to XPASS "
+        "when the guard is reworked. See adr:0084-localizer-divergence-and-relocalization."
     ),
     strict=False,
 )
@@ -181,9 +179,9 @@ def test_estimate_respects_physical_speed_bound(bag_dir: Path) -> None:
     if result is None:
         pytest.skip(f"{bag_dir.name} has no usable forward-driving window")
     _, peak_speed = result
-    # The same headroom LidarLocalizer's own guard allows over the measured
-    # 0.156 m/s top speed, so this pins the guard's contract rather than a
-    # second, independently-drifting number.
+    # The same headroom LidarLocalizer's own guard allows over the drivetrain's
+    # top speed, so this pins the guard's contract rather than a second,
+    # independently-drifting number.
     assert peak_speed <= 0.25, (
         f"{bag_dir.name}: estimate implied {peak_speed:.3f} m/s, above the guard's 0.25 m/s bound "
         f"(real drivetrain maximum is {RobotSpecs.MAX_SPEED_MPS} m/s)."

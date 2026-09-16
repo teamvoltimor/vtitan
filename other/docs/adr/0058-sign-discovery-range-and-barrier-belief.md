@@ -308,3 +308,6 @@ cannot score it because it never emits a magenta detection.
 - The barrier arrived as a RED detection at 60 percent in one round and 4 to 9
   percent in two others, located from the lot's own LIDAR cluster; the rate ships
   at 0.0 because 4 to 60 percent is a range, not a rate.
+- Believing every barrier cluster over the threshold settled on six lots per
+  counter-clockwise round (2026-09-14) and refused 42.2 percent of real pillars.
+- Green boxes wider than tall were 0.6 percent on `run_20260905_214920`.

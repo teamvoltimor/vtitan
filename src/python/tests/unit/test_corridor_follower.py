@@ -1,9 +1,9 @@
 """Blind corridor following, and the corner turn it must not commit to early.
 
-The behaviour pinned here is what run_20260806_162008 lost: a 305 s round in
-which the corner branch held hard-over steering for 53% of the ticks, so the
-chassis never came square to a corridor, never inferred its travel direction,
-never planned a path, and scored zero laps.
+The behaviour pinned here is what a lost hardware round cost: the corner branch
+held hard-over steering for most of the ticks, so the chassis never came square
+to a corridor, never inferred its travel direction, never planned a path, and
+scored zero laps. See adr:0057-blind-corridor-follower-and-width.
 """
 
 from __future__ import annotations
@@ -26,12 +26,13 @@ if TYPE_CHECKING:
 def rear_visible(tuning, override_tuning):
     """Tuning with the mount's historical ~25 deg rear slot restored.
 
-    The shipped occlusion wedges meet at 180 deg since 2026-08-22 -- the build
-    lost the slot that was its only rear vision -- so nothing behind can be
-    measured and every sensed-clearance reverse is refused. These are the
-    pre-08-22 bounds, and the reversing branches cannot be exercised without
-    them. Restoring a rear sensor on the real chassis is this same edit in the
-    config, which is why the branches are kept rather than deleted.
+    The shipped occlusion wedges meet at 180 deg -- the build lost the slot that
+    was its only rear vision -- so nothing behind can be measured and every
+    sensed-clearance reverse is refused. These are the earlier, slotted bounds,
+    and the reversing branches cannot be exercised without them. Restoring a rear
+    sensor on the real chassis is this same edit in the config, which is why the
+    branches are kept rather than deleted. See
+    adr:0056-raw-and-masked-scan.
     """
     return override_tuning(
         tuning,
@@ -58,10 +59,11 @@ def _max_centering_norm(tuning: NavigationTuning) -> float:
 def _max_corner_norm(tuning: NavigationTuning) -> float:
     """The angle the corner and back-off branches steer AT, normalised.
 
-    A different constant from the centring cap since 2026-08-29: that one is
-    sized by the 2026-08-07 limit cycle, this one by the turn arc having to fit
-    inside TURN_CLEARANCE_M. Converted for the same reason as its sibling
-    above, so these stay true on any steering geometry.
+    A different constant from the centring cap: that one is sized by the
+    measured limit cycle, this one by the turn arc having to fit inside
+    TURN_CLEARANCE_M. Converted for the same reason as its sibling above, so
+    these stay true on any steering geometry. See
+    adr:0057-blind-corridor-follower-and-width.
     """
     return math.radians(tuning.corridor_follower.max_corner_steer_deg) / RobotSpecs.MAX_STEERING_ANGLE
 
@@ -83,12 +85,13 @@ class TestCornerTurn:
         assert follow_corridor(scan.ranges, scan.angles, CREEP_SPEED_MPS, tuning=tuning).steering_norm < 0
 
     def test_oblique_chassis_in_an_open_corridor_does_not_turn(self, tuning) -> None:
-        """The regression that cost run_20260806_162008 its round.
+        """The regression that cost a hardware round.
 
-        A chassis 0.24 m off the left wall at 30 deg puts the +/-8 deg forward
-        cone on that wall at 0.24/sin(30) = 0.48 m -- under TURN_CLEARANCE_M --
-        while the corridor's own axis, 30 deg off the nose, is wide open. The
-        old test saw only the cone and committed to a corner turn mid-corridor.
+        A chassis offset from the left wall at an angle puts the +/-8 deg
+        forward cone on that wall inside TURN_CLEARANCE_M while the corridor's
+        own axis, off the nose, is wide open. The old test saw only the cone and
+        committed to a corner turn mid-corridor. See
+        adr:0057-blind-corridor-follower-and-width.
         """
         oblique = math.radians(30)
         scan = (
@@ -107,9 +110,10 @@ class TestCornerTurn:
         assert cmd.speed_mps == pytest.approx(CREEP_SPEED_MPS), "slowed to corner speed mid-corridor"
 
     def test_a_single_dropped_beam_cannot_veto_a_real_corner(self, tuning) -> None:
-        """The gateway substitutes max range for a no-return; 23-26% of beams
-        were max range in both 2026-08-06 bags. Counted as open track, one such
-        beam in the arc would refuse every corner turn of the round."""
+        """The gateway substitutes max range for a no-return, and a large
+        fraction of beams were max range in the hardware bags. Counted as open
+        track, one such beam in the arc would refuse every corner turn of the
+        round. See adr:0056-raw-and-masked-scan."""
         scan = LidarScanBuilder().corridor(left_m=0.5, right_m=0.5, ahead_m=_just_inside_turn_m(tuning)).build()
         ranges_with_dropout = list(scan.ranges)
         ranges_with_dropout[len(ranges_with_dropout) // 2] = RobotSpecs.LIDAR_MAX_RANGE
@@ -149,15 +153,15 @@ class TestSafety:
         whatever is actually there.
 
         The rear is made unreadable the way the mount actually makes it
-        unreadable, rather than by assuming a particular wedge width. Measured
-        2026-08-31 across three bags, an occluded bearing returns 0.006-0.04 m
-        off the mount's own structure -- so the readable part of the sector is
-        given a self-detection return and only the masked part gets the
-        deceptive 2.0 m. Before that measurement this test set 2.0 m across the
-        whole sector and passed only because the shipped wedges masked all of
-        it; when the wedges narrowed to the measured -155..-120 / 120..160 it
-        started authorising a reverse, which is the premise changing rather
-        than the safety property.
+        unreadable, rather than by assuming a particular wedge width: an
+        occluded bearing returns a short self-detection distance off the mount's
+        own structure, so the readable part of the sector is given a
+        self-detection return and only the masked part gets the deceptive 2.0 m.
+        Before that measurement this test set 2.0 m across the whole sector and
+        passed only because the shipped wedges masked all of it; when the wedges
+        narrowed it started authorising a reverse, which is the premise changing
+        rather than the safety property. See
+        adr:0056-raw-and-masked-scan.
         """
         close = RobotSpecs.LENGTH - 0.05
         sectors = tuning.lidar_sectors
@@ -186,12 +190,13 @@ class TestSafety:
 
         angles = _bearings()
         cmd = follow_corridor([rng(a) for a in angles], angles, CREEP_SPEED_MPS, tuning=tuning)
-        # Not "holds still": since 5bd18568 a rear-blind robot with an open side
-        # pivots toward it under lock rather than stopping, because on this mount
-        # the rear is ALWAYS unreadable and stopping here is a permanent deadlock
-        # (measured 2026-08-27: a legal in-bay start sat at 0.00 m for 8/8
-        # scenarios). What this test protects is unchanged and is the thing the
-        # docstring names -- an unmeasurable rear must never authorise REVERSE.
+        # Not "holds still": a rear-blind robot with an open side pivots toward
+        # it under lock rather than stopping, because on this mount the rear is
+        # ALWAYS unreadable and stopping here is a permanent deadlock (a legal
+        # in-bay start sat at 0.00 m across the scenarios). What this test
+        # protects is unchanged and is the thing the docstring names -- an
+        # unmeasurable rear must never authorise REVERSE. See
+        # adr:0055-escape-maneuver-selection.
         assert cmd.speed_mps >= 0.0, "reversed into a rear it could not measure"
         assert cmd.steering_norm != pytest.approx(0.0), "still steers toward the open side"
 
@@ -256,15 +261,17 @@ class TestCentring:
     def test_shipped_creep_holds_its_lane_instead_of_centring(self, tuning) -> None:
         # Hard against one wall but square to the corridor. Chasing this offset
         # is what swung the heading past the direction estimator's alignment
-        # gate, costing 11 of 32 wide outer-band starts their direction
-        # entirely -- so the shipped creep must not steer off-axis for it.
+        # gate, costing a share of wide outer-band starts their direction
+        # entirely, so the shipped creep must not steer off-axis for it. See
+        # adr:0057-blind-corridor-follower-and-width.
         scan = LidarScanBuilder().corridor(left_m=0.8, right_m=0.2, ahead_m=2.5).build()
         cmd = follow_corridor(scan.ranges, scan.angles, CREEP_SPEED_MPS, tuning=tuning)
         assert cmd.steering_norm == pytest.approx(0.0, abs=1e-6)
         assert cmd.speed_mps == pytest.approx(CREEP_SPEED_MPS)
 
     def test_steers_toward_the_roomier_side_when_the_gain_is_restored(self, tuning, override_tuning) -> None:
-        # Dormant, not dead: 44.0 is the value shipped until 2026-08-22.
+        # Dormant, not dead: 44.0 is the value shipped before the gain was
+        # zeroed (see adr:0057-blind-corridor-follower-and-width).
         centring = override_tuning(tuning, corridor_follower={"centering_gain_deg_per_m": 44.0})
         scan = LidarScanBuilder().corridor(left_m=0.8, right_m=0.2, ahead_m=2.5).build()
         assert follow_corridor(scan.ranges, scan.angles, CREEP_SPEED_MPS, tuning=centring).steering_norm > 0
@@ -281,10 +288,11 @@ class TestHeadingDamping:
 
     Centring on lateral offset alone is proportional control on position, and in
     a steered chassis position and heading are 90 degrees out of phase, so it can
-    only overshoot and come back. Measured on hardware 2026-08-07 as a 3.2 s limit
-    cycle with the heading 30 degrees off axis at the median, which starves the
-    direction gate: it needs the chassis square to a corridor at the moment one
-    side opens, and on run_141814 those coincided on 0 of 1763 scans.
+    only overshoot and come back. Measured on hardware as a limit cycle with the
+    heading well off axis at the median, which starves the direction gate: it
+    needs the chassis square to a corridor at the moment one side opens, and on
+    a failing run those never coincided. See
+    adr:0057-blind-corridor-follower-and-width.
     """
 
     def test_centred_but_oblique_chassis_steers_back_to_the_axis(self, tuning) -> None:

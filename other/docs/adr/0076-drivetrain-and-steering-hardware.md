@@ -173,6 +173,14 @@ are one story.
   supply sag.
 - The old EN-first BTS7960 ordering produced brief real motor kicks on both a cold
   boot and a warm reconnect.
+- The retired profile shipped `speed_response_tau_s = 0.0` (instant response); the
+  2026-08-29 calibration put tau at 0.35 measured against `run_20260829_140424`,
+  leaving the suite with `yaw_gain` calibrated but tau not until the pin moved.
+- The committed Gazebo URDF did not parse: `--` inside XML comments made
+  `xacro.process_file` raise ExpatError, killing every Gazebo launch that depended
+  on the robot description.
+- `max_speed_mps` progressed 0.234, then an estimated 1.0, then 0.58 at the
+  2026-08-30 bench.
 
 ## Cross-references
 

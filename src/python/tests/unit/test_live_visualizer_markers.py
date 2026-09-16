@@ -10,10 +10,11 @@ Whole-number scenario-metadata coordinates (e.g. ``"x": 1``) parse from JSON as 
 ``int``, not ``float``. Assigning that ``int`` straight to a ``geometry_msgs/Point`` field
 reads back fine in memory (Python doesn't enforce the annotation), but CDR serialization
 onto the DDS wire reinterprets its bits as a float64 instead of converting the value,
-silently collapsing it to a near-zero subnormal (~4e-323) — which showed up in RViz as
-signs and parking blocks jumping onto a wall. This test forces an actual CDR
+silently collapsing it to a near-zero subnormal, which shows up in RViz as signs and
+parking blocks jumping onto a wall. This test forces an actual CDR
 serialize/deserialize round trip, which is the only way to catch this class of bug: plain
-attribute access on the in-memory message object does NOT reproduce it.
+attribute access on the in-memory message object does NOT reproduce it. See
+adr:0019-simulation-robot-model-topic-split.
 """
 
 from __future__ import annotations
@@ -160,8 +161,9 @@ def test_belief_frame_carries_the_section_relabelling_rotation(true_yaw, expecte
 
     The four cases are the four sections: NORTH reads 180 deg, EAST 90, WEST
     -90, SOUTH 0. Drawing the plan in `map` instead of through this offset is
-    what made go_obstacles_0002 (a WEST start) show a path square to the real
-    track, with the sign estimates rotated to match.
+    what made a non-south start show a path square to the real track, with the
+    sign estimates rotated to match. See
+    adr:0053-direction-inference-and-start-pose.
     """
     init_rclpy_once()
     # abs(): rclpy rejects a node name containing '-', so -90 cannot go in as-is.
@@ -212,13 +214,13 @@ def test_scan_masks_the_bearings_the_mount_cannot_see():
             round(math.degrees(a)): r for a, r in zip(scan.angles_rad, msg.ranges, strict=True)
         }
 
-        # Straight back SURVIVES. This asserted the opposite until 2026-09-01,
-        # encoding the superseded belief that the mount occludes the rear edge
-        # to edge. The wedges were re-measured on 08-31 as -155..-120 and
-        # 120..160, which leaves a ~40 deg slot at +-160..180 -- and that slot
-        # is what `rear_sector().measured` reports on, so the reverse guards
-        # authorise a reverse only because these rays come back. A test
-        # demanding it be blank pins the geometry the robot no longer has.
+        # Straight back SURVIVES. This asserted the opposite under the
+        # superseded belief that the mount occludes the rear edge to edge. The
+        # wedges were re-measured on the mount, leaving a readable slot at the
+        # rear, and that slot is what `rear_sector().measured` reports on, so
+        # the reverse guards authorise a reverse only because these rays come
+        # back. A test demanding it be blank pins the geometry the robot no
+        # longer has. See adr:0056-raw-and-masked-scan.
         # The sweep spans [-180, +180), so only one of the two ends is sampled.
         rear = [by_degree[d] for d in (180, -180) if d in by_degree]
         assert rear, "sweep should sample one of the two rear ends"
@@ -337,8 +339,8 @@ def test_floor_marker_is_present_and_white():
     """set_track() publishes an opaque white floor plane before walls/markings.
 
     The floor is a ``CUBE`` marker -- the only solid marker type that reliably
-    renders in this RoboStack/Kilted RViz build (``TRIANGLE_LIST`` is dropped,
-    see 1692c8fc). It carries a plain colour rather than per-vertex colours.
+    renders in this RoboStack/Kilted RViz build (``TRIANGLE_LIST`` is dropped).
+    It carries a plain colour rather than per-vertex colours.
     """
     init_rclpy_once()
     visualizer = LiveScenarioVisualizer(_wide_track(), node_name="test_floor_plane")

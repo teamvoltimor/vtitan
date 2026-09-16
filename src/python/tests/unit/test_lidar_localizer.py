@@ -1,11 +1,13 @@
 """Validation of LidarLocalizer against the simulator's exact wall geometry.
 
 Generates a synthetic "real" scan from a known ground-truth pose using the
-same TrackWalls raycast the simulator itself uses -- cast from the LIDAR mount
-rather than the chassis centre, matching both the simulator and the localizer's
-own prediction since 2026-08-21 -- then checks the localizer recovers that pose (a) with clean rays, (b) under realistic LIDAR noise, and
-(c) starting from a prior offset by a plausible per-tick displacement rather
-than the exact ground truth — the three conditions it will actually face.
+same TrackWalls raycast the simulator itself uses, cast from the LIDAR mount
+rather than the chassis centre so it matches both the simulator and the
+localizer's own prediction (see adr:0080-lidar-mount-and-scan-plane) -- then
+checks the localizer recovers that pose (a) with clean rays, (b) under realistic
+LIDAR noise, and (c) starting from a prior offset by a plausible per-tick
+displacement rather than the exact ground truth, the three conditions it will
+actually face.
 """
 
 from __future__ import annotations
@@ -32,9 +34,10 @@ def _sensor_scan(walls: TrackWalls, x: float, y: float, yaw: float, angles: np.n
 
     Cast from the LIDAR, which sits ``LIDAR_MOUNT_X_OFFSET`` forward of the
     chassis centre, not from the centre itself. Casting from the centre is what
-    these tests did until 2026-08-21, and it agreed with the simulator and the
-    localizer because all three shared the omission -- so the suite passed while
-    the modelled sensor sat 12.2 cm behind the real one.
+    these tests once did, and it agreed with the simulator and the localizer
+    because all three shared the omission, so the suite passed while the
+    modelled sensor sat behind the real one. See
+    adr:0080-lidar-mount-and-scan-plane.
     """
     return walls.raycast(
         x + RobotSpecs.LIDAR_MOUNT_X_OFFSET * math.cos(yaw),
@@ -140,18 +143,18 @@ def test_tracks_a_moving_pose_tick_by_tick():
 
 class TestPlausibilityGuards:
     """The search is a local hill-climb reseeded from prior_xy every call with
-    no other check on its own output -- confirmed on real hardware 2026-08-04
-    to snap to a physically impossible (off-track) position during a k_turn
-    escape and stay there for the rest of the run. Guard: reject a result
-    outside the known track (or inside the inner block -- equally impossible),
-    holding prior_xy instead.
+    no other check on its own output -- confirmed on real hardware to snap to a
+    physically impossible (off-track) position during a k_turn escape and stay
+    there for the rest of the run. Guard: reject a result outside the known
+    track (or inside the inner block, equally impossible), holding prior_xy
+    instead.
 
     A cost/margin ambiguity guard (reject a winning candidate whose margin
-    over its runner-up was too thin) was tried, committed, and reverted
-    2026-08-05 after replaying it against 22 real hardware runs (846 sampled
-    ticks): confirmed-bad and genuinely correct matches had statistically
-    indistinguishable cost and margin distributions on real, noisy scans. The
-    signal it depended on only existed in the clean simulator.
+    over its runner-up was too thin) was tried, committed, and reverted after
+    replaying it against real hardware runs: confirmed-bad and genuinely correct
+    matches had statistically indistinguishable cost and margin distributions on
+    real, noisy scans. The signal it depended on only existed in the clean
+    simulator. See adr:0084-localizer-divergence-and-relocalization.
 
     Guard instead: bound physical plausibility directly, from elapsed time and
     the drivetrain's real top speed (with headroom for a future faster
@@ -195,11 +198,12 @@ class TestPlausibilityGuards:
         """The start-placement-absorption case: a big single-tick jump is
         legitimate as long as it lands inside the track.
 
-        15cm, well beyond the old (reverted) max_step_m=0.05 that broke this
-        case, but within one call's actual reach (default search_radius_m=0.15
-        across 4 shrinking passes tops out around ~0.28m) -- the multi-tick
-        convergence over ~1s that TestStartPlacement exercises is a separate,
-        gradual process, not one call doing the whole correction.
+        A jump well beyond the old (reverted) ``max_step_m`` that broke this
+        case, but within one call's actual reach (the default ``search_radius_m``
+        across its shrinking passes); the multi-tick convergence over about a
+        second that TestStartPlacement exercises is a separate, gradual process,
+        not one call doing the whole correction. See
+        adr:0084-localizer-divergence-and-relocalization.
         """
         localizer, walls = _localizer_for(_UNIFORM_1000)
         prior = Waypoint(1.35, 0.5)
@@ -271,11 +275,12 @@ class TestGlobalRelocalization:
     """Recovery from a seed the local search cannot walk back from.
 
     The local search is a hill-climb reseeded from its own previous answer, so
-    a wrong seed is self-sustaining: run_20260907_205830 latched 1.5-3 m off at
-    t=8.0 s and held that position for the remaining 48 s of the round, driving
-    the navigator into walls for 20 escape manoeuvres. These cover the escape
-    hatch added for it, and the far more important half -- that a
-    correctly-tracking localizer never takes it.
+    a wrong seed is self-sustaining: a hardware run latched metres off and held
+    that position for the rest of the round, driving the navigator into walls
+    for a string of escape manoeuvres. These cover the escape hatch added for
+    it, and the far more important half -- that a correctly-tracking localizer
+    never takes it. See
+    adr:0084-localizer-divergence-and-relocalization.
 
     ``_MIXED_WIDTHS`` throughout, not ``_UNIFORM_1000``: see
     ``test_a_symmetric_layout_cannot_be_disambiguated_by_cost``.
@@ -349,12 +354,12 @@ class TestGlobalRelocalization:
         """The known limit of this guard, asserted rather than left to be rediscovered.
 
         On a uniform layout the four corridors are congruent, so a pose in the
-        wrong one predicts very nearly the scan the right one produces -- 0.017
-        against a 0.03 threshold. The detector stays silent, correctly: nothing
-        in a single sweep distinguishes those poses, and relocalizing would be
-        a coin flip, not a correction. What rescues the real robot is that a
-        WRO Open layout has unequal corridors, which is also what
-        run_20260907_205830 had (0.6/0.6/1.0/0.6).
+        wrong one predicts very nearly the scan the right one produces, under
+        the cost threshold. The detector stays silent, correctly: nothing in a
+        single sweep distinguishes those poses, and relocalizing would be a coin
+        flip, not a correction. What rescues the real robot is that a WRO Open
+        layout has unequal corridors, which is what the failing hardware run
+        had too. See adr:0084-localizer-divergence-and-relocalization.
         """
         localizer, walls = _localizer_for(_UNIFORM_1000)
         truth = (2.5, 1.5, math.pi / 2)
@@ -365,6 +370,61 @@ class TestGlobalRelocalization:
         assert localizer.last_fit_cost is not None
         assert localizer.last_fit_cost < shipped_group(LocalizationParams).relocalize_cost_threshold
 
+    def test_a_symmetric_layout_is_refused_even_when_the_cost_is_bad(self) -> None:
+        """The hardware case the cost-based protection above does not cover.
+
+        ``test_a_symmetric_layout_cannot_be_disambiguated_by_cost`` keeps the
+        search silent on a uniform layout by relying on the cost STAYING LOW:
+        the wrong corridor predicts nearly the right sweep, so the streak never
+        builds. That holds for a scan the wall model can explain. It does not
+        hold in the parking bay, where the sweep is full of returns from the lot
+        -- which is the one feature that would break the symmetry and is absent
+        from the model. MEASURED on run_20260915_140358: the best cost anywhere
+        sits at 0.0295-0.0388 against a 0.03 threshold, so the streak builds
+        every 1.5 s, the search runs, and the coin flip the other test describes
+        is then taken for real. It teleported the estimate to the 180 degree
+        rotational copy of the truth and flipped yaw by 179 degrees.
+
+        So the protection is made explicit here rather than inherited from the
+        cost: a symmetric model must refuse the search BECAUSE it is symmetric,
+        not because the arithmetic happened to stay quiet.
+        """
+        localizer, walls = _localizer_for(_UNIFORM_1000)
+        truth = (2.5, 1.5, math.pi / 2)
+        unexplainable = np.full(len(_ANGLES), 1.0)
+
+        estimate = Waypoint(truth[0], truth[1])
+        for i in range(shipped_group(LocalizationParams).relocalize_after_scans * 3):
+            estimate = localizer.estimate_position(estimate, truth[2], unexplainable, _ANGLES, now_s=i * 0.05)
+
+        assert localizer.last_fit_cost is not None
+        assert localizer.last_fit_cost > shipped_group(LocalizationParams).relocalize_cost_threshold, (
+            "test is void unless the scan really does score badly everywhere -- "
+            "otherwise the cost guard is what kept the search silent, not the symmetry guard"
+        )
+        assert localizer.relocalization_count == 0
+        assert walls.point_in_free_space(estimate.x, estimate.y)
+
+    def test_an_asymmetric_layout_still_rescues_under_the_same_conditions(self) -> None:
+        """The other half of the guard: it must not silence the rescue it was added around.
+
+        Same seed and same truth as
+        ``test_recovers_from_a_seed_the_local_search_cannot_reach``, stated
+        separately so that a future change to the symmetry threshold shows up
+        as a failure HERE -- as "the rescue stopped working" -- rather than as
+        a number quietly drifting past 0.40 m, which is what the Open layouts
+        and the lost hardware run actually separate their corridors by.
+        """
+        localizer, walls = _localizer_for(_MIXED_WIDTHS)
+        assert walls.geometry.width_spread_m >= shipped_group(LocalizationParams).relocalize_min_width_spread_m
+        truth = (2.5, 1.5, math.pi / 2)
+
+        params = shipped_group(LocalizationParams)
+        estimate = self._drive(localizer, walls, truth, Waypoint(0.3, 1.5), params.relocalize_after_scans + 1)
+
+        assert localizer.relocalization_count == 1
+        assert math.hypot(estimate.x - truth[0], estimate.y - truth[1]) <= params.relocalize_grid_step_m
+
     def test_no_jump_when_the_global_winner_is_no_better(self) -> None:
         """A high cost does not always mean the POSE is wrong.
 
@@ -372,9 +432,9 @@ class TestGlobalRelocalization:
         operation, while corridor widths are still being estimated. Then every
         candidate fits badly, including the correct one, and the global search
         returns the best explanation of a track that is not there. Letting that
-        replace a pose that was fine cost the balanced-128 Open sweep a case
-        (128/128 -> 127/128, scenario 94 turned into a reverse-run) before
-        RELOCALIZE_ACCEPT_RATIO was added.
+        replace a pose that was fine cost the balanced Open sweep a case before
+        RELOCALIZE_ACCEPT_RATIO was added. See
+        adr:0084-localizer-divergence-and-relocalization.
 
         Stood up here with a sweep no pose on the track can produce, which is
         the same condition -- nowhere fits, so nowhere is materially better.

@@ -37,7 +37,9 @@ The baseline is 15 rays because adjacent rays land 12 mm apart at a typical 0.7 
 wall distance against 30 mm of range noise; the first implementation using
 adjacent rays returned nothing on every one of 384 samples and looked like a
 broken threshold rather than a sampling error. 15 rays gives about 190 mm, six
-times the noise.
+times the noise. With range noise the adjacent-ray direction concentration
+measured 0.08 against 0.99 without it, so the raw signal is real and entirely
+buried.
 
 The concentration test is what rejects a corner, a sign or an open side, where
 the returns disagree about where the wall runs and the heading reference is worse

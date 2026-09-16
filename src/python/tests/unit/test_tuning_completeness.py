@@ -36,16 +36,16 @@ def test_all_tuning_params_groups_have_config() -> None:
 # Fields whose shipped value is DELIBERATELY zero, with the reason. A zero here
 # is a tuning decision, not the "config never loaded" symptom the check below
 # looks for, and asserting non-zero on one makes the suite fail on correct
-# config -- which it did, from 2026-08-22 until this was written.
+# config.
 #
 # Naming them individually rather than dropping the zero check keeps it live for
 # every other field: a NEW accidental zero still fails.
 DELIBERATELY_ZERO = {
-    # Zeroed 2026-08-22: the blind creep holds heading instead of chasing the
-    # centreline, because the lateral correction swings the chassis past
-    # ALIGNMENT_TOLERANCE_RAD and starves the direction gate. Kept as a zeroed
-    # gain rather than deleted so the branch survives for a chassis that wants
-    # it -- see CorridorFollowerParams.centering_gain_deg_per_m.
+    # The blind creep holds heading instead of chasing the centreline, because
+    # the lateral correction swings the chassis past ALIGNMENT_TOLERANCE_RAD and
+    # starves the direction gate. Kept as a zeroed gain rather than deleted so
+    # the branch survives for a chassis that wants it. See
+    # adr:0057-blind-corridor-follower-and-width.
     "corridor_follower.centering_gain_deg_per_m",
 }
 

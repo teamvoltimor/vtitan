@@ -101,17 +101,16 @@ def test_forward_target_uses_curvature_not_gain():
 
 
 class TestSelectTargetPointWrapsAndStaysAhead:
-    """2026-08-03: select_target_point used to be handed a pre-sliced
+    """select_target_point used to be handed a pre-sliced
     remainder (waypoints[waypoint_index:]) and searched it by distance alone,
     ignoring heading. Near the end of a lap that slice could run dry, falling
     back to a single fixed final point instead of continuing around the loop
-    -- measured on real hardware as steering pinned near zero for tens of
-    seconds while heading drifted 85+ degrees. And picking by distance alone
-    could return a point behind the chassis, which the curvature steering law
-    is not valid for -- measured as a wrong-direction turn. Neither is
-    reproducible in sim (adr:0052-pursuit-target-selection),
-    so these construct the failure geometry directly instead of relying on a
-    sim run to happen to hit it.
+    -- measured on real hardware as steering pinned near zero while heading
+    drifted. And picking by distance alone could return a point behind the
+    chassis, which the curvature steering law is not valid for -- measured as a
+    wrong-direction turn. Neither is reproducible in sim
+    (adr:0052-pursuit-target-selection), so these construct the failure
+    geometry directly instead of relying on a sim run to happen to hit it.
     """
 
     def test_wraps_past_the_end_of_the_lap_instead_of_going_dry(self):
@@ -149,9 +148,9 @@ class TestSelectTargetPointWrapsAndStaysAhead:
         assert target == (3.0, 0.0)
 
     def test_falls_back_to_nearest_ahead_when_nothing_reaches_lookahead(self):
-        # 2026-08-04: was "farthest ahead" -- see select_target_point's
-        # docstring for why that starved the curvature formula on real
-        # hardware and got reversed to nearest.
+        # Was "farthest ahead" -- see select_target_point's docstring for why
+        # that starved the curvature formula on real hardware and got reversed
+        # to nearest.
         waypoints = [(0.0, 0.0), (0.1, 0.0), (0.2, 0.0)]
         controller = _make_controller()
 
@@ -171,11 +170,11 @@ class TestCrosstrackBudgetFromWallDistance:
 
     ``lookahead_transition`` is a fixed 0.30 m, which assumes the path has that
     much room to drift into before a wall. Under the blind narrow prior it does
-    not: a corridor believed 0.60 puts the path ~0.25-0.30 m from the outer
-    wall and the chassis half-width takes 0.097 of that. Measured on hardware
-    2026-08-06, crosstrack ran 0.09 -> 0.15 through a corner and never crossed
-    0.30, so the short lookahead never engaged and the robot drove to within
-    0.10 m of the wall.
+    not: the believed corridor leaves the path only a fraction of that before
+    the outer wall, and the chassis half-width takes part of it. Measured on
+    hardware, crosstrack through a corner never crossed 0.30, so the short
+    lookahead never engaged and the robot drove close to the wall. See
+    adr:0052-pursuit-target-selection.
     """
 
     def test_defaults_to_the_configured_transition(self):
@@ -217,9 +216,9 @@ class TestCrosstrackBudgetFromWallDistance:
 class TestUpcomingTurnArmsTheShortLookahead:
     """Crosstrack error cannot rise until a corner has already been missed, so
     gating on it alone lands the sharp correction after the corner. Measured on
-    hardware 2026-08-06: 0.9 rad of heading error held for three seconds at
-    0.23 of full lock while crosstrack sat near 0.01, then steering jumped to
-    0.52 the moment crosstrack reached 0.13 -- right magnitude, a corner late.
+    hardware: heading error stayed large at a modest command while crosstrack
+    sat near zero, then steering jumped once crosstrack finally rose -- right
+    magnitude, a corner late. See adr:0052-pursuit-target-selection.
     """
 
     def _controller(self):
@@ -255,9 +254,9 @@ class TestUpcomingTurnArmsTheShortLookahead:
 class TestLookaheadRampsRatherThanSwitching:
     """The switch used to be a step, and both arming signals sit near their
     thresholds in normal driving -- so it flipped long/short on consecutive
-    ticks (hardware run_20260829_104641: 0.320, 0.160, 0.320, 0.160 at ~2.5 Hz).
-    Curvature is 2y/L**2, so each flip swung the command by 4x and the chassis
-    drew a visible zigzag. These pin the ramp that removes the discontinuity.
+    ticks at a few Hz. Curvature is 2y/L**2, so each flip swung the command by
+    4x and the chassis drew a visible zigzag. These pin the ramp that removes
+    the discontinuity. See adr:0052-pursuit-target-selection.
     """
 
     def _controller(self, **overrides):
@@ -316,13 +315,14 @@ class TestTargetMustBeReachable:
 
     ``select_target_point`` accepted any candidate with ``x_local > 0``, so a
     point barely ahead but far to the side qualified. Measured over the
-    2026-09-08 finishers, 57-59% of ticks aimed at a point demanding a radius
-    tighter than the chassis's 0.29 m, which is a bearing no steering command
-    can reduce -- and the heading speed cut fires on it every tick.
+    finishers, most ticks aimed at a point demanding a radius tighter than the
+    chassis's minimum, which is a bearing no steering command can reduce -- and
+    the heading speed cut fires on it every tick. See
+    adr:0052-pursuit-target-selection.
     """
 
-    # 0.10 m ahead, 0.27 m to the side: the geometry measured at p50 on
-    # hardware. Its pure-pursuit circle is d / (2 sin a) ~ 0.16 m.
+    # 0.10 m ahead, 0.27 m to the side: the geometry that motivated the filter.
+    # Its pure-pursuit circle is d / (2 sin a) ~ 0.16 m.
     SIDEWAYS = (0.10, 0.27)
     # Straight ahead down the same path, reachable by construction.
     AHEAD = (0.60, 0.02)
@@ -381,10 +381,10 @@ class TestTargetSearchSpan:
 
     Unbounded it returns the first waypoint merely IN FRONT of the chassis,
     which once the chassis has turned toward the way it came is on the FAR SIDE
-    of the ring. Measured 2026-09-11: the selected target sat p50 2.08-2.50 m
-    away at 97-140 deg backwards around the loop on 60-91% of ticks, and pure
-    pursuit tracked it perfectly. A clean 3-lap round never selected a target
-    beyond 0.91 m in 2533 ticks.
+    of the ring. Measured on the lost rounds: the selected target sat metres
+    away and backwards around the loop on most ticks, and pure pursuit tracked
+    it perfectly. A clean multi-lap round never selected a target beyond the
+    lookahead's own reach. See adr:0052-pursuit-target-selection.
     """
 
     def _ring(self, n: int = 40, radius: float = 1.0) -> list[tuple[float, float]]:

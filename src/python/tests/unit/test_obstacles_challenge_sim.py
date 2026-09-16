@@ -22,24 +22,22 @@ failed to keep that isolation.
 Multiple real bugs, found via this closed-loop wiring (never exercised by
 ``test_sign_router.py``, which only unit-tests ``apply_deformation`` math in
 isolation) plus direct user feedback watching it live in RViz, were fixed in
-``sign_router.py``/``core_navigator.py``/``scenario_catalog.py`` — see
-``memory/obstacles_closed_loop_sign_router_bug.md`` for the full history.
-Most recently: ``SignRouter._passed`` was never cleared between laps, so a
+``sign_router.py``/``core_navigator.py``/``scenario_catalog.py``.
+
+One class of those: ``SignRouter._passed`` was never cleared between laps, so a
 sign avoided once (lap 1) was silently ignored on laps 2-3 of every 3-lap
-scenario — fixed with ``SignRouter.reset_for_new_lap()``, called from
+scenario -- fixed with ``SignRouter.reset_for_new_lap()``, called from
 ``core_navigator.py`` at both lap-completion sites. ``core_navigator.py``
 applies sign deformation to whichever waypoint the pure-pursuit lookahead
-search actually returns (after the search, not before) — deforming a raw-path
+search actually returns (after the search, not before) -- deforming a raw-path
 candidate before the search picked from it let the search itself decide
 whether the nudge ever reached steering.
 
-Also fixed: ``ROUTING_TABLE`` pinned red/green to the robot's OWN left/right
+And ``ROUTING_TABLE`` pinned red/green to the robot's OWN left/right
 (travel-relative), which flips outward vs inward between CW and CCW. The
 actual WRO rule is absolute: red is always avoided OUTWARD, green always
-INWARD, regardless of which direction the round is driven. The COUNTERCLOCKWISE
-rows were wrong under the correct interpretation; ``TestPassSideRule`` and
-``TestDeformationDirections`` in ``test_sign_router.py`` were rewritten to pin
-the absolute rule instead of the travel-relative one.
+INWARD, regardless of which direction the round is driven. See
+adr:0059-pass-side-travel-relative-and-scorer-independence.
 """
 
 from __future__ import annotations
@@ -102,7 +100,7 @@ class TestObstaclesDemoScenariosRun:
         # the controller is still wired, so `parked` is False rather than None
         # and the clause can no longer fail. Asserting the round the robot now
         # actually drives instead of leaving a condition that reads like cover
-        # and tests nothing.
+        # and tests nothing. See adr:0062-sim-contact-model-and-parking.
         assert not result.collided, (scenario.label, result.collision_xy or result.final_pose)
         assert result.laps_completed >= scenario.laps, (scenario.label, result.laps_completed)
 
@@ -149,11 +147,10 @@ class TestObstaclesDemoScenariosRun:
             # MIRRORS SignRouter.deform_waypoint's signature and has to be
             # widened whenever that one grows a parameter: the navigator passes
             # them by KEYWORD, so a missing one is a TypeError at call time
-            # rather than a silently dropped argument. c424c7d3 added
-            # lidar_proposals; the sibling stub in test_signs_engage_on_every_lap
-            # was widened for it and this one was missed, leaving the whole
-            # battery red -- the same failure mode that memory records as a
-            # stale stub masking a test for two days.
+            # rather than a silently dropped argument. A past parameter addition
+            # widened the sibling stub in test_signs_engage_on_every_lap but
+            # missed this one, leaving the whole battery red -- a stale stub
+            # masking a test.
             nonlocal deform_count
             result = orig(self, waypoint, robot_pos, robot_yaw, corridor, observations, lidar_proposals)
             if result != waypoint:
@@ -198,8 +195,8 @@ class TestObstaclesDemoScenariosRun:
             # This wrapper MIRRORS SignRouter.deform_waypoint's signature, so it
             # has to be widened whenever that one grows a parameter -- the
             # navigator passes them by keyword, so a missing one is a TypeError
-            # at call time, not a silently dropped argument. c424c7d3 added
-            # lidar_proposals and left this stub behind, red for two days.
+            # at call time, not a silently dropped argument. A past parameter
+            # addition left this stub behind, red until it was widened.
             #
             # deform_waypoint takes robot_pos as a plain (x, y) tuple and
             # converts it before reaching the private helper, which requires a
@@ -235,12 +232,12 @@ class TestVisionConfirmedSignRouting:
     """Closed-loop coverage for the camera-detection confirmation path.
 
     Every test above drives ``SignRouter`` with ``detections=None`` (ground
-    truth only) — ``match_detection_to_sign`` / ``_detection_to_world``, the
+    truth only). ``match_detection_to_sign`` / ``_detection_to_world``, the
     one part of the stack where a live sensor reading can override
-    known-good scenario metadata, was previously never exercised end-to-end
-    (review 2026-07-11 §2.2 / recommendation #1). These tests drive the same
-    demo scenarios through a synthetic camera (``src/simulation/vision_emulator.py``)
-    instead of bypassing vision entirely.
+    known-good scenario metadata, was previously never exercised end-to-end.
+    These tests drive the same demo scenarios through a synthetic camera
+    (``src/simulation/vision_emulator.py``) instead of bypassing vision
+    entirely. See adr:0058-sign-discovery-range-and-barrier-belief.
     """
 
     @pytest.mark.parametrize("scenario", _ALL_OBSTACLES_SCENARIOS, ids=_SCENARIO_IDS)
@@ -266,14 +263,15 @@ class TestVisionConfirmedSignRouting:
         # not a deduction -- so it is asserted beside the collision, not folded
         # into it. The simulator already scores this from the TRUE layout and
         # TRUE pose (`scenario_simulator/scoring.py`), judging every sign on
-        # every lap: measured 18 scoring events over 6 signs on a 3-lap round.
+        # every lap.
         #
-        # It reads ZERO violations across all 32 corpus runs today, so this
+        # It reads ZERO violations across the corpus runs today, so this
         # costs nothing to add and catches nothing yet. That is the point and
         # also the caveat: it is a REGRESSION GUARD, not headroom. A pass-side
         # fix cannot be adjudicated here, because there is no violation in the
         # simulator to remove -- which is why three side-correction formulations
-        # could only ever measure their cost.
+        # could only ever measure their cost. See
+        # adr:0059-pass-side-travel-relative-and-scorer-independence.
         assert not result.pass_side_violation, (
             scenario.label,
             "wrong-side pass on signs",
@@ -300,10 +298,10 @@ class TestVisionConfirmedSignRouting:
 
         def flipped_color_emulate(signs, robot_pos, robot_yaw, **kwargs):
             # ``**kwargs`` rather than the named parameters on purpose. This
-            # stub pinned exactly ``(signs, robot_pos, robot_yaw)`` until
-            # 2026-09-14, and when the gateway grew ``tuning``/``believed_pos``/
-            # ``believed_yaw`` the monkeypatch started raising TypeError before
-            # asserting anything -- so the ONLY test in the repo covering a
+            # stub once pinned exactly ``(signs, robot_pos, robot_yaw)``, and
+            # when the gateway grew ``tuning``/``believed_pos``/``believed_yaw``
+            # the monkeypatch started raising TypeError before asserting
+            # anything -- so the ONLY test in the repo covering a
             # wrong camera colour was dead, silently, for as long as those
             # kwargs have existed. Forwarding whatever it is handed means the
             # next parameter cannot kill it the same way.
@@ -394,10 +392,11 @@ class TestBlindSignDiscovery:
         # either challenge -- the mat is four-fold symmetric -- so navigation is
         # relative by design and the two frames differ by a rigid transform.
         # Asserting against world truth measured that transform, not discovery:
-        # it failed on all 13 non-south fixtures and passed on the 3 south ones,
+        # it failed on every non-south fixture and passed on the south ones,
         # an exact match to the start section and nothing to do with sign
-        # quality. In the believed frame the same runs land 0/190 signs outside
-        # tolerance. See ScenarioSimulator.to_believed_frame.
+        # quality. In the believed frame the same runs land no signs outside
+        # tolerance. See ScenarioSimulator.to_believed_frame and
+        # adr:0053-direction-inference-and-start-pose.
         believed_truth = [(sim.to_believed_frame(t.x, t.y), t) for t in truth]
 
         failures = []

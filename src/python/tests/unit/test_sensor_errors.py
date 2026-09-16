@@ -2,8 +2,8 @@
 
 ``SensorErrors`` is only meaningful if the corrupted value is what the
 navigator consumes. Each of these pins a way that could silently fail to be
-true — a perturbation applied to something nothing reads, or applied to the
-estimate while some other part of the loop keeps using ground truth — which
+true - a perturbation applied to something nothing reads, or applied to the
+estimate while some other part of the loop keeps using ground truth - which
 would leave the sweep reporting an unperturbed robot under a perturbed label.
 """
 
@@ -141,17 +141,17 @@ class TestStartPlacement:
     Placement error turns out to be the mildest of the three axes, because it
     is the only one the robot can actually observe: the walls say where it is.
     The localizer absorbs it on the first scan match. What matters is not the
-    error but whether it lands inside the localizer's basin — see
+    error but whether it lands inside the localizer's basin - see
     :meth:`test_placement_error_beyond_the_basin_never_recovers`.
 
     All of these pass ``known_start=True``, which is what makes them a test of
     the *error model* rather than of blind mode. Blind mode displaces the whole
-    belief frame on its own: it seeds the estimator from the all-narrow prior at
-    (1.50, 0.40), so on a wide corridor the robot starts 20cm from truth by
-    design, before any ``SensorErrors`` is applied. That displacement is
-    deliberate and is covered by the blind-navigation tests; leaving it in here
-    means a configured error of zero still reads as the localizer's residual
-    after absorbing 20cm, and the axis under test never gets isolated.
+    belief frame on its own: it seeds the estimator from the all-narrow prior,
+    so on a wide corridor the robot starts off-centre by design, before any
+    ``SensorErrors`` is applied. That displacement is deliberate and is covered
+    by the blind-navigation tests; leaving it in here means a configured error
+    of zero still reads as the localizer's residual, and the axis under test
+    never gets isolated. See adr:0086-simulator-realism.
     """
 
     def test_placement_error_is_absent_by_default(self) -> None:
@@ -182,7 +182,7 @@ class TestStartPlacement:
 
 
 class TestDeterminism:
-    """Same seed, same perturbation — otherwise a sweep cannot be compared to itself."""
+    """Same seed, same perturbation - otherwise a sweep cannot be compared to itself."""
 
     def test_same_seed_reproduces_the_heading_error(self) -> None:
         errors = SensorErrors(yaw_bias_rad=0.1, imu_drift_rad_per_s=0.01, imu_noise_rad=0.02)
@@ -238,16 +238,14 @@ class TestWallHeadingCorrectsThem:
     def test_drift_stops_accumulating(self) -> None:
         """Drift is a ramp; the walls turn it into a bounded error.
 
-        This is the whole point -- 0.1 deg/s took blind from 26/28 to 9/28
-        without the correction and back to 26/28 with it.
+        This is the whole point: a slow drift that goes uncorrected ruins the
+        run, and the wall heading pulls it back to a bounded error. See
+        ``adr:0054-absolute-heading-from-walls``.
 
         Runs two full 600-tick closed-loop sims (corrected + uncorrected),
-        each refreshing its LIDAR-localizer grid search (~100 raycasts) every
-        scan -- ~30s combined, not a hang (2026-08-04: was mistaken for one
-        after several 20-40s timeouts cut it off mid-run; see
-        ``adr:0054-absolute-heading-from-walls``
-        for how that got tracked down). Marked slow rather than sped up: the
-        cost is the real localizer doing real work, not test-only overhead.
+        each refreshing its LIDAR-localizer grid search every scan. Marked slow
+        rather than sped up: the cost is the real localizer doing real work,
+        not test-only overhead.
         """
         drift = SensorErrors(imu_drift_rad_per_s=math.radians(0.5))
         corrected = _sim(drift, wall_heading=True)

@@ -2,13 +2,13 @@
 
 ``ObservedSignMap`` is what lets a blind robot route around signs at all: on
 the mat there is no scenario file, so the sign layout has to come from the
-camera. These pin the properties the router depends on — above all that
+camera. These pin the properties the router depends on - above all that
 published indices are append-only, since ``SignRouter`` keys its
 ``_passed``/``_engaged`` bookkeeping by index and a reordered list would
 silently retarget it onto a different sign.
 
 Detections are built with the real ``vision_emulator``, which inverts the same
-pinhole projection the map decodes, rather than with hand-written bboxes — a
+pinhole projection the map decodes, rather than with hand-written bboxes - a
 hand-built box that happens not to round-trip would test the arithmetic instead
 of the behaviour.
 """
@@ -258,13 +258,10 @@ class TestIndexStability:
 class TestPillarAspectGate:
     """Boxes wider than tall are scenery, not pillars.
 
-    The magenta parking-lot barrier reads as RED under motion blur: on
-    ``run_20260905_214920`` 199 of 383 red detections were wider than tall,
-    against 0.6% of greens, and every accepted box can seed a sign
-    (``active_sign_count`` climbed 5 -> 50 on an 8-sign track). Neither colour
-    nor confidence separates them -- those boxes carry the RED label at p50
-    confidence 0.79 -- so the shape gate is the only filter the measurement
-    supports.
+    The magenta parking-lot barrier reads as RED under motion blur, and every
+    accepted box can seed a sign. Neither colour nor confidence separates it
+    from a real pillar, so the shape gate is the only filter the measurement
+    supports. See adr:0058-sign-discovery-range-and-barrier-belief.
 
     These are hand-built bboxes rather than ``vision_emulator`` ones, unlike
     the rest of this module, because the emulator has no bbox at all: it builds
@@ -294,18 +291,18 @@ class TestPillarAspectGate:
         )
 
     def test_pillar_shaped_box_is_accepted(self) -> None:
-        # w/h 0.71 -- the median shape of a real green pillar in that run.
+        # A real pillar's shape: taller than wide.
         det = self._detection(100.0, 140.0)
         assert detection_to_observation(det, Pose(1.5, 0.5, 0.0)) is not None
 
     def test_barrier_shaped_box_is_rejected(self) -> None:
-        # w/h 1.76 -- the median shape of the magenta parking barrier.
+        # The magenta parking barrier's shape: wider than tall.
         det = self._detection(176.0, 100.0)
         assert detection_to_observation(det, Pose(1.5, 0.5, 0.0)) is None
 
     def test_marginally_wide_box_is_rejected(self) -> None:
-        # w/h 1.01 is the MEDIAN red detection in that run, i.e. the gate has to
-        # bite just above square or it keeps half the bad boxes.
+        # Just above square, where the gate has to bite or it keeps half the
+        # bad boxes.
         det = self._detection(101.0, 100.0)
         assert detection_to_observation(det, Pose(1.5, 0.5, 0.0)) is None
 
@@ -332,12 +329,12 @@ class TestPillarAspectGate:
     def test_a_clipped_wide_box_is_kept(self) -> None:
         """A clipped box's aspect ratio is not a measurement of its shape.
 
-        run_20260906_145546, 23.4-24.6 s: a red pillar with x_max pinned at the
-        frame edge every frame, w/h climbing 0.33 -> 1.27 as the robot closed on
-        it, rejected exactly when it was nearest. 61% of the red detections this
-        gate rejected across two runs were frame-clipped.
+        A red pillar whose box is pinned at the frame edge every frame was
+        rejected exactly when the robot was nearest, as its w/h climbed with
+        the approach. Most of the red detections this gate rejected were
+        frame-clipped. See adr:0058-sign-discovery-range-and-barrier-belief.
         """
-        det = self._clipped_detection(428.0, 337.0)  # w/h 1.27, the measured shape
+        det = self._clipped_detection(428.0, 337.0)  # w/h 1.27, the clipped shape
         assert detection_to_observation(det, Pose(1.5, 0.5, 0.0)) is not None
 
     def test_an_unclipped_wide_box_is_still_rejected(self) -> None:
@@ -358,11 +355,11 @@ class TestPillarAspectGate:
         """There is one parking lot, in the corridor the robot started in.
 
         A wide RED box seen from any other corridor cannot be the barrier, so
-        rejecting it only throws away a pillar. Measured across
-        run_20260906_145546 and _145909: wall-shaped reds carry no corridor
-        label 72% of the time -- the start, around the bay, exactly where the
-        magenta barrier detections sit -- while pillar-shaped reds spread
-        across the driving corridors.
+        rejecting it only throws away a pillar. Measured across runs:
+        wall-shaped reds mostly carry no corridor label, clustering at the
+        start around the bay where the magenta barrier detections sit, while
+        pillar-shaped reds spread across the driving corridors. See
+        adr:0058-sign-discovery-range-and-barrier-belief.
         """
         det = self._detection(176.0, 100.0)  # w/h 1.76, the barrier's shape
         assert detection_to_observation(det, Pose(1.5, 0.5, 0.0), barrier_possible=False) is not None
@@ -396,18 +393,18 @@ def test_a_box_left_of_centre_is_a_sign_on_the_robots_left() -> None:
     ``_detection_to_world``, so it agrees with that function whatever sign it
     uses. ``vision_emulator`` reproduces the true geometry directly and never
     touches a bbox at all. That is how a MIRRORED bearing survived in-tree and
-    reached the track: until 2026-09-06 ``theta_h`` was positive for a box on
-    the RIGHT of the image, which is the robot's right and therefore a NEGATIVE
-    CCW bearing, so every sign was reflected across the robot's heading axis and
-    landed on the far wall of a 1 m corridor.
+    reached the track: ``theta_h`` was positive for a box on the RIGHT of the
+    image, which is the robot's right and therefore a NEGATIVE CCW bearing, so
+    every sign was reflected across the robot's heading axis and landed on the
+    far wall of a 1 m corridor.
 
     So this test asserts the thing no other one can: a camera delivers an
     UPRIGHT image (``camera_inverted`` is folded into the driver's flips at
     capture), so an object to the robot's LEFT appears LEFT of centre -- and the
     robot frame is CCW-positive with left positive (``LidarScan``: 0 = forward,
-    +pi/2 = left). Confirmed on run_20260906_192424 by predicting the box's
-    centre column from the true bearing to a LIDAR-located pillar: 174 px of
-    error upright against 528 px mirrored, at three headings spanning 165 deg.
+    +pi/2 = left). Confirmed on hardware by predicting the box's centre column
+    from the true bearing to a LIDAR-located pillar. See
+    adr:0058-sign-discovery-range-and-barrier-belief.
     """
     robot_pos = (0.0, 0.0)
     robot_yaw = 0.0  # facing +x, so +y is the robot's left
@@ -422,10 +419,10 @@ def test_a_box_left_of_centre_is_a_sign_on_the_robots_left() -> None:
 def test_the_pinhole_range_carries_the_measured_scale() -> None:
     """RANGE_SCALE multiplies the pinhole result, and 1.0 is the raw model.
 
-    The pinhole UNDER-reads by about half on hardware -- the detector's boxes are
-    1.75x taller than a 0.10 m pillar subtends -- so the scale is not cosmetic.
-    Asserted as a RATIO between two tunings rather than against a fixed distance,
-    so re-fitting the constant does not break the test that guards it.
+    The pinhole under-reads on hardware, so the scale is not cosmetic. Asserted
+    as a RATIO between two tunings rather than against a fixed distance, so
+    re-fitting the constant does not break the test that guards it. See
+    adr:0058-sign-discovery-range-and-barrier-belief.
     """
     detection = _box_at_column(RobotSpecs.CAMERA_WIDTH / 2)
     raw = _detection_to_world(
@@ -443,14 +440,14 @@ def test_the_pinhole_range_carries_the_measured_scale() -> None:
 class TestCameraTimeAlignment:
     """The pose a detection is decoded against must be the pose it was SEEN from.
 
-    `/vision/detections` is a `std_msgs/String` with no header, so until
-    2026-09-07 every detection was paired with the pose at RECEIPT. Measured on
-    run_20260906_232408/_232748 the camera pipeline runs **0.85 s** behind, and
-    at 0.3 m/s through a corner that is most of a sign's lateral offset -- it
-    was the entire bearing residual left after the mirror fix (20.2 deg -> 5.4
-    deg once corrected). The check that was not fitted to the lag: the recovered
-    `cx`-vs-bearing slope reads -309 px/rad at zero lag, which no real lens can
-    produce, and -679 at 0.85 s.
+    `/vision/detections` is a `std_msgs/String` with no header, so detections
+    used to be paired with the pose at RECEIPT. The camera pipeline runs behind,
+    and at race speed through a corner that lag is most of a sign's lateral
+    offset -- it was the entire bearing residual left after the mirror fix. The
+    check that was not fitted to the lag: the recovered `cx`-vs-bearing slope at
+    zero lag is a value no real lens can produce. See
+    adr:0058-sign-discovery-range-and-barrier-belief and
+    adr:0072-vision-data-path.
     """
 
     @staticmethod
@@ -481,8 +478,9 @@ class TestLidarProposals:
     """A LIDAR proposal is a POSITION with no colour: it refines, it never routes.
 
     The split these assert is the whole point of the proposer -- the LIDAR sees
-    an object ~0.6 m before the camera can classify it, so geometry can be
-    settled early while the pass side still waits for a colour it cannot invent.
+    an object well before the camera can classify it, so geometry can be settled
+    early while the pass side still waits for a colour it cannot invent. See
+    adr:0058-sign-discovery-range-and-barrier-belief.
     """
 
     def test_proposal_alone_is_never_published(self) -> None:
@@ -542,9 +540,10 @@ class TestClusteredLidarRangeFusion:
     """Range from the LIDAR, colour from the camera -- but only when qualified.
 
     The unqualified fusion took whatever ray sat at the camera's bearing, which
-    was a wall on 51% of detections and cost 28 cm of median position error.
-    The gated version demands a free-standing, pillar-width cluster whose range
-    AGREES with the pinhole, and otherwise leaves the pinhole standing.
+    was often a wall and cost substantial median position error. The gated
+    version demands a free-standing, pillar-width cluster whose range AGREES
+    with the pinhole, and otherwise leaves the pinhole standing. See
+    adr:0058-sign-discovery-range-and-barrier-belief.
     """
 
     CENTRE_X = 700.0
@@ -626,13 +625,12 @@ class TestClusteredLidarRangeFusion:
     def test_ships_on_and_never_ungated(self):
         """Both flags ship ON, and the gate is the condition of the fusion.
 
-        Shipped 2026-09-11 on 78 bags of hardware replay: gated, pass-side
-        routing errors go 194/654 (29.7%) -> 180/712 (25.3%), fewer errors
-        against a denominator that GREW. The same harness reproduced the
-        2026-09-06 refutation on the UNGATED arm (227/605, 37.5%), so the
-        second assertion is not a formality: the fusion without its gate is
-        measured harmful, and a tree that ships one without the other ships a
-        known regression.
+        Shipped on hardware replay: gated, pass-side routing errors fall, fewer
+        errors against a denominator that GREW. The same harness reproduced the
+        earlier refutation on the UNGATED arm, so the second assertion is not a
+        formality: the fusion without its gate is measured harmful, and a tree
+        that ships one without the other ships a known regression. See
+        adr:0058-sign-discovery-range-and-barrier-belief.
         """
         shipped = NavigationTuning.load_default().sign_discovery
         assert shipped.lidar_range_fusion is True
@@ -640,22 +638,22 @@ class TestClusteredLidarRangeFusion:
 
 
 class TestPerSectionCap:
-    """The rulebook allows two pillars per section. The map believed up to twelve.
+    """The rulebook allows two pillars per section. The map believed far more.
 
-    Measured on the 2026-09-11 hardware rounds that completed 3/3 laps: east 8
-    and west 7 on one, south 12 on the other. This is the same quantity
-    SNAP_TO_LATTICE_M aimed at and missed -- it quantised the POSITION and left
-    the COUNT alone, so two fragments of one pillar could land on two different
-    legal points and the lattice legitimised both.
+    Measured on hardware rounds: sections held several times the legal count.
+    This is the same quantity SNAP_TO_LATTICE_M aimed at and missed -- it
+    quantised the POSITION and left the COUNT alone, so two fragments of one
+    pillar could land on two different legal points and the lattice legitimised
+    both. See adr:0058-sign-discovery-range-and-barrier-belief.
     """
 
     def test_it_ships_off(self):
         """Off because the risk is real, not because the idea is doubted.
 
         An early phantom that publishes first holds a slot the real pillar then
-        cannot have -- dedup variant 1's measured failure (209/256 collisions
-        against a 202 baseline) arriving by a different road. The corpus
-        decides, not this test.
+        cannot have -- the same failure an earlier dedup variant measured,
+        arriving by a different road. The corpus decides, not this test. See
+        adr:0058-sign-discovery-range-and-barrier-belief.
         """
         assert NavigationTuning.load_default().sign_discovery.max_signs_per_section == 0
 
@@ -895,10 +893,11 @@ class TestColourVotePooling:
 class TestRobotCorridorDebounceRate:
     """The corridor debounce counts TICKS, which is what its knob promises.
 
-    Measured 2026-09-11 over 125 bags: only 11.6% of ticks carry a detection.
-    Advancing the streak only on those made robot_corridor_flip_ticks=5 mean
-    roughly 43 ticks of wall time, and left the settled label stale at the one
-    moment it is read -- when a detection finally lands.
+    Measured over hardware bags: only a fraction of ticks carry a detection.
+    Advancing the streak only on those made the configured flip_ticks mean many
+    more ticks of wall time, and left the settled label stale at the one moment
+    it is read -- when a detection finally lands. See
+    adr:0058-sign-discovery-range-and-barrier-belief.
     """
 
     def _map(self):

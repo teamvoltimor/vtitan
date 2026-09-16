@@ -45,7 +45,8 @@ def seed_straight_pose_trail(nav: CoreNavigator, length_m: float = 1.0, spacing_
     full, so they seed one behind the robot's ACTUAL pose (some of these tests
     anchor off-origin). Without this the reverse gate is testing the wrong state
     (empty-trail refusal) rather than the reversing logic. See
-    ``trail_clearance_behind`` and go_open #85 (2026-08-22).
+    ``trail_clearance_behind`` and
+    adr:0055-escape-maneuver-selection.
     """
     pose = nav._gateway.pose
     count = int(length_m / spacing_m)
@@ -99,11 +100,10 @@ class TestCriticalEscapeRearGate:
 
         The rear is blinded explicitly rather than by assuming the mount cannot
         see behind. ``create_scan_with_sectors`` defaults every ray to 10 m, so
-        once the blind wedges narrowed to the measured -155..-120 / 120..160 on
-        2026-08-31 the rear became readable and this scan stopped describing a
-        rear-blind robot at all. A self-detection return is what an occluded
-        bearing actually reports (0.006-0.04 m, measured across three bags), so
-        that is what the sector is given here.
+        once the blind wedges narrowed the rear became readable and this scan
+        stopped describing a rear-blind robot at all. A self-detection return
+        is what an occluded bearing actually reports, so that is what the
+        sector is given here. See adr:0056-raw-and-masked-scan.
         """
         # Built by bearing rather than via create_scan_with_sectors(back=...),
         # whose named sectors do not reach the rear arc this gate reads.
@@ -289,24 +289,26 @@ class TestStuckDetectionDuringParking:
 
 # A rear obstacle has to be OUTSIDE the chassis to exist at all: the rear face
 # sits RobotSpecs.LIDAR_TO_REAR_BUMPER = 0.2722 m behind the sensor, so the
-# 0.09 m these fixtures used until 2026-09-06 was inside the robot. Rear
-# self-detection is chassis geometry now rather than a 0.08 m scalar, so that
-# value is filtered as the body -- correctly. 0.30 m is 0.028 m behind the
+# small value these fixtures once used was inside the robot. Rear
+# self-detection is chassis geometry now rather than a small scalar, so that
+# value is filtered as the body -- correctly. 0.30 m is just behind the
 # BUMPER, which is what `bumper_gap_behind` compares against CONTACT_DIST, so
-# this is still "rear blocked" and the assertions below are unchanged.
+# this is still "rear blocked" and the assertions below are unchanged. See
+# adr:0056-raw-and-masked-scan.
 REAR_BLOCKED_M = 0.30
 
 
 class TestTheEscapePublishesItsDecisionInputs:
     """A bag recorded what the escape COMMANDED but never what it was ASKED for.
 
-    Three 2026-09-15 analyses stalled on that gap: whether the K-turn's 10%
-    corner agreement is a wrong choice or a correct refusal of a shut side; how
+    Several analyses stalled on that gap: whether the K-turn's poor corner
+    agreement is a wrong choice or a correct refusal of a shut side; how
     many ticks the pass-side refusal decides (it needed the controller
     monkey-patched in the simulator to answer at all); and which actor cancels
     the escape pendulum, where the chassis was measured obeying its own command
-    on 245 of 246 reverse legs -- so the defect is purely which SIDE each actor
-    picks, and the side the router asked for was not on the wire.
+    on almost every reverse leg, so the defect is purely which SIDE each actor
+    picks, and the side the router asked for was not on the wire. See
+    adr:0050-escape-steering-degrees-and-committed-side.
 
     REACHABILITY IS NOT PROVEN HERE and deliberately so. The fields are written
     on the COLLISION escape path (K_TURN / SIDE_CORRECTION), and no unit test in
@@ -341,12 +343,13 @@ class TestTheEscapePublishesItsDecisionInputs:
 
 
 class TestStuckEscapeRearBlocked:
-    """2026-08-04: a robot wedged with reverse blocked used to just hold and
+    """A robot wedged with reverse blocked used to just hold and
     reset the stuck detector forever, re-arming the same forward command that
     had already failed -- confirmed on real hardware as frozen at one
-    position for 27s straight (see docs/known-issues-backlog.md). When
+    position for a long stretch (see docs/known-issues-backlog.md). When
     forward has room, it should get a real forward escape at full steering
-    lock instead of an indefinite hold.
+    lock instead of an indefinite hold. See
+    adr:0055-escape-maneuver-selection.
     """
 
     def test_forward_room_forces_a_forward_escape_instead_of_holding(self, waypoints, tuning):
@@ -479,10 +482,11 @@ class TestEscapeEscalation:
         """A side is held for several attempts, not flipped on every one.
 
         Flipping every attempt means consecutive escapes rotate the chassis in
-        opposite directions and cancel out -- measured on real hardware
-        2026-08-05 as four escalating escapes over 40 s that rocked the yaw and
+        opposite directions and cancel out -- measured on real hardware as a run
+        of escalating escapes over many seconds that rocked the yaw and
         translated the robot nowhere. Escaping a wedge needs several attempts
-        pushing the same way to accumulate.
+        pushing the same way to accumulate. See
+        adr:0055-escape-maneuver-selection.
         """
         nav = self._navigator(waypoints, tuning)
         maneuver = self._maneuver(steering=0.4, duration=6)
@@ -568,15 +572,16 @@ class TestEscapeEscalationSurvivesInterveningNormalDriveTicks:
     """A brief normal_drive tick between escape attempts must not reset the
     escalation counter unless the robot actually moved.
 
-    Confirmed on real hardware 2026-08-04 (run_20260804_213147): with the
+    Confirmed on real hardware: with the
     robot genuinely pinned in place, SIDE_CORRECTION's brief creep read as
     "not critical" for one tick between escapes, which reset escape_count to
     0 every single cycle -- so it never reached escalate_after_attempts and
-    never escalated, for 34+ seconds. The threat toggling on/off each
+    never escalated, for many seconds. The threat toggling on/off each
     decision tick (rather than staying permanently critical, as in
     TestEscapeEscalationIntegration above) is what reproduces the gap that
     test doesn't cover: a *fixed* threat never even reaches the normal_drive
-    reset branch, since a new escape re-triggers before the old one clears.
+    reset branch, since a new escape re-triggers before the old one clears. See
+    adr:0055-escape-maneuver-selection.
     """
 
     def test_oscillating_threat_without_progress_still_escalates(self, waypoints, tuning):
@@ -621,12 +626,14 @@ class TestReverseFitsTheRearGap:
     """The K-turn's reverse DISTANCE must not exceed the rear room measured.
 
     ``k_turn_min_s``/``k_turn_max_s`` are chosen from the severity of what is in
-    FRONT: at ``rev_speed`` the critical escape commits 21.6 cm of reverse
+    FRONT: at ``rev_speed`` the critical escape commits a reverse
     without reading a single number about what is BEHIND. ``_reversing_into_
     unseen_wall`` cannot catch it -- it only checks the gap at the FIRST frame
-    against ``CONTACT_DIST``, so a 17 cm gap authorises the whole 21.6 cm and
-    the chassis is driven into the pillar it is escaping. Measured over 46
-    escape episodes on the 09-10 bags: the reverse did not fit in 35% of them.
+    against ``CONTACT_DIST``, so a gap larger than the first frame's authorises
+    the whole reverse and
+    the chassis is driven into the pillar it is escaping. Measured over the
+    escape episodes on the bags, the reverse did not fit in a third of them.
+    See adr:0055-escape-maneuver-selection.
     """
 
     _ROOM_M = 0.05
@@ -716,7 +723,8 @@ class TestReverseFitsTheRearGap:
         assert nav._fit_reverse_to_rear_gap(maneuver, scan) == maneuver
 
     def test_a_reverse_that_already_fits_is_untouched(self, waypoints, tuning):
-        """65% of them, and shortening those would be the regression."""
+        """Most of them, and shortening those would be the regression. See
+        adr:0055-escape-maneuver-selection."""
         maneuver = self._critical_k_turn(tuning)
         needed = abs(maneuver.speed) * maneuver.duration_frames / tuning.control.control_hz
         scan = self._scan_with_rear_at(tuning, self._rear_range_for_room(tuning, needed + 0.10))
@@ -778,9 +786,10 @@ class TestEscapeMirrorsReverse:
 
     Every escape manoeuvre is built from the same
     ``rev_steer_norm() * _escape_steer_sign_for_attempt()``, so a reverse holds
-    the lock the forward leg used and undoes its rotation. Measured 2026-09-11
-    on nine hardware runs: 208 of 243 forward/reverse leg pairs (85.6%) held
-    the same sign. This is the bay's pendulum outside the bay.
+    the lock the forward leg used and undoes its rotation. Measured on the
+    hardware runs, the large majority of forward/reverse leg pairs held
+    the same sign. This is the bay's pendulum outside the bay. See
+    adr:0050-escape-steering-degrees-and-committed-side.
     """
 
     @staticmethod

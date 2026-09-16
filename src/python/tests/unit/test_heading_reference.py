@@ -5,9 +5,9 @@ reference, so whatever orientation the robot is in when the first IMU message
 arrives becomes "forward". In practice the robot is powered up, carried to the
 track and set down, which rotates it arbitrarily between those two moments.
 
-Without a re-zero the world heading is wrong by the whole transport rotation --
-potentially 90 or 180 degrees, against a budget where 5 degrees already costs 8
-of 28 fixtures.
+Without a re-zero the world heading is wrong by the whole transport rotation,
+potentially 90 or 180 degrees, against a budget where even a few degrees of
+error costs fixtures. See adr:0079-imu-6axis-and-yaw-reference.
 """
 
 from __future__ import annotations
@@ -102,15 +102,16 @@ class TestHeadingReference:
         assert est.estimate_pose().yaw == pytest.approx(_START_YAW)
 
     def test_reset_clears_a_leftover_direction_reassumption_correction(self) -> None:
-        """2026-08-04: a CW race right after a CCW one started at ~0 deg
-        instead of ~180 deg on real hardware.
+        """A CW race right after a CCW one started at the wrong end of the
+        heading on real hardware.
 
         apply_yaw_correction (a full, up-to-pi jump applied when blind
         direction inference overturns the assumed direction -- see
         track_navigator_node._commit_direction) writes to the same
         _yaw_correction reset_heading_reference must clear, or the next
         race silently inherits the previous race's direction-convention
-        correction on top of its own (possibly different) start_yaw.
+        correction on top of its own (possibly different) start_yaw. See
+        adr:0079-imu-6axis-and-yaw-reference.
         """
         est = _estimator()
         est.update_imu(_imu(0.0))

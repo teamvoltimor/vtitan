@@ -6,7 +6,8 @@ minutes and answers "did the round score", not "did the manoeuvre do what it
 says". The Go port has had unit tests since it landed; this is the Python side of
 that pair, and it exists because three separate defects in here (the falsy-zero
 leg bound, the unsigned reverse odometry, the worst-case clearance bound) all
-presented as a SWEEP THAT CAME BACK FLAT rather than as a visible failure.
+presented as a SWEEP THAT CAME BACK FLAT rather than as a visible failure. See
+adr:0060-bay-exit-clearance-guard.
 
 The closed loop below is a MODEL-level check: it drives the manoeuvre against the
 same rectangle geometry the guard reasons with, so it proves the guard is
@@ -60,12 +61,13 @@ def _guard_tuning(**changes: object):
             # They describe the HELD-lock ratchet -- one of them asserts the
             # held lock outright -- and hardware measured that shape to be a
             # pendulum: the reverse retraces the forward arc and hands the
-            # rotation back, 87% of consecutive legs cancelling, 0/2 out of the
-            # bay. The flag now ships TRUE. Left pinned here rather than
-            # rewritten because these seven still describe a real mode the code
-            # keeps, and silently re-pointing them at the mirrored one would
-            # discard the properties they were written to protect. See
-            # `test_the_mirrored_reverse_flips_the_lock` for the shipped shape.
+            # rotation back, the consecutive legs cancelling and the chassis
+            # never leaving the bay. The flag now ships TRUE. Left pinned here
+            # rather than rewritten because these seven still describe a real
+            # mode the code keeps, and silently re-pointing them at the mirrored
+            # one would discard the properties they were written to protect. See
+            # `test_the_mirrored_reverse_flips_the_lock` for the shipped shape
+            # and adr:0060-bay-exit-clearance-guard.
             "bay_exit_guard_mirrors_reverse": False,
             **changes,
         }
@@ -104,9 +106,9 @@ class _Pocket:
         # `AckermannKinematics` floors it. Restated rather than imported for the
         # same reason as the rest of this class -- a test that inherited the
         # helper could not catch a bug inside it -- but it must be here: without
-        # it this pocket turns inside 1.5 cm at full lock, and a harness more
-        # agile than the real car cannot show a manoeuvre failing on the real
-        # car. It was missing until 2026-09-09, which is what let the deadlock
+        # it this pocket turns inside a few centimetres at full lock, and a
+        # harness more agile than the real car cannot show a manoeuvre failing
+        # on the real car. It was missing once, which is what let the deadlock
         # tests below pin a band that only exists in the un-floored model.
         curvature = math.tan(self.wheel_rad) * RobotSpecs.YAW_GAIN / _EFFECTIVE_WHEELBASE_M
         if RobotSpecs.MIN_TURN_RADIUS_M > 0.0:
@@ -161,8 +163,8 @@ def test_guarded_exit_holds_one_steering_angle_across_leg_changes() -> None:
     Mirroring drives the yaw the same sense on both legs, so it saturates against
     the wall clip and never reaches the far side of it -- which is where the
     reverse leg's outward gain lives. It also charges a full servo swing per leg
-    change. Both were true until 2026-09-04, and the manoeuvre measured 0.06 m of
-    travel for no net gain.
+    change. Both were true of the old shape, which measured a little travel for
+    no net gain. See adr:0060-bay-exit-clearance-guard.
     """
     _, steering = _drive(400, _guard_tuning(bay_exit_speed_scale=0.35))
     assert steering, "the manoeuvre issued no commands"
@@ -176,16 +178,14 @@ def test_the_mirrored_reverse_flips_the_lock() -> None:
     The test above asserts the opposite and is pinned to the off mode on
     purpose -- it describes the manoeuvre as it was until hardware measured
     what holding the lock actually produces. Held, the reverse retraces the
-    forward arc: 2026-09-10 bags show the steering sign HELD across 111 and 140
-    consecutive reversals with ZERO flips, forward legs turning +1.94 deg each
-    and reverse legs -1.74, 87% of consecutive legs cancelling, 815-1070 deg of
-    rotation spent to keep 2-7, and the chassis never leaving the pocket.
-    Mirrored, the same bags show 0 held / 4 flipped, 0% cancelling, ~75 deg
-    spent for ~71 kept, and out of the bay 3/3.
+    forward arc: the steering sign stays HELD across consecutive reversals with
+    no flips, the forward and reverse legs nearly cancel, and the chassis never
+    leaves the pocket. Mirrored, the same bags show the signs flipping, the legs
+    no longer cancelling, and the chassis out of the bay.
 
     Asserting only the SIGNS, not the values: the magnitude is the arc, which
     other constants own, and this is the one property that distinguishes a
-    ratchet from a pendulum.
+    ratchet from a pendulum. See adr:0060-bay-exit-clearance-guard.
     """
     _, steering = _drive(400, _guard_tuning(bay_exit_guard_mirrors_reverse=True))
     assert steering, "the manoeuvre issued no commands"
@@ -237,21 +237,19 @@ def test_the_margin_band_that_froze_the_ratchet_is_closed() -> None:
     where a step of that size lands just under the margin in BOTH directions.
     Both legs are then refused while the modelled pose is still perfectly clear,
     so nothing moves, so the dead-reckoned pose never changes, so the refusal is
-    permanent. The band opens at ``_dr_out`` = 0.0365 m and the ratchet drives
+    permanent. The band opens at a particular ``_dr_out`` and the ratchet drives
     ``out`` straight through it by design.
 
     Pinned rather than inherited on the failing arm, because the fix is a
-    SHIPPED VALUE (0.005 -> 0.001) and a test that read the shipped value would
-    stop covering the bug the moment it was tuned back.
+    SHIPPED VALUE and a test that read the shipped value would stop covering the
+    bug the moment it was tuned back.
 
-    The pin MOVED 0.005 -> 0.020 on 2026-09-09, when ``_Pocket`` and the
-    manoeuvre's own dead reckoning both gained the chassis's measured minimum
-    turn radius. Smaller per-tick yaw puts ``reach`` somewhere else, so the band
-    that refuses both legs opens at a wider margin: measured over 0.001-0.030,
-    everything up to 0.012 still ratchets and 0.020 upward is frozen. The
-    deadlock is the same one and it is still reachable -- what changed is only
-    where it starts, and the shipped 0.001 now sits 20x clear of it rather
-    than 5x.
+    The pin MOVED when ``_Pocket`` and the manoeuvre's own dead reckoning both
+    gained the chassis's measured minimum turn radius. Smaller per-tick yaw puts
+    ``reach`` somewhere else, so the band that refuses both legs opens at a
+    wider margin. The deadlock is the same one and it is still reachable; what
+    changed is only where it starts, and the shipped margin now sits clear of
+    it. See adr:0060-bay-exit-clearance-guard.
     """
     frozen, _ = _drive(900, _guard_tuning(bay_exit_clearance_margin_m=0.020))
     settled, _ = _drive(200, _guard_tuning(bay_exit_clearance_margin_m=0.020))
@@ -259,8 +257,9 @@ def test_the_margin_band_that_froze_the_ratchet_is_closed() -> None:
     assert frozen.out == pytest.approx(settled.out, abs=1e-6)
 
     escaped, _ = _drive(900, _guard_tuning())
-    # 7.35x measured at the shipped margin; asserted at 5 so ordinary drift in
-    # the ratchet does not read as the deadlock returning.
+    # The shipped margin frees the ratchet many times over; asserted at a lower
+    # multiple so ordinary drift in the ratchet does not read as the deadlock
+    # returning. See adr:0060-bay-exit-clearance-guard.
     assert escaped.out > frozen.out * 5
     # ...and it got out by clearing the fins, not by pushing through them.
     assert _true_fin_gap(escaped.along, escaped.out, escaped.yaw) > 0.0
@@ -272,9 +271,10 @@ def test_a_forward_arc_with_no_returns_is_blocked_not_clear() -> None:
     ``_forward_clearance`` reports ``inf`` when nothing in the forward arc
     survives ``MIN_VALID_RANGE_M``, and ``inf`` compares as clear against any
     threshold. In a pocket that is exactly backwards: no returns means the wall
-    is inside the sensor's minimum range. Measured on run_20260906_094342 --
-    the arc read 0.050-0.052 m (self-detection) for seconds, then dropped out
-    for one tick, and that tick released the manoeuvre.
+    is inside the sensor's minimum range. Measured on a hardware run, the arc
+    read a self-detection distance for seconds, then dropped out for one tick,
+    and that tick released the manoeuvre. See
+    adr:0060-bay-exit-clearance-guard.
     """
     tuning = tuning_with_overrides({})
     blind = (float("inf"),) * 3
@@ -303,8 +303,9 @@ def _contact_ranges(forward_m: float) -> tuple[float, ...]:
 def test_a_silent_forward_arc_backs_off_instead_of_steering() -> None:
     """No returns means the wall is INSIDE minimum range, not that it is gone.
 
-    This is the state that ended run_20260906_112613 with the nose buried and
-    normal driving then accelerating into the wall.
+    This is the state that ended a hardware run with the nose buried and normal
+    driving then accelerating into the wall. See
+    adr:0060-bay-exit-clearance-guard.
     """
     tuning = tuning_with_overrides({"bay_exit_contact_recovery_ticks": 12})
     exit_maneuver = BayExit()
@@ -408,10 +409,11 @@ def test_contact_recovery_still_wins_over_a_completed_rotation() -> None:
 
 
 def test_turning_far_enough_is_not_enough_if_the_way_out_is_blocked() -> None:
-    """70 deg says the chassis is no longer across the pocket, NOT that it is
-    aimed down the corridor. Measured on run_20260906_145909: the exit released
-    and normal driving took forward clearance 0.54 -> 0.08 m into the outer
-    wall. Keep ratcheting instead -- the next reverse buys more angle.
+    """The target yaw says the chassis is no longer across the pocket, NOT that
+    it is aimed down the corridor. Measured on hardware, the exit released and
+    normal driving carried the forward clearance into the outer wall. Keep
+    ratcheting instead -- the next reverse buys more angle. See
+    adr:0060-bay-exit-clearance-guard.
     """
     tuning = tuning_with_overrides({})
     target = math.radians(tuning.corridor_follower.bay_exit_target_yaw_deg)
@@ -480,12 +482,12 @@ def test_a_dropped_wall_ray_does_not_invert_the_open_side() -> None:
     """The defect that steered a real round into the wall for its whole exit.
 
     The gateway substitutes ``LIDAR_MAX_RANGE`` for every no-return, and the
-    pocket wall at 0.08-0.13 m is close enough that the C1 returns nothing on
-    21-37% of ticks -- against 0-5% for the ray facing open space. Compared as
-    ranges, the substituted 12 m beats the corridor's real 0.84 m and the side
-    reads BACKWARDS. Measured on run_20260906_192424: the open side was
-    demonstrably RIGHT (0.839 m against 0.128 m) and the manoeuvre ratcheted at
-    ``steering_norm=+1.0``, toward the wall, for 11.7 s.
+    pocket wall sits inside the C1's rated minimum, so the near-wall ray returns
+    nothing on a large fraction of ticks while the ray facing open space rarely
+    does. Compared as ranges, the substituted max range beats the corridor's real
+    range and the side reads BACKWARDS. Measured on a hardware run, the open side
+    was demonstrably right and the manoeuvre ratcheted at full lock, toward the
+    wall, for seconds. See adr:0060-bay-exit-clearance-guard.
     """
     tuning = _guard_tuning()
     ranges, angles = _fan(left_m=0.13, right_m=0.84)
@@ -499,9 +501,9 @@ def test_a_dropped_wall_ray_does_not_invert_the_open_side() -> None:
 def test_the_open_side_latch_survives_one_corrupt_frame() -> None:
     """A latch taken on tick 1 rests the round on a frame no bag can show.
 
-    On run_20260906_192315 and _192424 recording began 2.6 s and 1.9 s AFTER
-    the exit did, so the deciding tick is absent from both. The vote makes the
-    latch depend on several frames instead of the first one.
+    On the hardware runs recording began after the exit did, so the deciding
+    tick is absent from the bags. The vote makes the latch depend on several
+    frames instead of the first one. See adr:0060-bay-exit-clearance-guard.
     """
     tuning = _guard_tuning()
     ranges, angles = _fan(left_m=0.13, right_m=0.84)
@@ -518,8 +520,8 @@ def test_dead_reckoned_along_cannot_leave_the_pocket() -> None:
 
     ``_dr_along`` integrates wheel travel, and a wheel spinning against a
     chassis the wall is holding reports travel the body never made. Measured on
-    run_20260906_192358 it reached 0.106 m -- 63% beyond the entire 65 mm of
-    along-wall slack the pocket has.
+    a hardware run it reached well beyond the entire along-wall slack the pocket
+    has. See adr:0060-bay-exit-clearance-guard.
     """
     tuning = _guard_tuning()
     exit_maneuver = BayExit()
@@ -537,9 +539,10 @@ def test_the_guard_releases_a_leg_that_improves_an_overlapping_pose() -> None:
     ``_predicted_gap`` takes the ``min`` over BOTH fins, so once the modelled
     body overlaps one, the fin the manoeuvre is moving AWAY from vetoes the leg
     exactly as hard as the one ahead. No travel means the pose never changes,
-    so the refusal is permanent. Measured on run_20260906_192358: 285
-    consecutive zero-speed ticks, 14.2 s of a 16.6 s exit, at a frozen 44 mm
-    overlap, net rotation 7.5 deg against the 60-70 the escaping runs turned.
+    so the refusal is permanent. Measured on a hardware run: hundreds of
+    consecutive zero-speed ticks, most of the exit, at a frozen overlap and
+    almost no net rotation against the escaping runs. See
+    adr:0060-bay-exit-clearance-guard.
     """
     tuning = _guard_tuning()
     ranges, angles = _fan(left_m=1.0, right_m=ParkingLotSpecs.WALL_OFFSET)
@@ -599,27 +602,28 @@ def test_the_guard_hands_over_once_it_has_refused_every_leg_for_long_enough() ->
 
     ``_guarded_command`` was answered above the ``BAY_EXIT_FALLBACK_FRAMES``
     switch, and that constant ships at 0, so a trapped guard could not be timed
-    out by anything -- ``BAY_EXIT_MAX_FRAMES`` (45 s) fired in none of the
-    2026-09-06 hardware runs, one of which stood still for 14.2 s.
+    out by anything -- ``BAY_EXIT_MAX_FRAMES`` fired in none of the hardware runs,
+    one of which stood still for a large part of the exit.
 
     Ships OFF, and nothing needs it at the shipped margin: the handover buys
     motion by spending fin contact, which 9.24.7 ends the round on. It is kept
     reachable because it is the only bound on a guard that has trapped itself,
     so the trap is pinned back on here to prove the hatch still opens.
 
-    The trap's margin moved 0.005 -> 0.020 with the turn-radius floor; see
+    The trap's margin moved with the turn-radius floor; see
     ``test_the_margin_band_that_froze_the_ratchet_is_closed`` for the sweep that
-    relocated it. At 0.005 the floored model simply is not trapped, so the
-    hatch had nothing to open and both arms came back identical.
+    relocated it. At the old margin the floored model simply is not trapped, so
+    the hatch had nothing to open and both arms came back identical.
 
     What is asserted also changed, and for a better reason than the pin did.
     The property is MOTION -- the hatch exists so a guard that has refused every
     leg is not stuck forever -- and this read it off outward displacement, which
     tracked motion only by luck of the un-floored model. Floored, the handover
-    moves 85 mm and spends nearly all of it ALONG the wall, so ``out`` actually
-    falls while the chassis is plainly unstuck. That is the docstring's own "the
+    moves and spends nearly all of it ALONG the wall, so ``out`` actually falls
+    while the chassis is plainly unstuck. That is the docstring's own "the
     handover buys motion by spending fin contact"; testing ``out`` was testing a
-    proxy that has stopped following the thing it stood for.
+    proxy that has stopped following the thing it stood for. See
+    adr:0060-bay-exit-clearance-guard.
     """
     trapped = {"bay_exit_clearance_margin_m": 0.020}
     shut_early, _ = _drive(200, _guard_tuning(**trapped, bay_exit_guard_block_ticks=0))
@@ -636,10 +640,11 @@ def _drive_stalled(ticks: int, tuning) -> list[bool]:
     """Run the manoeuvre with the wheel STALLED, returning the leg flag per tick.
 
     ``_Pocket`` always moves, and the hardware failure this covers is the case
-    where it does not: measured 2026-09-08, the bay-exit wheel reads zero on a
-    median 73% of ticks, and stall rate by time since the last reversal runs
-    3.9% in the first 0.2 s to 99.7% by 4-8 s. Freezing ``travelled_m`` is that
-    condition exactly -- the manoeuvre commands motion and no travel arrives.
+    where it does not: measured on hardware, the bay-exit wheel reads zero on
+    most ticks, and the stall rate climbs steeply with time since the last
+    reversal. Freezing ``travelled_m`` is that condition exactly -- the
+    manoeuvre commands motion and no travel arrives. See
+    adr:0060-bay-exit-clearance-guard.
 
     It is the CONJUNCTION that traps the guarded exit: ``_guarded_command`` ends
     a leg only when the dead-reckoned fin gap closes, and the dead reckoning
@@ -659,8 +664,9 @@ def test_a_stalled_leg_still_reverses_within_the_time_bound() -> None:
     """A leg whose wheel never turns must still end, or the exit deadlocks.
 
     Without the bound the guarded exit holds ONE leg forever against a stalled
-    wheel -- legs reached 15.25 s on hardware and 68% of all bay-exit ticks sat
-    in legs older than 2 s, where the wheel is stalled 91-99.7% of the time.
+    wheel -- hardware legs reached many seconds and most bay-exit ticks sat in
+    old legs, where the wheel is stalled almost all of the time. See
+    adr:0060-bay-exit-clearance-guard.
     """
     tuning = _guard_tuning(bay_exit_leg_max_s=0.5)
     legs = _drive_stalled(200, tuning)
@@ -685,9 +691,9 @@ def _drive_with_coast(ticks: int, tuning, coast_per_tick_m: float) -> list[float
 
     ``_Pocket`` cannot show this: it moves exactly what it is commanded, so a
     standstill is a standstill. The real chassis is not like that -- measured on
-    run_20260911_152714 and _152819, it rolls 12-34 mm during each commanded-zero
-    servo settle, which is 0.24-0.68 mm per tick and more travel than the legs
-    themselves produce.
+    the hardware bags, it rolls during each commanded-zero servo settle, more
+    per tick than the legs themselves produce. See
+    adr:0060-bay-exit-clearance-guard.
 
     Returns EVERY speed sample the guard's coast estimate collected, drained per
     tick rather than read at the end: the estimate keeps a 5-tick window and
@@ -711,19 +717,19 @@ def _drive_with_coast(ticks: int, tuning, coast_per_tick_m: float) -> list[float
 
 
 def test_the_coast_estimate_does_not_sample_across_a_standstill() -> None:
-    """A 2.5 s servo settle must not be differenced into one leg speed.
+    """A long servo settle must not be differenced into one leg speed.
 
     The guard's stopping distance is ``coast_speed * SPEED_RESPONSE_TAU_S`` and
     ``coast_speed`` is ``min(command, max(recent))``, so a sample above the
     command silently restores the command-based reach that
-    ``BAY_EXIT_GUARD_MEASURED_COAST`` exists to replace -- and with a 5-tick
-    window against 3-5 tick legs, one such sample owns the whole leg.
+    ``BAY_EXIT_GUARD_MEASURED_COAST`` exists to replace -- and with a short
+    window against short legs, one such sample owns the whole leg.
 
     That is what shipped: the settle returned before the sampler, leaving the
-    baseline stale for 50 ticks. Solved back out of the published gap on
-    run_20260911_152714, the guard's reach was 0.0600 m on all six refusals
-    checked, residual 0.000000 -- exactly step plus the COMMAND-based coast,
-    against a delivered leg speed of 0.004-0.015 m/s.
+    baseline stale for many ticks. Solved back out of the published gap on a
+    hardware run, the guard's reach was exactly step plus the COMMAND-based
+    coast, with no residual, against a far smaller delivered leg speed. See
+    adr:0060-bay-exit-clearance-guard.
     """
     tuning = _guard_tuning(bay_exit_guard_measured_coast=True, bay_exit_guard_mirrors_reverse=True)
     leg_speed = tuning.corridor_follower.bay_exit_speed_mps
@@ -739,5 +745,6 @@ def test_the_coast_estimate_does_not_sample_across_a_standstill() -> None:
         f"({one_tick:.4f} m/s), so ticks the sampler skipped were differenced into it"
     )
     # And the magnitude the bug had, so this test says what it is protecting:
-    # the settle is ~50 ticks, which differenced in one go reads ~50x the coast.
+    # the settle is many ticks, which differenced in one go reads many times the
+    # coast. See adr:0060-bay-exit-clearance-guard.
     assert max(samples) < 0.5 * (0.0005 * 50 * tuning.control.control_hz)

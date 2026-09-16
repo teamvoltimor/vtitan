@@ -236,11 +236,11 @@ def test_load_from_toml_dirs_merges_a_challenge_overlay_last(tmp_path):
 class TestConfiguredValuesAreActuallyRead:
     """Every configured field must have a reader, and no module may shadow one.
 
-    Two failure modes, both silent, both found in this codebase on 2026-08-01:
+    Two failure modes, both silent:
 
-    * ``SignRouterParams.deform_depth_buffer_m`` sat in sign_router.toml with no
-      reader anywhere while the router used its own literal — editing the config
-      file did nothing at all.
+    * A ``SignRouterParams`` field sat in sign_router.toml with no reader
+      anywhere while the router used its own literal: editing the config file
+      did nothing at all.
     * ``parking.py``, ``sign_discovery.py`` and ``waypoints.py`` each kept a
       private literal beside a live config field, annotated "same concept/value
       as NavigationTuning.X", so the two agreed only as long as a human kept
@@ -248,7 +248,8 @@ class TestConfiguredValuesAreActuallyRead:
 
     A config entry that nothing reads is worse than no entry: it advertises
     control it does not have. This walks the declared fields and asserts each is
-    referenced somewhere outside its own definition.
+    referenced somewhere outside its own definition. See
+    adr:0069-config-governance.
     """
 
     _SEARCH_ROOTS = ("src", "tests", "scripts")
@@ -297,9 +298,9 @@ class TestConfiguredValuesAreActuallyRead:
         names = [field]
         # SLOW_MPS is read as slow_mps(); the accessor is the field lowercased,
         # so resolve by attribute rather than by rewriting a suffix. Written
-        # this way after the tiers moved from *_FRAC to *_MPS in 2026-08-21 --
-        # a suffix rule silently stopped matching and excused every field it
-        # could no longer see.
+        # this way after the speed tiers moved from fractions to absolute m/s
+        # (see adr:0085-speed-envelope): a suffix rule silently stopped matching
+        # and excused every field it could no longer see.
         #
         # A field whose stored unit differs from the unit the actuator takes
         # gets a converting accessor instead, and the name changes with it:
@@ -455,7 +456,8 @@ class TestCornerPreviewIsASingleValue:
 
     The generated DTO declares only ``corner_preview_distance_m``; the retired
     ``wide_corner_preview_distance_m`` resolver returned the shared value when
-    unset, which is what ships, so one value now serves both width classes.
+    unset, which is what ships, so one value now serves both width classes. See
+    adr:0052-pursuit-target-selection.
     """
 
     def test_one_value_for_both_classes(self):

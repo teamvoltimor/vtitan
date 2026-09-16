@@ -8,10 +8,10 @@ own direction of travel -- at two different places. See
 **The deform guard is INERT on the shipped tree** and its predicate is tested
 here on its own terms only. ``SIGN_LANE_SUPPRESS_DEFORM`` ships true, so
 ``navigator.step`` never reassigns ``steer_target`` to the deformed point and
-the guard's identity check short-circuits: it evaluated on 0 ticks of four
-sighted scenarios with the flag forced on. These tests pin the geometry so the
-deform cannot be re-enabled without it; they do not claim the guard does
-anything today.
+the guard's identity check short-circuits: it evaluated on no ticks even with
+the flag forced on. These tests pin the geometry so the deform cannot be
+re-enabled without it; they do not claim the guard does anything today. See
+adr:0063-corridor-flip-and-sense-guards.
 
 Each guard needs its OFF state pinned as well as its ON state. Both ship False,
 so a test that only exercises the new behaviour would let a regression in the
@@ -161,9 +161,9 @@ class TestDeformSenseGuard:
 
     def test_a_large_but_harmless_shove_still_agrees(self) -> None:
         # The measured refutation of a ratio clamp: a shove larger than the
-        # range is routine on a healthy round (12% of the clean control's
-        # right-sense ticks) and must NOT be flagged while the bearing still
-        # points along the path.
+        # range is routine on a healthy round and must NOT be flagged while the
+        # bearing still points along the path. See
+        # adr:0063-corridor-flip-and-sense-guards.
         path = [Waypoint(0.0, 0.0), Waypoint(1.0, 0.0)]
         assert _bearing_agrees_with_path((0.28, 0.40), 0.0, 0.0, path, 0)
 

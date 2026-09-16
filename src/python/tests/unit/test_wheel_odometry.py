@@ -111,15 +111,15 @@ class TestCommandedVersusActual:
         neither of which the simulator models, and neither of which the robot
         could observe until the encoder reached the navigator.
 
-        The ceiling is asserted as ``MAX_SPEED_MPS`` rather than a literal: this
-        test was written on 2026-07-26 against a drivetrain whose ceiling was
-        later remeasured (``counts_per_rev`` 86 -> 60, 2026-08-29), and the stale
-        literal it carried failed ever after.
+        The ceiling is asserted as ``MAX_SPEED_MPS`` rather than a literal: the
+        drivetrain ceiling was remeasured after this test was written, and the
+        stale literal it carried failed ever after. See
+        adr:0076-drivetrain-and-steering-hardware.
         """
         gw = _gateway()
         _drive(gw, 5.0, 40)
         assert gw.last_command.speed_mps == pytest.approx(5.0)
-        # 2 s of first-order lag at tau = 0.35 s is within 0.4% of the ceiling.
+        # 2 s of first-order lag at tau = 0.35 s settles against the ceiling.
         assert abs(gw.get_wheel_odometry().speed_mps) == pytest.approx(RobotSpecs.MAX_SPEED_MPS, rel=0.01)
 
 

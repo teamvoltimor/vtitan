@@ -55,12 +55,11 @@ class TestThreatDirection:
         ranges[:REAR_SECTOR_INDICES] = LIDAR_CLOSE_THREAT
         ranges[-REAR_SECTOR_INDICES:] = LIDAR_CLOSE_THREAT
 
-        # Asserts what the test is named for again. Between 2026-08-22 and
-        # 2026-08-31 the rear was fully masked by the blind wedges, so a wall
-        # behind was not seen at all and this asserted "none". The wedges were
-        # re-measured on the current mount (-155..-120 / 120..160, a ~40 deg
-        # slot at +/-160..180), so the rear is visible and the original
-        # behaviour is back.
+        # Asserts what the test is named for again. The rear was once fully
+        # masked by the blind wedges, so a wall behind was not seen at all and
+        # this asserted "none". The wedges were re-measured on the current mount,
+        # leaving a readable slot at the rear, so the rear is visible and the
+        # original behaviour is back. See adr:0056-raw-and-masked-scan.
         assert controller.detect_threat_direction(ranges, ANGLES_FULL_ROTATION) == "back"
 
     def test_wall_behind_back_even_without_angles(self, controller):
@@ -70,8 +69,9 @@ class TestThreatDirection:
         ranges[:REAR_SECTOR_INDICES] = LIDAR_CLOSE_THREAT
         ranges[-REAR_SECTOR_INDICES:] = LIDAR_CLOSE_THREAT
 
-        # Rear visible again since the 2026-08-31 wedge re-measurement (see
-        # test_wall_behind_reports_back_not_front).
+        # Rear visible again since the wedge re-measurement (see
+        # test_wall_behind_reports_back_not_front and
+        # adr:0056-raw-and-masked-scan).
         assert controller.detect_threat_direction(ranges) == "back"
 
     def test_wall_ahead_reports_front(self, controller):
@@ -104,9 +104,10 @@ class TestClearance:
         ranges = create_numpy_scan()
         ranges[:REAR_SECTOR_INDICES] = LIDAR_CLOSE_THREAT
         ranges[-REAR_SECTOR_INDICES:] = LIDAR_CLOSE_THREAT
-        # Asserts the actual wall distance again, as the name says. It read the
-        # no-data fallback while the rear was fully masked (2026-08-22 to
-        # 2026-08-31); the re-measured wedges restore the original behaviour.
+        # Asserts the actual wall distance again, as the name says. It once read
+        # the no-data fallback while the rear was fully masked; the re-measured
+        # wedges restore the original behaviour. See
+        # adr:0056-raw-and-masked-scan.
         assert controller.compute_rear_clearance(ranges, ANGLES_FULL_ROTATION) == pytest.approx(LIDAR_CLOSE_THREAT)
 
     def test_rear_clearance_clear_when_only_front_blocked(self, controller):
@@ -120,11 +121,11 @@ class TestRearSectorVisibility:
     """A reverse gate must be able to tell "nothing behind" from "cannot see"."""
 
     def test_normal_scan_is_measured(self, controller):
-        # Measured again since the 2026-08-31 wedge re-measurement: the rear
-        # sector carries a ~40 deg readable slot at +/-160..180, so a normal
-        # scan reports MEASURED. Between 2026-08-22 and then the mount masked
-        # the whole rear and this asserted False -- "cannot see" rather than
-        # "nothing behind".
+        # Measured again since the wedge re-measurement: the rear sector
+        # carries a readable slot at the rear, so a normal scan reports
+        # MEASURED. Under the old mount the whole rear was masked and this
+        # asserted False -- "cannot see" rather than "nothing behind". See
+        # adr:0056-raw-and-masked-scan.
         assert controller.rear_sector(create_numpy_scan(), ANGLES_FULL_ROTATION).measured is True
 
     def test_no_valid_rear_rays_is_not_measured(self, controller):
@@ -147,13 +148,13 @@ class TestRearSectorVisibility:
 class TestFrontSectorVisibility:
     """The same distinction for the FRONT, which never had it and drove into a wall.
 
-    Measured on hardware 2026-08-31 (run_20260831_205208 / _205235): pressed
-    against a wall and physically immobile, every ray in the forward cone fell
-    below ``min_valid_range_m`` -- a flat surface centimetres away reflects too
-    shallowly to return a signal -- so forward clearance reported ~9.97 m for
-    the rest of the run. The navigator held 0.24 m/s into the wall and the
-    ``stuck_forward`` escape stood down after six ticks, because by that number
-    the road ahead was clear.
+    Measured on hardware: pressed against a wall and physically immobile, every
+    ray in the forward cone fell below ``min_valid_range_m`` -- a flat surface
+    centimetres away reflects too shallowly to return a signal -- so forward
+    clearance reported a wide-open distance for the rest of the run. The
+    navigator held speed into the wall and the ``stuck_forward`` escape stood
+    down, because by that number the road ahead was clear. See
+    adr:0056-raw-and-masked-scan.
     """
 
     def test_normal_scan_is_measured(self, controller):
@@ -233,8 +234,9 @@ class TestSideCorrectionFlipsSignWhenReversing:
     and SIDE_CORRECTION switches to reverse exactly when already touching the
     threatened side. A fixed steering sign there drives the nose further into
     the wall it is already touching instead of away from it -- measured on
-    hardware pinning a side at 4.5 cm for the rest of a run that never
-    recovered, reversing repeatedly without ever creating separation.
+    hardware pinning a side for the rest of a run that never recovered,
+    reversing repeatedly without ever creating separation. See
+    adr:0050-escape-steering-degrees-and-committed-side.
     """
 
     def test_left_threat_creeping_steers_right(self, controller):
@@ -280,9 +282,9 @@ class TestSideCorrectionReversesWhenTouchingForward:
     wider forward-path lane (which triggered CRITICAL in the first place) sees
     the wall. SIDE_CORRECTION's "already touching" check must also look
     forward, or it keeps creeping into a wall it is already touching. Measured
-    on hardware: three real Open Challenge runs pinned nose-first for up to
-    23s, repeatedly issued SIDE_CORRECTION with a forward-creep speed the
-    whole time (2026-08-28).
+    on real Open Challenge runs that pinned nose-first for many seconds,
+    repeatedly issuing SIDE_CORRECTION with a forward-creep speed the whole
+    time. See adr:0055-escape-maneuver-selection.
     """
 
     def test_left_threat_with_forward_contact_reverses(self, controller):
@@ -329,25 +331,26 @@ class TestSelfDetectionFilter:
     def test_rear_real_wall_beyond_the_chassis_is_still_detected(self, controller):
         ranges = create_numpy_scan()
         i = angle_to_index(math.pi)
-        # 0.35 m, i.e. OUTSIDE the body. This read 0.15 m until 2026-09-06, which
-        # is not a place a wall can be: the chassis rear face is
+        # 0.35 m, i.e. OUTSIDE the body. The old fixture read 0.15 m, which is
+        # not a place a wall can be: the chassis rear face is
         # RobotSpecs.LIDAR_TO_REAR_BUMPER = 0.2722 m behind the sensor, so a
         # 0.15 m return straight back is the robot seeing itself. The rear
-        # self-detection filter is chassis geometry now rather than a 0.08 m
+        # self-detection filter is chassis geometry now rather than a small
         # scalar, so the old fixture asserted that a self-return be reported as a
-        # wall -- which is exactly the defect it now guards against.
+        # wall, exactly the defect it now guards against. See
+        # adr:0056-raw-and-masked-scan.
         ranges[i - 4 : i + 4] = 0.35
         assert controller.compute_rear_clearance(ranges, ANGLES_FULL_ROTATION) == pytest.approx(0.35)
 
     def test_a_rear_return_inside_the_chassis_is_the_robot_not_a_wall(self, controller):
         """The defect that suppressed every escape for a whole hardware round.
 
-        Measured on run_20260906_192424: the rear minimum came from -157 deg at
-        0.125 m and -172 deg at 0.187 m and lay INSIDE the chassis on 100% of
-        scans, so `back_m` read ~0.127 m all run and `most_constrained_side` was
-        BACK on 59% of driving ticks -- and on ALL FIVE contact episodes.
-        `compute_escape_maneuver` has no BACK branch, so 212 ticks of
-        `escape_risk = critical` produced ZERO manoeuvres.
+        Measured on a hardware run: the rear minimum came from bearings whose
+        returns lay INSIDE the chassis on every scan, so `back_m` read a
+        self-distance all run and `most_constrained_side` was BACK on most
+        driving ticks, and on every contact episode. `compute_escape_maneuver`
+        has no BACK branch, so critical-risk ticks produced ZERO manoeuvres. See
+        adr:0056-raw-and-masked-scan.
         """
         ranges = create_numpy_scan()
         i = angle_to_index(math.pi)
@@ -434,9 +437,9 @@ class TestForwardPathRisk:
         # something very close reads exactly like this. A forward lane where
         # every ray is this fabricated value must NOT read as "wide open,
         # SAFE": that is precisely what let a real corner go undetected on
-        # hardware 2026-08-28 (a 60cm-corridor run with an enlarged centre
-        # wall that never turned -- the whole forward cone was grazing
-        # incidence off the wall, not genuinely clear road).
+        # hardware (a narrow-corridor run with an enlarged centre wall that
+        # never turned, the whole forward cone grazing the wall rather than
+        # genuinely clear road). See adr:0056-raw-and-masked-scan.
         ranges = create_numpy_scan()
         i = angle_to_index(0.0)
         ranges[i - 4 : i + 4] = RobotSpecs.LIDAR_MAX_RANGE
@@ -451,10 +454,10 @@ class TestForwardPathRisk:
 
 
 class TestBlindWedgeMasking:
-    """The rear-left (-160..-115 deg) and rear-right (115..175 deg) mount
-    wedges self-collide at every range, not just close ones -- a distance
-    threshold can't tell that apart from a real close obstacle at the same
-    bearing, so these rays must be excluded by angle regardless of range.
+    """The rear-left and rear-right mount wedges self-collide at every range,
+    not just close ones -- a distance threshold can't tell that apart from a
+    real close obstacle at the same bearing, so these rays must be excluded by
+    angle regardless of range. See adr:0056-raw-and-masked-scan.
     """
 
     def test_left_wedge_self_collision_does_not_register_as_back_threat(self, controller):
@@ -624,12 +627,12 @@ class TestMaskMappedObstacles:
     def test_the_snap_masks_a_return_the_belief_alone_would_miss(self):
         """The whole point: the belief is wrong, the cluster is not.
 
-        MEASURED on the two 2026-09-11 Obstacles rounds that wedged at the same
-        point: over the ticks where the router held a commitment, the nearest
-        LIDAR return sat p50 0.248 m and 0.154 m from the BELIEVED sign
-        position against a 0.12 m radius, so the mask caught 0/209 and 60/316
-        of the ticks it exists for. Anchored on the cluster instead, 111/209
-        (53%) and 243/316 (77%).
+        MEASURED on the Obstacles rounds that wedged at the same point: over the
+        ticks where the router held a commitment, the nearest LIDAR return sat
+        far from the BELIEVED sign position against the mask radius, so the
+        belief-anchored mask caught almost none of the ticks it exists for.
+        Anchored on the cluster instead, it catches most of them. See
+        adr:0056-raw-and-masked-scan.
         """
         ranges = create_numpy_scan()
         i = angle_to_index(0.0)
@@ -891,10 +894,11 @@ class TestEscapeSideFollowsCommittedSign:
     """The K-turn's side against the side the ROUTER committed to.
 
     The two answer different questions -- "which wall is nearer" against "which
-    side of the PILLAR must I pass" -- and agree 56% of the time overall,
-    48-49% in a corner. These pin the override and, just as importantly, that
+    side of the PILLAR must I pass" -- and agree only about half the time, and
+    less in a corner. These pin the override and, just as importantly, that
     it is REACHABLE: a flag verified only in the off state is how a previous
-    guard shipped inert.
+    guard shipped inert. See
+    adr:0050-escape-steering-degrees-and-committed-side.
     """
 
     @staticmethod
@@ -1002,9 +1006,10 @@ class TestEscapeSideFollowsCommittedSign:
         assert held.steering == pytest.approx(-overridden.steering)
 
     def test_the_floor_is_absolute_not_a_margin_between_sides(self):
-        """A relative band would also overrule 22 of the 49 episodes that
+        """A relative band would also overrule many of the episodes that
         choose correctly today. This pins that the comparison is against the
-        wanted side's own clearance and nothing else."""
+        wanted side's own clearance and nothing else. See
+        adr:0050-escape-steering-degrees-and-committed-side."""
         controller = self._controller(follows=True, floor=0.25)
         ranges = create_numpy_scan()
         left = angle_to_index(math.pi / 2)
@@ -1020,15 +1025,16 @@ class TestEscapeSideFollowsCommittedSign:
 class TestSideCorrectionFollowsTheCommittedPassSide:
     """SIDE_CORRECTION is where the escape actually spends its time.
 
-    MEASURED on run_20260915_002408 (ccw, 3/3 laps, 42 escapes): 10 of the 12
-    usable episodes were SIDE_CORRECTION, and the escape agreed with the side
-    the router needed on 3 of 12 overall. Until this flag, ``preferred_sign``
-    reached only ``_k_turn_steer_sign`` and the two SIDE branches chose from
-    the threat side alone -- the operator-reported pendulum.
+    MEASURED on a hardware round: most usable episodes were SIDE_CORRECTION,
+    and the escape agreed with the side the router needed only rarely. Until
+    this flag, ``preferred_sign`` reached only ``_k_turn_steer_sign`` and the
+    two SIDE branches chose from the threat side alone -- the operator-reported
+    pendulum.
 
     The rule REFUSES rather than redirects: on a conflict it reverses straight.
-    Steering toward the wanted side on clearance alone cost 12 -> 15 (see
-    ``_side_correction_steer_sign``).
+    Steering toward the wanted side on clearance alone made things worse (see
+    ``_side_correction_steer_sign``). See
+    adr:0050-escape-steering-degrees-and-committed-side.
     """
 
     def _controller(self, *, follows: bool):
@@ -1114,7 +1120,7 @@ class TestSideCorrectionFollowsTheCommittedPassSide:
         assert maneuver.steering == 0.0
 
     def test_a_refusal_reverses_rather_than_creeping_forward(self):
-        """The hole the 12 -> 15 measurement fell through.
+        """The hole the earlier measurement fell through.
 
         A refusal that only zeroes the steering keeps ``side_correction_speed``
         (+0.1 m/s, FORWARD) whenever the flank is not already touching, so it
@@ -1122,7 +1128,7 @@ class TestSideCorrectionFollowsTheCommittedPassSide:
         sibling reverse test forces ``already_touching`` first and therefore
         takes the reverse branch for a different reason, which is why nothing
         caught this. Here the flanks are CLEAR, so only the refusal can pick
-        the speed.
+        the speed. See adr:0050-escape-steering-degrees-and-committed-side.
         """
         ranges, angles = self._scan_with_room_on_both_sides()
         maneuver = self._controller(follows=True).compute_escape_maneuver(
@@ -1133,12 +1139,13 @@ class TestSideCorrectionFollowsTheCommittedPassSide:
         assert maneuver.speed < 0, "a refusal must reverse, not creep forward at the threat"
 
     def test_a_refusal_lasts_long_enough_to_change_the_geometry(self):
-        """``side_correction_s`` is 0.20 s; reversing for that long moves 2 cm.
+        """``side_correction_s`` is short; reversing for that long barely moves.
 
         The pendulum this rule targets moved the range to the committed pillar
-        0.497 -> 0.526 m across a whole episode. A refusal that retreats less
+        by next to nothing across a whole episode. A refusal that retreats less
         than the planner needs to re-approach just feeds the limit cycle, so it
-        takes the K-turn's duration rather than the side correction's.
+        takes the K-turn's duration rather than the side correction's. See
+        adr:0050-escape-steering-degrees-and-committed-side.
         """
         ranges, angles = self._scan_with_room_on_both_sides()
         controller = self._controller(follows=True)

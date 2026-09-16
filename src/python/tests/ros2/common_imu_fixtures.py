@@ -7,7 +7,7 @@ created on activate rather than configure, and publishing before configure
 is a no-op. Everything downstream of that -- failure policy on a bad
 connect, the sensor-reading dataclass, covariance semantics -- differs by
 real hardware capability (RVC has no live gyro stream, I2C does) and is
-intentionally NOT shared here; see the 2026-08-15 reuse audit.
+intentionally NOT shared here; see adr:0079-imu-6axis-and-yaw-reference.
 """
 
 from __future__ import annotations

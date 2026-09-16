@@ -22,10 +22,11 @@ from src.navigation.planning.sign_router import SignSpec
 
 _OFFSET = 0.28
 _CCW = Direction.COUNTERCLOCKWISE
-"""These lane assertions were all written under the pre-2026-09-03 absolute rule,
-which is the COUNTERCLOCKWISE answer -- so pinning CCW here keeps every expected
-geometry below valid. Clockwise is the mirror image and is covered by
-``test_sign_router.py::TestPassSideRule``."""
+"""These lane assertions were written under the old absolute rule, which is the
+COUNTERCLOCKWISE answer -- so pinning CCW here keeps every expected geometry
+below valid. Clockwise is the mirror image and is covered by
+``test_sign_router.py::TestPassSideRule``. See
+adr:0059-pass-side-travel-relative-and-scorer-independence."""
 
 _PARAMS = SignLaneParams(lateral_offset=_OFFSET, ramp_m=0.70, hold_m=0.25, corner_entry_m=0.0)
 """Most of these assertions were written under a lane CONFINED to the straight
@@ -130,10 +131,11 @@ class TestPathInvariants:
 
 
 class TestCornerEntry:
-    """Borrowed corner runway, for the ~94% of signs sitting at a section boundary.
+    """Borrowed corner runway, for the overwhelmingly common boundary sign.
 
-    Corpus fact these rest on: 1211 of 1282 signs sit at along-corridor depth
-    1.00 or 2.00, and 0 of 1282 sit in a corner.
+    Corpus fact these rest on: almost every sign sits at along-corridor depth
+    1.00 or 2.00, and none sit in a corner. See
+    adr:0064-corridor-by-depth-and-clearance-budget.
     """
 
     # A boundary sign, i.e. the overwhelmingly common case.

@@ -145,3 +145,11 @@ zero at the shipped placement.
 - `obstacles_inner_wall_terminal = false` scores the real rule (9.18 permits
   touching an unmoved wall) and the 82-test battery is insensitive to it, so
   pricing needs the 256 corpus under both scorings.
+- The 46 percent "tracking failure" bucket in `scripts/sim/diag_failure_split.py`
+  was withdrawn: the sign-avoidance tracking figures differenced two GLOBAL
+  coordinates instead of projecting onto the path frame.
+- Nearest-waypoint projection overstates the offset by half the waypoint spacing,
+  enough to matter against a +/-6.7 cm sign-pass budget.
+- Abeam-only recording over-reported wrong-side passes on hardware: 3/3/5
+  violations on the three reconstructable 2026-09-15 rounds against 0/2/2 from a
+  true-pose judge.

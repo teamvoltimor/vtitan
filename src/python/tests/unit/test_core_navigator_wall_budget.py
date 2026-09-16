@@ -1,12 +1,11 @@
 """The pursuit crosstrack threshold must follow the path's room to the outer wall.
 
-Measured on hardware 2026-08-06: under the blind narrow prior a corridor
-believed 0.60 puts the planned path ~0.25-0.30 m from the outer wall, while
-``LOOKAHEAD_TRANSITION`` is a fixed 0.30 m. Subtract the chassis half-width and
-only 0.15-0.20 m of crosstrack exists before contact, so the corrective short
-lookahead was armed to fire only after the wall had been reached. Crosstrack ran
-0.09 -> 0.15 through the corner, never crossed 0.30, and the robot ended up
-0.10 m from the wall on both the clockwise and counterclockwise rounds.
+Measured on hardware: under the blind narrow prior the planned path sits close
+to the outer wall, while ``LOOKAHEAD_TRANSITION`` is a fixed mid value. Subtract
+the chassis half-width and only a thin band of crosstrack exists before contact,
+so the corrective short lookahead was armed to fire only after the wall had been
+reached; the robot ended up against the wall on both the clockwise and
+counterclockwise rounds. See adr:0052-pursuit-target-selection.
 
 The budget is taken from the mat's outer edges rather than the width belief on
 purpose: WRO moves the inner walls between rounds, but the mat's own edges are
@@ -49,7 +48,8 @@ def _straight_path_at(offset_m: float) -> list[tuple[float, float]]:
 
 class TestBudgetFollowsThePath:
     def test_wall_hugging_path_tightens_the_threshold(self, tuning):
-        """The narrow-belief geometry that lost both 2026-08-06 rounds."""
+        """The narrow-belief geometry that lost the hardware rounds.
+        See adr:0052-pursuit-target-selection."""
         nav = _navigator(_straight_path_at(0.25), tuning)
 
         expected = _expected(0.25, tuning)
@@ -83,9 +83,10 @@ class TestBudgetFollowsThePath:
     def test_replanning_onto_a_wider_path_relaxes_the_threshold(self, tuning):
         """The belief widening mid-round has to reach the controller.
 
-        This is the moment the hardware bags show the path jumping ~0.20 m
-        sideways; the threshold governing recovery from that jump has to move
-        with it rather than stay at the tighter value.
+        This is the moment the hardware bags show the path jumping sideways;
+        the threshold governing recovery from that jump has to move with it
+        rather than stay at the tighter value. See
+        adr:0052-pursuit-target-selection.
         """
         nav = _navigator(_straight_path_at(0.25), tuning)
         assert nav._waypoint_controller.effective_transition < tuning.pursuit.lookahead_transition

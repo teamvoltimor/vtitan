@@ -47,11 +47,13 @@ _RECOVERY_WINDOW_STEPS = 150
 _RECOVERY_THRESHOLD_M = 0.05
 
 _LATERAL_KICK_M = 0.08
-"""Conservative vs. the measured envelope (narrow/clockwise is worst-case at ~0.115m —
-see ``python -m src.simulation.find_recovery_envelope``)."""
+"""Conservative vs. the measured envelope, whose narrow/clockwise arm is the
+worst case; see ``python -m src.simulation.find_recovery_envelope`` and
+adr:0087-test-methodology."""
 
 _HEADING_KICK_RAD = 0.35
-"""~20 degrees, vs. a measured worst-case envelope of ~35 degrees (narrow/clockwise)."""
+"""Conservative vs. the measured worst-case envelope, narrow/clockwise.
+See adr:0087-test-methodology."""
 
 
 def _run_with_disturbance(

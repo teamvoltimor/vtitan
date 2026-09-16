@@ -1,11 +1,12 @@
 """Blind operation and the heading re-zero, on the real node rather than the sim.
 
-``CorridorWidthEstimator`` was built and measured inside ``ScenarioSimulator``
-and for a while existed *only* there, so the deployed node still read corridor
-widths straight out of a metadata file. A sim pass rate said nothing about the
-robot until this wiring existed. These pin the wiring itself -- that blind mode
+``CorridorWidthEstimator`` was built inside ``ScenarioSimulator`` and for a
+while existed *only* there, so the deployed node still read corridor widths
+straight out of a metadata file. A sim pass rate said nothing about the robot
+until this wiring existed. These pin the wiring itself -- that blind mode
 starts from the safe prior, that a corrected belief reaches both the planner and
-the localizer, and that the heading reference is re-zeroed at the start button.
+the localizer, and that the heading reference is re-zeroed at the start button
+(see adr:0057-blind-corridor-follower-and-width).
 """
 
 from __future__ import annotations
@@ -86,17 +87,13 @@ class TestGatewayBeliefUpdate:
 
 
 class TestVisionCallbackParsesDetections:
-    """2026-08-04: _vision_callback's deferred import of detection_payload_keys
-    named the wrong module path (``ros2.vision...``, missing the ``src.``
-    prefix) since the commit that introduced it (2026-08-02, 4f8dbdf) --
-    every real /vision/detections message raised ModuleNotFoundError, which
-    the surrounding except (JSONDecodeError, TypeError) does not catch, so it
-    propagated out of the callback and left _latest_detections permanently
-    empty. No test exercised this method at all, which is how it went
-    unnoticed. node.py's own top-level import of the same module had the same
-    class of bug (missing ``ros2.``, not just ``src.``), which crash-looped
-    vision_node outright rather than failing silently -- see
-    docs/known-issues-backlog.md.
+    """The detections callback must survive a real /vision/detections message.
+
+    A deferred import naming the wrong module path raises ModuleNotFoundError,
+    which the surrounding JSONDecodeError/TypeError handler does not catch, so
+    it propagates out of the callback and leaves _latest_detections permanently
+    empty. This pins the wiring against that class of bug; see
+    adr:0072-vision-data-path.
     """
 
     def test_a_real_detections_message_populates_latest_detections(self, ros_context) -> None:
@@ -137,7 +134,7 @@ class TestHeadingResetReachesTheEstimator:
     The estimator lives on the gateway, not on the node, so calling it on the
     node raises AttributeError -- and only at the not-racing to racing
     transition, i.e. the one moment it matters and the one moment no test
-    covered.
+    covered. See adr:0079-imu-6axis-and-yaw-reference.
     """
 
     def test_gateway_exposes_the_reset(self, ros_context) -> None:
@@ -225,8 +222,9 @@ class TestBlindImpliesDirectionInference:
     The round's travel direction is drawn at random on the day, so a "blind"
     run that is told it measures a robot with information no robot has. Blind
     therefore implies inferring it from LIDAR, on the deployed node and not
-    only in the simulator -- for a while the estimator existed only in the
-    harness, which made every measured pass rate a statement about the sim.
+    only in the simulator; for a while the estimator existed only in the
+    harness, which made every measured pass rate a statement about the sim
+    (see adr:0053-direction-inference-and-start-pose).
     """
 
     def test_blind_node_has_a_direction_estimator(self, ros_context) -> None:
@@ -269,15 +267,15 @@ class TestBlindImpliesDirectionInference:
             navigator.destroy_node()
 
     def test_overturning_the_assumed_direction_corrects_the_heading_estimate(self, ros_context) -> None:
-        """2026-08-04: the bug behind "CCW never resolves its heading".
+        """The bug behind "CCW never resolves its heading".
 
         assumed_start_conditions pairs a starting yaw with whichever direction
         was assumed at construction -- CW and CCW differ by exactly pi for the
-        same section. Overturning the assumption used to rebuild the path
-        (test above) without correcting the heading estimate to match, leaving
-        it anchored to the old, wrong half of the pair for the rest of the
-        run -- a fixed, non-decaying bias, confirmed on real hardware
-        (2026-08-04, adr:0053-direction-inference-and-start-pose).
+        same section. Overturning the assumption must also correct the heading
+        estimate to match; rebuilding the path without it leaves the estimate
+        anchored to the old, wrong half of the pair for the rest of the run, a
+        fixed non-decaying bias (see
+        adr:0053-direction-inference-and-start-pose).
         """
         from shared.domain.models import Pose
 
@@ -300,19 +298,16 @@ class TestBlindImpliesDirectionInference:
             navigator.destroy_node()
 
     def test_overturning_the_assumed_direction_also_discards_position_drift_from_the_creep(self, ros_context) -> None:
-        """2026-08-04: the bug behind "CW always works, CCW never does".
+        """The bug behind "CW always works, CCW never does".
 
         The LIDAR localizer takes yaw as given, so every position fix taken
         during the creep -- while yaw was still anchored to whichever
-        direction was assumed at construction -- was matched against the
-        walls at the wrong orientation if that assumption turns out wrong.
-        Correcting yaw alone (test above) doesn't fix a position estimate the
-        wrong yaw already corrupted. Confirmed on real hardware: two CCW
-        races showed physically impossible implied speeds (2.8-6.4 m/s
-        against a ~0.156 m/s real maximum) in pose_x/pose_y throughout the
-        creep and right after the yaw correction landed -- CW races never hit
-        this because their creep's yaw assumption was already correct from
-        the first tick. See docs/known-issues-backlog.md.
+        direction was assumed at construction -- was matched against the walls
+        at the wrong orientation if that assumption turns out wrong.
+        Correcting yaw alone (test above) does not fix a position estimate the
+        wrong yaw already corrupted. CW races never hit it because their
+        creep's yaw assumption was already correct from the first tick; see
+        adr:0084-localizer-divergence-and-relocalization.
         """
         from shared.domain.models import Pose
 
@@ -338,15 +333,14 @@ class TestBlindImpliesDirectionInference:
             navigator.destroy_node()
 
     def test_a_told_direction_skips_inference_entirely(self, ros_context) -> None:
-        """2026-08-07: blind mode inferred even when the direction was supplied.
+        """Blind mode must not infer when the direction was supplied.
 
-        --direction used to default to cw, so "told clockwise" and "nobody said"
-        were the same value and the navigator could not trust either -- it
-        creeped and inferred regardless. Both zero-lap rounds that day were
-        rounds whose direction had in fact been supplied correctly: one never
-        confirmed it across 177 s, the other overturned it to the wrong answer.
-        Undetermined is now its own third choice, so a supplied direction can be
-        taken at its word.
+        --direction used to default to cw, so "told clockwise" and "nobody
+        said" were the same value and the navigator could not trust either:
+        it creeped and inferred regardless, and rounds that had been told the
+        direction correctly still failed to confirm it. Undetermined is now
+        its own third choice, so a supplied direction can be taken at its word
+        (see adr:0053-direction-inference-and-start-pose).
         """
         from src.ros2.navigation.node import TrackNavigator
 
@@ -388,17 +382,16 @@ class TestBlindImpliesDirectionInference:
             navigator.destroy_node()
 
     def test_overturning_the_direction_anchors_the_lap_line_in_the_start_section(self, ros_context) -> None:
-        """2026-08-06: the bug behind "CCW drove four laps and scored zero".
+        """The bug behind "CCW drove four laps and scored zero".
 
         LapDetector needs the dot-test sign flip and current_section ==
         start_section on the same sample, and corridor_for_position classifies
         by the inner square. The marked starting squares sit at the corridor
         ends, straddling that square's corner, so a MEASURED start falls in the
-        neighbouring corridor -- all three starts recorded on 2026-08-06 did.
-        Rebuilding the detector there gated the line to a section the robot is
-        never in when it crosses it, so no number of laps could satisfy it: run
-        180154 crossed four times, every crossing labelled east, and reported 0.
-        Replayed against the assumed origin the same bag counts 4. See
+        neighbouring corridor. Rebuilding the detector there gates the line to a
+        section the robot is never in when it crosses it, so no number of laps
+        can satisfy it. The lap line must stay anchored to the assumed origin
+        (see adr:0053-direction-inference-and-start-pose). See
         scripts/bag/diag_bag_lap_origin.py.
         """
         from shared.domain.models import Pose

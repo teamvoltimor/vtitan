@@ -80,13 +80,12 @@ INNER_BLOCK_MAX = TrackDimensions.CORNER_MAX  # m
 # Sign Router Test Config
 # A deliberate round FIXTURE value, injected into the router under test so the
 # deformation-direction assertions read cleanly. NOT the production offset:
-# that is _SIGN_LATERAL_OFFSET (0.2786 at the current chassis), derived from the
-# chassis half-DIAGONAL, and pinned separately by
-# TestLateralOffsetTracksChassis. This previously carried a comment claiming the
-# half-WIDTH derivation, which was superseded when the offset moved to the
-# diagonal — and which does not evaluate to 0.20 at the measured 0.194 m width
-# anyway. Read as "some offset", not "the offset".
-SIGN_LATERAL_OFFSET = 0.20  # m — fixture value only; see comment above
+# that is _SIGN_LATERAL_OFFSET, derived from the chassis half-DIAGONAL, and
+# pinned separately by TestLateralOffsetTracksChassis. An earlier comment
+# claimed the half-WIDTH derivation, which was superseded when the offset moved
+# to the diagonal (see adr:0051-sign-lane-planner). Read as "some offset", not
+# "the offset".
+SIGN_LATERAL_OFFSET = 0.20  # m - fixture value only; see comment above
 
 _DEFAULT_TUNING_CONSTANTS = TuningDerivedConstants.from_tuning(NavigationTuning.load_default())
 SIGN_ACTIVATION_DIST = _DEFAULT_TUNING_CONSTANTS.sign_activation_dist  # m
@@ -159,10 +158,10 @@ COLLISION_TEST_RAYCAST_CLEARANCE = 0.5  # m — raycast distance result
 #
 # Spacing is derived from the same rule the Go generator uses
 # (``ParkingLotSpecs.BLOCK_SPACING_FACTOR * RobotSpecs.LENGTH``, see
-# ``randomize.go::GenerateParkingLotPositions``) rather than written as a literal. It used
-# to be a hardcoded 0.30 m, which is exactly the chassis length — a zero-clearance bay the
-# robot can never enter, and 0.15 m narrower than any bay the generator actually emits. Tests
-# built on it were parking into geometry that does not occur in a real scenario.
+# ``randomize.go::GenerateParkingLotPositions``) rather than written as a literal. A
+# hardcoded spacing used to sit the blocks a zero-clearance bay apart, narrower than any
+# bay the generator actually emits, so tests built on it were parking into geometry that
+# does not occur in a real scenario (see adr:0062-sim-contact-model-and-parking).
 #
 # The blocks sit ``ParkingLotSpecs.WALL_OFFSET`` from the outer wall and stand perpendicular
 # to it, so the bay they form is ``ParkingLotSpecs.LENGTH`` deep.

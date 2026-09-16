@@ -109,3 +109,8 @@ collisions sighted but inverts blind.
   wrong-sense targets carry deform p50 0.554 m against 0.031 m for right-sense
   (18x), on a quantity that was never applied; the lane is the candidate that acts
   on that wish.
+- The deform sense guard evaluated on 0 ticks of four sighted scenarios with the
+  flag forced on; a ratio clamp is refuted because a shove larger than the target
+  range is routine on a healthy round (12 percent of the clean control's
+  right-sense ticks) and must not be flagged while the bearing still points along
+  the path.

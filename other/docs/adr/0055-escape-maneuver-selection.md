@@ -162,7 +162,9 @@ in-time / 28 laps>=3 / 9 timed out; 1.8 gave 29 / 34 / 0; 2.3 gave 31 / 33 / 0;
   forward clearance and only 15 percent gain nothing, yet 62 percent are followed
   by another escape within two seconds because 97 percent are handed back the
   SAME target (median movement 0 cm). The escape works and the frozen plan undoes
-  it.
+  it. Motivating stats measured 2026-09-12 over three hardware rounds: 183
+  manoeuvre episodes covered 22.3 percent of all ticks and 179 of 183 (97.8
+  percent) held one steering value for up to 44 ticks.
 - `pose_trail_min_step_m` is a per-tick threshold coupled to speed: at 0.156 m/s
   and 20 Hz the chassis advances about 0.008 m per tick and the trail thins,
   while at 0.234 m/s it advances about 0.012 m and nothing thins. Re-check it
@@ -177,3 +179,6 @@ in-time / 28 laps>=3 / 9 timed out; 1.8 gave 29 / 34 / 0; 2.3 gave 31 / 33 / 0;
 - Never cover ground backwards: a robot reversing down a corridor is going the
   wrong way regardless of which way it points, which is why `min_reverse_clearance_m`
   is a safety floor and not a tuning lever.
+- SIDE_CORRECTION reverses on 99.4 percent of its ticks.
+- On 2026-08-05 four escalating escapes over 40 s rocked the yaw and translated
+  the robot nowhere.

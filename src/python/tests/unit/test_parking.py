@@ -119,7 +119,8 @@ class TestBuildZone:
         assert normalise_angle(z.target_yaw - expected_yaw) == pytest.approx(0.0, abs=1e-9)
 
     def test_target_yaw_is_never_perpendicular_to_the_wall(self):
-        """Regression guard for the pre-2026-07-25 nose-in geometry."""
+        """Regression guard for the earlier nose-in geometry.
+        See adr:0062-sim-contact-model-and-parking."""
         for section, lot in (
             (Section.SOUTH, _SOUTH_CFG),
             (Section.NORTH, _NORTH_CFG),
@@ -194,11 +195,11 @@ _TRACK_WIDTHS = dict.fromkeys(Section, CorridorDimensions.WIDE)
 def _parking_fins(cfg: ParkingLot, section: Section) -> list[ObstacleBox]:
     """The two magenta markers as physical obstacles.
 
-    They became collidable in the simulator in commit fd33fd5, but this harness kept
+    They became collidable in the simulator, but this harness kept
     building an obstacle-free ``TrackModel``, so ``ever_collided`` could only ever mean
-    "hit a wall or the inner square" — a park that drove straight through a marker was
+    "hit a wall or the inner square" -- a park that drove straight through a marker was
     recorded as clean. They stand perpendicular to the outer wall, hence the quarter-turn
-    yaw for a north/south bay.
+    yaw for a north/south bay. See adr:0062-sim-contact-model-and-parking.
     """
     yaw = math.pi / 2 if section in (Section.SOUTH, Section.NORTH) else 0.0
     return [
@@ -235,9 +236,10 @@ class ParkRun:
     """Which objects the footprint touched at any tick: 'wall-or-inner' and/or 'marker'.
 
     Split because they are different claims with different owners: 'wall-or-inner' is the
-    2026-07-11 non-convergent-orbit guarantee, 'marker' is whether the maneuver clears the
+    non-convergent-orbit guarantee, 'marker' is whether the maneuver clears the
     parking lot's own geometry -- previously unmeasurable, since the harness built an
-    obstacle-free TrackModel even after the markers became collidable in fd35dd5.
+    obstacle-free TrackModel even after the markers became collidable. See
+    adr:0062-sim-contact-model-and-parking.
     """
 
 
@@ -252,9 +254,9 @@ def _simulate_park(
     """Real Ackermann bicycle-model simulation (matches the production sim/hardware).
 
     Collision is checked every tick against the actual chassis footprint, not just the final
-    pose -- this is what would have caught the non-convergent-orbit bug (2026-07-11 review
-    §2.3): a controller that eventually reaches ``done`` can still have driven through the
-    inner keep-out square getting there. Simulation continues after a contact (recording it,
+    pose -- this is what would have caught the non-convergent-orbit bug: a controller that
+    eventually reaches ``done`` can still have driven through the
+    inner keep-out square getting there. See adr:0062-sim-contact-model-and-parking. Simulation continues after a contact (recording it,
     not stopping) rather than treating it as fatal: this drives ``ParkController`` in
     isolation, without ``CoreNavigator``'s own defense-in-depth clearance gate
     (`core_navigator.py::_handle_finish`) that the full system relies on for the final
@@ -298,8 +300,8 @@ def _simulate_park(
 # north of the staging point (gap_y=0.10 + _APPROACH_CLEARANCE=0.45 -> staging_y=0.67, see
 # ParkController.staging_pos) so "approach from north" is still literally true, and south
 # of CORNER_MIN=1.0 with real margin for the chassis's own half-length (0.15m) -- these
-# were recalibrated for the corrected chassis dims (2026-07-11); the old values (y up to
-# 0.90, staging at the old, smaller 0.25m clearance) put some poses south of the new
+# were recalibrated for the corrected chassis dims; the old values (a larger staging
+# clearance and y reaching higher) put some poses south of the new
 # staging point, which correctly triggers "target behind, reverse" but reverses straight
 # toward the inner square from a position already too close to it.
 #
@@ -327,8 +329,8 @@ _SOUTH_APPROACHES = [
         "ENTER pure-pursues a single point, which controls position but not final heading, "
         "so it cannot satisfy the WRO containment rule. This used to 'pass' only because the "
         "stop condition was a centre-in-box test that reported a park for a robot sitting "
-        "perpendicular and mostly out in the corridor (measured: 0/240 swept approaches "
-        "actually contained, 176 of them reported done). Now that the stop condition is "
+        "perpendicular and mostly out in the corridor (no swept approaches actually "
+        "contained, yet many reported done). Now that the stop condition is "
         "honest, the missing entry maneuver is what fails. See "
         "adr:0062-sim-contact-model-and-parking."
     ),
@@ -346,11 +348,12 @@ def test_south_park_from_4_approaches(start_pos, start_yaw):
 
 # Degenerate approach: target behind the robot / inside its turning radius
 #
-# Reproduces the actual 2026-07-11 §2.3 failure geometry: the robot arrives near the
+# Reproduces the actual non-convergent-orbit failure geometry: the robot arrives near the
 # staging point already, but heading along the corridor cruise direction rather than
-# toward it -- bearing error ~170-190°, i.e. the staging point is essentially behind
+# toward it -- bearing error near 180 deg, i.e. the staging point is essentially behind
 # the robot. The old bearing-proportional `_pursuit_steer` orbited into the inner
 # block trying to reach it; the fixed controller must reverse-and-reorient instead.
+# See adr:0062-sim-contact-model-and-parking.
 
 _DEGENERATE_CFGS: dict[Section, tuple[ParkingLot, tuple[float, float], float]] = {}
 for _section, _cfg in (
@@ -374,20 +377,21 @@ for _section, _cfg in (
 @pytest.mark.xfail(
     reason=(
         "The parking approach clips a wall once the chassis is held to its MEASURED "
-        "minimum turn radius (simulation.MIN_TURN_RADIUS_M 0.29, shipped 2026-09-07). "
-        "The floor did NOT break parking -- measured over 8 obstacles scenarios, the "
-        "robot parks 0/8 both with the floor and without it, matching the known "
-        "'parking is geometrically blocked' corpus result of 0/240. What the floor "
+        "minimum turn radius (simulation.MIN_TURN_RADIUS_M, see adr:0086-simulator-realism). "
+        "The floor did NOT break parking -- the robot parks the same vanishing fraction "
+        "both with the floor and without it, matching the known "
+        "'parking is geometrically blocked' corpus result. What the floor "
         "changes is the FAILURE MODE: the manoeuvre now hits a wall on the way in "
         "rather than merely failing to park, because it was laid out against a model "
-        "that pivots in 1.5 cm. Fix the manoeuvre against the real radius, then "
+        "that pivots in centimetres. Fix the manoeuvre against the real radius, then "
         "remove this marker -- do not relax the floor, which is a measurement."
     ),
     strict=True,
 )
 @pytest.mark.parametrize("section", list(_DEGENERATE_CFGS))
 def test_degenerate_approach_never_hits_a_wall_or_the_inner_block(section):
-    """The 2026-07-11 non-convergent-orbit guarantee. Markers excluded deliberately.
+    """The non-convergent-orbit guarantee (see
+    adr:0062-sim-contact-model-and-parking). Markers excluded deliberately.
 
     This is the regression guard for the orbit-into-the-inner-square bug, and it still
     holds. It is kept separate from the marker check below so that a future regression here
@@ -403,10 +407,10 @@ def test_degenerate_approach_never_hits_a_wall_or_the_inner_block(section):
 @pytest.mark.xfail(
     strict=True,
     reason=(
-        "The maneuver cleared the markers only while the simulator turned 1.83x sharper than "
-        "the car. RobotSpecs.YAW_GAIN (measured 2026-08-29 from run_20260829_140424) removed "
+        "The maneuver cleared the markers only while the simulator turned sharper than "
+        "the car. RobotSpecs.YAW_GAIN (see adr:0086-simulator-realism) removed "
         "that margin and the degenerate approach now clips a marker in all four sections, "
-        "giving up after 401 frames. Attributed: yaw_gain alone reproduces it, the drivetrain "
+        "giving up after its frame budget. Attributed: yaw_gain alone reproduces it, the drivetrain "
         "lag added alongside it does not. This is a real defect in the entry maneuver that was "
         "masked by an optimistic model, NOT a modelling artefact -- the fix belongs in the "
         "parking controller, and the day it lands this xfail must go with it."
@@ -416,10 +420,11 @@ def test_degenerate_approach_never_hits_a_wall_or_the_inner_block(section):
 def test_degenerate_approach_never_hits_the_markers(section):
     """Marker clearance, measurable for the first time.
 
-    The markers became collidable in fd33fd5, but this harness kept building an
+    The markers became collidable, but this harness kept building an
     obstacle-free ``TrackModel``, so marker contact went unmeasured until now. The maneuver
-    cleared them until 2026-08-29, when the kinematics stopped over-estimating how hard the
-    chassis corners; the field wall behind the lot was already a separate test.
+    cleared them while the kinematics over-estimated how hard the chassis corners; the
+    field wall behind the lot was already a separate test. See
+    adr:0062-sim-contact-model-and-parking.
     """
     cfg, start_pos, start_yaw = _DEGENERATE_CFGS[section]
     run = _simulate_park(cfg, section, start_pos, start_yaw, max_steps=800)

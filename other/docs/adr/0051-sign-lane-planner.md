@@ -247,4 +247,11 @@ centre bias the corridor width selected (ADR 0028). It must never flatten that.
 - Inverting `activation_dist` and `passed_dist` scored 256 of 256 collisions with
   zero laps completed on the corpus, up from 209.
 - Disabling `PinCornerGuard` restored the pin and cost 11 wall collisions in the
-  sweep.
+  sweep, attributed 2026-08-01 to the pre-guard arm of the same sweep.
+- The depth-pin heading guard was traced on `go_obstacles_0049` (subset64,
+  sighted): the pin held a commanded point frozen for 46 ticks while the yaw
+  rotated 67 deg mid-corner, because `PIN_CORNER_GUARD`'s position-only check
+  never tripped (the raw waypoint stayed squarely in its corridor even though the
+  chassis had already curved into the turn).
+- `lateral_offset` is 0.2786 at the current chassis, derived from the chassis
+  half-diagonal.

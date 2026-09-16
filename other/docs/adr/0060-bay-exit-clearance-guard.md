@@ -233,3 +233,10 @@ infraction. The exit must be evaluated against the default contact model.
 - Settling guard: without it the in-bay probe travelled 0.33-14.06 m falling to
   0.18 m and every run collided; leaving the bay-start state un-cleared made the
   second and every later race of a session skip the in-bay start entirely.
+- Held lock: 87 percent of consecutive legs cancelled, 0 of 2 runs out of the bay.
+- `run_20260906_192358`: `_dr_along` reached 0.106 m, 63 percent past the whole
+  65 mm of along-wall slack.
+- The handover moves 85 mm and spends nearly all of it along the wall.
+- The shipped margin frees the ratchet 7.35x the frozen displacement (asserted at
+  5 in the test), against an old held-lock shape that measured 0.06 m of travel
+  for no net gain.

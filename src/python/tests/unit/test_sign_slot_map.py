@@ -1,10 +1,11 @@
 """The rules-constrained sign map: at most two pillars per section, on legal cells only.
 
 The shipped ``ObservedSignMap`` decides "is this the same pillar" from position,
-which is unanswerable here -- the belief carries 0.15-0.25 m of error while two
-DISTINCT legal cells sit 0.20 m apart. It believes 9-25 pillars on a track that
-holds 8. These tests pin the properties that make the slot map different, each
-with the control that would otherwise let it pass vacuously.
+which is unanswerable here -- the belief carries more position error than the
+gap between two DISTINCT legal cells. It believes far more pillars than the
+track holds. These tests pin the properties that make the slot map different,
+each with the control that would otherwise let it pass vacuously. See
+adr:0058-sign-discovery-range-and-barrier-belief.
 """
 
 from __future__ import annotations
@@ -124,8 +125,9 @@ class TestRepointing:
 
     def test_a_passed_index_gets_a_fresh_slot_instead_of_being_repointed(self) -> None:
         """Re-pointing a retired index would make an unpassed pillar inherit the
-        'behind us' flag and vanish for the lap. Measured on 168 of 708
-        re-points, so it is not a corner case."""
+        'behind us' flag and vanish for the lap. Measured as a large share of
+        re-points, so it is not a corner case. See
+        adr:0058-sign-discovery-range-and-barrier-belief."""
         sign_map = _map()
         cells = _cells_of(corridor_for_position(*legal_sign_positions()[0]))
         # Three cells on three DIFFERENT depth lines: two laterals of one depth
@@ -175,10 +177,11 @@ class TestFailSafe:
 class TestTheCapHoldsUnderPressure:
     """The cap is the whole point, so it is tested on the paths that broke it.
 
-    Measured on run_20260911_225646: the believed-sign peak read 12 against a
-    physical maximum of 8, because a section opened a third slot whenever no
-    incumbent was displaceable. It still beat the shipped map's 64, which is why
-    the leak had to be caught rather than celebrated.
+    Measured on hardware: the believed-sign peak read well over the physical
+    maximum, because a section opened a third slot whenever no incumbent was
+    displaceable. It still beat the shipped map, which is why the leak had to be
+    caught rather than celebrated. See
+    adr:0058-sign-discovery-range-and-barrier-belief.
     """
 
     def test_a_frozen_section_does_not_grow_a_third_slot(self) -> None:
@@ -229,10 +232,10 @@ class TestTheCapHoldsUnderPressure:
 class TestOnePillarPerDepthLine:
     """The rulebook never places two pillars on one depth line of a section.
 
-    Measured on run_20260915_002408: one green pillar standing between the two
-    lateral cells at depth 1.0 filled BOTH east slots, and the red pillar at
-    depth 2.0 was refused for the whole round while the chassis escaped 30 times
-    against it.
+    Measured on hardware: one green pillar standing between the two lateral
+    cells at one depth filled BOTH east slots, and the red pillar at another
+    depth was refused for the whole round while the chassis escaped repeatedly
+    against it. See adr:0058-sign-discovery-range-and-barrier-belief.
     """
 
     @staticmethod

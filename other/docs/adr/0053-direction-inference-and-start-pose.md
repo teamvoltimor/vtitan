@@ -112,7 +112,9 @@ wrong answer.
   `min_votes` into TOML.
 - 88312eaf 2026-08-09: retry a refused start-pose measurement instead of racing
   on the assumption. 2 of 4 rounds on 2026-08-08 failed; the blocking ray cleared
-  0.6 s and 1.5 s after commit.
+  0.6 s and 1.5 s after commit. The operator stood in the rearward ray at
+  0.10-0.19 m, and by the time it cleared the node had already reseeded about
+  1.0 m behind truth.
 - 5bd18568 2026-08-29: break the in-bay start deadlock. `direction_from_parking_bay`;
   in-bay 8/8 never moved, dist 0.00 m; checked 256/256.
 - 3378ab7c 2026-09-05: default Obstacles to an in-bay start (`ASSUME_BAY_START`).
@@ -163,3 +165,7 @@ wrong answer.
   ((2.099, 0.484) and (2.101, 0.487) as EAST, (0.656, 0.596) as WEST, none as
   SOUTH); run 180154 crossed the line four times, every crossing labelled east,
   and scored 0 laps while a replay against the assumed origin counts 4.
+- Direction adoption measured across four hardware bags: on the two CCW-inferred
+  rounds the commanded lane matched the CLOCKWISE row on 24 of 28 sign passes, and
+  22 of the 28 illegal passes are that mirror (2 caused by phantom signs, 0 by
+  colour errors); the one CW-inferred round passed 19 of 26 legally.

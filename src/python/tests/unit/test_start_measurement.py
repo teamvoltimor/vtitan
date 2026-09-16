@@ -37,8 +37,9 @@ class TestMeasuredPose:
             # Outer and inner bands.
             (1.25, 0.303, Direction.COUNTERCLOCKWISE, 0.0),
             (1.75, 0.697, Direction.CLOCKWISE, math.pi),
-            # Placed OUTSIDE the marked square, which is what actually happened
-            # on 2026-08-05 -- the measurement must not care.
+            # Placed OUTSIDE the marked square, which is a real placement -- the
+            # measurement must not care. See
+            # adr:0053-direction-inference-and-start-pose.
             (2.30, 0.500, Direction.COUNTERCLOCKWISE, 0.0),
             (0.70, 0.500, Direction.CLOCKWISE, math.pi),
         ],
@@ -53,10 +54,10 @@ class TestMeasuredPose:
         assert measured.y == pytest.approx(y, abs=0.02)
 
     def test_reports_the_track_actually_left_ahead(self) -> None:
-        """The number whose absence lost the 2026-08-05 rounds.
+        """The number whose absence lost rounds: distance left ahead must be
+        measured, not assumed from the middle-of-the-side geometry.
 
-        Placed at 2.30 travelling counterclockwise there is 0.70 m to the wall,
-        not the ~1.5 m a pose assumed at the middle of the side implies.
+        See adr:0053-direction-inference-and-start-pose.
         """
         ranges, angles = _scan(2.30, 0.50, 0.0)
 
@@ -123,9 +124,9 @@ class TestRefusesToGuess:
     def test_accepts_a_track_that_is_not_perfect(self) -> None:
         """Real mats are not nominal, and rejecting them would be useless.
 
-        Two real rounds closed to 2.978 m and 2.971 m against a nominal 3.0
-        before any noise, so a measurement must survive several centimetres of
-        error in the mat itself.
+        Hardware rounds close short of nominal before any noise, so a
+        measurement must survive several centimetres of error in the mat
+        itself. See adr:0053-direction-inference-and-start-pose.
         """
         closing_tolerance_m = NavigationTuning.load_default().start_measurement.closing_tolerance_m
         ranges, angles = _scan(1.25, 0.497, 0.0)

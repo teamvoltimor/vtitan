@@ -36,11 +36,10 @@ def _publish_jumper(node, *, inserted: bool) -> None:
     """Deliver a jumper reading the way the Pi Zero does.
 
     The jumper is wired to the ZERO's GPIO23, so the node consumes
-    /challenge_mode/jumper_inserted rather than reading GPIO locally. These
-    tests previously stubbed a local challenge_mode_driver, which stopped
-    existing when that moved -- and reading Pi 5's GPIO23 (nothing attached,
-    internal pull-up, always HIGH) had silently latched Open Challenge on every
-    boot, so Obstacles could never be selected.
+    /challenge_mode/jumper_inserted rather than reading GPIO locally. Reading
+    the Pi 5's own unconnected, pulled-up GPIO23 had silently latched Open
+    Challenge on every boot, so Obstacles could never be selected (see
+    adr:0073-challenge-mode-jumper-and-runtime).
     """
     node._on_jumper_state(Bool(data=inserted))
 
@@ -208,13 +207,12 @@ class TestChallengeModeDetection:
     ):
         """The Zero booting late must not cost the round.
 
-        MEASURED on hardware 2026-09-11: the Pi 5 timed out at 10:58:30 and the
-        Zero published the jumper at 10:58:51 -- 21 s late. The fallback marks
-        the mode provisional exactly so a late reading can replace it, but the
-        only caller of _sample_challenge_mode lived in _handle_boot_check, so
-        once the camera came back and BOOT_CHECK passed, nobody looked again.
-        The robot sat in READY believing OPEN with the jumper inserted, and
-        nothing in nav_debug would have said so afterwards.
+        The fallback marks the mode provisional exactly so a late reading can
+        replace it, but the only caller of _sample_challenge_mode lived in
+        _handle_boot_check, so once BOOT_CHECK passed, nobody looked again. The
+        robot sat in READY believing OPEN with the jumper inserted, and nothing
+        in nav_debug would have said so afterwards. See
+        adr:0073-challenge-mode-jumper-and-runtime.
         """
         node = state_machine_node_class()
         monkeypatch.setattr(node, "_challenge_mode_timed_out", lambda: True)
@@ -395,13 +393,13 @@ class TestRacingCompletion:
 class TestRerunDoesNotInheritThePreviousRacesLaps:
     """A button-cycled re-run must start at zero laps, not the last race's total.
 
-    Measured on hardware 2026-08-06: after a finished round, resetting and
-    pressing start dropped straight back to FINISHED, and only a reboot cleared
-    it. track_navigator_node publishes its lap count on every control tick
-    regardless of state, so the finished race's total keeps arriving while this
-    node sits in BOOT_CHECK/READY -- and _handle_racing runs on this node's own
-    tick, which beats the round trip that would have delivered the navigator's
-    post-reset zero.
+    After a finished round, resetting and pressing start could drop straight
+    back to FINISHED until a reboot. track_navigator_node publishes its lap
+    count on every control tick regardless of state, so the finished race's
+    total keeps arriving while this node sits in BOOT_CHECK/READY -- and
+    _handle_racing runs on this node's own tick, which beats the round trip
+    that would have delivered the navigator's post-reset zero. See
+    adr:0073-challenge-mode-jumper-and-runtime.
     """
 
     def _finished_node(self, node_class):
@@ -472,10 +470,13 @@ class TestRerunDoesNotInheritThePreviousRacesLaps:
 
 
 class TestRaceMetricsReflectRealTelemetry:
-    """gyro_yaw/current_velocity/current_steering used to be dead: gyro_yaw was
+    """The race telemetry must reflect the real commands and attitude.
+
+    gyro_yaw/current_velocity/current_steering were once dead: gyro_yaw was
     hardcoded to 0.0 in _imu_callback regardless of the message, and the other
-    two were only ever set by _publish_stop_command (also to 0.0) -- /race_metrics
-    reported zero for the entire race. Fixed 2026-08-03.
+    two were only ever set by _publish_stop_command (also to 0.0), so
+    /race_metrics reported zero for the entire race. These pin the real values;
+    see adr:0079-imu-6axis-and-yaw-reference.
     """
 
     def test_imu_callback_derives_yaw_from_the_real_quaternion(self, ros_context, state_machine_node_class):

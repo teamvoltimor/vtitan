@@ -88,12 +88,12 @@ class TestSightingsMerge:
     def test_only_the_best_supported_lot_is_believed(self):
         """THERE IS ONE PARKING LOT, and the evidence count arbitrates.
 
-        Distant sightings are tracked apart -- the pinhole range under-reads by
-        roughly 2x, so clusters along one bearing are a systematic disagreement
-        about depth rather than noise to average -- but only the one with the
-        most evidence is acted on. Believing every cluster over the threshold
-        settled on SIX lots per counter-clockwise round on 2026-09-14 and
-        refused 42.2% of real pillars.
+        Distant sightings are tracked apart -- the pinhole range under-reads, so
+        clusters along one bearing are a systematic disagreement about depth
+        rather than noise to average -- but only the one with the most evidence
+        is acted on. Believing every cluster over the threshold settled on many
+        lots per round and refused real pillars. See
+        adr:0058-sign-discovery-range-and-barrier-belief.
         """
         belief = _belief(min_sightings=1)
         for _ in range(5):
@@ -107,17 +107,14 @@ class TestSightingsMerge:
 
 
 class TestTheLotIsASpanNotAPoint:
-    """The rulebook lot is two fins 0.45 m apart, not a dot with a bubble.
+    """The rulebook lot is two fins, not a dot with a bubble.
 
-    Measured on two hardware wedges hours apart at the same place: the true
-    fins sit at x = 0.94 (14,403 LIDAR returns) and 1.42, a 0.48 m span centred
-    on 1.18, while the belief placed its centroid at 1.30. The WEST fin then
-    lands 0.36 m from that centroid -- outside the 0.30 m radius -- so reds on
-    it were never suppressed and the chassis spent 70 s and 172 s fighting it
-    while the planner routed around a phantom 0.45 m away.
-
-    Wall-shaped reds on that fin: suppressed 1/14 and 2/19 by the point model,
-    10/14 and 13/19 by the span.
+    Measured on hardware wedges at the same place: the true fins straddle the
+    belief's centroid by more than the suppression radius, so reds on the far
+    fin were never suppressed and the chassis spent most of the round fighting
+    it while the planner routed around a phantom. The span reaches the far fin
+    that the point model misses. See
+    adr:0058-sign-discovery-range-and-barrier-belief.
     """
 
     def _belief(self, *, span: bool) -> BarrierBelief:

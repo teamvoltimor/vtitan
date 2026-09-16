@@ -134,3 +134,12 @@ state.)
   the 59.4 mm displacement limit on its own.
 - The chassis penetrated a fin by 8.9 cm in 254 of 254 corpus scenarios while the
   run reported `collided=False` and completed its laps.
+- A hardcoded 0.30 m test spacing equalled the chassis length, a zero-clearance
+  bay 0.15 m narrower than any bay the generator emits.
+- The old stop condition reported a park for 0 of 240 swept approaches actually
+  contained, with 176 of them reported done.
+- With the measured minimum turn radius the robot parks 0 of 8 Obstacles scenarios
+  both with the floor and without it, and the marker-clipping approach gave up
+  after 401 frames.
+- The degenerate entry cleared the markers until 2026-08-29 and now clips one in
+  all four sections.

@@ -134,10 +134,9 @@ class TestRunPathPublish:
 class TestProvenanceStamp:
     """A bag records what the robot did and nothing about which code did it.
 
-    On 2026-09-13 a 55-run competition corpus had to be attributed by comparing
-    a deploy note against `git rev-list`, and the first answer was wrong: a
-    rebase had rewritten the hashes, so counting commits overstated the gap.
-    These tests pin the stamp that removes the guesswork.
+    A corpus has to be attributable to the code that produced it, and commit
+    hashes alone do not survive the history they were read from. These tests pin
+    the stamp that removes the guesswork; see adr:0071-round-recording-mcap.
     """
 
     def test_the_stamp_lands_in_the_run_directory(

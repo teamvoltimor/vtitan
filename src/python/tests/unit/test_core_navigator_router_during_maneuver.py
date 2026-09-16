@@ -6,10 +6,10 @@ call is not only a steering computation -- it owns the blind discovery ingest,
 engage/pass bookkeeping and ``routed_sign_positions``, the list the escape mask
 itself reads.
 
-Measured 2026-09-12 on three hardware rounds: 183 manoeuvre episodes covering
-22.3% of all ticks, 179 of 183 (97.8%) holding a CONSTANT steering value, up to
-44 ticks. For a quarter of a race the wheel runs open-loop AND the map takes in
-nothing.
+On hardware a large share of each round is spent in latched manoeuvres, and
+nearly all of them hold a CONSTANT steering value for their whole duration. For
+a quarter of a race the wheel runs open-loop AND the map takes in nothing. See
+adr:0055-escape-maneuver-selection.
 
 The flag ships OFF, so the first test pins the CURRENT behaviour and would fail
 if the default ever flipped silently. The third is the safety property that
@@ -39,7 +39,8 @@ LATCHED_STEERING = 0.42
 command still carries it cannot pass by coincidence."""
 
 LATCHED_SPEED = -0.2
-"""Reverse, matching the hardware regime: 99.4% of side_correction ticks."""
+"""Reverse, matching the hardware regime: the escape nearly always reverses.
+See adr:0055-escape-maneuver-selection."""
 
 
 def _scan() -> LidarScan:

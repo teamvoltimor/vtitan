@@ -1,21 +1,14 @@
 """The simulated LIDAR must look like the C1, not like a clean raycast.
 
-MEASURED 2026-09-14 against 5,763,600 real rays from ``/scan`` over three of the
-2026-09-13/14 hardware rounds. The model before this was Gaussian noise plus a
-uniform 1% dropout, which is far cleaner than the real sensor in exactly the
-0.04-0.10 m band where ``contact_dist`` and the escape gates live. That is why a
-256-scenario corpus could not arbitrate those knobs: it was answering about a
-sensor the robot does not have.
-
-Ground truth these tests assert against:
-
-    whole sweep    no-return 25.4%   sub-floor (< 0.044) 6.9%
-    |bearing| 25-60 deg   no-return 68.9%   sub-floor 31.1%
-    outside the bands     no-return  9.5%   sub-floor  0.13%
+The model before this was Gaussian noise plus a uniform dropout, which is far
+cleaner than the real sensor in exactly the band where ``contact_dist`` and the
+escape gates live. That is why a 256-scenario corpus could not arbitrate those
+knobs: it was answering about a sensor the robot does not have. The measured
+rates and the band shape live in adr:0086-simulator-realism.
 
 Tolerances are wide on purpose. These pin the ORDER OF MAGNITUDE and the SHAPE
-(bands vs uniform), which is what was wrong before -- 1% against 25%, and zero
-sub-floor against 6.9%. They are not a re-measurement of the sensor.
+(bands vs uniform), which is what was wrong before. They are not a
+re-measurement of the sensor.
 """
 
 from __future__ import annotations
@@ -121,7 +114,9 @@ class TestSubFloorReturnsExist:
         )
 
     def test_no_ray_piles_up_on_the_old_clip_value(self) -> None:
-        """0.045 was where every short ray used to land. Real hardware: 471 of 5.76M."""
+        """0.045 was where every short ray used to land. Real hardware lands
+        there far more rarely. See adr:0086-simulator-realism.
+        """
         gw = _gateway()
         piled = 0
         total = 0
@@ -138,5 +133,6 @@ class TestWholeSweepMatchesHardware:
     def test_overall_dropout_is_the_measured_order_of_magnitude(self) -> None:
         _, drop, _ = _sweep_stats()
 
-        # 25.4% measured. The old model gave 1%, which is what this guards.
+        # The old model gave a near-clean sweep, which is what this guards.
+        # See adr:0086-simulator-realism.
         assert 0.10 < drop.mean() < 0.45

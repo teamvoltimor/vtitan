@@ -1,9 +1,10 @@
 """Unit tests for estimating the track layout from LIDAR instead of metadata.
 
-The closed-loop coverage lives in ``scripts/sim/diag_localization.py blind`` (27/28
-Open Challenge fixtures, layout learned in 28/28). These pin the pieces that
-closed-loop runs can only exercise indirectly — in particular the outlier
-resistance, which is where a working estimator regressed once already.
+The closed-loop coverage lives in ``scripts/sim/diag_localization.py blind``,
+which learns the Open Challenge layout across almost every fixture. These pin
+the pieces that closed-loop runs can only exercise indirectly, in particular the
+outlier resistance, which is where a working estimator regressed once already.
+See adr:0057-blind-corridor-follower-and-width.
 """
 
 from __future__ import annotations
@@ -141,8 +142,8 @@ class TestCorridorWidthEstimator:
         corridor, and a blind run pays for it: the robot turns into a corridor
         still holding the default and meets a traffic sign before it has taken
         enough readings to correct it. Seeding the prior removed the entire
-        blind penalty over the 16 obstacles fixtures (16/16 collisions and 0
-        three-lap finishes, to 14/16 and 2 — exactly matching the sighted run).
+        blind penalty over the Obstacles fixtures, matching the sighted run. See
+        adr:0057-blind-corridor-follower-and-width.
         """
         estimator = CorridorWidthEstimator(assumed_width=_WIDE)
         assert all(w == pytest.approx(_WIDE) for w in estimator.widths.values())
@@ -197,8 +198,9 @@ class TestCorridorWidthEstimator:
 
         Corner leakage reads as a wide corridor and arrives in runs, so a
         consecutive-agreement rule flips a corridor that had already settled
-        correctly. Measured on ``go_open_0002``: a truly 0.6 m corridor
-        averaging 0.635 m still peaked at 1.229 m.
+        correctly: a truly narrow corridor averaging just over its width still
+        peaked at a wide single reading. See
+        adr:0057-blind-corridor-follower-and-width.
         """
         estimator = CorridorWidthEstimator()
         self._feed(estimator, Section.NORTH, _NARROW, times=40)

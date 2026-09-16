@@ -67,6 +67,8 @@ does not merge. Changes that break comparability carry `!` in the commit type.
   rationale links.
 - d7e24594 2026-09-14: document the testing workflow and the `!` convention in
   `tests.md` and `CHANGELOG.md`.
+- 2026-09-01: the suite pin moved from the retired Injora 14 kg build to the
+  Hiwonder 270 deg + REV HD Hex.
 
 ## Cross-references
 
@@ -88,3 +90,11 @@ does not merge. Changes that break comparability carry `!` in the commit type.
 - Windows is a first-class constraint: pin `RMW_IMPLEMENTATION=rmw_cyclonedds_cpp`
   on win-64 pytest tasks, cap xdist at 6, and do not assume dependency, Docker or
   subprocess parity.
+- On the retired motor (`max_speed_mps` 0.156) a 3-lap in-time round was
+  arithmetically impossible: about 27 m over three laps needs about 173 s against
+  the 180 s round limit. The pin re-baseline cleared 31 failures (21 sim
+  solvability, 10 deviation recovery), all only on `SimResult.success ==
+  over_time`, none a navigation defect, and the affected runs recovered from the
+  pose kick in about 184 steps and completed their laps.
+- The recovery envelope is worst narrow/clockwise: about 0.115 m lateral and about
+  35 degrees heading.

@@ -2,9 +2,9 @@
 
 ``CoreNavigator.replace_path`` seeks the nearest waypoint across the whole
 rebuilt path. A large FORWARD jump has been guarded since the start/finish-seam
-fix; the backward direction never was, and on hardware it moves: ``19 -> 16`` in
-``normal_drive``, corridor north, lap 0, in BOTH 3-lap runs of 2026-09-08, each
-while the yaw was swinging through a corner.
+fix; the backward direction never was, and on hardware it steps backward in
+``normal_drive`` while the yaw is swinging through a corner. See
+adr:0057-blind-corridor-follower-and-width.
 
 It matters because ``WaypointController`` answers a target behind the chassis
 with FULL LOCK rather than a curvature, so a backward re-seek is a U-turn
@@ -58,7 +58,8 @@ class TestShippedDefaultIsUnchanged:
         """Without the flag the re-seek takes the nearest point, behind or not.
 
         This is the behaviour measured on hardware. Asserting it keeps the
-        default honest: if it ever changes, it changes here first.
+        default honest: if it ever changes, it changes here first. See
+        adr:0057-blind-corridor-follower-and-width.
         """
         tuning = tuning_with_overrides({})
         nav = _navigator(tuning, path)

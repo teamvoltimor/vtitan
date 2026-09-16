@@ -2,7 +2,8 @@
 
 This is the leading signal that crosstrack error cannot be: crosstrack only
 rises once the turn has already been run wide of, which is why the corrective
-short lookahead used to arrive a corner late (hardware, 2026-08-06).
+short lookahead used to arrive a corner late. See
+adr:0052-pursuit-target-selection.
 """
 
 from __future__ import annotations

@@ -114,9 +114,10 @@ class TestCornerArcRadius:
     """The corner radius is sized by the two corridors the corner joins.
 
     A single global radius was correct for every corner type except
-    narrow-to-narrow, where it cost more than half the available clearance --
-    the arc bulged past the centreline and toward the inner block while the
-    straights sat comfortably clear.
+    narrow-to-narrow, where it spent most of the available clearance -- the arc
+    bulged past the centreline and toward the inner block while the straights
+    sat comfortably clear. See
+    adr:0049-corner-arcs-per-corridor-and-commit-distance.
     """
 
     _CAP = 0.45
@@ -419,8 +420,8 @@ class TestUnconfirmedWidthInnerBias:
 
     See the tuning field: a blind round believes every corridor NARROW, both
     hypotheses share the outer wall, and confirming WIDE therefore steps the
-    planned centreline 0.30 m inward in one tick. Biasing the unconfirmed line
-    inward shortens that step.
+    planned centreline inward in one tick. Biasing the unconfirmed line inward
+    shortens that step. See adr:0057-blind-corridor-follower-and-width.
     """
 
     @staticmethod
@@ -447,11 +448,12 @@ class TestUnconfirmedWidthInnerBias:
     def test_shipped_default_is_armed(self, sample_metadata_open, tuning) -> None:
         """The shipped value must actually reach the planned path.
 
-        Guards the wiring end-to-end rather than the magnitude: the 640-case
+        Guards the wiring end-to-end rather than the magnitude: the corpus
         result this field ships on is worth nothing if a refactor silently
         stops ``unconfirmed_sections`` reaching ``center_bias_for_corridor``,
         and every other test here would still pass on that no-op because they
-        construct their own armed tuning.
+        construct their own armed tuning. See
+        adr:0057-blind-corridor-follower-and-width.
         """
         assert tuning.waypoints.unconfirmed_width_inner_bias_m > 0.0
         assert calculate_waypoints(
@@ -538,8 +540,9 @@ class TestUnconfirmedWidthInnerBias:
         assert offset_from_outer_wall(wide, armed, confirmed=True) == pytest.approx(wide_line)
 
         # 0.0 rather than the shipped profile: the field now ships armed, so
-        # reading the un-pre-positioned step off `tuning` would measure 0.25
-        # and quietly stop pinning the 0.30 m the hardware actually recorded.
+        # reading the un-pre-positioned step off `tuning` would measure the
+        # smaller armed value and quietly stop pinning the full hardware step.
+        # See adr:0057-blind-corridor-follower-and-width.
         unarmed_step = abs(wide_line - offset_from_outer_wall(narrow, off, confirmed=False))
         armed_step = abs(wide_line - offset_from_outer_wall(narrow, armed, confirmed=False))
         assert unarmed_step == pytest.approx(0.30)

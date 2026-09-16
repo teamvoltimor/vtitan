@@ -3,11 +3,10 @@
 The two boards only ever talk to each other through ROS2 topics (the "network"
 in "Run on: Raspberry Pi Zero (connected to Raspberry Pi 5 via network)"). These
 tests compose the REAL producer method on one board with the REAL consumer
-method on the other — no real DDS transport, no real hardware — so a
+method on the other -- no real DDS transport, no real hardware -- so a
 topic/type/field/unit contract drift between them fails a test instead of
-surfacing for the first time on the physical robot (exactly what happened with
-the Twist/cmd_vel vs AckermannDriveStamped/ackermann_cmd mismatch this session
-found and fixed).
+surfacing for the first time on the physical robot. See
+adr:0066-two-board-compute-split.
 """
 
 from __future__ import annotations
@@ -138,10 +137,10 @@ class TestNavigatorToMotorNode:
         # closed-loop speed control, and direction now belongs to the driver
         # rather than being chosen by picking a forward or reverse call.
         #
-        # The gateway clamps to RobotSpecs.MAX_SPEED_MPS (the measured 0.156
-        # m/s hardware ceiling) before publishing, so the expected rpm must
-        # be derived from the clamped speed the motor node actually received,
-        # not the raw parametrized speed_mps.
+        # The gateway clamps to RobotSpecs.MAX_SPEED_MPS (the drivetrain
+        # ceiling) before publishing, so the expected rpm must be derived from
+        # the clamped speed the motor node actually received, not the raw
+        # parametrized speed_mps.
         clamped_speed_mps = max(-RobotSpecs.MAX_SPEED_MPS, min(RobotSpecs.MAX_SPEED_MPS, speed_mps))
         expected_rpm = clamped_speed_mps / (math.pi * RobotSpecs.WHEEL_RADIUS * 2.0) * 60.0
         assert motor_node.target_wheel_rpm == pytest.approx(expected_rpm)

@@ -3,8 +3,8 @@
 Heading is otherwise unbounded: LidarLocalizer solves position with yaw *given*,
 so the IMU is the sole source, and a BNO085 in UART-RVC mode is 6-axis with no
 magnetometer. Its error is a ramp, and the sweeps say that is what decides
-rounds -- 0.1 deg/s of drift took 28/28 to 13/28, while 20 cm of position error
-costs nothing.
+rounds, while position error costs little. See
+adr:0054-absolute-heading-from-walls.
 
 The track is a Manhattan world, so a sweep observes absolute heading mod 90
 degrees. These pin that it works, that it declines to answer rather than
@@ -144,10 +144,10 @@ class TestSamplingBaseline:
     """The trap that made the first implementation return nothing at all.
 
     Comparing *adjacent* returns is the obvious way to get a wall direction and
-    is unusable here: at a typical 0.7 m wall distance neighbouring rays land
-    12 mm apart against 30 mm of range noise, so the segment direction is mostly
-    noise pointing radially. Concentration measured 0.08 with noise against 0.99
-    without -- the signal is real and entirely buried.
+    is unusable here: at a typical wall distance neighbouring rays land closer
+    together than the range noise, so the segment direction is mostly noise
+    pointing radially. The signal is real and entirely buried. See
+    adr:0054-absolute-heading-from-walls.
     """
 
     def test_survives_noise_larger_than_adjacent_ray_spacing(self) -> None:

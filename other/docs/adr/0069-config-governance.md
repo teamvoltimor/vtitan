@@ -133,3 +133,8 @@ hand-synced xacro are the accepted cost of reading TOML at runtime.
 - The fail-loud loader check is justified by a native corpus sweep given a config
   root but no hardware profiles: it scored 640 of 640 STUCK at max speed 0.000,
   reading as a navigation failure rather than a config error.
+- A model default can leak past the TOML: `CorridorWidthEntry` defaulted to
+  `width_mm=500` against `type=wide`, and that reached `ScenarioMetadata` through
+  two layers of model defaults.
+- A stale description is a documentation defect even when the value is right: the
+  ARC_RADIUS floor was documented as 0.329 m against an actual 0.034 m, 10x off.

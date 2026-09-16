@@ -8,8 +8,9 @@ ladder, the clearance zones and the escape params.
 challenge and FALLS BACK TO OPEN, then calls ``replace_sign_router`` once the
 jumper resolves. Resolving the three only in ``__init__`` therefore left the
 first Obstacles race of every fresh process driving the Open configuration --
-observed on all nine Obstacles rounds of 2026-09-13/14, where 13,852 driving
-ticks commanded an Open tier and none commanded an Obstacles one.
+observed on hardware across every such Obstacles round, where the whole round's
+driving ticks commanded an Open tier and none an Obstacles one. See
+adr:0061-contact-zone-per-challenge.
 """
 
 from __future__ import annotations

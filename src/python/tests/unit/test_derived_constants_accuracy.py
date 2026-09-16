@@ -1,9 +1,8 @@
 """Verify that derived constants match their documented formulas.
 
-Catches stale documentation and formula changes that weren't propagated.
-Examples:
-- ARC_RADIUS floor was documented as 0.329m but actually 0.034m (10× off)
-- Steering angle changed but derived constant wasn't updated
+Catches stale documentation and formula changes that weren't propagated, e.g. a
+derived constant that no longer matches its documented formula after a
+steering-angle or geometry change. See adr:0069-config-governance.
 """
 
 from __future__ import annotations
@@ -26,8 +25,8 @@ def test_arc_radius_floor_derivation() -> None:
     # Direct calculation
     r_min_phase_steering = RobotSpecs.WHEELBASE / math.tan(RobotSpecs.MAX_STEERING_ANGLE)
 
-    # Should be roughly in the 0.03-0.04m range (counter-phase reduces it)
-    # The audit noted it was documented as 0.329m but actually 0.034m
+    # Should be a small sub-0.1m radius: counter-phase doubles the yaw rate and
+    # reduces it further. See adr:0086-simulator-realism.
     assert 0.01 < r_min_phase_steering < 0.1, \
         f"ARC_RADIUS floor {r_min_phase_steering} seems wrong; check steering angle and wheelbase"
 
@@ -58,10 +57,11 @@ def test_camera_focal_length_derivation() -> None:
 
 
 def test_max_speed_specification() -> None:
-    """Verify that MAX_SPEED_MPS is a real achievable speed, not an aspirational one."""
-    # The audit noted that real max speed is 0.156 m/s (measured on hardware)
-    # Anything >=0.156 saturates the motor, so higher values are OK (they just saturate)
-    # But we should document what the real max is
+    """Verify that MAX_SPEED_MPS is a real achievable speed, not an aspirational one.
+
+    The measured drivetrain ceiling saturates the motor, so values above it are
+    safe but saturating. See adr:0076-drivetrain-and-steering-hardware.
+    """
     assert 0.1 < RobotSpecs.MAX_SPEED_MPS < 1.0, \
         f"MAX_SPEED_MPS {RobotSpecs.MAX_SPEED_MPS} seems unrealistic"
 
@@ -126,10 +126,11 @@ def test_corridor_width_model_default_matches_the_mat() -> None:
     in both places, and this is what stops the two drifting -- the check has to
     live here, in a suite free to import either side.
 
-    The default was ``width_mm=500`` against ``type="wide"``, which is neither
-    of the two legal widths and disagrees with its own type field. It reached
-    ``ScenarioMetadata`` through two layers of model defaults, so metadata built
-    without explicit widths described a mat that cannot be built.
+    The default once described a width that was neither of the two legal values
+    and disagreed with its own type field. It reached ``ScenarioMetadata``
+    through two layers of model defaults, so metadata built without explicit
+    widths described a mat that cannot be built. See
+    adr:0069-config-governance.
     """
     entry = CorridorWidthEntry()
 

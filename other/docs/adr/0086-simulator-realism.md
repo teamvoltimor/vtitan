@@ -124,6 +124,10 @@ deg approach.
   have p50 0.0207 m and p5-p95 0.0108-0.0280 m; dropout outside the bands is 9.5
   percent; the +-3 sigma self-return envelope is 0.0051-0.0363 m against a real
   0.0047-0.0435 m.
+- LIDAR sub-floor (< 0.044 m): 6.9 percent of the whole sweep; within the 25-60
+  deg bands 31.1 percent were sub-floor and 99.7 percent of the returns there were
+  sub-floor; outside the bands sub-floor was 0.13 percent. 471 of 5,763,600 real
+  rays landed on the old 0.045 clip, against zero sub-floor before the model.
 - `vision_color_flip_rate` reconciliation: the ADR originally recorded the knob
   shipping at 0.0 because unmeasured; the shipped config now carries 0.051 (111
   of 2,162 detections, 5.1 percent, measured 2026-09-15) and the emulator applies

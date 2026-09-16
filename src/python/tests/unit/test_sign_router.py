@@ -69,10 +69,10 @@ _SIGN_LATERAL_OFFSET = SignRouterConfig.from_tuning(_TUNING.sign_router).lateral
 _WALL_CLEARANCE = CHASSIS_HALF_DIAGONAL + _TUNING.sign_router.wall_clearance_margin_m
 
 # Robot-to-sign gaps expressed against the configured thresholds instead of as
-# literals. They used to be hardcoded (0.2 to engage, 1.5 to pass) against an
-# activation of 0.80 and a passed of 1.20; when the tuning moved to 1.40/1.60
-# those numbers stopped meaning "just inside" and "well beyond" and started
-# meaning the opposite, without a single test changing.
+# literals. They used to be hardcoded against an older activation/passed pair;
+# when the tuning moved those literals stopped meaning "just inside" and "well
+# beyond" and started meaning the opposite, without a single test changing. See
+# adr:0051-sign-lane-planner.
 _GAP_ENGAGED = SIGN_ACTIVATION_DIST / 4
 """Comfortably inside the activation radius."""
 
@@ -91,7 +91,7 @@ def router_config(tuning_constants):
         activation_dist=tuning_constants.sign_activation_dist,
         passed_dist=tuning_constants.sign_passed_dist,
         # These tests exercise engage/pass logic directly, in isolation, over a
-        # handful of calls — not the settle-window feature itself (see
+        # handful of calls - not the settle-window feature itself (see
         # TestSettleWindow below), so disable it here.
         settle_ticks=0,
     )
@@ -107,10 +107,11 @@ def _router(
 ) -> SignRouter:
     """Build a router for one test case.
 
-    ``direction`` matters since 2026-09-03: the pass-side rule is
-    travel-relative, so a router left on the default CCW judges a clockwise
-    case against the wrong half of ``ROUTING_TABLE``. It was safe to omit only
-    while the table's two directions were identical, which was the bug.
+    ``direction`` matters: the pass-side rule is travel-relative, so a router
+    left on the default CCW judges a clockwise case against the wrong half of
+    ``ROUTING_TABLE``. It was safe to omit only while the table's two directions
+    were identical, which was the bug. See
+    adr:0059-pass-side-travel-relative-and-scorer-independence.
     """
     return SignRouter(signs, config=config, direction=direction)
 
@@ -135,7 +136,7 @@ def _shipped_corridor(x: float, y: float) -> Section:
 # 1. Deformation direction per corridor x color x travel direction
 
 # Per-section: (perpendicular axis, sign position, red multiplier). Red's
-# multiplier is the SAME for CW and CCW — outward/inward is a fixed property
+# multiplier is the SAME for CW and CCW - outward/inward is a fixed property
 # of the corridor, not the travel direction.
 _SECTION_GEOMETRY = {
     Section.SOUTH: ("y", (CORRIDOR_DEPTH_MIDPOINT, CORRIDOR_WIDTH_QUARTER_NORTH), -1),
@@ -155,10 +156,11 @@ class TestDeformationDirections:
     COUNTERCLOCKWISE but the inner square driving CLOCKWISE, so **the two
     directions take opposite signs**.
 
-    They were identical here until 2026-09-03, which is what let the absolute
+    They were identical here under the old absolute rule, which is what let the
     misreading survive: this table asserted red-outward for both directions,
     the routing table implemented it, and the pair agreed with each other while
-    disagreeing with rules 9.19.
+    disagreeing with rules 9.19. See
+    adr:0059-pass-side-travel-relative-and-scorer-independence.
     """
 
     @pytest.mark.parametrize("section", list(_SECTION_GEOMETRY))
@@ -178,7 +180,7 @@ class TestDeformationDirections:
         sign = _sign_at(sx, sy, color)
         result = apply_deformation(Waypoint(sx, sy), sign, color, section, direction, SIGN_LATERAL_OFFSET)
         expected = red_mult * color_sign * SIGN_LATERAL_OFFSET
-        # Inner/outer-lane signs cannot always take the full offset — the
+        # Inner/outer-lane signs cannot always take the full offset - the
         # router clamps clear of the inner square and the outer wall.
         low_side = section in (Section.SOUTH, Section.WEST)
         if axis == "y":
@@ -215,10 +217,11 @@ class TestPassSideLateralAxis:
 
     Was ``TestOutwardLateralAxis``, asserting the lookup gave the same answer
     for both directions. That held only while ``ROUTING_TABLE``'s CW and CCW
-    rows were identical, which was the 2026-07-05 bug: the real rule is
-    travel-relative (9.19), so the rows are negations and the lookup MUST be
-    keyed on direction. The old test could not have failed on the bug it was
-    covering, because it asserted the bug.
+    rows were identical, which was the bug: the real rule is travel-relative
+    (9.19), so the rows are negations and the lookup MUST be keyed on direction.
+    The old test could not have failed on the bug it was covering, because it
+    asserted the bug. See
+    adr:0059-pass-side-travel-relative-and-scorer-independence.
     """
 
     @pytest.mark.parametrize("section", list(Section))
@@ -275,7 +278,7 @@ class TestPassSideLateralAxis:
 # WRO 36 predefined scenarios: scenario ID → list of (color, depth, width) for SOUTH template
 # Scenarios 1-12: single pillar
 # Scenarios 13-36: double pillar
-# We only exercise the core rule: red right, green left — no exhaustive enumeration needed
+# We only exercise the core rule: red right, green left - no exhaustive enumeration needed
 # Instead, verify all 6 grid positions × 2 colors × 4 sections = 48 routing decisions.
 
 
@@ -284,7 +287,7 @@ def _expected_lateral(value: float, *, low_side: bool) -> float:
 
     The router refuses to deform a waypoint into the inner square or the outer
     wall, so for signs in the inner/outer lanes the full ``SIGN_LATERAL_OFFSET``
-    is not always reachable — the last ~2cm is clipped. Mirroring that here
+    is not always reachable - the last ~2cm is clipped. Mirroring that here
     keeps these cases pinning the pass *side* and offset magnitude, while
     ``TestClamping`` separately pins the clamp itself.
     """
@@ -302,7 +305,7 @@ def _expected_lateral(value: float, *, low_side: bool) -> float:
 def _make_single_sign_scenario_cases():
     """Generate test cases: (corridor, sign_x, sign_y, color, expect_north_or_east).
 
-    Red is avoided OUTWARD (away from the inner square), green INWARD — for
+    Red is avoided OUTWARD (away from the inner square), green INWARD - for
     every corridor, using the router's default direction (COUNTERCLOCKWISE):
     this rule is now identical for CW and CCW, so the direction doesn't matter.
 
@@ -421,11 +424,11 @@ class TestActivationDistance:
 class TestLateralOffsetTracksChassis:
     """The production offset must follow the measured chassis, not a stale literal.
 
-    ``robot.toml``'s chassis width changed from 0.200 to 0.194 mid-investigation
-    and moved every clearance constant derived from it. Anything that hard-codes
-    a number instead of deriving it silently stops matching the robot — and at
-    this scale it matters: a 0.28 mm perturbation was enough to flip a corpus
-    scenario.
+    ``robot.toml``'s chassis width changed mid-investigation and moved every
+    clearance constant derived from it. Anything that hard-codes a number
+    instead of deriving it silently stops matching the robot, and at this scale
+    it matters: a sub-millimetre perturbation was enough to flip a corpus
+    scenario. See adr:0051-sign-lane-planner.
     """
 
     def test_offset_is_half_diagonal_plus_sign_half_width_plus_margin(self, router_config):
@@ -439,10 +442,10 @@ class TestLateralOffsetTracksChassis:
     def test_offset_uses_the_diagonal_not_the_width(self, router_config):
         """Half-width sizes a pass the robot can only make while already square.
 
-        Two-thirds of legal WRO sign positions sit on a corner boundary, where
-        the chassis is mid-turn and presents its corner. The half-width
-        derivation gives an offset below what such a pass needs, which is the
-        bug 47827ca fixed; this pins it from coming back.
+        Most legal WRO sign positions sit on a corner boundary, where the
+        chassis is mid-turn and presents its corner. The half-width derivation
+        gives an offset below what such a pass needs; this pins the diagonal
+        derivation from coming back. See adr:0051-sign-lane-planner.
         """
         half_width_derivation = RobotSpecs.WIDTH / 2 + TrafficSignSpecs.WIDTH / 2 + _SIGN_CLEARANCE_MARGIN
         assert half_width_derivation < _SIGN_LATERAL_OFFSET
@@ -458,15 +461,15 @@ class TestActivationPassedOrdering:
     and retires one further than ``passed_dist`` on the same tick, in that
     order. Invert them and every sign is engaged and marked passed in the same
     breath, from a metre away, then stays retired for the rest of the run:
-    deformation never fires at the real pass. Measured on the 256-scenario
-    corpus, ``activation_dist=1.30`` against the shipped ``passed_dist=1.20``
-    took it from 209 collisions to 256/256 with zero laps completed, silently.
+    deformation never fires at the real pass. Measured on the corpus, an
+    inverted pair scored every scenario as a collision with zero laps completed,
+    silently. See adr:0051-sign-lane-planner.
     """
 
     @pytest.mark.parametrize(
         ("activation", "passed"),
         [
-            (1.30, 1.20),  # the measured cliff
+            (1.30, 1.20),  # inverted by a small margin
             (1.20, 1.20),  # equal is just as broken: engage and retire coincide
             (2.00, 0.50),
         ],
@@ -544,7 +547,7 @@ class TestPassedSigns:
         wp = (1.5, 0.4)
         result = router.deform_waypoint(
             waypoint=wp,
-            robot_pos=(1.5 - _GAP_ENGAGED, 0.4),  # back near sign — must stay retired
+            robot_pos=(1.5 - _GAP_ENGAGED, 0.4),  # back near sign - must stay retired
             robot_yaw=0.0,
             corridor=Section.SOUTH,
         )
@@ -577,7 +580,7 @@ class TestPassedSigns:
         assert router.active_sign_count == 1
 
     def test_reset_for_new_lap_re_arms_passed_signs(self, router_config):
-        """Every sign must route again each lap — the Obstacles Challenge runs 3."""
+        """Every sign must route again each lap - the Obstacles Challenge runs 3."""
         sign = _sign_at(1.5, 0.4, "red")
         router = _router([sign], router_config)
         router.deform_waypoint(
@@ -729,7 +732,7 @@ class TestSettleWindow:
 
 
 class TestEngagementGating:
-    """A sign is only retired once approached — never discarded from afar."""
+    """A sign is only retired once approached - never discarded from afar."""
 
     def test_distant_sign_at_spawn_not_prematurely_passed(self, router_config):
         # Sign is farther than passed_dist at spawn; the buggy behaviour marked
@@ -760,7 +763,8 @@ class TestDepthPinCornerGuard:
     """The depth pin must not fire once the robot itself has curved out of the
     straight-corridor assumption it depends on, even if the (receding) waypoint
     it's evaluated against still reads as squarely in the corridor -- this is
-    the fix for the 11-collision regression (pin off: 0 wall hits, pin on: 11).
+    the fix for the wall-collision regression the pin on/off sweep measured. See
+    adr:0051-sign-lane-planner.
     """
 
     def test_pin_does_not_fire_once_the_robot_is_past_the_corner_buffer(self, router_config):
@@ -811,10 +815,11 @@ class TestDepthPinCornerGuard:
     def test_guard_off_restores_the_pin_that_cost_11_wall_collisions(self, router_config):
         """``pin_corner_guard=False`` must actually reach ``pin_depth``.
 
-        The pre-guard arm is what the 2026-08-01 attribution was measured
+        The pre-guard arm is what the wall-collision attribution was measured
         against, so a sweep that toggles this knob is only worth reading if the
         knob moves the geometry. Same setup as the first case in this class,
-        which the guard suppresses: with the guard off the pin fires again.
+        which the guard suppresses: with the guard off the pin fires again. See
+        adr:0051-sign-lane-planner.
         """
         buffer = _TUNING.sign_router.deform_depth_buffer_m
         depth_max = TrackDimensions.CORNER_MAX + buffer
@@ -842,11 +847,11 @@ class TestDepthPinCornerGuard:
 class TestDepthPinHeadingGuard:
     """The depth pin must also release once the ROBOT's heading has drifted
     away from where it stood when the pin engaged, not just once its position
-    leaves the corridor -- traced on go_obstacles_0049 (subset64, sighted):
-    the pin held a commanded point frozen for 46 ticks while the robot's yaw
-    rotated 67 deg mid-corner, because PIN_CORNER_GUARD's position-only check
-    never tripped (the raw waypoint stayed squarely in its corridor the whole
-    time even though the chassis had already curved into the turn).
+    leaves the corridor -- traced on hardware: the pin held a commanded point
+    frozen while the robot's yaw rotated mid-corner, because PIN_CORNER_GUARD's
+    position-only check never tripped (the raw waypoint stayed squarely in its
+    corridor the whole time even though the chassis had already curved into the
+    turn). See adr:0051-sign-lane-planner.
     """
 
     def _tuning_with_heading_guard(self, degrees: float) -> NavigationTuning:
@@ -912,9 +917,9 @@ class TestDepthPinHeadingGuard:
         a large yaw_drift must not suppress the pin unless the guard is on.
 
         Explicitly disables the guard rather than relying on the module
-        default: ``PIN_HEADING_GUARD`` ships ``True`` (measured over the full
-        256-scenario corpus, see ``SignRouterParams``), so the default arm no
-        longer exercises the off path.
+        default: ``PIN_HEADING_GUARD`` ships ``True`` (measured on the corpus,
+        see ``SignRouterParams``), so the default arm no longer exercises the
+        off path. See adr:0051-sign-lane-planner.
         """
         buffer = _TUNING.sign_router.deform_depth_buffer_m
         depth_max = TrackDimensions.CORNER_MAX + buffer
@@ -956,14 +961,15 @@ def _detection_at_distance_bearing(
 ) -> Detection:
     """Build a Detection whose bbox pinhole-decodes to the given distance/bearing.
 
-    Inverts `_detection_to_world`, so it moves with it -- including the 2026-09-06
-    bearing-sign correction (`theta_h` is now POSITIVE TO THE LEFT, so a positive
+    Inverts `_detection_to_world`, so it moves with it -- including the
+    bearing-sign correction (`theta_h` is POSITIVE TO THE LEFT, so a positive
     bearing is a box LEFT of centre) and `RANGE_SCALE`. That is exactly why this
     helper cannot be the only cover for either: a test built by inverting the
     formula agrees with the formula whatever it says, which is how a mirrored
     bearing survived in-tree. See
     `test_a_box_left_of_centre_is_a_sign_on_the_robots_left`, which states the
-    convention from geometry instead of inheriting it.
+    convention from geometry instead of inheriting it, and
+    adr:0058-sign-discovery-range-and-barrier-belief.
     """
     scale = get_tuning(None).sign_discovery.range_scale
     pixel_height = (_CAMERA_FOCAL_PX * TrafficSignSpecs.HEIGHT * scale) / distance
@@ -1009,13 +1015,13 @@ def _expected_world(distance: float, theta_h: float, robot_pos=(0.0, 0.0), robot
     """Where a sign at ``distance``/``theta_h`` from the SENSOR really is.
 
     ``distance`` is measured by the camera or the C1, and both sit
-    LIDAR_MOUNT_X_OFFSET (0.1222 m) forward of the chassis centre, so the ray
-    starts there -- not at ``robot_pos``. These tests asserted
-    ``robot_pos + distance * direction`` until 2026-08-22, which pinned the
-    projection to the body origin and so encoded a systematic ~12 cm
-    under-range into the expected value; sign estimates drew that far short of
-    the real signs in RViz. ``localization.py`` took the same correction on
-    2026-08-21 for its predicted rays.
+    LIDAR_MOUNT_X_OFFSET forward of the chassis centre, so the ray starts there
+    -- not at ``robot_pos``. These tests once asserted
+    ``robot_pos + distance * direction``, which pinned the projection to the
+    body origin and encoded a systematic under-range into the expected value;
+    sign estimates drew that far short of the real signs in RViz.
+    ``localization.py`` took the same correction for its predicted rays. See
+    adr:0058-sign-discovery-range-and-barrier-belief.
     """
     sensor = (
         robot_pos[0] + RobotSpecs.LIDAR_MOUNT_X_OFFSET * math.cos(robot_yaw),
@@ -1027,7 +1033,7 @@ def _expected_world(distance: float, theta_h: float, robot_pos=(0.0, 0.0), robot
 
 class TestDetectionToWorld:
     """Pins the pinhole-projection math ``_detection_to_world`` uses to turn a
-    bbox into a world position — previously untested (review 2026-07-11 §2.2).
+    bbox into a world position, previously untested.
     """
 
     def test_round_trip_recovers_distance_and_bearing(self, router_config):
@@ -1079,12 +1085,12 @@ class TestDetectionToWorldLidarFusion:
     was trusted over the pinhole (bbox-height) distance estimate whenever the
     ray was a plausible return.
 
-    **Shipped ON until 2026-09-06, OFF until 2026-09-11, and now ON AGAIN but
-    GATED**, because a single ray at the camera's bearing is not the pillar: on
-    run_20260906_192424 the return there is wall-shaped 51% of the time and
-    pillar-shaped 27%, and the override fired on 92.5% of detections while
-    costing 28 cm of median position error. See
-    ``SignDiscoveryParams.lidar_range_fusion``.
+    **Shipped ON, then OFF, and now ON AGAIN but GATED**, because a single ray
+    at the camera's bearing is not the pillar: the return there is often
+    wall-shaped, and the override fired on most detections while costing
+    substantial median position error. See
+    ``SignDiscoveryParams.lidar_range_fusion`` and
+    adr:0058-sign-discovery-range-and-barrier-belief.
 
     This class tests the UNGATED ray, which is still the fallback path when
     ``LIDAR_RANGE_FUSION_CLUSTER`` is off, so every test here now disables that
@@ -1098,9 +1104,10 @@ class TestDetectionToWorldLidarFusion:
     def test_the_shipped_default_does_not_override_the_pinhole(self, router_config):
         """The default must be measurable from the test, not assumed.
 
-        Passes for a DIFFERENT reason since 2026-09-11: the fusion now ships
-        ON, and what holds the pinhole here is the cluster gate rejecting a
-        lone ray -- exactly the discrimination the refuted version lacked.
+        Passes for a DIFFERENT reason now: the fusion ships ON, and what holds
+        the pinhole here is the cluster gate rejecting a lone ray -- exactly the
+        discrimination the refuted version lacked. See
+        adr:0058-sign-discovery-range-and-barrier-belief.
         """
         distance, theta_h = 0.9, 0.15
         det = _detection_at_distance_bearing(distance, theta_h)
@@ -1228,9 +1235,10 @@ class TestCameraDetectionOverridesGroundTruth:
     """A confident camera detection can override scenario-metadata ground truth.
 
     This is the one part of the navigation stack where a live sensor reading
-    beats known-good ground truth (review 2026-07-11 §2.2) — proves the
-    override actually changes which side the robot passes on, not just that
-    the private color-matching helpers return the right string in isolation.
+    beats known-good ground truth. It proves the override actually changes which
+    side the robot passes on, not just that the private color-matching helpers
+    return the right string in isolation. See
+    adr:0059-pass-side-travel-relative-and-scorer-independence.
     """
 
     def test_camera_color_flips_avoidance_side(self, router_config):
@@ -1294,7 +1302,7 @@ class TestDeformationClamping:
 
     def test_sign_at_inner_edge_does_not_enter_inner_square(self, router_config):
         # South corridor, sign right at the inner-square boundary (y=1.0):
-        # unclamped this deforms to y=1.15 — inside the restricted square.
+        # unclamped this deforms to y=1.15, inside the restricted square.
         sign = _sign_at(1.5, 1.0, "red")
         result = apply_deformation(
             Waypoint(1.5, 1.0),
@@ -1309,7 +1317,7 @@ class TestDeformationClamping:
 
     def test_sign_at_outer_edge_does_not_cross_wall(self, router_config):
         # South corridor, sign right at the outer wall (y=0.0): unclamped this
-        # deforms to y=-0.15 — beyond the track boundary.
+        # deforms to y=-0.15, beyond the track boundary.
         sign = _sign_at(1.5, 0.0, "green")
         result = apply_deformation(
             Waypoint(1.5, 0.0),
@@ -1324,7 +1332,7 @@ class TestDeformationClamping:
 
     def test_sign_at_inner_edge_east_corridor(self, router_config):
         # East corridor deforms x; sign at the inner-square boundary (x=2.0).
-        # EAST/CCW red_mult=-1: unclamped this deforms to x=1.85 — inside the
+        # EAST/CCW red_mult=-1: unclamped this deforms to x=1.85, inside the
         # inner square.
         sign = _sign_at(2.0, 1.5, "red")
         result = apply_deformation(
@@ -1351,7 +1359,7 @@ _OUTWARD_DIR = {
 
 
 class TestPassSideRule:
-    """Red is passed on the vehicle's RIGHT, green on its LEFT — travel-relative.
+    """Red is passed on the vehicle's RIGHT, green on its LEFT - travel-relative.
 
     Pins the official rule as rules 2026 9.19 states it: "the red pillar must be
     passed from the right; the green pillar must be passed from the left", in
@@ -1360,17 +1368,18 @@ class TestPassSideRule:
     track-frame outward vector, because the two agree counterclockwise and are
     OPPOSITE clockwise -- which is exactly the bug this replaces.
 
-    Between 2026-07-05 and 2026-09-03 this test asserted the absolute form ("red
-    must be avoided on the outward side") for BOTH directions, so it passed
-    while every clockwise round routed backwards. A test written from the same
-    misreading as the code cannot catch the misreading.
+    This test used to assert the absolute form ("red must be avoided on the
+    outward side") for BOTH directions, so it passed while every clockwise round
+    routed backwards. A test written from the same misreading as the code cannot
+    catch the misreading. See
+    adr:0059-pass-side-travel-relative-and-scorer-independence.
     """
 
     @pytest.mark.parametrize(("section", "direction"), list(ROUTING_TABLE))
     @pytest.mark.parametrize("color", ["red", "green"])
     def test_sign_kept_on_correct_side(self, section, direction, color, router_config):
         # A realistic in-corridor sign position (clear of the inner square, per
-        # WP-1 clamping) rather than a section-agnostic point — (1.5, 1.5) sits
+        # WP-1 clamping) rather than a section-agnostic point - (1.5, 1.5) sits
         # inside the restricted inner square itself, which no real sign ever does.
         _, (sx, sy), _ = _SECTION_GEOMETRY[section]
         sign = _sign_at(sx, sy, color)
@@ -1412,17 +1421,17 @@ class TestWrongSidePassDetection:
     since the two directions are negations of each other.
 
     These cases DRIVE the chassis: from the approach side of the sign's depth
-    line, through it, and out the far side. That is the rule. Until 2026-09-15
-    they instead called the recorder once with the robot sitting ABEAM the sign,
+    line, through it, and out the far side. That is the rule. Earlier they
+    instead called the recorder once with the robot sitting ABEAM the sign,
     offset only laterally, and asserted a violation -- a pose that has not
     passed anything. Production matched, firing on "the centre point is now more
-    than ``passed_dist`` away", and it over-reported on hardware: 3, 3 and 5
-    violations on the three 2026-09-15 rounds whose layout could be
-    reconstructed, against 0, 2 and 2 from a true-pose judge.
+    than ``passed_dist`` away", and it over-reported on hardware against a
+    true-pose judge.
 
     ``wrong_side_violations`` is a measure of discovery quality. It is NOT what
     ends a round -- the simulator scores the rule in ``scoring.py`` from the true
-    layout and the true pose.
+    layout and the true pose. See
+    adr:0059-pass-side-travel-relative-and-scorer-independence.
     """
 
     @staticmethod
@@ -1526,11 +1535,12 @@ class TestWrongSidePassDetection:
 class TestRetireCommittedOnEscape:
     """An escape must be able to drop the sign the router was aiming at.
 
-    Measured 2026-09-15 over 105 escape episodes: the escape GAINS a median
-    9.8 cm of forward clearance, and 62% are followed by another escape within
-    two seconds because 97% are handed back the same target and 79% still hold
-    the SAME committed sign. The plan the chassis returns to is the one that
-    drove it into the object, so the router has to be able to let go.
+    Measured over hardware escape episodes: the escape gains forward clearance,
+    but most episodes are followed by another escape within two seconds because
+    almost all are handed back the same target and most still hold the SAME
+    committed sign. The plan the chassis returns to is the one that drove it
+    into the object, so the router has to be able to let go. See
+    adr:0092-escape-does-not-retire-committed-sign.
     """
 
     @staticmethod
@@ -1571,13 +1581,13 @@ class TestRetireCommittedOnEscape:
 class TestSignCorridorHysteresis:
     """A discovered sign's corridor picks which world axis its deformation
     treats as lateral, and it is re-derived every tick from an estimate that
-    keeps moving. On a corner boundary -- where two-thirds of legal WRO grid
-    positions sit -- millimetres of jitter otherwise swing the label between two
-    corridors whose lateral axes are ORTHOGONAL.
+    keeps moving. On a corner boundary -- where most legal WRO grid positions
+    sit -- millimetres of jitter otherwise swing the label between two corridors
+    whose lateral axes are ORTHOGONAL.
 
-    The coordinates here are the ones traced on ``go_obstacles_0000``: an
-    estimate wobbling either side of y=2.00 at x=2.40 flipped EAST/NORTH on
-    every tick for the whole approach.
+    The coordinates here are the ones traced on hardware: an estimate wobbling
+    either side of the boundary flipped EAST/NORTH repeatedly for the whole
+    approach. See adr:0063-corridor-flip-and-sense-guards.
     """
 
     _EAST_SIDE = (2.40, 1.997)
@@ -1674,7 +1684,7 @@ class TestSignCorridorHysteresis:
         """The traced oscillation is gone at the source, not merely damped.
 
         ``_EAST_SIDE``/``_NORTH_SIDE`` are the positions that flipped EAST/NORTH
-        on every tick of an approach in ``go_obstacles_0000``. Nearest-face put
+        on every tick of a hardware approach. Nearest-face put
         them in different corridors -- that is what the damping was built for --
         but only one of those answers was ever right: x=2.40 is a LATERAL value
         and y~2.00 a DEPTH value, so both points describe an EAST sign, and the
@@ -1699,7 +1709,7 @@ class TestMinimumClearance:
         edge_clearance = SIGN_LATERAL_OFFSET - RobotSpecs.WIDTH / 2 - TrafficSignSpecs.WIDTH / 2
         assert edge_clearance >= _MIN_SIGN_EDGE_CLEARANCE_M, (
             f"lateral_offset={SIGN_LATERAL_OFFSET} leaves only {edge_clearance:.3f}m "
-            f"edge-to-edge clearance between chassis and sign — below the "
+            f"edge-to-edge clearance between chassis and sign - below the "
             f"{_MIN_SIGN_EDGE_CLEARANCE_M}m minimum"
         )
 
@@ -1715,12 +1725,11 @@ class TestDirectionAdoption:
 
     That does not degrade the lane, it MIRRORS it: every clockwise row of
     ROUTING_TABLE is the negation of its counterclockwise partner, so red and
-    green swap sides. Measured across four hardware bags -- on the two rounds
-    that inferred counterclockwise the commanded lane matched the CLOCKWISE row
-    on 24 of 28 sign passes, and 22 of the 28 illegal passes are that mirror,
-    against 2 caused by phantom signs and 0 by colour errors. The one round that
-    inferred clockwise, agreeing with the placeholder by luck, passed 19 of 26
-    legally.
+    green swap sides. Measured across hardware bags: on the rounds that inferred
+    counterclockwise the commanded lane matched the CLOCKWISE row on most sign
+    passes, and most illegal passes are that mirror, against a small remainder
+    from phantom signs and colour errors. See
+    adr:0053-direction-inference-and-start-pose.
     """
 
     def test_adopting_a_direction_flips_the_pass_side(self) -> None:

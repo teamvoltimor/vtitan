@@ -35,6 +35,8 @@ complementary filter against the Manhattan walls (see 0054).
   50 cm, because the localizer is a local search.
 - The gyro scale error is the tightest axis and has no datasheet figure; the bench
   measurement is still pending.
+- 5 degrees of heading error already costs 8 of 28 fixtures, so the heading
+  reference is the binding budget.
 
 ## History
 
@@ -48,6 +50,13 @@ complementary filter against the Manhattan walls (see 0054).
 - f6d53ac9 2026-07-30: single-source the IMU mount z-offset.
 - 84974f88 and 67041694 2026-08-04: re-seed position on reset, and clear
   `_yaw_correction` on the heading reset.
+- 2026-08-04: a CW race right after a CCW one started near 0 deg instead of near
+  180 deg on real hardware, because a prior race's direction correction survived.
+- 2026-08-03: `gyro_yaw` was hardcoded to 0.0 in `_imu_callback` and
+  `current_velocity`/`current_steering` were only written by
+  `_publish_stop_command`, so `/race_metrics` reported zero for the whole race.
+- 2026-08-15: a reuse audit settled the shared I2C/RVC node surface; the RVC has
+  no live gyro stream.
 - f6b46da9 2026-08-28: Go UART-RVC driver.
 - 2026-08-31: the second race of a button-restart pair published zero
   `/nav_debug` messages over 30 s and 4 s of RACING against 261 and 132 in the

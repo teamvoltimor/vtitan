@@ -91,6 +91,8 @@ the slowest feed's scan period (LIDAR at 10 Hz).
 - 63c042bb 2026-09-11: the beam-outside-track divergence method rules the localizer
   out for the evening reversals; those were a frozen waypoint index.
 - 1913975c 2026-08-29: `max_speed_mps` 0.25 to 0.60 (see 0076).
+- 2026-08-04: a reset that did not re-seed position let `pose_x`/`pose_y` drift to
+  hundreds of metres across a button-cycled race.
 
 ## Refuted
 
@@ -140,3 +142,17 @@ the slowest feed's scan period (LIDAR at 10 Hz).
   either way.
 - The global rescue of run_20260907_205830 recovered a 48 s pose divergence with
   a residual 10 to 15x lower at every sampled tick and no beams off-track.
+- The forward-tracking invariant was born from a 2026-08-05 CCW run whose estimate
+  tracked backwards along its heading (drive east, pose slid west), so pure
+  pursuit never advanced the plan; sweeping every pulled bag, 9 of 24 violate it.
+  The latest-run gate went green on the CW run that completed a lap and red on the
+  CCW run that drove into a corner. Both real captures committed direction by
+  t=1.2 s.
+- The speed-bound guard does not bound anything: across every pulled bag,
+  including `run_20260805_195501` and both runs after the guard shipped in
+  `9e91981`, accepted estimates still imply multiples of the drivetrain maximum,
+  and its hysteresis accepts a persistent pull at full magnitude.
+- LIDAR is the only real position source on hardware (navigation review item
+  NEW-1, 2026-07-05).
+- Symmetric uniform layout: the wrong-corridor pose predicted a cost of 0.017
+  against the 0.03 threshold, so the detector correctly stayed silent.

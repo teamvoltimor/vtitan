@@ -8,10 +8,10 @@ the 0.20 m circle was then the only way past, and a robot running wider than
 that never got past it, never wrapped the index, and so never completed a lap
 however many times it drove the loop.
 
-Measured on the 2026-08-06 counterclockwise round: crosstrack ran 0.26-0.51 m
-against the 0.20 m radius, the waypoint index froze on the last waypoint at
-t=90 s, and the robot circled the mat for a further seven minutes with the lap
-count stuck at zero while the pose data shows four more laps completed.
+Measured on hardware: crosstrack ran wider than the reached radius, the waypoint
+index froze on the last waypoint, and the robot circled the mat for minutes with
+the lap count stuck at zero while the pose data shows further laps completed.
+See adr:0052-pursuit-target-selection.
 """
 
 from __future__ import annotations

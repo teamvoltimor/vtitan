@@ -198,3 +198,14 @@ mistake and it wrongly excluded the 0.10 arm.
 - On `go_open_0002` a true 0.6 m corridor averaged 0.635 m yet peaked at a 1.229 m
   single reading, which a consecutive-agreement rule accepted.
 - The centring gain shipped at 44.0 deg/m before the fix zeroed it.
+- The closed-loop blind probe learned the layout in 28/28 Open fixtures and scored
+  27/28 before the fix.
+- Seeding the Obstacles width prior removed the blind penalty over the 16 fixtures:
+  16/16 collisions and 0 three-lap finishes went to 14/16 and 2, matching the
+  sighted run.
+- Centring on the lateral offset cost 11 of 32 wide outer-band starts their
+  direction entirely.
+- Blind mode seeds the estimator from the all-narrow prior at (1.50, 0.40), so on
+  a wide corridor the robot starts 20 cm from truth by design before any
+  `SensorErrors` is applied; a configured error of zero therefore reads as the
+  localizer's residual rather than isolating the axis under test.

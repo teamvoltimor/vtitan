@@ -111,6 +111,11 @@ a missed one leaves the LIDAR collision controller active. This is carried into
 - Confidence is calibrated at the median only: across 3,315 real detections p10 is
   0.515 and p90 0.917, against p10 0.477 and p90 0.942 from evenly-spaced sampler
   levels.
+- 4f8dbdf 2026-08-02: `_vision_callback`'s deferred import named `ros2.vision...`
+  (missing the `src.` prefix), so every real `/vision/detections` message raised
+  `ModuleNotFoundError` out of the callback and `_latest_detections` stayed empty;
+  `node.py`'s top-level import had the same class of bug and crash-looped
+  `vision_node`.
 
 ## Cross-references
 

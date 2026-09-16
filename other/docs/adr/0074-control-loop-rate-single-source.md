@@ -44,6 +44,10 @@ are not a mechanism; the value is read.
 - 5671099b and 39d8e679 2026-09-10: path moves to `src/config/navigation/motion/`.
 - 3b6456d5, 1d0cf606, b7f62bfa 2026-09-13/14: schema plus generated DTOs; field
   becomes lowercase `control_hz`.
+- 2026-09-01: the loop's catch-all handler logged with `exc_info=True`, which
+  rclpy rejects with TypeError, turning every unnamed exception into a fatal one;
+  an AttributeError in the escape path (`run_20260901_075151`) killed the node
+  mid-race, `/nav_debug` stopping at 3.47 s against 21.2 s for every other node.
 
 ## Cross-references
 

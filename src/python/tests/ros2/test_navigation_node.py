@@ -1,10 +1,10 @@
 """Contract tests for ROS2HardwareGateway's real ROS2 wiring.
 
-Nothing previously exercised ROS2HardwareGateway against a real rclpy.Node,
-which is how it drifted onto a Twist/cmd_vel contract nothing subscribes to
-while the rest of the stack (ackermann_motor_node, state_machine_node) moved
-to AckermannDriveStamped/ackermann_cmd. These tests pin the real topic names
-and message contract so that drift can't happen silently again.
+The gateway drifted onto a Twist/cmd_vel contract nothing subscribes to while
+the rest of the stack (ackermann_motor_node, state_machine_node) moved to
+AckermannDriveStamped/ackermann_cmd. These tests pin the real topic names and
+message contract so that drift cannot happen silently again; see
+adr:0069-config-governance.
 """
 
 from __future__ import annotations
@@ -162,14 +162,15 @@ class TestGatewayPublishDrive:
 
 class TestGatewaySpeedClamp:
     """The published speed must never exceed what the drive motor can
-    physically do (RobotSpecs.MAX_SPEED_MPS, measured top speed under load).
+    physically do (RobotSpecs.MAX_SPEED_MPS, the drivetrain's top speed).
 
-    Real motor behaviour is identical either way -- the PID's own output-duty
-    clamp already saturates at the same point whether the setpoint is 0.156
-    or 0.5 -- but an unclamped setpoint made commanded_speed_mps telemetry
-    report an aspirational, unreachable value instead of what the motor was
-    actually asked to do, matching neither reality nor the simulator (which
-    AckermannKinematics already clamps to this same constant).
+    Real motor behaviour is identical either way: the PID's own output-duty
+    clamp already saturates at the same point whether the setpoint is at or
+    above the maximum, but an unclamped setpoint made commanded_speed_mps
+    telemetry report an aspirational, unreachable value instead of what the
+    motor was actually asked to do, matching neither reality nor the simulator
+    (which AckermannKinematics already clamps to this same constant). See
+    adr:0076-drivetrain-and-steering-hardware.
     """
 
     def test_speed_above_max_is_clamped(self, ros_context):
@@ -213,11 +214,11 @@ class TestGatewaySpeedClamp:
 
 
 class TestGatewayLidarLocalization:
-    """get_current_pose() must reflect where the robot actually is — not just
+    """get_current_pose() must reflect where the robot actually is, not just
 
-    the seed start position — once LIDAR scans start arriving. Nothing
+    the seed start position, once LIDAR scans start arriving. Nothing
     publishes nav_msgs/Odometry on real hardware, so this is the only real
-    position source (NEW-1 in the 2026-07-05 navigation review).
+    position source (see adr:0084-localizer-divergence-and-relocalization).
     """
 
     def test_pose_updates_from_lidar_scan_away_from_start(self, ros_context):
@@ -712,13 +713,10 @@ class TestControlLoop:
         ``ValueError`` handlers. The broad ``except Exception`` had no test, and
         it logged with ``exc_info=True`` -- a stdlib logging kwarg that rclpy's
         logger rejects with ``TypeError``, raised from inside the except block.
-        The guard therefore converted every unnamed exception into a fatal one.
-
-        Measured on hardware 2026-09-01 (run_20260901_075151): an AttributeError
-        in the escape path reached this handler, the handler raised TypeError,
-        and the node died mid-race -- /nav_debug stopped at 3.47 s while every
-        other node ran the full 21.2 s. AttributeError is used here because that
-        is the exception that actually did it.
+        The guard therefore converted every unnamed exception into a fatal one:
+        a node died mid-race where the handler should have stopped the motors.
+        AttributeError is used here because that is the exception that actually
+        did it. See adr:0074-control-loop-rate-single-source.
         """
         navigator = TrackNavigator(metadata_path=_write_metadata(tmp_path, sample_metadata_open), num_laps=1)
         try:
@@ -756,14 +754,15 @@ class TestReset:
             navigator.destroy_node()
 
     def test_resetting_actually_clears_position_drift_on_the_estimator(self, tmp_path, sample_metadata_open, ros_context):
-        """2026-08-04: the bug behind hundreds-of-metres pose_x/pose_y on real hardware.
+        """The bug behind hundreds-of-metres pose_x/pose_y on real hardware.
 
         The state machine can cycle FINISHED -> BOOT_CHECK -> READY -> RACING
         purely from the button, with no process restart, so reset() has to
-        re-seed position the same way it already re-zeroed heading -- without
-        it a new race inherits wherever the previous race's LIDAR localizer
-        last drifted to. Goes through the real gateway/estimator, not a mock,
-        to pin the actual value landing correctly.
+        re-seed position the same way it already re-zeroed heading; without it
+        a new race inherits wherever the previous race's LIDAR localizer last
+        drifted to. Goes through the real gateway/estimator, not a mock, to pin
+        the actual value landing correctly (see
+        adr:0084-localizer-divergence-and-relocalization).
         """
         navigator = TrackNavigator(metadata_path=_write_metadata(tmp_path, sample_metadata_open), num_laps=1)
         try:
@@ -845,17 +844,16 @@ class TestBlindChallengeSwitch:
     def test_obstacles_from_the_button_still_gets_a_park_controller(self, ros_context):
         """The in-bay lot derivation has to survive ``reset()``, not just construction.
 
-        Deployed 2026-09-11 and INERT. The derivation wrote the lot into a LOCAL
-        copy of the metadata inside the construction path; ``reset()`` -- the
-        path that actually runs at every RACING transition -- rebuilt the
-        controller from the raw ``self._metadata``, got None, and handed that to
+        The derivation wrote the lot into a LOCAL copy of the metadata inside
+        the construction path; ``reset()`` -- the path that actually runs at
+        every RACING transition -- rebuilt the controller from the raw
+        ``self._metadata``, got None, and handed that to
         ``replace_park_controller``, destroying what construction had built.
-        Three hardware rounds on 2026-09-12 reached three laps with
-        ``parking_engaged`` null in all of them.
 
         The sibling test above pins ``sign_router is not None`` on this exact
         flow and stops there, which is why the omission survived: both objects
-        are rebuilt side by side in ``reset()`` and only one was asserted.
+        are rebuilt side by side in ``reset()`` and only one was asserted. See
+        adr:0073-challenge-mode-jumper-and-runtime.
         """
         navigator = self._blind_navigator()
         try:
@@ -942,11 +940,10 @@ class TestStartMeasurementRetry:
     ``measure_start_pose`` refuses when a cardinal ray has no valid return or
     the along-corridor pair does not span the mat, and its docstring says the
     caller must treat that as "do not race" rather than "use the old
-    assumption". The node did use the old assumption, and it cost both rounds
-    that refused on 2026-08-08: replaying those bags' whole scan stream, an
-    operator stood in the rearward ray at 0.10-0.19 m and cleared it 0.6 s and
-    1.5 s after the commit, by which point the node had already reseeded its
-    position roughly 1.0 m behind the truth and was driving at a corner on it.
+    assumption". Using the old assumption instead let the node reseed its
+    position behind the truth and drive at a corner on it, while the blocking
+    ray cleared moments later. See
+    adr:0053-direction-inference-and-start-pose.
     """
 
     @staticmethod

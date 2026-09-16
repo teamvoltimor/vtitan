@@ -44,10 +44,11 @@ def test_corridor_follower_respects_tuning_override(override_tuning) -> None:
     """Doubling CENTERING_GAIN_DEG_PER_M must double the steering follow_corridor commands.
 
     The base gain is stated here rather than read from the shipped tuning. The
-    shipped value has been deliberately 0.0 since 2026-08-22 -- the blind creep
-    holds heading instead of chasing the centreline -- so doubling it doubles
-    nothing, both calls return -0.0, and the "off-centre scan should steer"
-    guard fails on correct config. What this pins is that the OVERRIDE reaches
+    shipped value is deliberately 0.0 (the blind creep holds heading instead of
+    chasing the centreline; see
+    adr:0057-blind-corridor-follower-and-width), so doubling it doubles nothing,
+    both calls return -0.0, and the "off-centre scan should steer" guard fails
+    on correct config. What this pins is that the OVERRIDE reaches
     corridor_follower at all; the shipped gain's value is a separate question,
     already pinned by test_tuning_fields_not_none's DELIBERATELY_ZERO entry.
     """
