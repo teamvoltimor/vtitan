@@ -435,7 +435,8 @@ class LiveScenarioVisualizer(Node):
         # those. RViz shades CUBE with its single scene light, which only swings
         # the brightness as you orbit -- acceptable for walls, and the trade is
         # a marker type that is actually visible. See 1692c8fc (the prior revert
-        # to CUBE for the same reason).
+        # to CUBE for the same reason) and
+        # ``adr:0093-marker-serialization-and-cube-markers``.
         return self._solid_box_marker(
             "track",
             index,
@@ -658,7 +659,8 @@ class LiveScenarioVisualizer(Node):
         in-memory but is reinterpreted bit-for-bit as a float64 by CDR on the
         wire, collapsing the sign to a near-zero subnormal on the far side.
         ``SignPosition`` declares them ``float``, so pydantic converts once at
-        the boundary and no marker builder has to remember.
+        the boundary and no marker builder has to remember. See
+        ``adr:0093-marker-serialization-and-cube-markers``.
         """
         m = Marker()
         m.header.frame_id = TfFrames.MAP

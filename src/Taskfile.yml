@@ -40,6 +40,11 @@ tasks:
     cmds:
       - taplo fmt "src/config/**/*.toml"
 
+  docs:adr-refs:
+    desc: Fail if code records a measurement but has no adr:NNNN reference
+    cmds:
+      - python src/tools/adr_audit.py check
+
   config:verify:
     desc: Fail if the generated config artifacts are stale (run before committing)
     cmds:

@@ -14,7 +14,7 @@ silently collapsing it to a near-zero subnormal, which shows up in RViz as signs
 parking blocks jumping onto a wall. This test forces an actual CDR
 serialize/deserialize round trip, which is the only way to catch this class of bug: plain
 attribute access on the in-memory message object does NOT reproduce it. See
-adr:0019-simulation-robot-model-topic-split.
+adr:0093-marker-serialization-and-cube-markers.
 """
 
 from __future__ import annotations

@@ -269,6 +269,7 @@ func parityBagDir(t *testing.T) string {
 		return override
 	}
 	// Documented complete sighted bag from an earlier session, in the shared
-	// repo-root data/live/runs tree (see internal/recording/root.go).
+	// repo-root data/live/runs tree (see internal/recording/root.go). The parity
+	// gate this feeds is adr:0087-test-methodology.
 	return filepath.Join(repoRootFromPackageDir, "other", "data", "live", "runs", "run_20260829_140424")
 }

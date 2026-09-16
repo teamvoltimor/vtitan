@@ -24,9 +24,10 @@ class TestPassthrough:
     def test_below_threshold_never_arms(self) -> None:
         """0.197 rad is what a NARROW corridor's corner actually previewed.
 
-        Measured on run_20260830_013702. It is below the shipped threshold, so
-        the latch must not arm -- holding a signal that never armed would turn
-        a threshold question into a latch question and hide the real issue.
+        It is below the shipped threshold, so the latch must not arm -- holding a
+        signal that never armed would turn a threshold question into a latch
+        question and hide the real issue. See
+        ``adr:0052-pursuit-target-selection``.
         """
         latch = CornerLatch()
         for _ in range(10):
@@ -38,9 +39,9 @@ class TestHoldsThroughTheArc:
     def test_the_preview_survives_decaying_to_zero(self) -> None:
         """The failure this exists for: armed on approach, decayed mid-corner.
 
-        Sequence from run_20260830_014612's first corner (west -> south, 6.1 s),
-        where the raw signal ran 1.373 -> 0.980 -> 0.590 -> 0.197 -> 0.000 and
-        the lookahead went long two seconds BEFORE the corner.
+        The raw signal arms the preview on approach and then decays to zero
+        through the arc, so the lookahead went long seconds BEFORE the corner.
+        See ``adr:0052-pursuit-target-selection``.
         """
         latch = CornerLatch()
         assert latch.update(1.373, 0.0, _THRESHOLD) == pytest.approx(1.373)
