@@ -144,6 +144,18 @@ type NavigationSimulationSimulation struct {
 	// compared is meaningless.
 	ObstaclesInnerWallTerminal bool `json:"obstacles_inner_wall_terminal" yaml:"obstacles_inner_wall_terminal" mapstructure:"obstacles_inner_wall_terminal"`
 
+	// Place the Obstacles robot INSIDE the parking bay at t=0, which is what the
+	// hardware does and what no generated scenario encodes. The rules allow two
+	// starts -- inside the lot, or parallel to it in the same section -- and every
+	// corpus scenario uses the second, so the bay exit the real car spends 10-40 s on
+	// is invisible to every sweep in the repo. Ships FALSE because the manoeuvre does
+	// not yet work in simulation: probed over 8 scenarios the chassis oscillates
+	// 15-21 s inside the pocket, travelling 0.7 m to net 0.06 m, and clips a fin --
+	// which 9.24.7 ends the round for, with no grace. That is the same pendulum the
+	// hardware shows, so this reproduces the defect rather than inventing one;
+	// turning it on before the exit works would simply fail every scenario at t=2 s.
+	ObstaclesStartInBay bool `json:"obstacles_start_in_bay" yaml:"obstacles_start_in_bay" mapstructure:"obstacles_start_in_bay"`
+
 	// Fractional scale error on integrated yaw rate (0.005 = 0.5% long).
 	SensorGyroScaleError float64 `json:"sensor_gyro_scale_error" yaml:"sensor_gyro_scale_error" mapstructure:"sensor_gyro_scale_error"`
 

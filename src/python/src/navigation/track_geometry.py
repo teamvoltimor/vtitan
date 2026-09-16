@@ -44,7 +44,7 @@ def corridor_geometry_from_widths(widths: dict[Section, float]) -> CorridorGeome
     return CorridorGeometry.from_width_dict(widths)
 
 
-def parking_bay_centre(metadata: Mapping[Any, Any]) -> tuple[float, float] | None:
+def parking_bay_centre(metadata: ScenarioMetadata | Mapping[Any, Any]) -> tuple[float, float] | None:
     """Pocket centre: the midpoint of the two fins bounding the lot.
 
     The lot's two magenta fins stand perpendicular to the outer wall at
@@ -55,7 +55,19 @@ def parking_bay_centre(metadata: Mapping[Any, Any]) -> tuple[float, float] | Non
 
     Returns ``None`` for a scenario without a parking lot, which is not an
     error -- the generator only builds one when ``has_parking_lot`` is set.
+
+    Accepts the typed model as well as the raw mapping, like
+    :func:`corridor_widths_from_metadata` below: the simulator holds a
+    ``ScenarioMetadata`` at the point it decides where to place the robot, and
+    round-tripping it back through a dict to ask this one question would be a
+    conversion that exists only to satisfy a signature.
     """
+    if isinstance(metadata, ScenarioMetadata):
+        if not metadata.has_parking_lot or metadata.parking_lot is None:
+            return None
+        b1 = metadata.parking_lot.block1_position
+        b2 = metadata.parking_lot.block2_position
+        return (b1.x + b2.x) / 2.0, (b1.y + b2.y) / 2.0
     lot = metadata.get(DictKeys.PARKING_LOT)
     if not lot or not metadata.get(DictKeys.HAS_PARKING_LOT):
         return None

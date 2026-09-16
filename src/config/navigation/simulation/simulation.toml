@@ -36,6 +36,11 @@ start_collision_grace_s = 15.0
 # one taken under each and compared is meaningless.
 obstacles_inner_wall_terminal = true
 
+# The legal start no corpus scenario exercises. OFF until the bay exit works in
+# simulation: probed today the chassis spends 15-21 s in the pocket to net 6 cm
+# and then clips a fin, which ends the round by 9.24.7. See the schema.
+obstacles_start_in_bay = false
+
 # Fraction of LIDAR rays returning no measurement, emitted as NaN/inf so the
 # sanitising path the real driver uses is actually exercised.
 #

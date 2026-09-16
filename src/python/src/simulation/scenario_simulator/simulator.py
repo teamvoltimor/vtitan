@@ -22,7 +22,7 @@ from typing import TYPE_CHECKING, Any
 import numpy as np
 from shared.config.constants import CorridorDimensions, DictKeys, RobotSpecs, TrafficSignSpecs
 from shared.domain.enums import Direction, ScenarioType, Section
-from shared.domain.models import CorridorGeometry, CreepWidthSample, Position2D, ScenarioMetadata, Waypoint
+from shared.domain.models import CorridorGeometry, CreepWidthSample, Position2D, ScenarioMetadata, SignColor, Waypoint
 
 from src.config.tuning_helpers import get_tuning
 from src.navigation.core_navigator import CoreNavigator
@@ -36,7 +36,6 @@ from src.navigation.deferred_width_belief import DeferredWidthBelief
 from src.navigation.direction_estimator import DirectionEstimator, direction_from_parking_bay
 from src.navigation.maneuvers.bay_exit import BayExit
 from src.navigation.maneuvers.parking import ParkController, park_controller_from_metadata
-from shared.domain.models import SignColor
 from src.navigation.planning.sign_router import (
     SignRouter,
     SignRouterConfig,
@@ -46,7 +45,12 @@ from src.navigation.planning.sign_router import (
 from src.navigation.planning.waypoints import plan_believed_path
 from src.navigation.race_tracker import LapDetector
 from src.navigation.start_conditions import assumed_start_conditions, start_pose
-from src.navigation.track_geometry import TrackWalls, corridor_geometry_from_widths, corridor_widths_from_metadata
+from src.navigation.track_geometry import (
+    TrackWalls,
+    corridor_geometry_from_widths,
+    corridor_widths_from_metadata,
+    parking_bay_centre,
+)
 from src.simulation.imu_error_model import SensorErrors
 from src.simulation.kinematics import AckermannKinematics, AckermannState
 from src.simulation.scenario_result import (
@@ -81,7 +85,6 @@ class _StartConditions:
     yaw: float
 
 
-
 def _sample_period(rng, quantiles, levels, fallback: float) -> float:
     """One control period, drawn from the measured distribution by inverse CDF.
 
@@ -98,7 +101,6 @@ def _sample_period(rng, quantiles, levels, fallback: float) -> float:
             frac = 0.0 if span <= 0.0 else (u - levels[i - 1]) / span
             return float(quantiles[i - 1] + frac * (quantiles[i] - quantiles[i - 1]))
     return float(quantiles[-1])
-
 
 
 class ScenarioSimulator(PassSideScorer):
@@ -274,6 +276,30 @@ class ScenarioSimulator(PassSideScorer):
         # for. See WaypointParams.obstacles_center_bias_m for the sweep and
         # why it is compensating for the tracker's outward drift.
         #
+        # THE OTHER LEGAL START. The rules allow the robot to begin inside the
+        # parking lot or parallel to it in the same section, and every generated
+        # scenario uses the second -- so the bay exit, which the real car spends
+        # 10-40 s of a 180 s round on, is exercised by nothing in this repo.
+        # The hardware always starts in the bay on Obstacles.
+        #
+        # Only the PHYSICAL placement moves. What the robot believes is left to
+        # the belief machinery below, which is also what happens on the mat: the
+        # car in the pocket reads its direction off the geometry
+        # (direction_from_parking_bay, on raw ranges, no pose) and is otherwise
+        # as lost as any other blind start.
+        if not is_open_challenge and self._tuning.simulation.obstacles_start_in_bay:
+            bay = parking_bay_centre(metadata)
+            if bay is not None:
+                start = _StartConditions(
+                    section=start.section,
+                    direction=start.direction,
+                    x=bay[0],
+                    y=bay[1],
+                    # Heading is NOT recomputed: the scenario's own start is
+                    # already parallel to the outer wall, which is the only
+                    # orientation a 0.20 m deep pocket admits.
+                    yaw=start.yaw,
+                )
         self._center_bias_m = None if is_open_challenge else self._tuning.waypoints.obstacles_center_bias_m
         # Hoisted above the blind branch below, which reads the challenge too.
         #
@@ -765,7 +791,9 @@ class ScenarioSimulator(PassSideScorer):
                 self._blind_follow_speed,
                 pose.yaw,
                 self._tuning,
-                believed_width_m=statistics.fmean(s.width_m for s in self._creep_widths) if self._creep_widths else None,
+                believed_width_m=statistics.fmean(s.width_m for s in self._creep_widths)
+                if self._creep_widths
+                else None,
             ),
         )
         return True
@@ -1232,9 +1260,7 @@ class ScenarioSimulator(PassSideScorer):
         # rather than an unmet objective. Unreachable today -- the loop breaks
         # on the final lap in that mode -- but wrong the moment it isn't.
         pursuing_park = pc is not None and self._tuning.parking.attempt_after_final_lap
-        timed_out = step >= max_steps and (
-            nav.laps_completed < self._num_laps or (pursuing_park and not pc.is_done)
-        )
+        timed_out = step >= max_steps and (nav.laps_completed < self._num_laps or (pursuing_park and not pc.is_done))
         return SimResult(
             target_laps=self._num_laps,
             laps_completed=nav.laps_completed,
