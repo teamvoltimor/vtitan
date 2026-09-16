@@ -9,19 +9,15 @@ centred at 1.25 and 1.75, so the assumed 1.5 sits exactly on the boundary
 between them: the one along-corridor position the robot can never legally
 occupy.
 
-Measured on real hardware 2026-08-05: two CCW rounds were set down near the far
-end of the corridor with 0.69 m of clear track ahead while the plan, built from
-the assumed start, expected roughly 1.5 m. The robot drove into the wall in six
-seconds with the steering barely off centre, because nothing downstream can
-discover a starting error the localizer is not looking for -- its search is
-local (see :class:`~src.navigation.localization.LidarLocalizer`), so an error
-of that size is permanently outside its reach.
+Nothing downstream can discover a starting error the localizer is not looking
+for -- its search is local (see
+:class:`~src.navigation.localization.LidarLocalizer`), so an error of that size
+is permanently outside its reach.
 
 The scan already contains the answer. With the chassis aligned to the corridor,
 the four cardinal rays give the distance to the wall ahead, the wall behind and
 each side, and those *are* the position, expressed relative to the corridor the
-robot is standing in. Measured against the recorded rounds' true poses the four
-rays agreed to within 1-4 cm.
+robot is standing in.
 
 Which side of the mat the robot is on is neither knowable nor needed: with equal
 corridors the track is symmetric under 90 degree rotation, so the four candidate
@@ -29,6 +25,9 @@ sides score identically on any scan, and the robot declares its own starting
 section anyway (see ``start_conditions``' module docstring). What is knowable,
 and what actually matters, is how far along that corridor it stands and how far
 it has before the corner it is driving at.
+
+Measured rationale and the 2026-08-05 failure:
+``adr:0053-direction-inference-and-start-pose``.
 """
 
 from __future__ import annotations
@@ -59,7 +58,7 @@ class MeasuredStart:
         x: Position in the declared section's frame (m).
         y: Position in the declared section's frame (m).
         distance_ahead_m: Clear track between the robot and the wall it faces.
-            The number whose absence caused the 2026-08-05 failures.
+            See ``adr:0053-direction-inference-and-start-pose``.
         outer_wall_distance_m: Distance to the outer wall, across the corridor.
         corridor_width_m: Width of the corridor the robot stands in, or ``None``
             when it is level with a corner rather than the inner block and both
@@ -130,17 +129,11 @@ def measure_start_pose(
         closing_tolerance_m: How far ``forward + back`` may fall short of the
             mat before the reading is rejected. Opposite rays along a
             corridor must span the mat, so their sum is a free validity
-            check -- it needs no knowledge of where the robot is. Sized from
-            real scans, not nominally: two recorded rounds on a properly
-            set-up track summed to 2.978 m and 2.971 m against a nominal
-            3.0, so the honest error on good data is already 2-3 cm before
-            LIDAR noise, mat seams, or walls that are not quite square.
-            0.15 m (the tuning default) is five times that, while the
-            failure this rejects -- a hand, a bystander, or a sign standing
-            in one of the rays -- misses by a metre or more. The margin is
+            check -- it needs no knowledge of where the robot is. The margin is
             deliberately generous: a false rejection costs a re-run, and a
             false acceptance costs the round. Defaults to the tuning
-            profile's value.
+            profile's value; see
+            ``adr:0053-direction-inference-and-start-pose`` for the sizing.
         tuning: Navigation tuning instance. Defaults to loaded defaults.
 
     Returns:

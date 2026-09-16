@@ -1,18 +1,11 @@
 """Where the robot has repeatedly seen the MAGENTA parking barrier.
 
 The camera labels the parking-lot barrier magenta far more often than it
-mislabels it red, and until now every magenta detection was discarded:
+mislabels it red, and every magenta detection was discarded:
 :func:`~src.navigation.planning.sign_discovery.detection_to_observation`
 returns ``None`` for any colour that is not RED or GREEN. Meanwhile the same
-physical object, seen red under motion blur at p50 confidence 0.79, was seeded
-into the sign map as a pillar and routed around -- which asks the planner for a
-pass around a WALL.
-
-MEASURED over the four 2026-09-14 rounds: 1,921 magenta detections thrown away,
-against 748 wall-shaped reds (94% of them) admitted to the map. On
-run_20260914_214824 that ended the round -- the chassis pendulumed for 66.4 s,
-54% of the run, at (0.75, 0.25) beside the west parking corridor, travelling
-10.336 m of wheel to net 0.596 m.
+physical object, seen red under motion blur, was seeded into the sign map as a
+pillar and routed around -- which asks the planner for a pass around a WALL.
 
 This keeps the discarded evidence instead. It is deliberately a belief about a
 PLACE rather than a classifier: a red box is not re-examined, it is simply not
@@ -21,6 +14,8 @@ one discriminator available here, because shape cannot do it -- the sign and the
 barrier are both exactly 0.10 m tall (``track.toml``), so with an intact bbox
 height their aspect ratios are the only difference, and frame clipping is what
 destroys it.
+
+Measured rationale: ``adr:0058-sign-discovery-range-and-barrier-belief``.
 """
 
 from __future__ import annotations
@@ -118,24 +113,12 @@ class BarrierBelief:
         lot is not a point: the rulebook puts two fins
         ``ParkingLotSpecs.BLOCK_SPACING_FACTOR`` chassis lengths apart along the
         wall, which ``parking_lot_from_in_bay_start`` already builds as BLOCK1
-        and BLOCK2. A centroid with a round bubble therefore has to cover a
-        0.45 m object with a 0.30 m radius, and it reaches each fin with 7 cm to
-        spare against a believed position measured wandering 0.57 m between
-        rounds.
-
-        Measured on run_20260915_114008, the second hardware wedge at this spot:
-        the true fins sit at x = 0.94 (14,403 LIDAR returns) and x = 1.42, a
-        0.48 m span centred on 1.18, while the belief placed its centroid at
-        1.30. The WEST fin then lands 0.36 m from that centroid -- outside the
-        0.30 m bubble -- so reds on it were never suppressed, and the chassis
-        spent 70 s (46% of the round) fighting a fin at (0.93, 0.16) while the
-        planner routed around a phantom at (1.0, 0.6), 0.45 m away. This
-        module's own docstring records the SAME wedge at (0.75, 0.25) on
-        2026-09-14, which is what it was built to fix.
-
-        Extending ALONG the wall and not across it is the point: widening the
-        radius uniformly is what costs real pillars, and the extra coverage is
-        only wanted where the lot physically extends.
+        and BLOCK2. A centroid with a round bubble therefore has to cover that
+        span, and extending ALONG the wall and not across it is the point:
+        widening the radius uniformly is what costs real pillars, and the extra
+        coverage is only wanted where the lot physically extends. See
+        ``adr:0058-sign-discovery-range-and-barrier-belief`` for the measured
+        geometry.
         """
         if not self.enabled:
             return False
@@ -154,17 +137,17 @@ class BarrierBelief:
         """The single best-supported location, if any has cleared the threshold.
 
         THERE IS ONE PARKING LOT. Taking every cluster over the threshold
-        instead was measured on the four 2026-09-14 rounds and is far too
-        expensive: the belief settled on SIX locations per counter-clockwise
-        run, and six 0.30 m bubbles refused 42.2% of real pillars on
-        run_20260914_214824 -- a worse failure than the one being fixed.
+        instead is far too expensive: the belief settles on several locations
+        per run and their bubbles refuse real pillars -- a worse failure than
+        the one being fixed.
 
         The scatter is not noise to be averaged away either; it is the pinhole
-        range under-reading (see ``_detection_to_world``: RANGE_SCALE ships at
-        1.0 deliberately, and the estimate is short by roughly 2x). So the
+        range under-reading (see ``_detection_to_world``: ``RANGE_SCALE`` ships
+        at 1.0 deliberately, and the estimate is short by roughly 2x). So the
         clusters are real disagreements about depth along one bearing, and the
         rulebook is the only thing that can arbitrate them: keep the one with
-        the most evidence behind it.
+        the most evidence behind it. See
+        ``adr:0058-sign-discovery-range-and-barrier-belief``.
         """
         if not self.enabled:
             return []

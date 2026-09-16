@@ -23,14 +23,14 @@ if TYPE_CHECKING:
     from src.hardware.hailo.base import Driver as HailoDriver
 
 # Grey fill for letterbox padding -- matches ml/hailo/src/constants.py's
-# LETTERBOX_PAD_COLOR and ml/hailo/eval/metrics.py's LETTERBOX_PAD_COLOR, which
-# is what the HEF was calibrated, quantized and its mAP measured against.
+# LETTERBOX_PAD_COLOR and ml/hailo/eval/metrics.py's LETTERBOX_PAD_COLOR.
+# See ``adr:0072-vision-data-path``.
 _LETTERBOX_PAD_VALUE = 114
 
 
 # Derived from the one declaration of the detector's class order, rather than
-# restated here -- this map and the driver's id-to-name map drifted apart from
-# it once already, and a mismatch swaps red for green silently.
+# restated here, so the class order has a single source. A mismatch swaps red
+# for green silently. See ``adr:0072-vision-data-path``.
 DEFAULT_CLASS_TO_COLOR: dict[int, SignColor] = {class_id: SignColor(name) for class_id, name in GMR_CLASS_NAMES.items()}
 
 
@@ -55,12 +55,10 @@ def letterbox(image: np.ndarray, target_h: int, target_w: int) -> LetterboxTrans
     """Resize onto a ``target_h`` x ``target_w`` grey canvas without distorting aspect ratio.
 
     A plain ``cv2.resize`` to a square input stretches a 16:9 camera frame
-    non-uniformly, distorting every sign's proportions relative to what the
-    HEF was trained, quantized and mAP-measured against -- both
-    ``ml/hailo/src/image.py``'s ``letterbox()`` (used to build the calibration/
-    eval sets) and Ultralytics' own preprocessing (used by
-    :class:`LocalYoloDetector`) letterbox instead. This mirrors that
-    transform for the Hailo runtime path.
+    non-uniformly. Both ``ml/hailo/src/image.py``'s ``letterbox()`` (used to
+    build the calibration/eval sets) and Ultralytics' own preprocessing (used
+    by :class:`LocalYoloDetector`) letterbox instead; this mirrors that
+    transform for the Hailo runtime path. See ``adr:0072-vision-data-path``.
 
     Args:
         image: Source frame, any resolution.
@@ -217,11 +215,9 @@ class HailoDetector(DetectorBase):
         """Detect objects using Hailo 8 NPU."""
         shape = self._driver.get_input_shape()  # (H, W, C)
         target_h, target_w = shape[0], shape[1]
-        # Letterbox rather than stretch: the HEF was calibrated, quantized and
-        # its mAP measured against aspect-ratio-preserving, padded input (see
-        # letterbox()'s docstring), not a distorted square. The HEF's input is
-        # UINT8 and the graph carries its own normalization, so the canvas is
-        # fed through unscaled.
+        # Letterbox rather than stretch (see letterbox()'s docstring and
+        # ``adr:0072-vision-data-path``). The HEF's input is UINT8 and the graph
+        # carries its own normalization, so the canvas is fed through unscaled.
         transform = letterbox(image, target_h, target_w)
         # HailoRT takes the frame as HWC; a batch axis is rejected.
         output = self._driver.infer(transform.image)

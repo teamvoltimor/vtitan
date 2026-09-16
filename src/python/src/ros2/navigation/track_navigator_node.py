@@ -172,11 +172,8 @@ class TrackNavigator(Node, ResettableNode):
                 before. Previously this defaulted to CLOCKWISE, so "told
                 clockwise" and "nobody said anything" were the same value: the
                 code could not trust it, so it had to infer even when the answer
-                had already been supplied. Measured on 2026-08-07, all four
-                blind rounds ran on that silent default -- it was right twice
-                and wrong twice, and the two rounds where it was RIGHT are the
-                two that scored zero (one never confirmed it, one overturned it
-                to the wrong answer and drove a mirrored plan into a corner).
+                had already been supplied. See
+                ``adr:0053-direction-inference-and-start-pose``.
         """
         super().__init__("track_navigator")
 
@@ -312,9 +309,8 @@ class TrackNavigator(Node, ResettableNode):
         # Inference exists to answer a question nobody answered. Told the
         # direction, there is nothing to infer -- and inferring anyway is not
         # free: it forces the blind creep, whose alignment gate needs the
-        # chassis square to a corridor at the moment one side opens, and those
-        # two coincided on 0 of 1763 scans in run 141814 (177 s of creep, zero
-        # laps, on a round whose direction had in fact been supplied correctly).
+        # chassis square to a corridor at the moment one side opens. See
+        # ``adr:0053-direction-inference-and-start-pose``.
         self._direction_estimator = (
             DirectionEstimator(tuning=self._tuning) if self._blind and not self._direction_known else None
         )
@@ -535,10 +531,9 @@ class TrackNavigator(Node, ResettableNode):
 
         Blind runs carry only ``starting_conditions``, so
         ``park_controller_from_metadata`` finds no ``parking_lot`` and returns
-        None -- which is why a ParkController had NEVER been constructed on this
-        robot (0 of 227 bags, 67 of which reached three laps). The lot does not
-        need sensing: in the Obstacles Challenge the robot STARTS INSIDE IT, so
-        the start pose is the lot.
+        None. The lot does not need sensing: in the Obstacles Challenge the
+        robot STARTS INSIDE IT, so the start pose is the lot. See
+        ``adr:0062-sim-contact-model-and-parking``.
 
         SHARED BY BOTH CONSTRUCTION PATHS, which is the whole reason it is a
         method. The derivation used to live inline in ``_build_core_navigator``,
@@ -546,9 +541,7 @@ class TrackNavigator(Node, ResettableNode):
         ``reset()`` -- which runs before every race -- rebuilt the controller
         from the raw ``self._metadata``, got None, and handed that to
         ``replace_park_controller``, destroying the one construction had just
-        built. So the derivation shipped, deployed, and was discarded before
-        every round: three hardware rounds on 2026-09-12 reached three laps with
-        ``parking_engaged`` still null in all of them.
+        built. Both paths now derive it here.
 
         This is the same omission the SignRouter comment in ``reset()`` warns
         about, on the line below where the controller is rebuilt. That one was
@@ -615,9 +608,10 @@ class TrackNavigator(Node, ResettableNode):
         """Take the start measurement for a round whose direction was supplied.
 
         Skipping inference must not also skip measuring where the robot stands:
-        the assumed start is the midpoint of the mat's side, out by 0.35-0.80 m
-        on real rounds, and correcting it is what the creep's commit was
-        carrying besides the direction itself. ``_commit_direction`` called with
+        the assumed start is the midpoint of the mat's side, and correcting it is
+        what the creep's commit was carrying besides the direction itself. See
+        ``adr:0053-direction-inference-and-start-pose``. ``_commit_direction``
+        called with
         the direction already held takes its unchanged branch -- reseed position
         to the measurement and replan, leaving heading and the lap line alone.
 
@@ -651,12 +645,12 @@ class TrackNavigator(Node, ResettableNode):
         The rule is TRAVEL-RELATIVE -- the vehicle passes to its own RIGHT of a
         red pillar and its own LEFT of a green one (rules 9.19) -- so in the
         chassis's own frame it needs no geometry at all: red means steer right,
-        green means steer left. This used to resolve a world-frame axis through
-        ``outward_lateral_axis`` and project it onto the pose, which was only
-        necessary while the rule was (wrongly) modelled as absolute. The
-        body-frame form is also what keeps this usable in BLIND_CREEP, whose
-        whole reason for existing is that the travel direction is not known yet:
-        the world-frame lookup now REQUIRES a direction, but this does not.
+        green means steer left. See
+        ``adr:0059-pass-side-travel-relative-and-scorer-independence`` for why the
+        rule is not absolute. The body-frame form is also what keeps this usable
+        in BLIND_CREEP, whose whole reason for existing is that the travel
+        direction is not known yet: the world-frame lookup REQUIRES a direction,
+        but this does not.
 
         Returns:
             A :class:`TurnSide` to override follow_corridor's clearance
@@ -691,23 +685,11 @@ class TrackNavigator(Node, ResettableNode):
 
         # Whether the robot was PLACED in the pocket is a fact about placement,
         # not about whether the travel direction is known -- so the in-bay test
-        # below must not sit behind a settled-direction gate. It did until
-        # 2026-09-06, and on hardware that made ASSUME_BAY_START dead code:
-        # run_20260905_214855 and _214920 both report a settled direction on
-        # their FIRST nav_debug tick (clockwise at 0.05 s, counterclockwise at
-        # 0.21 s), so `is_settled` returned before the bay branch every time.
-        # The 214855 chassis then drove into the parking structure and stayed
-        # there for 8.9 s, wheels turning at 310 deg/s with the pose frozen to
-        # the millimetre. The ratchet itself was fine and would have engaged:
-        # BayExit.is_clear reads False at the 0.09-0.15 m of forward clearance
-        # measured in the pocket, against MIN_FORWARD_CLEARANCE_M = 0.30.
-        # BOTH direction gates have to yield to it, not just the settled one.
-        # run_..._214855 is the run that started in the bay, and it reports NO
-        # estimator at all -- votes, gate verdict and width belief are all None
-        # against a direction of `clockwise` on tick 1 -- so it left through the
-        # `estimator is None` return, above everything the settled-direction
-        # gate controls. Covering only that gate fixes the case that did not
-        # happen.
+        # below must not sit behind a settled-direction gate. BOTH direction
+        # gates have to yield to it, not just the settled one: a bay start can
+        # report a settled direction (and no estimator at all) on its very first
+        # tick, before the placement test has had its look. See
+        # ``adr:0053-direction-inference-and-start-pose``.
         already_settled = estimator is not None and estimator.is_settled
         bay_pending = not self._is_open_challenge and (not self._bay_start_checked or self._exiting_bay)
         if not bay_pending:
@@ -803,19 +785,10 @@ class TrackNavigator(Node, ResettableNode):
         # had and this node never did. Nothing else bounds the manoeuvre: it
         # owns the tick and CoreNavigator never steps while it does.
         #
-        # The release does NOT also require a forward leg. That was tried
-        # (2026-09-06) on the reasoning that the legs rotate the chassis in
-        # opposite senses, so ending mid-reverse leaves the nose pointed back at
-        # the pocket -- true, and it DEADLOCKED: run_20260906_105056 held one
-        # continuous reverse with forward clearance above 1 m from 45 s onward,
-        # so "clear" and "on a forward leg" were never true on the same tick.
-        # 1832 of 1834 ticks in the manoeuvre, -420 deg of yaw, ended by the
-        # operator. A conjunction of two conditions the manoeuvre never
-        # satisfies together is worse than the heading it was protecting.
-        #
-        # The blind-tick release that motivated it is already closed inside
-        # ``is_clear``, which now reads a no-return arc as BLOCKED -- and that
-        # alone would have released this run cleanly at 45 s.
+        # The release does NOT also require a forward leg: a conjunction of
+        # conditions the manoeuvre never satisfies on the same tick deadlocks.
+        # ``is_clear`` reads a no-return arc as BLOCKED, which is the only
+        # release this needs. See ``adr:0060-bay-exit-clearance-guard``.
         if self._exiting_bay:
             self._bay_exit_ticks += 1
         budget = self._tuning.corridor_follower.bay_exit_max_frames
@@ -826,11 +799,10 @@ class TrackNavigator(Node, ResettableNode):
         # -- so it releases late, or on a reading taken mid-rotation. Yaw is
         # measurable throughout and says when the turn is done.
         #
-        # Both, not either. Rotation alone released run_20260906_145909 at just
-        # -19.9 deg on a clearance reading taken mid-turn, and normal driving
-        # then took forward clearance 0.54 m -> 0.08 m into the outer wall.
-        # Clearance alone is the reading the pocket cannot give. Together they
-        # say "turned out AND something to drive into open space toward".
+        # Both, not either: clearance alone is the reading the pocket cannot
+        # give, and rotation alone releases mid-turn on a clearance reading that
+        # is not yet open. Together they say "turned out AND something to drive
+        # into open space toward". See ``adr:0060-bay-exit-clearance-guard``.
         #
         # The exception is the FIRST tick, which is how a parallel start leaves:
         # ASSUME_BAY_START believes the placement rather than proving it, and a
@@ -877,11 +849,9 @@ class TrackNavigator(Node, ResettableNode):
             self._gateway.publish_drive(command)
             open_is_left, dr_along, dr_out, guard_gap, leg_is_reverse = self._bay_exit.debug_state
             # Publishing a snapshot here is what makes the manoeuvre visible at
-            # all. Until 2026-09-06 this branch returned without touching
-            # _latest_debug, so nav_debug held whatever phase preceded it --
-            # a 32.5 s exit was recorded as 32.5 s of `not_yet_stepped`, and
-            # reconstructing it needed the raw /ackermann_cmd, /scan and
-            # /imu/data topics.
+            # all: without it nav_debug holds whatever phase preceded the exit,
+            # and reconstructing it needs the raw /ackermann_cmd, /scan and
+            # /imu/data topics. See ``adr:0071-round-recording-mcap``.
             self._latest_debug = NavigatorDebugSnapshot(
                 phase=NavigatorPhase.BAY_EXIT,
                 commanded_speed_mps=command.speed_mps,
@@ -911,7 +881,7 @@ class TrackNavigator(Node, ResettableNode):
         # does not have. `_commit_told_direction` is the told-direction
         # analogue of the `_commit_direction` call below -- both rebuild the
         # plan, which BayExit.is_clear's docstring requires on the way out of
-        # the pocket (skipping it drove back into a marker, 0.24-0.30 m).
+        # the pocket. See ``adr:0060-bay-exit-clearance-guard``.
         if estimator is None:
             return self._commit_told_direction() if self._pending_known_commit else False
         # A settled estimator whose answer was never ADOPTED. The bay geometry
@@ -921,13 +891,12 @@ class TrackNavigator(Node, ResettableNode):
         # the exit manoeuvre then owns every tick until it releases, and
         # `already_settled` was computed at the top of this method, so the
         # settle block below is never reached and `_commit_direction` never
-        # runs. Measured on run_20260906_163244 and _163533: the estimator
-        # recorded ZERO vote ticks and the round drove on the provisional
-        # CLOCKWISE both times -- including out of a bay whose open side was the
-        # LEFT, which sent it at the corner.
+        # runs. `_direction_committed` exists to adopt it anyway. See
+        # ``adr:0053-direction-inference-and-start-pose``.
         #
         # The direction is travel-relative, so getting it wrong also inverts the
-        # pass-side rule for every sign in the round.
+        # pass-side rule for every sign in the round. See
+        # ``adr:0059-pass-side-travel-relative-and-scorer-independence``.
         if estimator.is_settled and not self._direction_committed:
             inferred = estimator.direction
             if inferred is not None:
@@ -1054,15 +1023,12 @@ class TrackNavigator(Node, ResettableNode):
         changed = inferred is not previous
         self._direction = inferred
         # Re-key the sign router's travel-relative rule. A blind round builds it
-        # on the CLOCKWISE provisional above, and until 2026-09-07 nothing here
-        # told it otherwise -- so every round that inferred COUNTERCLOCKWISE ran
-        # the whole race with red and green swapped, because each clockwise row
-        # of ROUTING_TABLE is the negation of its counterclockwise partner.
-        # Measured across four hardware bags: on the two rounds that inferred
-        # counterclockwise the commanded lane matched the CLOCKWISE row on 24 of
-        # 28 passes, and 22 of the 28 illegal passes are that mirror -- against
-        # 2 from phantom signs and 0 from colour errors. In place rather than via
+        # on the CLOCKWISE provisional above, so a round that infers
+        # COUNTERCLOCKWISE would otherwise run the whole race with red and green
+        # swapped, because each clockwise row of ROUTING_TABLE is the negation
+        # of its counterclockwise partner. In place rather than via
         # replace_sign_router, which drops the map discovered during the creep.
+        # See ``adr:0059-pass-side-travel-relative-and-scorer-independence``.
         router = self._core_navigator.sign_router
         if router is not None:
             router.adopt_direction(inferred)
@@ -1095,10 +1061,10 @@ class TrackNavigator(Node, ResettableNode):
         # assumed start is the middle of the mat's side, which is not even a
         # legal placement -- the marked square's two cells are centred at 1.25
         # and 1.75, so the assumption sits exactly on the boundary between
-        # them. Measured against three real rounds this recovers the true pose
-        # to within 5 cm where the assumption was out by 0.35-0.80 m, and the
-        # 0.80 m case is the one that drove into a wall with 0.69 m of track
-        # ahead while planning for 1.5 m. See src/navigation/start_measurement.py.
+        # them. The measurement recovers the true pose to within centimetres
+        # where the assumption was out by 0.35-0.80 m. See
+        # ``adr:0053-direction-inference-and-start-pose`` and
+        # src/navigation/start_measurement.py.
         #
         # Done here rather than at the button press because the measurement
         # needs the travel direction (it decides which way "ahead" points and
@@ -1120,20 +1086,17 @@ class TrackNavigator(Node, ResettableNode):
             # the robot is the ordinary case -- and a measurement taken through
             # an obstruction is worse than none.
             #
-            # The assumption is not a substitute, and racing on it is what cost
-            # both refused rounds on 2026-08-08: it names the middle of the
-            # mat's side, so committing after four seconds of creep reseeds the
-            # position estimate roughly 0.8 m behind where the robot actually
-            # is, and the round then drives into the corner. So arm a retry
-            # rather than settle for it. The obstruction is transient by
-            # nature -- replaying both bags' whole scan stream, the rearward
-            # ray was pinned at 0.10-0.19 m by someone standing behind the
-            # robot and cleared 0.6 s and 1.5 s after the commit.
+            # The assumption is not a substitute: it names the middle of the
+            # mat's side, so racing on it reseeds the position estimate roughly
+            # 0.8 m behind where the robot actually is. So arm a retry rather
+            # than settle for it. The obstruction is transient by nature -- a
+            # person standing behind the robot -- and clears within seconds.
             #
             # The robot keeps driving meanwhile, which is not a compromise but
             # the point: what clears the ray is the robot leaving from under
             # the operator, so holding still would preserve the very
-            # obstruction being waited out.
+            # obstruction being waited out. See
+            # ``adr:0053-direction-inference-and-start-pose``.
             self._start_measurement_ticks_left = round(
                 self._tuning.start_measurement.retry_window_s * self._tuning.control.control_hz,
             )
@@ -1171,19 +1134,12 @@ class TrackNavigator(Node, ResettableNode):
             # fix looked. Its own coarse-to-fine search is bounded to
             # search_radius_m per call, but each call reseeds from the
             # previous (already wrong) fix, so the error compounds across the
-            # whole creep instead of correcting once yaw does. Confirmed on
-            # real hardware 2026-08-04: two CCW races' pose_x/pose_y showed
-            # physically impossible implied speeds (2.8-6.4 m/s against a
-            # ~0.156 m/s real maximum) throughout blind_creep and right after
-            # this method's yaw correction landed -- the yaw fix alone wasn't
-            # enough because it doesn't touch the position estimate the wrong
-            # yaw already corrupted. Re-seeding position the same way a new
-            # race does (see reset()) is safe here: the blind corridor-follow
-            # is capped at the medium tier and this fires within a second or
-            # two of race start
-            # (both real captures committed by t=1.2s), so the true
-            # displacement being discarded is at most ~0.2m -- far smaller
-            # than the corruption it replaces. See
+            # whole creep instead of correcting once yaw does, so the yaw fix
+            # alone is not enough. Re-seeding position the same way a new race
+            # does (see reset()) is safe here: the blind corridor-follow is
+            # capped at the medium tier and this fires within a second or two of
+            # race start, so the true displacement being discarded is far
+            # smaller than the corruption it replaces. See
             # adr:0084-localizer-divergence-and-relocalization.
             self._gateway.reset_position(seed_xy.x, seed_xy.y)
             # ``pose`` was read from the gateway before the corrections above
@@ -1228,12 +1184,10 @@ class TrackNavigator(Node, ResettableNode):
             self._core_navigator.set_travel_direction(inferred)
         elif measured is not None:
             # Same correction, for the direction that was assumed correctly.
-            # This branch used to do nothing at all, so a run whose inference
-            # agreed with the launch default kept the assumed start for the
-            # whole race -- measured on the 2026-08-05 clockwise round as a
-            # standing 0.35 m error that the localizer's local search can never
-            # remove. That round finished, so the error was invisible; it is
-            # the same error that ends a counterclockwise round against a wall.
+            # Without it a run whose inference agreed with the launch default
+            # kept the assumed start for the whole race: a standing position
+            # error that the localizer's local search can never remove. See
+            # ``adr:0053-direction-inference-and-start-pose``.
             self._gateway.reset_position(seed_xy.x, seed_xy.y)
             pose = Pose(x=seed_xy.x, y=seed_xy.y, yaw=pose.yaw)
         # Resync unconditionally: the navigator did not step during the creep,
@@ -1247,12 +1201,9 @@ class TrackNavigator(Node, ResettableNode):
 
         A refusal at the commit is a statement about that one scan, not about
         the round: what blocks a cardinal ray is a person standing in it, and
-        they stop blocking it as soon as the robot has driven clear. Both
-        rounds that refused on 2026-08-08 had a valid measurement available
-        within 1.5 s of the commit, and raced the whole round on the assumed
-        start regardless -- roughly 0.8 m out, which is the error that put them
-        into the corner. So the measurement is retried until one lands rather
-        than abandoned after one look.
+        they stop blocking it as soon as the robot has driven clear. So the
+        measurement is retried until one lands rather than abandoned after one
+        look. See ``adr:0053-direction-inference-and-start-pose``.
 
         Latched on the first success: this corrects the *starting* pose, and
         once it is corrected the LIDAR localizer owns the position estimate.
@@ -1331,15 +1282,9 @@ class TrackNavigator(Node, ResettableNode):
         # past str(self._direction) here type-checked and passed silently while
         # every `direction is Direction.CLOCKWISE` test downstream
         # (calculate_waypoints, _build_corridor_order, start_measurement,
-        # parking, collision avoidance) read False. A clockwise round was
-        # therefore planned counterclockwise -- the path ran the opposite way
-        # around the mat, so every waypoint "ahead" in path order sat behind the
-        # chassis, the lookahead search skipped most of a lap to the first
-        # barely-forward point ~2.5 m away, and pure pursuit's 1/distance^2
-        # curvature answered an 86 deg bearing error with 5% of full lock.
-        # Measured on 2026-08-08 runs 140300/140513: 0 laps, speed pinned at the
-        # 0.05 m/s creep floor for 100% of ticks. Counterclockwise rounds were
-        # unaffected, which is why this survived: the wrong branch is the CCW one.
+        # parking, collision avoidance) read False, so a clockwise round was
+        # planned counterclockwise. See
+        # ``adr:0053-direction-inference-and-start-pose``.
         starting = metadata.starting_conditions
         return plan_believed_path(
             metadata,
@@ -1491,11 +1436,10 @@ class TrackNavigator(Node, ResettableNode):
         READY -> RACING purely from the button, with no process restart, so
         without this a new race's very first tick starts from wherever the
         *previous* race's LIDAR localizer last drifted to, not from the new
-        race's actual starting pose -- confirmed on real hardware 2026-08-04,
-        pose_x/pose_y in the hundreds of metres on a 3m track, continuous
-        across a race boundary (see adr:0084-localizer-divergence-and-relocalization). The
-        localizer's own drift during a single race is a separate, still-open
-        question; this only stops it from compounding across races.
+        race's actual starting pose (see
+        adr:0084-localizer-divergence-and-relocalization). The localizer's own
+        drift during a single race is a separate, still-open question; this only
+        stops it from compounding across races.
 
         A blind round also rebuilds the width and direction estimators here.
         The state machine can cycle FINISHED -> BOOT_CHECK -> READY -> RACING
@@ -1756,7 +1700,8 @@ def main(args: list[str] | None = None) -> None:
         "missing one: cw/ccw mean the operator KNOWS, so blind inference is skipped "
         "outright, while undetermined means nobody said and the robot creeps and infers. "
         "This used to default to cw, which made 'told cw' indistinguishable from "
-        "'unset', so the value could never be trusted and inference ran regardless.",
+        "'unset', so the value could never be trusted and inference ran regardless. "
+        "See adr:0053-direction-inference-and-start-pose.",
     )
     parsed, _ = parser.parse_known_args(args)
 

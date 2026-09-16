@@ -95,9 +95,7 @@ class StateEstimator:
         absolute reference, so the offset latched by the first reading is only
         meaningful if the robot was already sitting on the track, aligned, when
         the node started. It usually is not: the robot is powered up, carried to
-        the track and set down, which can rotate it arbitrarily -- easily 90 or
-        180 degrees, against a heading budget where 5 degrees already costs
-        real pass rate.
+        the track and set down, which can rotate it arbitrarily.
 
         Also zeroes ``_yaw_correction`` -- both the slow wall-heading
         complementary-filter drift (``correct_yaw``) and the full
@@ -105,15 +103,9 @@ class StateEstimator:
         accumulate there, and neither belongs to a race that hasn't started
         yet. Without this, a race that overturns the assumed direction (see
         ``apply_yaw_correction``) leaves that correction sitting in
-        ``_yaw_correction`` after the race ends; the *next* race's reset()
-        re-zeros the IMU offset and rebuilds the path for its own (possibly
-        different) direction, but silently kept the previous race's leftover
-        correction, netting out to the wrong race's heading convention.
-        Confirmed on real hardware 2026-08-04: a CW race immediately
-        following a CCW one started at pose_yaw ~0 deg (CCW's convention)
-        instead of ~180 deg (CW's), because the CCW race's -pi correction
-        was still sitting in ``_yaw_correction`` (see
-        adr:0079-imu-6axis-and-yaw-reference).
+        ``_yaw_correction`` after the race ends, and the next race's reset()
+        silently keeps it, netting out to the wrong race's heading convention.
+        See adr:0079-imu-6axis-and-yaw-reference.
 
         Call this at the moment the robot is known to be in its starting pose,
         which is the start-button press. Everything before then is transport.
@@ -141,10 +133,7 @@ class StateEstimator:
         so a large true displacement between ticks, e.g. during an escape
         maneuver, can desync the search from truth with no way back), every
         subsequent race inherits and compounds that drift instead of starting
-        clean. Confirmed on real hardware 2026-08-04: two consecutive races
-        the same day showed pose_x/pose_y in the hundreds of metres,
-        continuous across the race boundary, on a track no larger than 3m
-        square (see adr:0084-localizer-divergence-and-relocalization).
+        clean. See adr:0084-localizer-divergence-and-relocalization.
 
         Args:
             x: The new race's starting X coordinate (world frame).

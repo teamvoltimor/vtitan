@@ -2,9 +2,7 @@
 
 Runs the actual encode on a dedicated thread so a slow or stalled encoder can
 never stall whatever feeds it frames -- for VisionNode, that's the same tick
-Hailo inference runs on. See
-adr:0071-round-recording-mcap and
-adr:0071-round-recording-mcap.
+Hailo inference runs on. See adr:0071-round-recording-mcap.
 """
 
 from __future__ import annotations

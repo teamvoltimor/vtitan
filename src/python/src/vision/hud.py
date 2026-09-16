@@ -259,8 +259,8 @@ def _body_frame_angle_rad(raw_angle_rad: float, *, config: HudConfig) -> float:
 
     An upside-down-mounted spinning LIDAR reverses its apparent spin direction
     in the robot's top-down frame, so correcting for it is a MIRROR (negate
-    the raw angle), not a rotation (add a constant offset) -- hardware-verified
-    2026-08-31 against the Go driver's correctAngleDeg (frame_classic.go).
+    the raw angle), not a rotation (add a constant offset). See
+    ``adr:0080-lidar-mount-and-scan-plane``.
     Only applied here: this is display-only, so there's no bag-replay-parity
     risk the way there is for RobotSpecs.lidar_yaw_offset_rad(), which the nav
     pipeline still uses with the older rotation-only formula and can't change

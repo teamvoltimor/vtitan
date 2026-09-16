@@ -52,19 +52,18 @@ def apply_deformation(
     corridor every tick. Passing that through unchanged is what makes the offset
     arrive late: the commanded point holds a constant lateral value but keeps
     receding, so the slope the chassis must follow to reach it flattens tick by
-    tick and the lateral error is only ever asymptotically closed -- traced on
-    go_obstacles_0000, the chassis needed 0.324 m of lateral travel over the 0.42
-    m of runway left and achieved 0.163 m of it, arriving level with the pillar
-    still half a chassis width inside the line it was given. Ramping to full offset
-    sooner does NOT fix that lag -- measured and rejected, see the taper comment in
-    ``deform_waypoint`` -- because the target the offset is attached to is the
-    thing running away.
+    tick and the lateral error is only ever asymptotically closed. Ramping to
+    full offset sooner does NOT fix that lag (measured and rejected, see the
+    taper comment in ``deform_waypoint``) because the target the offset is
+    attached to is the thing running away.
 
     So while the sign lies between the robot and the lookahead point, pin the depth
     coordinate to the SIGN's own depth. The commanded point stops receding and
     becomes a fixed gate abeam the pillar, which the chassis has to be on by the
     time it gets there. ``robot_pos`` is optional so callers testing the pure
     pass-side mapping can keep asking for it alone.
+
+    Measured rationale and the traced lag: ``adr:0051-sign-lane-planner``.
 
     Args:
         waypoint: Original target waypoint.
@@ -134,26 +133,20 @@ def pin_depth(
     itself actually is. The lookahead target runs 0.2-0.4 m ahead of the robot, so
     the robot can already have curved out of the straight-corridor assumption this
     pin depends on (e.g. mid corner-arc) while the waypoint still reads squarely in
-    the corridor. Pinning to the sign's depth in that state drove the commanded
-    point into a wall -- measured as 11 wall collisions with the pin on against 0
-    with it off, all corner-adjacent. Re-checking squareness here, against the
-    robot's own real (x, y), closes that gap: the pin only fires when both ends of
-    its own logic actually hold.
+    the corridor. Re-checking squareness here, against the robot's own real (x, y),
+    closes that gap: the pin only fires when both ends of its own logic actually
+    hold. The re-check is gated by ``PIN_CORNER_GUARD`` so both arms can be
+    measured in one harness invocation.
 
-    That re-check rode in on an unrelated commit ten days after the 11 was measured
-    and was never attributed on its own, so it carries its own toggle
-    (``PIN_CORNER_GUARD``) -- both arms belong in one harness invocation.
-
-    ``PIN_CORNER_GUARD`` re-checks the robot's POSITION but not its HEADING.
-    Traced on go_obstacles_0049 (subset64, sighted): the robot entered a corner turn
-    -- yaw rotating 67 deg to 127 deg over 46 ticks -- while its raw waypoint
-    position still read squarely in the corridor the whole time, so the position
-    guard never released the pin. The commanded point stayed frozen abeam a sign for
-    2.3 s while the chassis was actually mid-turn, steering saturated chasing it,
-    and the chassis crashed into a wall. ``PIN_HEADING_GUARD`` releases the pin once
-    the robot's heading has drifted more than ``PIN_HEADING_GUARD_DEG`` from where
-    it stood when the pin first engaged on this sign, which is what the position
-    check misses.
+    ``PIN_CORNER_GUARD`` re-checks the robot's POSITION but not its HEADING. A
+    robot entering a corner turn can still have its raw waypoint position read
+    squarely in the corridor the whole time, so the position guard never releases
+    the pin: the commanded point stays frozen abeam a sign while the chassis is
+    mid-turn and steering saturates chasing it. ``PIN_HEADING_GUARD`` releases the
+    pin once the robot's heading has drifted more than ``PIN_HEADING_GUARD_DEG``
+    from where it stood when the pin first engaged on this sign, which is what the
+    position check misses. Measured rationale:
+    ``adr:0051-sign-lane-planner``.
     """
     context = context or _DEFAULT_SIGN_ROUTER_CONTEXT
     if robot_depth is None or robot_pos is None:

@@ -65,11 +65,8 @@ class SignRouterConfig:
 
     Every raw tunable defaults to ``None`` and resolves from the shipped
     ``SignRouterParams`` (signs/sign_router.toml) in ``__post_init__`` --
-    there is no second copy of the value in code to keep in step. These two
-    COPIES have disagreed before: ``commit_hysteresis`` was True here against
-    the TOML's False, so a bare ``SignRouterConfig()`` silently ran a
-    different policy from the one that races. Defaults reading from the same
-    group ``from_tuning`` passes through cannot diverge again.
+    there is no second copy of the value in code to keep in step. See
+    ``adr:0069-config-governance``.
     """
 
     lateral_offset: float | None = None
@@ -85,10 +82,8 @@ class SignRouterConfig:
     """Hold the commanded point abeam the sign instead of letting it recede.
 
     ``False`` restores the plain lookahead depth, which is the arm every figure
-    recorded before the pin was measured against. Both arms belong in ONE
-    harness invocation: this lives in the router, so measuring it by editing
-    between two runs mixes old and new code across a warm process pool -- which
-    is exactly how the pin's own effect was first mistaken for a classifier fix.
+    recorded before the pin was measured against. See
+    ``adr:0051-sign-lane-planner``.
     """
 
     detection_match_dist: float | None = None
@@ -100,9 +95,8 @@ class SignRouterConfig:
     commit_hysteresis: bool | None = None
     """Hold the engaged sign across ticks instead of re-racing every tick.
 
-    The shipped default is tracked by signs/sign_router.toml (turned ON on
-    2026-09-07); these two have disagreed before, which is why the default is
-    resolved from the TOML-backed group instead of restated here.
+    The shipped default is tracked by signs/sign_router.toml rather than
+    restated here. See ``adr:0051-sign-lane-planner``.
     """
 
     pair_handoff_span: float | None = None
@@ -112,21 +106,13 @@ class SignRouterConfig:
 
     The router claims one sign at a time, so at handoff the commanded line
     JUMPS -- and when a pair wants opposite sides, that jump is the crossing.
-    Measured on the 2026-09-14 rounds: a pass begun on the wrong side grazes
-    4.8x more often (23.8% against 5.0%) and finishes on the wrong side 2.9x
-    more often, and five of six sub-30 mm grazes were crossings. There is no
-    runway to spend either -- commitment lands at p50 0.498 m where the geometry
-    wants about 0.614 m.
-
-    ON at 0.30 (signs/sign_router.toml): measured over the obstacles corpus at
-    12 failed against a baseline of 12, with a BYTE-IDENTICAL failure set. The
-    benefit cannot be measured there -- the corpus has no pass-side assertion --
-    so this ships on the mechanism and the bag correlation, not on a corpus win.
+    This smooths it instead.
 
     Applies only once the REAR of the chassis has cleared the committed sign,
-    never merely once the sign is behind the pose origin: that gate is worth
-    12 -> 16 (four collisions introduced), because the origin sits mid-body on a
-    30 cm chassis. No pass is compromised to set up the one after it."""
+    never merely once the sign is behind the pose origin, which sits mid-body
+    on a 30 cm chassis. No pass is compromised to set up the one after it.
+    Measured rationale: ``adr:0051-sign-lane-planner``.
+    """
 
     corridor_flip_ticks: int | None = None
     """Consecutive ticks a refined sign estimate must agree on a NEW corridor
@@ -135,9 +121,8 @@ class SignRouterConfig:
     legal WRO grid positions sit -- millimetres of estimate jitter otherwise
     swing the commanded waypoint between two orthogonal axes every tick.
 
-    The shipped default is 1, which leaves the mechanism inert: the oscillation
-    is real and traced, but damping it measured flat over the corpus and cost a
-    few new wall strikes. See that file for the numbers."""
+    The shipped default leaves the mechanism inert; see
+    ``adr:0051-sign-lane-planner`` for the measurement."""
 
     settle_ticks: int | None = None
     """Ticks since this lap started (~7.5s at the standard 20Hz control loop)
@@ -160,14 +145,10 @@ class SignRouterConfig:
         ``activation_dist >= passed_dist`` every sign entering the activation
         radius is engaged and marked passed in the same breath, from a metre
         away, and stays retired for the rest of the run -- deformation never
-        fires at the real pass and the robot drives straight into it.
-
-        Measured: at ``activation_dist`` 1.30 against the shipped ``passed_dist``
-        1.20, the corpus goes from 209 collisions to 256/256 with not one lap
-        completed. Nothing failed, nothing logged; avoidance simply stopped
-        existing. That is the worst shape a config error can take in a safety
-        path, so it is an error rather than a clamp: silently repairing it would
+        fires at the real pass and the robot drives straight into it. That is
+        why it is an error rather than a clamp: silently repairing it would
         hide that the tuning being run is not the tuning that was asked for.
+        See ``adr:0051-sign-lane-planner``.
 
         This is the same defect ``settle_ticks`` guards from the other direction
         -- there an incidental spawn-time graze retires a sign early; here the

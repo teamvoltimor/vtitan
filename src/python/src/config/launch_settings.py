@@ -45,10 +45,9 @@ def _default_bag_topics() -> list[str]:
     /tf_static are the two exceptions -- standard ROS2 TF topics with no
     RosTopicConfig entry of their own.
 
-    /camera/image_raw is deliberately absent: it was measured at 63 MB/s,
-    which dwarfs everything else here combined and is what turns a race bag
-    into a full SD card. The detections it produces are recorded instead,
-    which is what replaying a run's decisions actually needs.
+    /camera/image_raw is deliberately absent and the detections it produces
+    are recorded instead: replaying a run's decisions needs the detections,
+    not the imagery. See ``adr:0071-round-recording-mcap``.
     """
     topics = RosTopicConfig.load_default()
     return [
@@ -64,12 +63,11 @@ def _default_bag_topics() -> list[str]:
         topics.actuators.steering_position,
         # The bay-exit clearance guard's ONLY state input. It dead-reckons the
         # pocket pose from `get_wheel_odometry().distance_m`, which is this
-        # topic's drive-wheel position -- not `drive_speed`, which is a smoothed
-        # estimate with a different bias. Absent from the 2026-09-06 bags, an
-        # offline replay of a 14.2 s deadlock could not be made faithful:
-        # reconstructions that reproduced the stall destroyed the runs that
-        # escaped, and no single one exceeded 90% agreement on all three.
-        # Cheap to record -- a handful of floats, nowhere near /camera/image_raw.
+        # topic's drive-wheel position, not `drive_speed`, which is a smoothed
+        # estimate with a different bias. See
+        # ``adr:0060-bay-exit-clearance-guard``. The replay that motivated
+        # recording it never exceeded 90% agreement on all three runs. Cheap
+        # to record, a handful of floats, nowhere near /camera/image_raw.
         topics.actuators.joint_states,
         "/tf",
         "/tf_static",
@@ -253,13 +251,12 @@ class RaceLaunchDefaults(HardwareBaseSettings):
     # Retention caps for bag_recorder_node. Recording is race-gated, but a
     # competition day is many rounds and the card is finite, so old runs are
     # pruned oldest-first once either cap is exceeded. Sized for a diagnosis
-    # session rather than a single day: a whole corpus of runs stays on the
-    # card so bag scripts can compare across sessions instead of finding the
-    # evidence already pruned. Check free space before deploying to a Pi -- 50
-    # GB does not fit on a small card, and the count cap alone will not save it.
-    # The size cap is the one that binds here: measured 2026-09-09 over 215 real
-    # runs, mean 30.0 MB each, so 50 GB stops at ~1708 runs before the count
-    # ever reaches 2000. race.toml pins both and carries the full distribution.
+    # session rather than a single day, so bag scripts can compare across
+    # sessions instead of finding the evidence already pruned. Check free space
+    # before deploying to a Pi: 50 GB does not fit on a small card, and the
+    # count cap alone will not save it. The size cap is the one that binds;
+    # see ``adr:0071-round-recording-mcap``. race.toml pins both and carries
+    # the full distribution.
     bag_max_runs: int = 2000
     bag_max_total_gb: float = 50.0
     bag_topics: list[str] = Field(default_factory=_default_bag_topics)

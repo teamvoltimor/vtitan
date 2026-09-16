@@ -209,8 +209,8 @@ class Driver(CameraDriver):
         Picamera2's ``"RGB888"`` is named for the packed byte layout, not the
         numpy axis order: the array comes back B,G,R. Feeding that to the
         detector unconverted swaps red and blue, which reads red prisms as
-        green -- the failure that inverts the WRO pass-side rule, and which
-        produces no error at all.
+        green and inverts the WRO pass-side rule. See
+        ``adr:0072-vision-data-path``.
 
         Args:
             frame: Array straight from ``capture_array()``.

@@ -60,28 +60,25 @@ if TYPE_CHECKING:
 _LIDAR_YAW_OFFSET_RAD = RobotSpecs.lidar_yaw_offset_rad()
 """Rotates raw /scan bearings into the robot frame (0 rad = forward).
 
-See RobotSpecs.lidar_yaw_offset_rad()'s docstring for what this combines
-(LIDAR_INVERTED's mandatory 180deg + any residual LIDAR_MOUNT_YAW_OFFSET_DEG)
-and why it's a shared classmethod rather than recomputed per-consumer --
-that duplication is exactly how telemetry_bridge_node.py's own copy of this
-formula silently dropped the 180deg term for weeks.
+Combines LIDAR_INVERTED's mandatory 180 deg plus any residual
+LIDAR_MOUNT_YAW_OFFSET_DEG (see RobotSpecs.lidar_yaw_offset_rad()). Shared so
+every angle consumer derives the correction from one place; see
+``adr:0080-lidar-mount-and-scan-plane``.
 
 This constant already drives static_tfs.launch.py's lidar_link TF rotation
-(same classmethod, called there too), but nothing reads that TF back -- every
+(same classmethod, called there too), but nothing reads that TF back. Every
 consumer of LidarScan.angles_rad (CollisionAvoidanceController via
-core_navigator.py, and estimate_yaw_from_walls) documents and requires 0 rad
-= forward, so the correction has to happen here, where angles_rad is actually
-built. Invisible in simulation, which synthesizes scan angles already in the
-correct robot frame and never models a raw LIDAR mounting frame at all.
+core_navigator.py, and estimate_yaw_from_walls) requires 0 rad = forward, so
+the correction happens here, where angles_rad is built. Invisible in
+simulation, which synthesizes scan angles already in the robot frame.
 """
 
 
 _POSE_HISTORY_LEN: int = 120
 """Poses retained for camera time-alignment: 6 s at the 20 Hz control rate.
 
-Comfortably longer than the measured 0.85 s capture-to-receipt lag, so a
-detection is still matchable after a scheduling hiccup, and small enough that
-the whole buffer is a few kilobytes.
+Longer than the capture-to-receipt lag, so a detection stays matchable after a
+scheduling hiccup. See ``adr:0058-sign-discovery-range-and-barrier-belief``.
 """
 
 
@@ -133,12 +130,9 @@ class ROS2HardwareGateway(HardwareGateway):
         self._latest_detections: list[Detection] = []
         # When the FRAME behind `_latest_detections` was grabbed, and a short
         # history of poses to look that instant up in. The camera pipeline is
-        # not instant: measured 0.85 s from capture to the box arriving here on
-        # run_20260906_232408/_232748. Pairing a detection with the pose at
-        # RECEIPT put every sign where the robot had already moved to, which was
-        # the whole of the bearing residual left after the mirror fix -- the
-        # recovered cx-vs-bearing slope read -309 px/rad, a value no real lens
-        # can produce, against a physical floor of ~620.
+        # not instant, so pairing a detection with the pose at RECEIPT places
+        # every sign where the robot has already moved to. See
+        # ``adr:0058-sign-discovery-range-and-barrier-belief``.
         self._detections_captured_at: float | None = None
         self._pose_history: deque[tuple[float, Pose]] = deque(maxlen=_POSE_HISTORY_LEN)
         # Corridor holding the parking lot, set by the node from the start
@@ -287,11 +281,10 @@ class ROS2HardwareGateway(HardwareGateway):
         self._lidar_stamp = self._now()
 
         # Correct heading against the walls before solving for position. The
-        # localizer takes yaw as given, so a better yaw yields a better fix --
-        # and this is the only thing that bounds heading at all. The IMU has no
-        # absolute reference, so without it drift and scale error accumulate
-        # for the whole round; measured, 0.1 deg/s of drift costs 15 of 28
-        # fixtures without this and none with it.
+        # localizer takes yaw as given, so a better yaw yields a better fix,
+        # and this is the only thing that bounds heading at all: the IMU has no
+        # absolute reference, so drift accumulates for the whole round. See
+        # ``adr:0054-absolute-heading-from-walls``.
         measured_yaw = estimate_yaw_from_walls(
             self._latest_lidar.ranges_m,
             self._latest_lidar.angles_rad,
@@ -364,22 +357,15 @@ class ROS2HardwareGateway(HardwareGateway):
     def publish_drive(self, command: DriveCommand) -> None:
         """Publish drive command as an AckermannDriveStamped on the ackermann_cmd topic.
 
-        This is the contract ``ackermann_motor_node`` actually subscribes to:
+        This is the contract ``ackermann_motor_node`` subscribes to:
         ``drive.speed`` in m/s and ``drive.steering_angle`` as a physical angle
         in radians (not the normalised [-1, 1] steer CoreNavigator computes
-        internally) — decoded via the same shared mapping the motor node and
+        internally), decoded via the same shared mapping the motor node and
         the simulator both use.
 
-        Speed is clamped to RobotSpecs.MAX_SPEED_MPS (the drive motor's
-        measured top speed under load), matching what AckermannKinematics
-        already enforces in the simulator -- previously only the sim clamped,
-        so a speed profile asking for e.g. 0.5 m/s published that value
-        verbatim here while the real motor physically saturates well below
-        it. The clamp changes nothing about real motor behaviour (the PID's
-        own output-duty clamp already saturates identically whether the
-        setpoint is 0.156 or 0.5), it only stops logging/telemetry
-        (commanded_speed_mps) from reporting an unreachable aspirational
-        value instead of what was actually asked of the motor.
+        Speed is clamped to RobotSpecs.MAX_SPEED_MPS, the drivetrain ceiling,
+        so telemetry reports what was actually asked of the motor rather than
+        an unreachable setpoint. See ``adr:0085-speed-envelope``.
         """
         msg = AckermannDriveStamped()
         msg.header.stamp = self._node.get_clock().now().to_msg()
