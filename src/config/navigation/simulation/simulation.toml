@@ -46,24 +46,39 @@ obstacles_inner_wall_terminal = true
 # wide open" to the direction estimator.
 lidar_invalid_ray_rate = 0.095
 
-# Chassis occlusion of the LIDAR, MEASURED 2026-09-14 over 5,763,600 real rays
-# from /scan on three of the 2026-09-13/14 rounds. The sensor is blind in two
-# bands off the front corners, and the simulator modelled none of it.
+# Chassis occlusion of the LIDAR. The bands are REAL; where they sit was wrong
+# here for a day, in a way worth spelling out because the mistake is easy.
 #
-# At 5 degree resolution, dropout + sub-floor sum to essentially 100% across
-# |bearing| 25-60 deg on BOTH sides: -35..-30 reads 56.3% + 43.7%, +30..+35
-# reads 54.6% + 45.4%, -50..-45 and +45..+50 both read 80.6% + 19.4%. Outside
-# those bands the sweep is clean: 9.5% dropout, 0.13% sub-floor.
+# The 2026-09-14 measurement over 5,763,600 rays found dropout + sub-floor summing
+# to essentially 100% across |bearing| 25-60 deg, against 9.5% dropout and 0.13%
+# sub-floor everywhere else. That part stands: it is GEOMETRY, not noise, and
+# raising lidar_invalid_ray_rate alone cannot reproduce it.
 #
-# So this is GEOMETRY, not noise, and raising lidar_invalid_ray_rate alone
-# cannot reproduce it. The 20-25 and 60-65 deg edges are partial (53-77%
-# unusable) and are deliberately left out, making this the conservative core.
+# What was wrong is the FRAME. That sweep read raw /scan angles, which are in the
+# SENSOR frame, and recorded the answer as degrees "off the nose", which is the
+# ROBOT frame. Those differ by RobotSpecs.lidar_yaw_offset_rad() -- 180 deg on
+# this chassis, because robot.toml sets lidar.inverted = true. So the bands were
+# installed 180 deg away from where they belong: blinding the FORWARD diagonals
+# that the front sector, the threat sectors and the k_turn's 45 deg edge all
+# read, and leaving the rear sector the escape reverses into artificially clean.
 #
-# Why it matters beyond fidelity: the side-clearance comparison that picks the
-# K-turn's side reads sectors 45..135 and -135..-45, whose inner edges sit
-# inside these bands, and takes a MIN over the sector.
-lidar_occlusion_min_deg = 25.0
-lidar_occlusion_max_deg = 60.0
+# The tell was there to be read: lidar_sectors.toml has always declared blind
+# wedges at -155..-120 and +120..+160, and the 09-14 note treated those as a
+# SEPARATE, already-known rear effect while adding these as newly discovered
+# front bands. There is only one effect.
+#
+# RE-MEASURED 2026-09-15 in the robot frame over the afternoon rounds, and
+# reproducible with scripts/bag/diag_bag_lidar_frame_census.py, which prints both
+# frames side by side so this cannot happen silently again. On
+# run_20260915_140852: front<25 = 91% finite, corner 25-60 = 93% finite (clean --
+# the band the sim was blinding), rear 120-160 = 31% finite with 28% of the rest
+# sub-floor, tail 160-180 = 82%.
+#
+# Applied symmetrically as [min,max] and [-max,-min]. 160 is used rather than the
+# 155 the left wedge declares, so the left band is overstated by 5 deg; the
+# alternative is an asymmetric model this knob cannot express.
+lidar_occlusion_min_deg = 120.0
+lidar_occlusion_max_deg = 160.0
 lidar_occlusion_dropout_rate = 0.689
 lidar_occlusion_self_return_m = 0.0207
 lidar_occlusion_self_return_std_m = 0.0052
