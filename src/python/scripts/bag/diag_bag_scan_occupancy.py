@@ -28,8 +28,27 @@ localizer had diverged, this renders a picture of the robot's delusion, not of
 the mat -- and the picture will look perfectly self-consistent either way, since
 every ray in it is wrong by the same amount. Run
 ``diag_bag_localizer_divergence.py`` over the same window before believing a
-layout read off this grid, and prefer comparing the SAME object across sibling
-rounds, where a shared bias cancels.
+layout read off this grid.
+
+This file used to add "and prefer comparing the SAME object across sibling
+rounds, where a shared bias cancels". MEASURED 2026-09-16 on the 141230/141413/
+141832 triple, and it is wrong: the bias is NOT shared. It is a function of
+where the robot was standing when it took the rays. Binning the same physical
+pillar in run_20260915_141832 by the robot's own region gives believed x of
+0.579 m from mid-corridor and 0.901 m from the north-west -- a 32 cm spread
+INSIDE one round, which is twice the 15 cm the cross-round comparison was being
+used to explain. A round that only ever views an object from one place (141230
+spends its window stuck in the south) is not comparable to one that mixes
+viewing positions, so the cross-round difference measures the VIEW MIX, not the
+layout.
+
+What does cancel the pose is measuring within a SINGLE sweep: cluster the
+object's returns, fit a line to a static reference's returns from that same
+sweep, and take the perpendicular distance. The pose then enters only as a gate
+on which rays belong to which feature, where being 15 cm out does not matter.
+Done that way the same pillar reads 0.6081 / 0.6069 / 0.6046 m from the west
+wall across the three rounds -- 3.5 mm of spread, against 15 cm of apparent
+movement. Nothing had moved.
 
 Usage::
 
