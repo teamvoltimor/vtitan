@@ -340,11 +340,11 @@ func (l *LidarLocalizer) bestCandidate(
 ) trackmodel.Waypoint {
 	// Predict from where the SENSOR is, not the body center. The C1 sits
 	// LidarMountXOffsetM forward of center, flush with the bumper, so a scan
-	// taken there cannot be reproduced by casting from the center. Until
-	// 2026-08-21 it was, which biased every forward ray by the offset and
-	// pulled the fit along the corridor axis. The simulator raycast from the
-	// center too, so the two agreed and the error was invisible in sim while
-	// present on hardware.
+	// taken there cannot be reproduced by casting from the center; casting
+	// from the center biases every forward ray by the offset and pulls the
+	// fit along the corridor axis, and the simulator raycast did the same, so
+	// the error was invisible in sim while present on hardware. See
+	// adr:0080-lidar-mount-and-scan-plane.
 	offsetX := l.cfg.LidarMountXOffsetM * math.Cos(yaw)
 	offsetY := l.cfg.LidarMountXOffsetM * math.Sin(yaw)
 

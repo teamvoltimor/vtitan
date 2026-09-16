@@ -97,9 +97,7 @@ type Config struct {
 	// Before this existed the native runner had NO grace at all: any tick of
 	// contact with a forbidden surface ended the run instantly, so a legal
 	// start pose a few mm from the OUTER wall was scored as an immediate
-	// collision. Measured on the balanced-128 Open corpus (seed 2026): 17/128
-	// collisions native vs 0/128 on the frozen Python oracle running the same
-	// scenarios.
+	// collision.
 	StartCollisionWindowS float64
 	StartCollisionGraceS  float64
 }

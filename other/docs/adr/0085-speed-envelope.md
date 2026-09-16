@@ -109,3 +109,12 @@ hardware observation.
 - Braking distance is not the issue: `max_accel_mps2 = 2.0`, so stopping from
   0.60 m/s takes 0.09 m; the distance thresholds buy STEERING runway, not braking
   runway.
+- 97.8 percent of the ticks that reach the creep floor arrive through the heading
+  error term rather than the contact zone: the floor this term drops to is
+  separable from the contact zone's speed, and the contact jobs that share the
+  constant fail as collisions rather than as slow laps.
+- The cruise speed captured BEFORE the heading limiter, the envelope clamp and the
+  risk cap is required for attribution: reporting the post-min value made
+  `final <= heading_speed` true by construction, so the heading limiter looked
+  innocent on 100 percent of ticks while it was the binding constraint on most of
+  them.

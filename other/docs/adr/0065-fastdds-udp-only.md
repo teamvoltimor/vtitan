@@ -56,6 +56,13 @@ where SHM was never in play. If SHM is never used there is nothing under
   (`127.0.0.1`, `192.168.250.1`, `192.168.250.2`), but the whitelist alone did not
   resolve the Pi5/Zero delivery failure.
 - 3299b25c and 39d8e679 2026-09-05/10: path moves into `src/python/config/`.
+- 7d4c69d0 2026-08-28: give every `/ackermann_cmd` publisher a compatible QoS
+  deadline. DEADLINE is two-sided: `state_machine_node` subscribed at 200 ms so
+  `/race_metrics` reflected real commands, while `ros2_hardware_gateway` and
+  `joy_teleop_node` offered `QOS_STREAM`'s Infinite deadline and DDS delivered
+  nothing between those pairs, so it was never actually receiving live driving
+  commands. `QOS_ACKERMANN_CMD` (RELIABLE + 200 ms) now serves every publisher
+  and subscriber on the topic.
 
 ## Refuted
 

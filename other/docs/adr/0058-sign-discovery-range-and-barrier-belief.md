@@ -104,6 +104,13 @@ cannot score it because it never emits a magenta detection.
   gate. Wall-shaped let through 58.4 to 18.8 percent.
 - d7ad6f96 2026-09-11: find which hole the barrier comes through. Corridor
   exemption is 83 percent of the leak.
+- 2026-09-11: the corridor exemption's numbers. 72 percent of wall-shaped red
+  detections carry no corridor label at all, and over three rounds the shape gate
+  admitted 293 wall-shaped reds on the strength of the corridor test, of which
+  257 (88 percent) were taken from the corridor NEXT to the lot's. 55 of the
+  barrier's own 220 magenta detections also come from that corridor, so the
+  barrier is demonstrably visible from there and a corridor boundary is not a
+  sight line.
 - b9c4acc7 2026-09-11: advance the corridor debounce every tick, not every
   detection. Only 11.6 percent of ticks carry a detection.
 - b9e5fffd 2026-09-11: a per-section publication cap, measured and REFUTED.
@@ -173,3 +180,101 @@ cannot score it because it never emits a magenta detection.
   66.8, 23.5 to 27.9 and 68.3 to 75.7 percent, but real pillars refused rise 25.5
   to 26.4, 2.7 to 4.9 and 8.8 to 12.7 percent, and the benefit/cost ratio is
   slightly worse on two of three rounds. `colour_pool_radius_m` remains refuted.
+- `sign_lidar_align`: measured on run_20260906_163641 and _163854, a LIDAR return
+  exists at the camera's own bearing on 98 to 100 percent of red/green detections,
+  and the object at that bearing measures 3.8 to 6.6 cm across at the median, a
+  5 cm sign rather than the wall behind it. run_20260906_163854 passed a red on the
+  wrong side because it was never detected at all.
+- `snap_to_lattice`: measured 2026-09-09, within a LIVE commitment the believed
+  position moves p50 7.7 cm, p90 60.9 cm, max 103 cm, which drops the sign out of
+  the router's candidate filter and makes the commitment a 0.5 s duty cycle.
+- `_clustered_range`'s qualifying tests: the camera focal disagrees with the one
+  solved from bearings (measured 1034-1088 px against 545-645), and the ungated
+  nearest-ray attempt, when a pillar stands in front of a wall, took the wall
+  cluster and paid a range error p50 -69 cm.
+- The cluster-shape test alone discriminated pillar from wall at 54 percent, near
+  chance; it ships only paired with the agreement test.
+- Distant red boxes carried the RED label at p50 confidence 0.79, so confidence
+  cannot separate the blurred barrier from a pillar.
+- `_detection_to_world` must project from the mount, not the body centre: casting
+  from the chassis origin lands every sign short by the mount offset, pulling the
+  estimate about 12 cm toward the robot and reading in RViz as sign estimates
+  sitting 10-20 cm off the drawn signs. localization.py took the same correction
+  on 2026-08-21; this consumer was missed then.
+- `_SignTrack.corridor`'s continuous-distance gate was tried and measured WORSE
+  across the whole range of reasonable thresholds, because it is not
+  rotation-equivariant. A second, still rotation-equivariant attempt widened the
+  gate near a corner boundary by a `corner_blend_m` face-distance slack on the
+  full 256-scenario blind corpus: every nonzero threshold tried (0.03-0.20 m) was
+  worse than 0.0 on collisions, laps>=3 and in-time, 190 (0.0) against 195-207
+  across the range, non-monotonic, with the escape-maneuver rate moving in step,
+  so it was reverted. All seven arms came from one sweep invocation, so that
+  internal comparison is fair, but do not read the 190 as the corpus baseline: a
+  standalone run reproduces 202/256 twice, byte-identical, and the 190 was never
+  cross-checked.
+- The per-section publication cap on an EXACT sim map should have been a
+  byte-identical no-op; it fixed 7 and broke 6 instead.
+- LIDAR proposals lead the camera by about 0.6 m, but the detector is only 84
+  percent precise and the router's window is the last 0.3 m, so a proposal is
+  safe only because it cannot publish without a camera colour vote.
+- `SlotSignMap` against the shipped map on identical observations over 125 bags,
+  and the four refuted publication-time repairs: `ObservedSignMap` believed 9 to
+  25 signs on a track that physically holds at most 8, with about half of all
+  believed positions matching no legal cell, on a 0.15-0.25 m position error
+  against pillars 0.20 m apart across a lane pair and 0.50 m apart along a
+  section. `snap_to_lattice_m = 0.40` appeared to halve routing errors but 264
+  passes vanished from the denominator and the peak believed count rose 26 to 40.
+  The rules-constrained slots map scored worst peak believed 24 to 7, runs over
+  the physical max 32/125 to 0/125, re-points while committed 1062 to 0 and
+  colour flips while committed 66 to 0. The lane partner has zero evidence 21
+  percent of the time and the cut is clear 70 percent, so lane placement is near
+  a coin flip; deliberately flipping every lane routes at 14.3 percent against
+  15.8 percent correct, and lane error moves execution by +7 points. Colour
+  pooling at radius 0.00/0.25/0.55 gives flip totals 157/159/166 (refuted). The
+  simulator's exact map has 0.0 percent of ticks above the physical maximum
+  against 86 percent on hardware.
+- Re-pointing a slot whose router index is already PASSED would make an unpassed
+  pillar inherit the "behind us" flag: measured on 168 of 708 re-points (24
+  percent). Fresh slots recover those pillars at 23 passes over 125 runs and
+  +1.0 point of routing error, newly measured exposure rather than newly created.
+- `_claim` leaves a reading further than `slot_accept_radius_m` from every cell
+  unclaimed rather than pulling it to the nearest: 12.2 percent of observations
+  are in that class.
+- `_one_per_depth`: the rulebook's 36-scenario table never puts two pillars on
+  one depth line (every double is depth 1.0 plus 2.0, 1.5 alone; verified over
+  all 24 doubles and all 514 same-section pairs in the 256 corpus). Measured on
+  run_20260915_002408 (counter-clockwise, 3/3 laps) the east section's two slots
+  were held by (2.4, 1.0) and (2.6, 1.0), one green pillar the LIDAR places at
+  x=2.49-2.55, while the red pillar at (2.40, 1.88) was refused all round: 55
+  fused observations landed on its cell and never displaced either twin, and the
+  chassis escaped 30 times in one 0.5 m cell against a pillar its map did not
+  contain. The same twin pair shows on run_20260914_215248.
+- `_apply_section`: an earlier version opened a slot whenever no incumbent was
+  displaceable, which let a section hold three. Measured on run_20260911_225646
+  as a believed-sign peak of 12 against the physical maximum of 8, against the
+  shipped map's 64.
+- `_displaces` hysteresis: the cut between the last accepted and first rejected
+  cell is clear (2x or better) in only 56.5 percent of section-runs, p10 ratio
+  1.20, so about a third of assignments would flip on noise. At margin 1.5 the
+  churn halves for a median 0.55 s of phantom hold (p90 9.2 s); above 2.0 the
+  tail and the count of challengers that lead at the end and never get the slot
+  grow faster than the churn falls.
+- `set_committed`: freezing the committed slot takes colour flips while committed
+  from 66 to 0 and re-points from 166 to 0, and routing improves from 15.8 to
+  15.0 percent.
+- The `retire` wiring landed 2026-09-11 in `dabd57c7`; the NOT-WIRED note landed
+  two days after it.
+- The `reset_for_new_lap` / `retire` asymmetry: measured 2026-09-15 over five
+  rounds spanning two builds, zero ticks reading over 8 on lap 1 (the cap holds
+  exactly while `_passed == _retired`) against 20-53 percent of ticks on laps 2
+  and 3, peak 14. The design was measured as a package at 23 recovered passes
+  over 125 runs and +1.0 point of routing error, so forwarding the lap reset is
+  no longer a no-op and needs its own A/B.
+- `lidar_proposer`: the camera stops resolving signs past about 1.1 m while the
+  LIDAR picks up pillar-shaped clusters at a median 1.31 m, buying position early
+  and colour in the last 0.3 m. The placement lattice raises the detector's
+  precision from roughly half to the mid-eighties while giving up a little recall.
+- Decoding a detection against the pose the CAMERA saw from, rather than the pose
+  at receipt, takes the bearing residual from 20.2 deg to 5.4 deg. The corrected
+  pairing is what makes `range_scale`'s pinhole correction usable at all; see the
+  `vision_latency_s` measurement above.

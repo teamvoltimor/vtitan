@@ -764,10 +764,10 @@ func (r *NativeRunner) score(in scoreInput) Result {
 // from centerlineLoop, a rectangle offset half a corridor width from each
 // wall -- an approximation with SQUARE corners, no centreline bias and no
 // arcs, which is not a path any robot in this project has ever been asked to
-// drive. Measured on the full 640-case Open space: the approximation scored
-// 37/640 against Python's 638/640, with the failures concentrated at corner
-// entry, because a square corner asks for a turn no Ackermann chassis can
-// execute.
+// drive. The approximation scored far below the real planner on the Open
+// space, with the failures concentrated at corner entry, because a square
+// corner asks for a turn no Ackermann chassis can execute. See
+// adr:0068-go-parallel-track-single-cutover.
 func (r *NativeRunner) buildScenario(
 	meta generate.Metadata,
 ) (trackmodel.CorridorGeometry, scenarioStart, []trackmodel.Waypoint, error) {

@@ -168,3 +168,28 @@ narrow prior could not fire before the wall arrived.
   is bigger than the wide gain; the key was later retired and the shipped tree
   keeps one preview value. The wide corridor receives the tighter arc (0.40
   against narrow's 0.45), so its straight is 0.86 m against 1.29 m.
+- Waypoint advance past a passed point. Measured on the 2026-08-06
+  counterclockwise round: crosstrack ran 0.26 to 0.51 m against the 0.20 m
+  reached-radius, the index froze on the last waypoint at t=90 s, and the robot
+  circled the mat for a further 7 minutes with the lap count stuck at 0.
+  STALE_TARGET_RESCUE was root-caused on go_obstacles_0042 under the `wideonly`
+  (85 deg steering) profile, subset64.
+- run_20260831_224600, first corner: the index froze on waypoint 8 at (0.35, 1.00)
+  for FOUR SECONDS while the chassis swept past it; pure pursuit turned back for
+  it and heading ran 172 -> 151 -> 130 -> 107 -> 66 -> 14 deg, about 160 deg where
+  the corner needed 90, with forward clearance collapsing 0.21 -> 0.11 m into the
+  wall. The index then jumped 8 -> 11 once the overshoot was unrecoverable. The
+  distance test cannot catch this by construction: overshoot a waypoint and both
+  it and its successor recede every tick, so `next_closer` never closes.
+  STALE_TARGET_RESCUE was measured on Obstacles at 2 to 5 percent and refuted
+  there.
+- Path-sense gate measured 2026-09-12 inside the known reversal windows, against a
+  clean 3-lap control reading 0.7 percent: wrong-sense targets ran 56 to 91 percent
+  of ticks before the span bound shipped and 2.8 percent after, while
+  target-behind-the-chassis went from 0.0 percent exactly to 35.4 percent. The
+  bound converted the failure rather than closing it; see
+  `scripts/bag/diag_bag_target_loop_sense.py`.
+- Lookahead arming anchors: on hardware crosstrack ran 0.09 -> 0.15 through a
+  corner and never crossed 0.30, so the lookahead stayed long and the curvature
+  stayed weak; the moment crosstrack reached 0.13 the short lookahead armed and
+  steering jumped to 0.52.

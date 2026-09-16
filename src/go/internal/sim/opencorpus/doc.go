@@ -19,10 +19,10 @@
 //
 // cmd/simgen can already emit Open scenarios, but it RANDOMIZES them from
 // a seed. That is the wrong tool here: a randomized draw cannot reproduce
-// "case 300" or the cluster {38, 64, 71, 207, 264, 368, 407, 426} that
-// several Open findings are recorded against. This package reproduces
-// Python's enumeration exactly so a case index means the same scenario in
-// both languages.
+// the specific case indices and failure clusters that several Open findings
+// are recorded against. This package reproduces Python's enumeration exactly
+// so a case index means the same scenario in both languages. See
+// adr:0087-test-methodology.
 //
 // # Enumeration order is load-bearing
 //

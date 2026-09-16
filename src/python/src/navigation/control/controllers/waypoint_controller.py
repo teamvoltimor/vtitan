@@ -50,11 +50,11 @@ def _agrees_with_path_sense(
     only how far the scan may WALK. A point one metre along the path in the
     wrong sense is still one metre away and still in the forward half-plane of
     a chassis that has already rotated, so ``x_local > 0`` admits it freely.
-    Measured 2026-09-12 inside the known reversal windows, against a clean
-    3-lap control reading 0.7%: wrong-sense targets ran 56-91% of ticks before
-    the span bound shipped and 2.8% after, while target-behind-the-chassis went
-    from 0.0% exactly to 35.4%. The bound converted the failure rather than
-    closing it -- see ``scripts/bag/diag_bag_target_loop_sense.py``.
+    Measured inside the known reversal windows, against a clean 3-lap control:
+    the span bound converted the wrong-sense failure into a
+    target-behind-the-chassis failure rather than closing it -- see
+    ``scripts/bag/diag_bag_target_loop_sense.py`` and
+    ``adr:0052-pursuit-target-selection``.
 
     The path direction is the outgoing bearing at the candidate, which needs no
     track model and no new geometry: it is the same quantity
@@ -243,22 +243,22 @@ class WaypointController:
 
         The threshold is the smaller of ``lookahead_transition`` and what the
         path itself can afford (see :meth:`set_crosstrack_budget`). The fixed
-        value assumes 0.30 m of room to drift into, which the blind narrow
-        prior does not leave: on hardware crosstrack ran 0.09 -> 0.15 through a
-        corner and never crossed 0.30, so the lookahead stayed long and the
-        curvature stayed weak the whole way into the wall. The loop above is
-        sound; it was armed past the point of no return. See
-        ``adr:0052-pursuit-target-selection``.
+        value assumes room to drift into that the blind narrow prior does not
+        leave: on hardware crosstrack stayed under the threshold through a
+        corner, so the lookahead stayed long and the curvature stayed weak the
+        whole way into the wall. The loop above is sound; it was armed past the
+        point of no return. See ``adr:0052-pursuit-target-selection``.
 
         Crosstrack is nonetheless a *lagging* signal -- it cannot rise until
         the corner has already been missed -- so it is joined here by the
         planned path's own upcoming turn, which is known in advance. On
-        hardware the robot sat at 0.9 rad of heading error for three seconds
-        commanding 0.23 of full lock, because it was still on-path and so still
-        on the long lookahead; the moment crosstrack reached 0.13 the short
-        lookahead armed and steering jumped to 0.52. The magnitude was right
-        and the timing was a corner late. Previewing the turn arms the same
-        response on entry instead. See ``adr:0052-pursuit-target-selection``.
+        hardware the robot sat at a large heading error for seconds while still
+        commanding a small fraction of full lock, because it was still on-path
+        and so still on the long lookahead; only once crosstrack rose did the
+        short lookahead arm and steering jump to a much larger command. The
+        magnitude was right and the timing was a corner late. Previewing the
+        turn arms the same response on entry instead. See
+        ``adr:0052-pursuit-target-selection``.
 
         Either signal alone shortens the lookahead. Curvature (``2y/L**2``) is
         quadratic in lookahead, so halving it quadruples the commanded turn

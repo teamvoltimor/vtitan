@@ -15,8 +15,7 @@ CAPTURED_AT_KEY = "captured_at"
 
 The consumer converts a bearing into a world position using the pose the
 camera saw from; pairing a detection with the pose at RECEIPT instead is late
-by the vision latency. Correcting the pairing takes the bearing residual from
-20.2 deg to 5.4 deg. See
+by the vision latency and leaves a bearing residual. See
 ``adr:0058-sign-discovery-range-and-barrier-belief``.
 
 Absent from payloads written by an older vision_node, so every reader must

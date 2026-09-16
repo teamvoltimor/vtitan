@@ -151,3 +151,13 @@ mistake and it wrongly excluded the 0.10 arm.
   precision against a 45 percent base). `corner_leak_margin_m = 0.35` is added to
   WIDE for the side that has leaked past the inner block; `corner_speed_scale` and
   `reverse_speed_scale` are 0.6.
+- `replace_path`'s backward-step guard: measured on hardware 2026-09-08 as an
+  19 -> 16 index step in `normal_drive`, corridor north, lap 0, in BOTH 3-lap runs
+  (run_20260908_001541 t=12.81 s, run_20260908_003041 t=10.85 s) while the yaw was
+  swinging through the corner, the same index pair twice. Against the measured
+  0.29 m minimum turn radius, the target-behind full-lock branch is a U-turn
+  attempt inside a corridor.
+- `validate_path_feasibility`'s prior form added `arc_radius` to a lateral
+  half-extent, which are not commensurable (a path curvature against a width),
+  and ignored `center_bias_m`, so it scored a centred path and a biased one
+  identically while the bias was what actually spent the margin.

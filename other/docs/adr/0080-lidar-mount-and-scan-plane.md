@@ -92,3 +92,10 @@ decode was never validated on this hardware and read 2 to 4 times too large.
 - `nav_debug.min_lidar_range_m` bottoms near 0.006 m on every run because the
   gateway leaves invalid near-zero returns in the scan; read `/scan` directly with
   the gateway's own mount correction.
+- The localizer's candidate search must predict from the sensor mount, not the
+  chassis centre: the C1 sits `lidar.mount_x_offset` forward of centre, flush with
+  the bumper, so a scan taken there cannot be reproduced by casting from the
+  centre. Until 2026-08-21 it cast from the centre, biasing every forward ray by
+  the offset and pulling the fit along the corridor axis; the simulator raycast
+  from the centre too, so the two agreed and the error was invisible in sim while
+  present on hardware.

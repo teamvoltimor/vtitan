@@ -52,6 +52,15 @@ margin for that.
 - 0b0980c6 2026-08-01: fire on the press, not the release; add hold-to-power-off.
 - 36ce1a9a 2026-08-01: show the hold countdown, thresholds from the button node.
 - 3b6456d5 and b982e109 2026-09-13: schemas and rationale.
+- `ui_refresh_rate_hz = 10.0` is the OLED's own redraw cadence, and the telemetry
+  bridge's `ui_summary_rate_hz` is matched to it; anything lower made every other
+  redraw show stale numbers, so the two rates stay tied.
+- The latched state/diagnostic QoS ships BEST_EFFORT, not RELIABLE: the Pi Zero's
+  OLED was measured stalling for 30+ seconds under its own CPU/memory contention,
+  and RELIABLE's flow control holds a writer's `publish()` until the matched
+  reader acks, so a RELIABLE `/robot_state` publisher would block the Pi 5's whole
+  single-threaded executor for the same duration. A dropped sample is corrected on
+  the next tick.
 
 ## Refuted
 

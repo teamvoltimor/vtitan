@@ -985,12 +985,11 @@ class CollisionAvoidanceController:
         into a corner can be touching in front while its side sector still
         reads clear, so a SIDE_CORRECTION whose "already touching" check only
         looks sideways keeps creeping forward into the wall it is already
-        touching instead of reversing -- measured on hardware pinning a robot
-        nose-first for up to 23s across three runs that never recovered
-        (2026-08-28). Reuses ``assess_risk``'s own forward-path geometry (the
-        chassis-width lane, not ``detect_threat_direction``'s narrower angular
-        cone) so this agrees with whatever risk level triggered the escape in
-        the first place.
+        touching instead of reversing. See ``adr:0056-raw-and-masked-scan``.
+        Reuses ``assess_risk``'s own forward-path geometry (the chassis-width
+        lane, not ``detect_threat_direction``'s narrower angular cone) so this
+        agrees with whatever risk level triggered the escape in the first
+        place.
         """
         if lidar_ranges is None or len(lidar_ranges) == 0:
             return False

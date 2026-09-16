@@ -38,9 +38,10 @@ type Config struct {
 	// LateralOffsetM is the lateral deformation magnitude (m), matching
 	// SignRouterConfig.lateral_offset. Not a raw tunable: it is chassis
 	// half-diagonal + sign half-width + SIGN_CLEARANCE_MARGIN_M, computed
-	// by DefaultConfig/ConfigFor rather than restated as a literal (see
-	// TestLateralOffsetTracksChassis in test_sign_router.py -- a 0.28mm
-	// chassis-width change was enough to flip a corpus scenario).
+	// by DefaultConfig/ConfigFor rather than restated as a literal; even a
+	// tiny chassis-width change was enough to flip a scenario (see
+	// TestLateralOffsetTracksChassis in test_sign_router.py). See
+	// adr:0051-sign-lane-planner.
 	LateralOffsetM float64
 	// ActivationDistM matches SignRouterConfig.activation_dist: deformation
 	// activates when the robot is within this distance of a sign (m).

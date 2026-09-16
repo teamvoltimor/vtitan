@@ -2,20 +2,18 @@
 
 ``ObservedSignMap`` tracks whatever the camera reports and tries to decide, from
 position alone, which reports describe the same pillar. That question is not
-answerable here: the believed position carries 0.15-0.25 m of error while two
-DISTINCT legal pillars sit 0.20 m apart across the lane pair and 0.50 m apart
-along a section. So the map invents pillars -- 9 to 25 believed on a track that
-physically holds at most 8, with roughly half of all believed positions matching
-no legal cell at all -- and that single defect costs half the sample of every
-geometric measurement this project makes.
+answerable here: the believed position carries enough error that two DISTINCT
+legal pillars sitting close together cannot be told apart, so the map invents
+pillars, with roughly half of all believed positions matching no legal cell at
+all, and that single defect costs half the sample of every geometric
+measurement this project makes.
 
 FOUR attempts to repair it at PUBLICATION time are on file and all failed,
 because each one still had to answer "is this the same object" from position:
 
 * position-keyed merging, two variants: measured worse than baseline;
-* ``SNAP_TO_LATTICE_M`` quantisation at 0.40: routing errors appeared to halve
-  while 264 passes vanished from the denominator and the PEAK believed count
-  ROSE from 26 to 40;
+* ``SNAP_TO_LATTICE_M`` quantisation: routing errors appeared to halve while
+  passes vanished from the denominator and the PEAK believed count ROSE;
 * a per-section cardinality cap: it retains REAL signs, because a phantom that
   published first holds the slot. Being monotone is what made it safe and is
   exactly what stops the real pillar entering later.
@@ -31,37 +29,34 @@ two of six cells does each section's evidence support? Evidence accumulates per
 cell and the assignment is recomputed every tick, which is the axis the
 cardinality cap could not move.
 
-MEASURED over 125 bags against the shipped map on identical observations:
+Measured over the bag corpus against the shipped map on identical observations
+(see the ADR for the table):
 
-| | shipped | slots |
-|---|---|---|
-| worst peak believed | 24 | **7** |
-| runs over the physical max | 32/125 | **0/125** |
-| re-points / colour flips while COMMITTED | 1062 / 66 | **0 / 0** |
+- a much lower worst peak believed count, and no runs over the physical max;
+- no re-points or colour flips while COMMITTED.
 
 The headline routing error and per-run position changes are in
 ``adr:0058-sign-discovery-range-and-barrier-belief``.
 
 **The win is CARDINALITY, not lane accuracy.** Which of the two lanes a pillar
-lands in is close to a coin flip (the lane partner has zero evidence 21% of the
-time, and the cut is clear in 70%), and it does not matter for routing:
+lands in is close to a coin flip (the lane partner often has zero evidence, and
+the cut is only sometimes clear), and it does not matter for routing:
 ``pass_side_lateral_axis`` keys on (corridor, direction, colour) and position
 never enters it, so a lane error cannot invert the side the rule demands. The
-adversarial control settles it -- deliberately flipping every lane routes at
-14.3% against 15.8% correct. What the assignment buys is that the router stops
-committing to phantoms that contradict each other. Lane error is not free, it
-lands on EXECUTION instead (+7 points).
+adversarial control settles it: deliberately flipping every lane routes at about
+the same rate as the correct assignment. What the assignment buys is that the
+router stops committing to phantoms that contradict each other. Lane error is
+not free, it lands on EXECUTION instead.
 
 **Colour pooling is REFUTED.** Pooling a cell's colour vote with its neighbours
-does not remove flips, it relocates them (at radius 0.00/0.25/0.55 the totals
-are 157/159/166). What removes the flips that matter is freezing the slot the
-router is committed to. See
+does not remove flips, it relocates them. What removes the flips that matter is
+freezing the slot the router is committed to. See
 ``adr:0058-sign-discovery-range-and-barrier-belief``.
 
-NEVER screen any of this in the simulator. Its sign map is exact (0.0% of ticks
-above the physical maximum, against 86% on hardware), so every number above
-collapses to zero there. That blindness is why a 256-scenario sweep once refuted
-four dedup fixes that were real.
+NEVER screen any of this in the simulator. Its sign map is exact (almost no ticks
+above the physical maximum, against most ticks on hardware), so every number
+above collapses to zero there. That blindness is why a simulator sweep once
+refuted four dedup fixes that were real.
 """
 
 from __future__ import annotations
@@ -185,8 +180,8 @@ class SlotSignMap:
         self._retired: set[int] = set()
         """Router indices that have been passed. Re-pointing one would make an
         unpassed pillar inherit the "behind us" flag and vanish for the rest of
-        the lap -- measured on 168 of 708 re-points -- so those get a fresh slot
-        instead."""
+        the lap, so those get a fresh slot instead. See
+        ``adr:0058-sign-discovery-range-and-barrier-belief``."""
 
     # ---------------------------------------------------------------- ingest
 
@@ -219,8 +214,8 @@ class SlotSignMap:
 
         Further than ``SLOT_ACCEPT_RADIUS_M`` from every cell, it claims NOTHING
         rather than being pulled to the nearest. A pillar cannot stand off the
-        lattice, so such a reading is about measurement, not about the world,
-        and 12.2% of observations are in that class.
+        lattice, so such a reading is about measurement, not about the world.
+        See ``adr:0058-sign-discovery-range-and-barrier-belief``.
         """
         best: Cell | None = None
         best_d = self._accept_r
@@ -262,21 +257,13 @@ class SlotSignMap:
     def _one_per_depth(self, section: Section, ranked: list[Cell]) -> list[Cell]:
         """The section's top cells, at most one per depth line, up to the cap.
 
-        The rulebook's 36-scenario table never puts two pillars on the same
-        depth line: every double is depth 1.0 plus depth 2.0, and 1.5 only ever
-        appears alone (verified over all 24 doubles and all 514 same-section
-        pairs in the 256 corpus). So a section that believes BOTH laterals of
-        one depth is not believing two pillars, it is believing one pillar
-        twice -- which is exactly what a 0.1 m pose bias does to a pillar
-        standing between the 0.4 m and 0.6 m lanes.
-
-        MEASURED on run_20260915_002408 (counter-clockwise, 3/3 laps): the east
-        section's two slots were held by (2.4, 1.0) AND (2.6, 1.0), one green
-        pillar the LIDAR places at x = 2.49-2.55, and the red pillar the LIDAR
-        places at (2.40, 1.88) was refused for the whole round -- 55 fused
-        observations landed on its cell and never displaced either twin. The
-        chassis then escaped 30 times in one 0.5 m cell against a pillar its
-        map did not contain. The same twin pair shows on run_20260914_215248.
+        The rulebook never puts two pillars on the same depth line: every double
+        is depth 1.0 plus depth 2.0, and 1.5 only ever appears alone. So a
+        section that believes BOTH laterals of one depth is not believing two
+        pillars, it is believing one pillar twice, which is exactly what a small
+        pose bias does to a pillar standing between the 0.4 m and 0.6 m lanes.
+        The corpus verification and the traced failure are in
+        ``adr:0058-sign-discovery-range-and-barrier-belief``.
 
         Choosing the heavier lateral per depth frees the second slot for a real
         pillar at another depth and drops nothing the rules could have placed.
@@ -297,11 +284,11 @@ class SlotSignMap:
         """Point this section's LIVE slots at ``wanted``, never opening a third.
 
         The cap is the whole point of this map, so it is enforced on every path
-        out of this method rather than assumed. An earlier version opened a slot
-        whenever no incumbent was displaceable, which let a section hold three --
-        measured on run_20260911_225646 as a believed-sign peak of 12 against the
-        physical maximum of 8. It still beat the shipped map's 64, which is
-        exactly why the leak needed catching rather than celebrating.
+        out of this method rather than assumed.         An earlier version opened a slot
+        whenever no incumbent was displaceable, which let a section hold three.
+        It still beat the shipped map, which is exactly why the leak needed
+        catching rather than celebrating. See
+        ``adr:0058-sign-discovery-range-and-barrier-belief``.
 
         Slots at a RETIRED index do not count: the router excludes ``_passed``
         from ``active_sign_count``, so they are not live pillars and refusing to
@@ -348,12 +335,11 @@ class SlotSignMap:
         """Whether ``challenger`` beats ``incumbent`` by the hysteresis margin.
 
         A bare comparison churns: the cut between the last accepted cell and the
-        first rejected one is clear (2x or better) in only 56.5% of
-        section-runs, p10 ratio 1.20, so roughly a third of assignments would
-        flip on noise. At margin 1.5 the churn halves for a median 0.55 s of
-        phantom hold (p90 9.2 s); above 2.0 the tail and the count of challengers
+        first rejected one is rarely clear, so a large share of assignments
+        would flip on noise. The hysteresis margin halves the churn for a short
+        phantom hold; above a certain point the tail and the count of challengers
         that lead at the end and never get the slot grow faster than the churn
-        falls.
+        falls. See ``adr:0058-sign-discovery-range-and-barrier-belief``.
         """
         incumbent_weight = self._weight(incumbent)
         if incumbent_weight <= 0.0:
@@ -374,12 +360,12 @@ class SlotSignMap:
 
         A slot whose router index has already been PASSED cannot be re-pointed:
         the router keys ``_passed`` by index, so the new pillar would inherit the
-        "already behind us" flag and be invisible until the lap resets. Measured
-        on 168 of 708 re-points (24%), which is not a corner case. A fresh slot
-        costs one more index and recovers those pillars -- 23 passes over 125
-        runs, at +1.0 point of routing error that is newly MEASURED exposure
+        "already behind us" flag and be invisible until the lap resets, which is
+        not a corner case. A fresh slot costs one more index and recovers those
+        pillars, at a small routing-error cost that is newly MEASURED exposure
         rather than newly created, since the router previously never committed
-        to them at all.
+        to them at all. See
+        ``adr:0058-sign-discovery-range-and-barrier-belief``.
         """
         if slot.published_index is not None and slot.published_index in self._retired:
             self._open_slot(cell, slot.section)
@@ -420,10 +406,11 @@ class SlotSignMap:
         """Freeze the slot the router is committed to, and thaw the rest.
 
         The freeze is what removes the colour churn this design would otherwise
-        have: flips while committed go 66 to 0 and re-points 166 to 0, and
-        routing IMPROVES (15.8% to 15.0%). It costs a delay, not a decision -- a
+        have: flips while committed and re-points both fall to zero, and routing
+        improves rather than degrades. It costs a delay, not a decision -- a
         commitment is short and the evidence that would have moved the slot is
-        still there when it ends.
+        still there when it ends. See
+        ``adr:0058-sign-discovery-range-and-barrier-belief``.
         """
         for slot in self._slots:
             slot.frozen = slot.published_index is not None and slot.published_index == index
@@ -438,13 +425,11 @@ class SlotSignMap:
                 for passed_index in self._passed:
                     retire(passed_index)
 
-        A note here claimed the opposite from 2026-09-13 to 2026-09-15 and cost
-        a session: the call is duck-typed through a local, so ``grep for a dotted .retire(``
-        and ``grep '_sign_map.retire'`` both miss it and only ``grep 'retire('``
+        A note here once claimed the opposite and cost a session: the call is
+        duck-typed through a local, so ``grep for a dotted .retire(`` and
+        ``grep '_sign_map.retire'`` both miss it and only ``grep 'retire('``
         finds it. ``ObservedSignMap`` really has no ``retire``, so the NON-slot
-        arm is unwired, which is what made the wrong reading look plausible. The
-        wiring landed 2026-09-11 in ``dabd57c7``; the NOT-WIRED note landed two
-        days after it.
+        arm is unwired, which is what made the wrong reading look plausible.
 
         WHAT IS ACTUALLY BROKEN is the other half, and it is an asymmetry.
         ``SignRouter.reset_for_new_lap`` clears ``_passed`` and never forwards
@@ -453,16 +438,11 @@ class SlotSignMap:
         slots, so each section is then free to open two more, and a 3-lap round
         ratchets toward 6 published indices per section against a physical 2.
 
-        Measured 2026-09-15 over five rounds spanning two builds: **zero ticks
-        reading over 8 on lap 1** -- the cap holds exactly while
-        ``_passed == _retired`` -- against 20-53% of ticks on laps 2 and 3, peak
-        14. Longstanding rather than a regression; the 2026-09-14 rounds show it
-        identically.
-
         Forwarding the lap reset is therefore NO LONGER a no-op. It is a real
         behaviour change and needs its own A/B: the design was measured as a
-        package (23 recovered passes over 125 runs at +1.0 point of routing
-        error) and it trades index growth for recovered pillars.
+        package and it trades index growth for recovered pillars. The tick
+        distribution and the recovered-pass cost are in
+        ``adr:0058-sign-discovery-range-and-barrier-belief``.
         """
         self._retired.add(index)
 
@@ -473,7 +453,7 @@ class SlotSignMap:
         branch: ``retire`` above IS wired, so ``_retired`` is populated, and
         ``SignRouter.reset_for_new_lap`` clearing ``_passed`` without clearing
         this leaves the two sets disagreeing for the rest of the round. See
-        ``retire``'s docstring for the measurement (0% of lap-1 ticks over the
-        physical max, 20-53% afterwards).
+        ``retire``'s docstring, and the measurement in
+        ``adr:0058-sign-discovery-range-and-barrier-belief``.
         """
         self._retired.clear()

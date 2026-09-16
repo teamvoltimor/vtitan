@@ -142,3 +142,14 @@ infraction. The exit must be evaluated against the default contact model.
   run_20260828_220533 showed the controller saturating at hard corners (steering
   swinging exactly 0.6 rad); past sweeps only tested RAISING it, both of which
   scored worse (107 against 114).
+- `joint_states` is recorded because it is the guard's ONLY state input, the
+  drive-wheel position the pocket pose is dead-reckoned from (`drive_speed` is a
+  smoothed estimate with a different bias). It had to be added to the bags: an
+  offline replay of the 14.2 s deadlock from the 2026-09-06 bags could not be
+  made faithful, because reconstructions that reproduced the stall destroyed the
+  runs that escaped and no single reconstruction exceeded 90 percent agreement on
+  all three runs.
+- The reverse-then-swing and cycle exits are complementary under the sim contact
+  model: each leaves the bay 254/256 where the other leaves 0/256, so a fallback
+  between them (`bay_exit_fallback_frames`) is cheap insurance while which one
+  matches the real robot is unknown.

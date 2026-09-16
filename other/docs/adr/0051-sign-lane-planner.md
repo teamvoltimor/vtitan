@@ -169,3 +169,19 @@ centre bias the corridor width selected (ADR 0028). It must never flatten that.
   `pair_handoff_span_m` blends to the next sign's line only after the REAR clears
   (blending from the pose ORIGIN cost 12 to 16); its benefit is unprovable on this
   corpus, which has no pass-side assertion.
+- `_hold_committed_path` measured on subset64 blind: 10 percent of rebuilds moved
+  the path away from the chassis by up to 0.301 m, essentially a whole lane
+  offset.
+- The lane and the deform answer the same question. Measured 2026-09-11 over 129
+  bags: on failed CROSSING passes the lane reached the legal side on 37.4 percent
+  of passes while the deform's target was on it on 47.3 percent. Where the deform
+  did land legal the pass failed 62.6 percent against 82.1 percent where it did
+  not (chi2 = 17.0, p = 4e-5). The deform is used only where the lane is not
+  already holding the target on the legal side, so the two can never add.
+- `explore_lap_speed_frac` measured on subset64: 78 percent of blind failures
+  happen during lap 1, 9 percent in lap 2, none in lap 3, so the cap slows only the
+  discovering first lap, when the map does not yet exist.
+- `lateral_offset` is chassis half-diagonal + sign half-width + the clearance
+  margin, derived rather than restated: `TestLateralOffsetTracksChassis` measured
+  that a 0.28 mm chassis-width change was enough to flip a corpus scenario, so the
+  offset must track the live chassis geometry.

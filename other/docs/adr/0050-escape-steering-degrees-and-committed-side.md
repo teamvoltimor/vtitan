@@ -126,6 +126,20 @@ corpus cannot adjudicate it. Settle it on a counter-clockwise hardware round.
 - 6700b8a1 2026-09-15: the escape pendulum is a HANDOFF, not a mirror that fails
   to fire. Three CCW rounds: 168/172, 322/326, 72/76 reversals cross out of the
   escape (95 to 99 percent are the escape-to-planner handoff).
+- Lateral displacement follows the STEERING side in 86 to 88 percent of measured
+  episodes and the nose's side in 12 percent. Because a K-turn is 100 percent
+  reverse, `_committed_sign_steer_sign` uses the steering side, not the nose's.
+- Resolving the speed tier must cover the sign lane's band changes: they demand
+  0.335 to 0.371 m of turn radius over the 256-scenario corpus, against the speed
+  curve `R = 0.053 + 1.86v`.
+- `escape_preferred_sign` written on `self._debug` before the escape branch hands
+  the snapshot over published on 0 of 2,867 ticks of a full Obstacles scenario. It
+  must be set on the local `debug` object the escape branch reassigns.
+- A side correction is a 16.5 deg nudge lasting 0.20 s, not a manoeuvre. Measured
+  2026-09-11: a latched manoeuvre supplied 100 percent of the commanded steering
+  while `steer_target` went unpublished on 92 to 93 percent of its ticks, so the
+  two layers alternated and undid each other at 2.7 to 4.4x absolute over signed
+  wheel travel. The correction is ADDED to the plan, not substituted for it.
 
 ## Cross-references
 

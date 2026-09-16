@@ -297,15 +297,11 @@ class ROS2HardwareGateway(HardwareGateway):
         # geometry, seeded from the previous estimate.
         #
         # Seeding it with encoder dead reckoning instead was tried and
-        # rejected. The robot covers 0.8 cm between scans in simulation and
-        # about 1.6 cm on the real C1 at full speed, against 3 cm of LIDAR
-        # noise -- so "assume it barely moved" is not an approximation, it is
-        # true, and the correction is smaller than the noise on the
-        # measurement it would seed. Measured over the 28 fixtures it changed
-        # the sighted peak error not at all and made the blind peak error 2.5x
-        # worse (20.8 -> 52.2 cm), because blind means the wall model itself is
-        # wrong and dead reckoning between poor fixes compounds drift rather
-        # than staying anchored to the last one.
+        # rejected: the robot barely moves between scans relative to the LIDAR
+        # noise, and blind means the wall model itself is wrong, so dead
+        # reckoning between poor fixes compounds drift rather than staying
+        # anchored to the last one. See
+        # ``adr:0084-localizer-divergence-and-relocalization``.
         prior_pose = self._estimator.estimate_pose()
         # Recorded before the call, not reconstructed from the pose afterwards:
         # these are the localizer's actual inputs, and the whole point is to be
@@ -411,9 +407,9 @@ class ROS2HardwareGateway(HardwareGateway):
         """The pose the CAMERA saw from, not the pose by the time a box arrives.
 
         A detection is only useful as a bearing plus a range; turning that into a
-        world position needs the pose at CAPTURE. The pipeline takes time --
-        measured 0.85 s end to end on run_20260906_232408/_232748 -- and at
-        0.3 m/s through a corner that is most of a sign's lateral offset.
+        world position needs the pose at CAPTURE. The pipeline takes time, and at
+        0.3 m/s through a corner that lag is most of a sign's lateral offset. See
+        ``adr:0058-sign-discovery-range-and-barrier-belief``.
 
         Uses the frame's own ``captured_at`` when the vision node supplied one,
         and otherwise steps back by ``VISION_LATENCY_S``, so an older vision_node
@@ -449,17 +445,14 @@ class ROS2HardwareGateway(HardwareGateway):
         for det in self._latest_detections:
             # An unknown corridor counts as "the barrier could be here": the
             # label is unset at the start, in and around the bay, which is
-            # exactly where the barrier is. Measured: 72% of wall-shaped red
-            # detections carry no corridor label.
+            # exactly where the barrier is. See
+            # ``adr:0058-sign-discovery-range-and-barrier-belief``.
             #
             # The lot's NEIGHBOURS count too, because a corridor boundary is not
             # a sight line: the camera spans 102 deg and sees down the next
-            # straight from a corner. Measured 2026-09-11 over three rounds, the
-            # shape gate admitted 293 wall-shaped reds on the strength of this
-            # test and 257 of them (88%) were taken from the corridor NEXT to
-            # the lot's -- which is also where 55 of the barrier's own 220
-            # magenta detections come from, so the barrier demonstrably IS
-            # visible from there.
+            # straight from a corner, and the barrier is demonstrably visible
+            # from there. See
+            # ``adr:0058-sign-discovery-range-and-barrier-belief``.
             barrier_possible = (
                 self._parking_corridor is None
                 or current_corridor is None

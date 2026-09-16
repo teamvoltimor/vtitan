@@ -100,3 +100,22 @@ real maintenance cost.
 - Protobuf uniformly (no two-tier JSON split), no gRPC or Connect (NATS
   request-reply), cobra/pflag/viper CLIs, and go-playground validator for config
   against protovalidate for the wire.
+- The native runner's start-collision grace: before it existed any tick of
+  contact with a forbidden surface ended the run instantly, so a legal start
+  pose a few mm from the outer wall scored as an immediate collision. Measured
+  on the balanced-128 Open corpus (seed 2026): 17/128 collisions native against
+  0/128 on the frozen Python oracle over the same scenarios.
+- The Go LIDAR floor shipped at 0.15 m against robot.toml's 0.045 m, so the
+  simulated sensor went blind more than three times further out than the real
+  C1; a sweep of the 256-scenario Obstacles corpus collided in 214 runs against
+  the Python oracle's 21, with contact concentrated on obstacles within the
+  first lap. Sourcing the floor from robot.toml is what closes the gap.
+- The native runner's path used to come from `centerlineLoop`, a rectangle
+  offset half a corridor width from each wall with square corners and no arcs.
+  Measured on the full 640-case Open space the approximation scored 37/640
+  against Python's 638/640, failures concentrated at corner entry, because a
+  square corner asks for a turn no Ackermann chassis can execute.
+- The Go blind bootstrap once followed at the creep tier (0.1014 m/s) instead of
+  Python's medium tier (0.1326 m/s), running the blind phase about 24 percent
+  slower than the Python oracle; the two tiers are separate policies and the
+  blind follow must take the medium one.

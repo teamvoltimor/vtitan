@@ -26,8 +26,9 @@ config in this repo follows (VisionNode's own Config, NavigationTuning, etc.).
 
 The HEADING line is the "gyroscope" stat -- deliberately read from
 NavigatorDebugSnapshot's pose_yaw (already IMU-quaternion-fused by the pose
-estimator), not from a raw /imu/data angular_velocity subscription, which
-reads zero on this hardware (a known quirk from earlier work; see memory).
+estimator), not from a raw /imu/data angular_velocity subscription, which is
+all zeros on this hardware. See
+``adr:0084-localizer-divergence-and-relocalization``.
 """
 
 from __future__ import annotations
@@ -118,11 +119,11 @@ def _fmt(value: Any, unit: str = "") -> str:
 def _fmt_heading_deg(pose_yaw_rad: float | None) -> str:
     """Heading in degrees, from the estimator's own IMU-fused pose_yaw.
 
-    Not raw IMU angular_velocity, which reads zero on this hardware -- see
-    the module docstring's "gyroscope" note. pose_yaw is already the correct
-    source: same quaternion-derived heading telemetry_bridge_node computes
-    for the OLED, just read from NavigatorDebugSnapshot instead of a second
-    /imu/data subscription.
+    Not raw IMU angular_velocity, which is all zeros on this hardware; see
+    ``adr:0084-localizer-divergence-and-relocalization``. pose_yaw is already
+    the correct source: same quaternion-derived heading telemetry_bridge_node
+    computes for the OLED, just read from NavigatorDebugSnapshot instead of a
+    second /imu/data subscription.
     """
     if pose_yaw_rad is None:
         return "--"

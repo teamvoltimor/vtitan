@@ -12,9 +12,9 @@ import (
 // blindFollowSpeedMPS is the speed the blind bootstrap follows at, both for
 // the creep along the corridor and for the in-bay exit. Matches Python's
 // ScenarioSimulator._blind_follow_speed, which is speed.medium_mps() -- the
-// MEDIUM tier (0.1326 m/s), NOT the creep tier. The creep tier (0.1014) is a
-// separate, slower policy used elsewhere; using it here made Go's blind phase
-// run ~24% slower than the Python oracle.
+// MEDIUM tier, NOT the creep tier. The creep tier is a separate, slower
+// policy used elsewhere; using it here made Go's blind phase run slower than
+// the Python oracle. See adr:0068-go-parallel-track-single-cutover.
 func (n *Navigator) blindFollowSpeedMPS() float64 {
 	return n.cfg.MediumSpeedMPS()
 }

@@ -232,8 +232,9 @@ func (m *SlotSignMap) Publish() {
 
 // claim attributes one observation to the legal cell it is claiming, if any.
 // Further than acceptR from every cell, it claims NOTHING rather than being
-// pulled to the nearest: a pillar cannot stand off the lattice, so 12.2% of
-// such readings are about measurement, not the world.
+// pulled to the nearest: a pillar cannot stand off the lattice, so a reading
+// that far out is about measurement, not the world. See
+// adr:0058-sign-discovery-range-and-barrier-belief.
 func (m *SlotSignMap) claim(obs TrafficSignObservation) {
 	best := trackmodel.Waypoint{}
 	bestD := m.acceptR
@@ -363,8 +364,9 @@ func (m *SlotSignMap) applySection(section trackmodel.Section, wanted []trackmod
 }
 
 // displaces reports whether challenger beats incumbent by the hysteresis
-// margin. A bare comparison churns: the cut is clear 2x or better in only
-// 56.5% of section-runs, so about a third of assignments would flip on noise.
+// margin. A bare comparison churns: the cut is rarely clear by a wide margin,
+// so about a third of assignments would flip on noise. See
+// adr:0058-sign-discovery-range-and-barrier-belief.
 func (m *SlotSignMap) displaces(challenger, incumbent trackmodel.Waypoint) bool {
 	incumbentWeight := m.weight(incumbent)
 	if incumbentWeight <= 0.0 {

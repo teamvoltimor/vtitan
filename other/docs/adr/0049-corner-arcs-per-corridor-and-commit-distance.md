@@ -138,3 +138,17 @@ verdict.
   into the inner block.
 - 13.75 deg was frozen by the 2026-08-21 units refactor to preserve behaviour on
   the old 55 deg servo; on the 270 deg servo, 0.25 of full lock is 21.25 deg.
+- The park engage distance was sized against a `~0.329 m` R_min computed as
+  `WHEELBASE / tan(MAX_STEERING_ANGLE)` with the steering limit still modelled at
+  30 deg. Both inputs were wrong: the real lock is `~70 deg`, and counter-phase
+  steering pivots about the chassis centre, so the reference length is
+  `WHEELBASE / 2`. True R_min is `~0.034 m`, an order of magnitude smaller, so
+  `arc_radius` (0.45 m) is no longer near this constraint and the engage distance
+  could be tightened on its own merits rather than on this one.
+- First-lap corner caution, under test 2026-08-30: across four track runs the cap
+  pins lap 1 to `slow_mps` (median commanded 0.220 against 0.400 on later laps)
+  and lap 1 carries DOUBLE the heading error (`|angle_error|` p90 1.38 rad against
+  0.68). Lookahead and turn preview are near-identical across laps, so speed is
+  the one variable that moves; slowing appears to make the corner worse, not
+  safer. The planned arc itself was verified safe on 2026-08-28: clearance to both
+  outer walls never drops below what the straights already have.

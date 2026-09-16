@@ -116,3 +116,11 @@ the slowest feed's scan period (LIDAR at 10 Hz).
 - The rotational lock breaks two absolute-XY subsystems (the escape mask and
   sign-discovery association), not raw driving; `8fc832a0` and `f6f1278c` gate
   both on the ROBOT's own corridor (collisions 231 to 202, in-time 13 to 27).
+- Seeding the position solve with encoder dead reckoning between scans was tried
+  and rejected. The robot covers 0.8 cm between scans in simulation and about
+  1.6 cm on the real C1 at full speed, against 3 cm of LIDAR noise, so the
+  correction is smaller than the noise on the measurement it would seed. Measured
+  over the 28 fixtures it changed the sighted peak error not at all and made the
+  blind peak error 2.5x worse (20.8 -> 52.2 cm), because blind means the wall
+  model itself is wrong and dead reckoning between poor fixes compounds drift
+  rather than staying anchored to the last one.

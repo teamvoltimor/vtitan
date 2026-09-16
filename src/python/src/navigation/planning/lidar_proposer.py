@@ -1,17 +1,18 @@
 """Pillar-shaped LIDAR returns, proposed as sign POSITIONS for the camera to colour.
 
-The camera stops resolving signs past ~1.1 m while the LIDAR picks up
-pillar-shaped clusters at a median 1.31 m, so the LIDAR can say WHERE an object
+The camera stops resolving signs at range while the LIDAR picks up
+pillar-shaped clusters further out, so the LIDAR can say WHERE an object
 is well before the camera can say WHAT it is. It cannot replace the camera: the
 WRO pass-side rule is colour-keyed, and a colourless proposal has no side (see
 ``sign_router.routing.pass_side_lateral_axis``). What it buys is POSITION EARLY,
 COLOUR LATE -- when the colour finally arrives, the geometry is already settled
-instead of being established from scratch inside the last 0.3 m.
+instead of being established from scratch in the last stretch before the router
+acts.
 
 Measured against the simulator's known layout and on hardware, the placement
-lattice raises the detector's precision from roughly half to mid-eighties percent
-while giving up a little recall. Measured rationale, the precision/recall table
-and the hardware-transfer figures: ``adr:0058-sign-discovery-range-and-barrier-belief``.
+lattice raises the detector's precision substantially while giving up a little
+recall. Measured rationale, the precision/recall table and the hardware-transfer
+figures: ``adr:0058-sign-discovery-range-and-barrier-belief``.
 
 **The lattice is what makes a proposal trustworthy.** Signs stand on a 6-point
 grid per section -- ``GRID_WIDTH_OUTER``/``_INNER`` 0.4/0.6 m across a 1.0 m

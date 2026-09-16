@@ -33,9 +33,9 @@ type Config struct {
 	MaxCenteringSteerDeg float64
 	// MaxCornerSteerDeg is the corner and back-off branches' own steer angle.
 	// Deliberately NOT shared with the centering clamp: one is sized by the arc
-	// having to fit inside TurnClearanceM, the other by the 2026-08-07 limit
-	// cycle, and after the simulator was calibrated those wanted opposite
-	// values.
+	// having to fit inside TurnClearanceM, the other by the heading-damping
+	// limit cycle, and after the simulator was calibrated those wanted opposite
+	// values. See adr:0049-corner-arcs-per-corridor-and-commit-distance.
 	MaxCornerSteerDeg float64
 	// SteerCapFromCommitDistance re-derives each branch's steering cap from
 	// the distance at which that branch commits, instead of every branch
@@ -103,8 +103,9 @@ type Config struct {
 	// BayExitFallbackFrames is the ticks to give the configured exit before
 	// switching to the OTHER one; 0 = never. The reverse-then-swing and
 	// cycle exits are complementary under the sim contact model (each
-	// 254/256 where the other is 0/256), and which applies to the real
-	// robot is unknown.
+	// succeeds broadly where the other fails outright), and which applies to
+	// the real robot is unknown. See
+	// adr:0060-bay-exit-clearance-guard.
 	BayExitFallbackFrames int
 	// BayExitCycle selects the alternating arc/straight-reverse exit
 	// instead of reverse-then-swing.

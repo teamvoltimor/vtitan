@@ -107,8 +107,7 @@ def detection_to_observation(
     # A pillar is taller than it is wide. Rejecting the rest is what keeps the
     # magenta parking-lot barrier (which reads as RED under motion blur) from
     # seeding a sign every frame it is in view; colour and confidence cannot do
-    # it (those boxes carry the RED label at p50 confidence 0.79). See
-    # ``adr:0058-sign-discovery-range-and-barrier-belief``.
+    # it. See ``adr:0058-sign-discovery-range-and-barrier-belief``.
     #
     # The test is SKIPPED for a box clipped by the frame, because the aspect
     # ratio of a clipped box is not a measurement of the object's shape. A
@@ -218,10 +217,9 @@ def snap_to_lattice(x: float, y: float, max_snap_m: float) -> tuple[float, float
     A pillar does not move during a round, and it can only have been placed at
     one of 24 positions. A believed position that wanders is therefore known to
     be wrong, and quantising it to the lattice removes the wander by
-    construction rather than by damping it. Measured 2026-09-09: within a LIVE
-    commitment the believed position moves p50 7.7 cm, p90 60.9 cm, max 103 cm,
-    which is what drops the sign out of the router's candidate filter and makes
-    the commitment a 0.5 s duty cycle.
+    construction rather than by damping it. The wander it removes, and the
+    router duty cycle it restores, are measured in
+    ``adr:0058-sign-discovery-range-and-barrier-belief``.
 
     ``max_snap_m`` of 0 disables this. Above 0 it is also a REJECTION radius:
     an estimate further than that from every legal point is left alone rather
@@ -251,7 +249,7 @@ def _clustered_range(
     is at this bearing and what colour it is, and the LIDAR is asked only how
     far away it is -- the one thing it measures directly, where the camera
     infers it from bbox height through a focal that does not agree with the one
-    solved from bearings (measured 1034-1088 px against 545-645).
+    solved from bearings.
 
     Returns None, leaving the pinhole estimate standing, unless BOTH tests
     pass. Two tests rather than one because each catches a different way the
@@ -261,8 +259,7 @@ def _clustered_range(
       contiguous but never steps away at both ends, so the unqualified version
       took the wall instead of the sign.
     * AGREEMENT with the pinhole -- a pillar standing in front of a wall offers
-      two plausible clusters and the further one is the wall (range error p50
-      -69 cm in that attempt).
+      two plausible clusters and the further one is the wall.
 
     The nearest cluster in ANGLE wins, not in range. The camera's claim is a
     BEARING, so bearing is what identifies the object it is talking about;
@@ -384,7 +381,7 @@ def _detection_to_world(
     # The shipped mechanism requires a free-standing cluster of pillar width
     # that agrees with the calibrated pinhole, so it can only corroborate a
     # range rather than override it. The cluster-shape test alone discriminated
-    # pillar from wall at 54%, near chance, so it is only used paired with the
+    # pillar from wall near chance, so it is only used paired with the
     # agreement test. Kept rather than deleted because the idea is sound and
     # only the ungated implementation failed. See
     # ``adr:0058-sign-discovery-range-and-barrier-belief``.
@@ -415,11 +412,12 @@ def _detection_to_world(
     # (robot.toml's [camera]/[lidar] mount_x_offset -- equal today, so the
     # bearing lookup above can treat them as coincident in the ground plane).
     # Starting the ray at the chassis origin therefore lands every sign short by
-    # that offset, pulling the estimate ~12 cm toward the robot along its
-    # heading. localization.py took this same correction on 2026-08-21, where
-    # casting predicted rays from the centre was biasing the pose fit along the
-    # corridor axis; this consumer was missed then. Visible in RViz as sign
-    # estimates sitting 10-20 cm off the drawn signs.
+    # that offset, pulling the estimate toward the robot along its heading.
+    # localization.py took this same correction earlier, where casting predicted
+    # rays from the centre was biasing the pose fit along the corridor axis; this
+    # consumer was missed then, and the resulting sign estimates read visibly off
+    # the drawn signs in RViz. See
+    # ``adr:0058-sign-discovery-range-and-barrier-belief``.
     sensor_x = robot_pos[0] + RobotSpecs.LIDAR_MOUNT_X_OFFSET * math.cos(robot_yaw)
     sensor_y = robot_pos[1] + RobotSpecs.LIDAR_MOUNT_X_OFFSET * math.sin(robot_yaw)
     bearing = robot_yaw + theta_h
@@ -457,27 +455,23 @@ class _SignTrack:
 
     A continuous distance on the robot's own RAW WORLD-XY position (rather
     than this discrete corridor) was tried and measured WORSE across the
-    whole range of reasonable thresholds -- see the sign_discovery.py module
-    notes -- because it is not rotation-equivariant: it can alias two
-    different real corridors' signs together exactly like the bug this gate
-    exists to survive.
+    whole range of reasonable thresholds, because it is not
+    rotation-equivariant: it can alias two different real corridors' signs
+    together exactly like the bug this gate exists to survive.
 
     A second attempt, still rotation-equivariant, widened this gate near a
     corner boundary to also accept the adjacent corridor within a
     ``corner_blend_m`` face-distance slack (via a since-reverted
     ``corridor_candidates_for_position``), on the theory that a sign visible
     from either of two adjacent corridors was being arbitrarily split into
-    two tracks. Measured on the full 256-scenario blind corpus: EVERY
-    nonzero threshold tried (0.03-0.20 m) was worse than 0.0 on collisions,
-    laps>=3, and in-time -- 190 (0.0) vs 195-207 across the range, non-
-    monotonic, with escape-maneuver rate moving in step -- so it was
-    reverted rather than shipped. (All seven arms came from a single sweep
-    invocation, so that internal comparison is fair, but do NOT read the
-    190 as the corpus baseline: a standalone run reproduces 202/256
-    twice, byte-identical, and the 190 was never cross-checked.) Read as: the corner-boundary ambiguity
-    this targeted is not, in practice, the dominant remaining failure mode,
-    and blending in a second corridor's tracks costs more (via bad merges)
-    than the boundary misses it recovers."""
+    two tracks. On the full blind corpus EVERY nonzero threshold
+    tried was worse than 0.0 on collisions, laps>=3, and in-time, with the
+    escape-maneuver rate moving in step, so it was reverted rather than
+    shipped. Read as: the corner-boundary ambiguity this targeted is not, in
+    practice, the dominant remaining failure mode, and blending in a second
+    corridor's tracks costs more (via bad merges) than the boundary misses it
+    recovers. The sweep and its cross-check are in
+    ``adr:0058-sign-discovery-range-and-barrier-belief``."""
 
     hits: int = 0
     votes: dict[SignColor, float] = field(default_factory=dict)
@@ -528,8 +522,9 @@ class _SignTrack:
         association and for the range/colour votes, and quantises only the
         number the router acts on. An estimate that is drifting is still
         allowed to drift back onto a better lattice point; what it can no
-        longer do is hand the router a position 60 cm from where any pillar
-        could physically be.
+        longer do is hand the router a position far from where any pillar
+        could physically be. See
+        ``adr:0058-sign-discovery-range-and-barrier-belief``.
         """
         x, y = snap_to_lattice(self.x, self.y, self.snap_m)
         return SignSpec(x=x, y=y, color=self.color)
@@ -676,17 +671,18 @@ class ObservedSignMap:
     def propose(self, positions: list[tuple[float, float]] | None, robot_pos: Waypoint) -> None:
         """Fold LIDAR-proposed POSITIONS into the map, casting no colour vote.
 
-        The LIDAR says an object is there, roughly 0.6 m before the camera can
-        say what it is. A proposal therefore refines geometry and nothing else:
+        The LIDAR says an object is there before the camera can say what it
+        is. A proposal therefore refines geometry and nothing else:
         it starts or updates a track, marks the position LIDAR-fixed so no later
         pinhole estimate can move it, and leaves ``votes`` empty so the track
         reports ``SignColor.UNKNOWN``.
 
         A track with no votes is never published (see ``newly_confirmed``), so
-        proposals CANNOT reach the router on their own -- which is what makes
-        this safe at the detector's measured 84% precision. What they buy is
-        that when the camera finally votes, the position is already settled
-        instead of being established from scratch inside the last 0.3 m.
+        proposals CANNOT reach the router on their own, which is what makes this
+        safe at the detector's measured precision. What they buy is that when the
+        camera finally votes, the position is already settled instead of being
+        established from scratch in the last stretch before the router acts. See
+        ``adr:0058-sign-discovery-range-and-barrier-belief``.
 
         Args:
             positions: World ``(x, y)`` candidates from ``lidar_proposer.propose``.
@@ -814,7 +810,8 @@ class ObservedSignMap:
         # physical section accumulates several labels and the cap withholds
         # legitimate signs while the over-full section stays over-full. On an
         # EXACT sim map the cap should have been a byte-identical no-op; it
-        # fixed 7 and broke 6 instead.
+        # fixed some and broke others instead. See
+        # ``adr:0058-sign-discovery-range-and-barrier-belief``.
         counts: dict[Section, int] = {}
         for track in self._tracks:
             if track.published_index is None:

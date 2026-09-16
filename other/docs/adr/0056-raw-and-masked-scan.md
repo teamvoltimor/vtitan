@@ -160,3 +160,17 @@ that removes reverse authorization rather than fixing it.
   3 new failures and churns 126 of 604 cases. This is the first time since
   2026-08-22 the reverse gates can fire at all, so the back-off branch now
   reverses where it used to creep forward under lock.
+- With the escape mask off, the generic escape reverses and swings, trading sign
+  strikes for wall strikes in a 1.0 m corridor: sign 57 -> 41 but wall 0 -> 13.
+- The escape mask uses no scalar range floor; the chassis is rejected per bearing
+  instead. The contact recoveries the mask exists to prevent engage at a
+  robot-to-belief range of p50 0.127 m, under any scalar floor that also keeps the
+  robot's own returns out. `ESCAPE_MASK_CHASSIS_MARGIN_M` carries the four-floor
+  comparison.
+- A SIDE_CORRECTION whose "already touching" check looked only at the side sector
+  kept creeping forward into a wall it was already touching: three real Open
+  Challenge runs (2026-08-28) pinned the robot nose-first into corners for
+  seconds to 23 s straight and never recovered, because the side sector still
+  read clear while the front lane was at/below `contact_dist`. The forward lane
+  (the same chassis-width lane `assess_risk` uses) now supplies the check and
+  triggers a reverse instead of the forward creep.

@@ -143,7 +143,7 @@ class BarrierBelief:
 
         The scatter is not noise to be averaged away either; it is the pinhole
         range under-reading (see ``_detection_to_world``: ``RANGE_SCALE`` ships
-        at 1.0 deliberately, and the estimate is short by roughly 2x). So the
+        at 1.0 deliberately). So the
         clusters are real disagreements about depth along one bearing, and the
         rulebook is the only thing that can arbitrate them: keep the one with
         the most evidence behind it. See

@@ -119,3 +119,10 @@ state.)
   reversible and collision is pose-based), so the parked pose is reachable iff
   escapable; a 48,672-trajectory two-arc search gave best protrusion 10.2 cm and
   none contained, retracting the 23 mm-trim claim.
+- The parking stop-check pad (2026-08-21) predates 6c727c87, when rays were
+  modelled as leaving the chassis centre. Since then they leave the LIDAR, 0.1222 m
+  forward and flush with the bumper, so a FORWARD range already excludes the front
+  half of the car and the pad is conservative there rather than necessary; lateral
+  bearings are unchanged, so it is still exactly right for them. A smaller pad in
+  ENTER still let the chassis clip a block edge in testing, because the
+  WRO-regulation gap is only about 4 cm wider than the chassis per side.

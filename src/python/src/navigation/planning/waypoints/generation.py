@@ -70,11 +70,12 @@ def center_bias_for_corridor(
     An UNCONFIRMED narrow corridor -- one still sitting on the blind prior
     rather than on a measurement -- takes ``UNCONFIRMED_WIDTH_INNER_BIAS_M``
     instead of ``NARROW_CENTER_BIAS_M``. The two hypotheses share the outer
-    wall, so believing narrow when the truth is wide puts the planned line
-    0.30 m too far OUTWARD, and confirming wide moves it inward by that whole
-    amount in one tick. Pre-positioning inward while the belief is still a
-    guess shortens that move; see the tuning field for the arithmetic and for
-    why this is deliberately not the same value as the confirmed-narrow bias.
+    wall, so believing narrow when the truth is wide puts the planned line too
+    far OUTWARD, and confirming wide moves it inward by that whole amount in
+    one tick. Pre-positioning inward while the belief is still a guess shortens
+    that move; see the tuning field for the arithmetic and for why this is
+    deliberately not the same value as the confirmed-narrow bias. See
+    ``adr:0057-blind-corridor-follower-and-width``.
 
     Args:
         width_m: This corridor's width (m).
@@ -114,6 +115,7 @@ def validate_path_feasibility(min_corridor_width_m: float, center_bias_m: float)
     not commensurable -- one is a path curvature, the other a width -- and it
     ignored ``center_bias_m`` entirely, so it scored a centred path and a biased
     one identically while the bias was the thing actually spending the margin.
+    See ``adr:0057-blind-corridor-follower-and-width``.
 
     Args:
         min_corridor_width_m: Minimum corridor width across all four sides.

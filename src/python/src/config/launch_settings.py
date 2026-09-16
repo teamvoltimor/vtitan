@@ -65,9 +65,8 @@ def _default_bag_topics() -> list[str]:
         # pocket pose from `get_wheel_odometry().distance_m`, which is this
         # topic's drive-wheel position, not `drive_speed`, which is a smoothed
         # estimate with a different bias. See
-        # ``adr:0060-bay-exit-clearance-guard``. The replay that motivated
-        # recording it never exceeded 90% agreement on all three runs. Cheap
-        # to record, a handful of floats, nowhere near /camera/image_raw.
+        # ``adr:0060-bay-exit-clearance-guard``. Cheap to record, a handful of
+        # floats, nowhere near /camera/image_raw.
         topics.actuators.joint_states,
         "/tf",
         "/tf_static",
@@ -140,8 +139,9 @@ class TelemetryBridgeLaunchSettings(BaseSettings):
 
     Deliberately independent of ``publish_rate_hz``: that one crosses the
     network, this one crosses a USB gadget with plenty of headroom at a few
-    hundred bytes. Matched to the OLED's own 10 Hz redraw -- anything lower was
-    just making every other redraw show stale numbers.
+    hundred bytes. Matched to the OLED's own redraw rate; anything lower made
+    every other redraw show stale numbers. See
+    ``adr:0083-oled-backend-and-button-thresholds``.
     """
 
     max_path_history: int = 120

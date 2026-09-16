@@ -15,10 +15,11 @@ from rclpy.qos import QoSDurabilityPolicy, QoSProfile, QoSReliabilityPolicy
 # TRANSIENT_LOCAL so a late subscriber (e.g. the OLED, which restarts
 # independently on the Pi Zero) gets the writer's last publish instead of
 # waiting for a periodic re-publish that never comes. BEST_EFFORT because a
-# RELIABLE writer blocks on a slow reader -- measured on the OLED's own board
-# stalling for 30+ seconds under contention. Both ends of a pair using this
-# profile must use it: a RELIABLE reader against a BEST_EFFORT writer (or vice
-# versa) is an incompatible QoS pair that DDS resolves by delivering nothing.
+# RELIABLE writer blocks on a slow reader. See
+# ``adr:0083-oled-backend-and-button-thresholds``. Both ends of a pair using
+# this profile must use it: a RELIABLE reader against a BEST_EFFORT writer (or
+# vice versa) is an incompatible QoS pair that DDS resolves by delivering
+# nothing.
 QOS_LATCHED_STATE = QoSProfile(
     depth=1,
     durability=QoSDurabilityPolicy.TRANSIENT_LOCAL,
@@ -54,11 +55,8 @@ QOS_STREAM = QoSProfile(depth=10)
 # /ackermann_cmd. DEADLINE is a two-sided QoS policy: a subscriber that
 # requests one (state_machine_node's echo-back to /race_metrics) rejects any
 # publisher that doesn't offer a deadline at least as tight -- DDS calls that
-# an incompatible match and delivers nothing between that pair, silently.
-# ros2_hardware_gateway.py's real drive-command publisher used to offer
-# QOS_STREAM's Infinite deadline against that subscription's 200ms request,
-# so state_machine_node never actually received live driving commands (see
-# git log for the incident). Every node that publishes OR subscribes to
+# an incompatible match and delivers nothing between that pair, silently. See
+# ``adr:0065-fastdds-udp-only``. Every node that publishes OR subscribes to
 # /ackermann_cmd must use this profile, not construct its own.
 QOS_ACKERMANN_CMD = QoSProfile(
     depth=10,
