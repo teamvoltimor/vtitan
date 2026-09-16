@@ -36,6 +36,7 @@ from src.navigation.deferred_width_belief import DeferredWidthBelief
 from src.navigation.direction_estimator import DirectionEstimator, direction_from_parking_bay
 from src.navigation.maneuvers.bay_exit import BayExit
 from src.navigation.maneuvers.parking import ParkController, park_controller_from_metadata
+from shared.domain.models import SignColor
 from src.navigation.planning.sign_router import (
     SignRouter,
     SignRouterConfig,
@@ -415,6 +416,9 @@ class ScenarioSimulator(PassSideScorer):
         # where the true layout says 21%, and ended 45 of 64 runs where 38
         # genuinely offended. A judge watches the mat, so this does too.
         self._true_signs = signs
+        # `ScenarioMetadata` is a pydantic model, not a dict -- and `None` for a
+        # scenario with no lot, which is how the Open Challenge expresses it.
+        self._parking_lot = getattr(metadata, "parking_lot", None)
         self._pass_side_engaged: set[int] = set()
         self._pass_side_scored: set[int] = set()
         self._pass_side_wrong: list[int] = []
@@ -447,6 +451,10 @@ class ScenarioSimulator(PassSideScorer):
             lidar_noise_std=lidar_noise_std,
             rng=np.random.default_rng(seed),
             signs=signs if emit_vision_detections else None,
+            # The barrier is a physical object the real camera sees every lap,
+            # and the emulator projects signs only. Handed over as SignSpecs
+            # coloured MAGENTA so one projection path serves both.
+            barrier_blocks=self._barrier_blocks() if emit_vision_detections else None,
             localize=use_lidar_localization,
             sensor_errors=self._errors,
             solid_walls=solid_walls,
@@ -597,6 +605,20 @@ class ScenarioSimulator(PassSideScorer):
             self._tuning,
             yaw_rad=self._gateway.state.yaw,
         )
+
+    def _barrier_blocks(self) -> list[SignSpec]:
+        """The parking lot's blocks, as MAGENTA specs the emulator can project.
+
+        Returns an empty list for a scenario without a lot, so the Open
+        Challenge and every Obstacles scenario that omits one are unaffected.
+        """
+        lot = self._parking_lot
+        if lot is None:
+            return []
+        return [
+            SignSpec(x=float(b.x), y=float(b.y), color=SignColor.MAGENTA)
+            for b in (lot.block1_position, lot.block2_position)
+        ]
 
     def _resolve_direction(self) -> bool:
         """Creep along the corridor until the travel direction is inferable.

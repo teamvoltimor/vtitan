@@ -341,3 +341,25 @@ obstacles_are_pushed = false
 # promoting a one-off to a 1%-of-ticks event would be inventing physics.
 sim_tick_period_quantiles = [0.044, 0.05, 0.0633, 0.0795]
 sim_tick_period_levels = [0.0, 0.5, 0.9, 0.99]
+
+# Emit the PARKING BARRIER as camera detections. The emulator projects SIGNS
+# only, so the barrier is invisible in simulation -- and with it the aspect gate,
+# the barrier belief, the corridor exemption and barrier_span_along_wall, all of
+# which are dead code in the corpus. Even at a zero red rate this is not inert:
+# a magenta detection exercises the discard path, which nothing reaches today.
+vision_emits_barrier = false
+
+# Probability a barrier detection arrives as a RED pillar instead of magenta.
+# This is the failure that matters: magenta is discarded correctly, so a barrier
+# that is always magenta screens nothing.
+#
+# MEASURED 2026-09-15 by locating the lot from its OWN LIDAR cluster -- not by
+# 'near a wall', which caught 563 green pillar detections and measured its own
+# contamination. Scoring what lands on the cluster: 60% in run_20260915_140852,
+# 4% in 141413, 9% in 141832, with ZERO green detections on the lot in all three
+# as the control. A fourth round is excluded: the car toppled three objects in it
+# and its cluster map is not trustworthy.
+#
+# THE SPREAD IS THE POINT. 4% to 60% is not a rate, it is a range, and no single
+# constant models those rounds. Sweep it; do not quote a mean.
+vision_barrier_red_rate = 0.0
