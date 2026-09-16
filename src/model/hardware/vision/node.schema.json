@@ -48,15 +48,18 @@
     },
     "capture_dataset_frames": {
       "type": "boolean",
-      "description": "Periodic raw-frame capture for later dataset accumulation / fine-tuning; saved under the run directory alongside the mcap bag."
+      "description": "Periodic raw-frame capture for later dataset accumulation / fine-tuning; saved under the run directory alongside the mcap bag.",
+      "x-journal": "adr:0091-dataset-frame-capture"
     },
     "capture_interval_s": {
       "type": "number",
-      "description": "Seconds between periodic raw-frame captures when dataset capture is enabled."
+      "description": "Seconds between periodic raw-frame captures when dataset capture is enabled.",
+      "x-journal": "adr:0091-dataset-frame-capture"
     },
     "capture_subdir": {
       "type": "string",
-      "description": "Subdirectory (under the run directory) where captured dataset frames are written."
+      "description": "Subdirectory (under the run directory) where captured dataset frames are written.",
+      "x-journal": "adr:0091-dataset-frame-capture"
     }
   },
   "required": [

@@ -919,7 +919,8 @@ class CoreNavigator(EscapeRecovery):
         committed sign, so the plan the chassis returns to is the one that
         drove it into the object. Re-planning alone cannot fix that -- the map
         still contains the sign -- which is why this retires rather than
-        replans. See ``adr:0055-escape-maneuver-selection`` for the measurements.
+        replans. See ``adr:0092-escape-does-not-retire-committed-sign`` for the
+        measurements.
 
         Guarded by ``escape.escape_retires_committed_sign`` and applied ONCE per
         latched maneuver, not every tick: the branch this sits in runs for the

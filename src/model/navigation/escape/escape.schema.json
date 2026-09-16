@@ -157,7 +157,8 @@
     },
     "escape_retires_committed_sign": {
       "type": "boolean",
-      "description": "Retire the router's committed sign when an escape latches, so the plan it returns to is not the one that drove into it. Ships off."
+      "description": "Retire the router's committed sign when an escape latches, so the plan it returns to is not the one that drove into it. Ships off.",
+      "x-journal": "adr:0092-escape-does-not-retire-committed-sign"
     }
   },
   "required": [

@@ -64,7 +64,8 @@
     },
     "main_loop_reached_distance_m": {
       "type": "number",
-      "description": "Distance (m) within which CoreNavigator's main loop counts a waypoint as reached. Deliberately separate from controller_reached_distance_m."
+      "description": "Distance (m) within which CoreNavigator's main loop counts a waypoint as reached. Deliberately separate from controller_reached_distance_m.",
+      "x-journal": "adr:0052-pursuit-target-selection"
     },
     "controller_reached_distance_m": {
       "type": "number",
@@ -112,7 +113,8 @@
     },
     "forward_only_reseek": {
       "type": "boolean",
-      "description": "Restrict path reseek to candidates ahead of the current waypoint index."
+      "description": "Restrict path reseek to candidates ahead of the current waypoint index.",
+      "x-journal": "adr:0088-refuted-config-knobs"
     }
   },
   "required": [

@@ -134,3 +134,5 @@ story in its `## History` section rather than spawning a micro-ADR per attempt.
 | [0088](0088-refuted-config-knobs.md) | Refuted config knobs ship off and stay documented | accepted |
 | [0089](0089-robot-constants-runtime-and-xacro.md) | Robot constants are read at runtime and the xacro is the one hand-synced copy | accepted |
 | [0090](0090-commit-and-constant-conventions.md) | Commit messages and constant access follow fixed conventions | accepted |
+| [0091](0091-dataset-frame-capture.md) | Dataset frames are captured periodically beside the run artifacts | accepted |
+| [0092](0092-escape-does-not-retire-committed-sign.md) | An escape does not retire the committed sign, and ships off | accepted |
