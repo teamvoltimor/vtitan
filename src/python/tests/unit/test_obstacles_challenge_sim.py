@@ -52,6 +52,7 @@ from shared.domain.enums import Section
 from shared.domain.models import SignColor, Waypoint
 
 import src.navigation.planning.sign_router as sign_router_module
+import src.navigation.planning.sign_router.router as sign_router_router_module
 import src.simulation.simulated_hardware_gateway as gateway_module
 from src.navigation.planning.sign_router import signs_from_metadata
 from src.navigation.planning.waypoints.classification import corridor_for_position
@@ -320,7 +321,7 @@ class TestVisionConfirmedSignRouting:
         # call — rather than comparing global color sets — stays correct even
         # when a scenario's two signs have different ground-truth colors.
         used_pairs: list[tuple[str, str]] = []
-        original_apply = sign_router_module.apply_deformation
+        original_apply = sign_router_router_module.apply_deformation
 
         def spying_apply_deformation(*args, **kwargs):
             # Trailing arguments pass straight through rather than being named:
@@ -331,7 +332,16 @@ class TestVisionConfirmedSignRouting:
             used_pairs.append((sign.color, color))
             return original_apply(*args, **kwargs)
 
-        monkeypatch.setattr(sign_router_module, "apply_deformation", spying_apply_deformation)
+        # Patched on ``sign_router.router``, NOT on the ``sign_router`` package.
+        # The package re-exports the name, but router.py does
+        # ``from ...deformation import apply_deformation``, which binds it into
+        # router's OWN namespace at import time -- so rebinding the package
+        # attribute leaves the call site pointing at the original and the spy
+        # never fires. That is what happened: this test asserted on an empty
+        # ``used_pairs`` and failed as if the override were broken, when the
+        # only broken thing was where it was watching. A re-export is not a
+        # seam.
+        monkeypatch.setattr(sign_router_router_module, "apply_deformation", spying_apply_deformation)
 
         result = ScenarioSimulator(
             scenario.metadata,
