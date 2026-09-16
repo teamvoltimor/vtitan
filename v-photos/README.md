@@ -17,9 +17,8 @@ v-photos/
 | `vtitan-full.webp` | Render del conjunto ensamblado desde el CAD |
 | `vtitan-breakdown.webp` | Vista despiezada, usada en [Montaje](../README.md#montaje) |
 | `vtitan-breakdown-enumerated.webp` | La misma vista despiezada, con cada pieza numerada |
-| `vtitan-breakdown-elements.webp` | Tabla de elementos: número, pieza nombrada en el CAD y cantidad |
 
-Los renders del conjunto y las tres vistas despiezadas salen del mismo modelo de
+Los renders del conjunto y las dos vistas despiezadas salen del mismo modelo de
 SolidWorks del que se exportan [`models/vtitan/`](../models/README.md), así que lo
 que se ve en el render es exactamente lo que hay en los `.step` y los `.stl`.
 

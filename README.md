@@ -660,11 +660,47 @@ La misma vista despiezada con cada pieza numerada, y su tabla de elementos (el n
 	<i>Vista despiezada numerada: cada globo enlaza con la tabla de elementos</i>
 </p>
 
-<p align="center">
-	<img src="v-photos/vtitan/vtitan-breakdown-elements.webp" alt="Tabla de elementos de vTitan: número de elemento, número de pieza en el CAD y cantidad" width="640">
-	<br>
-	<i>Tabla de elementos: número, pieza nombrada en el CAD y cantidad</i>
-</p>
+| N° | Pieza en el CAD | Cantidad |
+|:---:|---|---:|
+| 1 | `MONOCHASIS_VOLTIMOR_CAR MAX` | 1 |
+| 2 | `RING_MV_ULTIMATE` | 4 |
+| 3 | `SUPER_RUEDA_VOLTIMOR_2` | 4 |
+| 4 | `PIÑÓN DE 40 DIENTES MECANISMO DIRECCIÓN` | 2 |
+| 5 | `PIÑÓN DE 20 DIENTES MECANISMO DIRECCIÓN` | 4 |
+| 6 | `CUBIERTA DE RING VOLTIMOR_NEW` | 4 |
+| 7 | `aro de fijacion axial de caucho` | 4 |
+| 8 | `buje guia de cruceta` | 4 |
+| 9 | `BASE DE SISTEMA DE TRANSMISION` | 2 |
+| 10 | `PIÑÓN PARA CORREA 164XXL 33 DIENTES` | 2 |
+| 11 | `PIÑÓN DE 40 DIENTES MECANISMO DIRECCIÓN - SERVO con cajera` | 1 |
+| 12 | `PIÑÓN DE 40 DIENTES MECANISMO DIRECCIÓN - arrastre` | 1 |
+| 13 | `SERVO INJORA 14 kg` | 1 |
+| 14 | `PIÑÓN 90 VOLTIMOR CRUCETA 10 DIENTES` | 4 |
+| 15 | `PIÑÓN 90 VOLTIMOR 20 DIENTES` | 4 |
+| 16 | `ROLINERA 3 x 7 x 2` | 8 |
+| 17 | `ROLINERA 6.35 x 9.525 x 3.175` | 5 |
+| 18 | `PIÑÓN DE 20 DIENTES MECANISMO RUEDA VOLTIMOR` | 4 |
+| 19 | `PIÑÓN 90 VOLTIMOR 15 x 8 DIENTES` | 4 |
+| 20 | `Camera Module 3 v8` | 1 |
+| 21 | `Ovonic AIR LIPO BATTERY` | 1 |
+| 22 | `raspberry_pi5` | 1 |
+| 23 | `slamtec rplidar c1` | 1 |
+| 24 | `SUPLEMENTO DE BANCADA DE MOTOR PEQUENO VOLTIMOR` | 1 |
+| 25 | `REV-41-1600 motor` | 1 |
+| 26 | `ENGRANAJE UNIFICADO DE MOTOR REV 36 DIENTES` | 1 |
+| 27 | `TAPA DE BANCADA DE MOTOR REV` | 1 |
+| 28 | `BRAZO DE TENSOR 2 LARGO` | 1 |
+| 29 | `RODILLO NUEVO TENSOR` | 2 |
+| 30 | `BRAZO DE TENSOR 3` | 1 |
+| 31 | `soporte superior Voltimor` | 1 |
+| 32 | `Case raspberry cam` | 1 |
+| 33 | `soporte inferior de camara` | 1 |
+| 34 | `soporte de camara superior` | 1 |
+| 35 | `soporte de camara brazo intermedio` | 1 |
+| 36 | `Raspberry Pi Zero 2 W` | 1 |
+| 37 | `Klunox` | 1 |
+| 38 | `adafruit APDS9960` | 1 |
+| 39 | `IBT-2` | 1 |
 
 El conjunto se ordena en tres capas: el **chasis inferior** perforado sostiene el motor y el servomotor en sus encajes centrales; sobre él se monta el **tren de transmisión** (correas dentadas hacia los dos ejes, y de cada eje a los engranajes cónicos de cada rueda); y el **monochasis** cierra el conjunto y fija la electrónica. Los ejes usan pernos de transmisión de LEGO, elegidos por su ajuste rígido y porque evitan mecanizar un eje a medida.
 
