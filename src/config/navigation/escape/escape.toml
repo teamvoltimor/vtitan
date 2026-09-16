@@ -42,5 +42,8 @@ escape_side_follows_committed_sign = false
 obstacles_escape_side_follows_committed_sign = true
 escape_side_override_min_clearance_m = 0.12
 side_correction_follows_committed_sign = false
-obstacles_side_correction_follows_committed_sign = false
+# ON since 2026-09-16: corpus 22 -> 14, nothing broken, and the refusal would fire on
+# 24.4% of the 213 real side-correction episodes of the 2026-09-15 rounds. The BASE key
+# above stays off and is INERT on Obstacles anyway -- this value shadows it. See the schema.
+obstacles_side_correction_follows_committed_sign = true
 escape_retires_committed_sign = false

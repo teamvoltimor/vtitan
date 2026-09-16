@@ -88,7 +88,20 @@ type NavigationEscapeEscape struct {
 	ObstaclesKTurnFitRearGap bool `json:"obstacles_k_turn_fit_rear_gap" yaml:"obstacles_k_turn_fit_rear_gap" mapstructure:"obstacles_k_turn_fit_rear_gap"`
 
 	// Obstacles value for side_correction_follows_committed_sign; only Obstacles has
-	// a committed pass side.
+	// a committed pass side. SHIPS ON, and it is the key that carries the effect:
+	// measured against the 22-failure baseline it takes the corpus to 14, fixing
+	// go_obstacles_0000 entire, three of 0014 and 0008's blind discovery, breaking
+	// nothing. The BASE key alone measures 22, i.e. exactly nothing, because the
+	// Obstacles resolution path applies this value OVER it -- anyone sweeping the
+	// base field alone is measuring the control. Cross-checked against the mat rather
+	// than trusted: replaying the two inputs the decision itself reads
+	// (escape_preferred_sign and escape_threat_dir, both on the wire) over the 213
+	// side-correction episodes of the 15 rounds of 2026-09-15, the refusal would fire
+	// on 52 of them (24.4%), about 3.5 per round, so it is frequent on hardware and
+	// not a corpus artefact. The router had no opinion on 55.4%, where it cannot act
+	// at all. CAVEAT carried deliberately: it also fires 6 times in
+	// run_20260915_140852, the only scoreable round of that session, so it changes a
+	// round that already worked.
 	ObstaclesSideCorrectionFollowsCommittedSign bool `json:"obstacles_side_correction_follows_committed_sign" yaml:"obstacles_side_correction_follows_committed_sign" mapstructure:"obstacles_side_correction_follows_committed_sign"`
 
 	// ~1.3 m of travel at the spacing above
