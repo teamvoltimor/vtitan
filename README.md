@@ -71,7 +71,7 @@ El equipo lo forman tres miembros:
 
 Cada número es medido, no estimado, y puede rastrearse hasta el código y la medición que lo produjo vía el historial de git (ver [Versionado](#versionado)).
 
-## Índice
+**Índice**
 
 1. **[vTitan en números](#vtitan-en-números)**
 2. **[Estructura del repositorio](#estructura-del-repositorio)**
@@ -552,7 +552,7 @@ Con todos estos componentes en mente, queríamos implementar esta idea en un sis
 
 <p align="center">
 	<img src="other/assets/images/development/early-direction-system-design.webp" alt="Sistema de Transmisión" 
-width="350">
+width="300">
 	<br>
 	<i>Primer Prototipo del Sistema de Dirección</i>
 </p>
@@ -569,7 +569,7 @@ width="350">
 
 <p align="center">
 	<img src="other/assets/images/development/designing.webp" alt="Diseño CAD del sistema de dirección" 
-width="350">
+width="300">
 	<br>
 	<i>Iteración de diseño en CAD entre prototipos impresos</i>
 </p>
@@ -586,7 +586,7 @@ width="350">
 
 <p align="center">
 	<img src="other/assets/images/development/gear-direction-system-bottom-view.webp" alt="Sistema de dirección por engranajes, vista inferior" 
-width="350">
+width="300">
 	<br>
 	<i>Sistema de dirección por engranajes, vista inferior: coronas integradas a los rines</i>
 </p>
@@ -603,7 +603,7 @@ width="350">
 
 <p align="center">
 	<img src="other/assets/images/development/electronic-assembly.webp" alt="Integración de electrónica sobre el monochasis" 
-width="350">
+width="300">
 	<br>
 	<i>Integración de la electrónica sobre el monochasis agujereado</i>
 </p>
@@ -623,7 +623,7 @@ width="350">
 
 <p align="center">
 	<img src="other/assets/images/development/hd-hex-motor-integration.webp" alt="Integración del REV HD Hex Motor al Sistema de Transmisión" 
-width="350">
+width="300">
 	<br>
 	<i>Integración del REV HD Hex Motor al Sistema de Transmisión</i>
 </p>
@@ -636,7 +636,7 @@ width="350">
 
 <p align="center">
 	<img src="other/assets/images/development/transmission-system-top-view.webp" alt="Sistema de Transmisión" 
-width="350">
+width="300">
 	<br>
 	<i>Sistema de Transmisión, visto desde arriba</i>
 </p>
@@ -649,7 +649,7 @@ Nuestro sistema de transmisión es 4x4 para maximizar la tracción en cada rueda
 
 <p align="center">
 	<img src="other/assets/images/development/direction-system-top-view.webp" alt="Sistema de Dirección" 
-width="350">
+width="300">
 	<br>
 	<i>Sistema de Dirección, visto desde arriba</i>
 </p>
@@ -658,7 +658,7 @@ Como ya se ha mencionado previamente, nuestra meta principal con nuestro sistema
 
 <p align="center">
 	<img src="schemes/counter-phase-steering-system.webp" alt="Ejemplo de sistema de dirección en Contrafase" 
-width="350">
+width="300">
 	<br>
 	<i>Ejemplo de sistema de dirección en contrafase</i>
 </p>
@@ -671,7 +671,7 @@ En cuanto al mecanismo, en primer lugar al servo le implementamos un eje de 20 d
 
 <p align="center">
 	<img src="models/vtitan/blueprints/ring-33-dientes.webp" alt="Ring de 33 dientes" 
-width="350">
+width="300">
 	<br>
 	<i>Ring de 33 dientes</i>
 </p>
@@ -694,7 +694,7 @@ El chasis de vTitan se reparte en dos piezas con responsabilidades distintas: el
 
 <p align="center">
 	<img src="models/vtitan/blueprints/chasis-inferior.webp" alt="Chasis Inferior" 
-width="350">
+width="300">
 	<br>
 	<i>Chasis Inferior</i>
 </p>
@@ -721,13 +721,16 @@ Y el mismo conjunto despiezado, del mismo modelo de SolidWorks del que se export
 	<i>Vista despiezada de vTitan: chasis inferior, tren de transmisión, sistema de dirección y electrónica</i>
 </p>
 
-La misma vista despiezada con cada pieza numerada, y su tabla de elementos con el enlace a cada archivo disponible (el número de la tabla corresponde al globo de la vista):
+La misma vista despiezada con cada pieza numerada, y su tabla de elementos desplegable con el enlace a cada archivo disponible (el número de la tabla corresponde al globo de la vista):
 
 <p align="center">
 	<img src="v-photos/vtitan/vtitan-breakdown-enumerated.webp" alt="Vista despiezada de vTitan con cada pieza numerada" width="800">
 	<br>
 	<i>Vista despiezada numerada: cada globo enlaza con la tabla de elementos</i>
 </p>
+
+<details>
+<summary><b>Tabla de elementos (39 piezas)</b></summary>
 
 <table align="center">
 <thead>
@@ -1019,6 +1022,8 @@ La misma vista despiezada con cada pieza numerada, y su tabla de elementos con e
 > [!NOTE]
 > **pendiente** significa que el archivo todavía no está publicado en `models/` y queda por agregar.
 
+</details>
+
 El conjunto se ordena en tres capas: el **chasis inferior** perforado sostiene el motor y el servomotor en sus encajes centrales; sobre él se monta el **tren de transmisión** (correas dentadas hacia los dos ejes, y de cada eje a los engranajes cónicos de cada rueda); y el **monochasis** cierra el conjunto y fija la electrónica. Los ejes usan pernos de transmisión de LEGO, elegidos por su ajuste rígido y porque evitan mecanizar un eje a medida.
 
 #### Las piezas, y cómo mirarlas
@@ -1127,7 +1132,7 @@ Así que, como el torque de bloqueo del motor ($0.105\ \text{Nm}$) es menor al t
 
 <p align="center">
 	<img src="other/assets/images/misc/relacion-de-engranajes.webp" alt="Relación de Engranajes" 
-width="350">
+width="300">
 	<br>
 	<i>Relación de Engranajes</i>
 </p>
@@ -1175,7 +1180,7 @@ A continuación, está la descripción de todos los componentes principales de v
 
 <p align="center">
 	<img src="other/assets/images/components/raspberry-pi-5.webp" alt="Raspberry Pi 5" 
-width="350">
+width="300">
 	<br>
 	<i>Raspberry Pi 5</i>
 </p>
@@ -1219,7 +1224,7 @@ Equipada con un procesador ARM Cortex-A76 de 64 bits a 2.4 GHz. La Raspberry Pi 
 
 <p align="center">
 	<img src="other/assets/images/components/raspberry-pi-camera-module-3.webp" alt="Raspberry Pi Camera Module 3" 
-width="350">
+width="300">
 	<br>
 	<i>Raspberry Pi Camera Module 3</i>
 </p>
@@ -1261,7 +1266,7 @@ Como el resto de los componentes Raspberry, destaca por lo ligera y compacta: 25
 
 <p align="center">
 	<img src="other/assets/images/components/raspberry-pi-ai-hat-plus.webp" alt="Raspberry Pi AI HAT+ 26 TOPS" 
-width="350">
+width="300">
 	<br>
 	<i>Raspberry Pi AI HAT+ 26 TOPS</i>
 </p>
@@ -1301,7 +1306,7 @@ El Raspberry Pi AI HAT+ tiene dos versiones, una de 13 billones de operaciones p
 
 <p align="center">
 	<img src="other/assets/images/components/raspberry-pi-zero-w.webp" alt="Raspberry Pi Zero 2 W" 
-width="350">
+width="300">
 	<br>
 	<i>Raspberry Pi Zero 2 W</i>
 </p>
@@ -1343,7 +1348,7 @@ Incorpora conectividad Wi-Fi/Bluetooth y regletas de pines GPIO soldadas. Esto o
 
 <p align="center">
 	<img src="other/assets/images/components/rplidar-c1.webp" alt="RPLiDAR C1" 
-width="350">
+width="300">
 	<br>
 	<i>RPLiDAR C1</i>
 </p>
@@ -1412,7 +1417,7 @@ Especificaciones técnicas:
 
 <p align="center">
 	<img src="other/assets/images/components/hi-wonder-hps-3527sg-35kg-servo.webp" alt="Servomotor Hiwonder HPS-3527SG" 
-width="350">
+width="300">
 	<br>
 	<i>Servomotor Hiwonder HPS-3527SG</i>
 </p>
@@ -1452,7 +1457,7 @@ Lo gobernamos con la biblioteca `adafruit_motor` y su módulo `servo`, que tradu
 
 <p align="center">
 	<img src="other/assets/images/components/hd-hex-motor.webp" alt="HD Hex Motor" 
-width="350">
+width="300">
 	<br>
 	<i>HD Hex Motor</i>
 </p>
@@ -1486,7 +1491,7 @@ Después de probar distintos modelos de motor optamos por el REV HD Hex Motor, p
 
 <p align="center">
 	<img src="other/assets/images/components/bno08x.webp" alt="Giroscopio BNO085" 
-width="350">
+width="300">
 	<br>
 	<i>Giroscopio BNO085</i>
 </p>
@@ -1534,7 +1539,7 @@ La implementación maneja dos variables: `yaw_deg` (orientación relativa desde 
 
 <p align="center">
 	<img src="other/assets/images/components/ovonic-air-11.1v-lipo-battery.webp" alt="Ovonic Air 11.1V Li-Po Battery" 
-width="350">
+width="300">
 	<br>
 	<i>Ovonic Air 11.1V Li-Po Battery</i>
 </p>
@@ -1624,7 +1629,7 @@ Usar baterías más pequeñas no tiene sentido (el margen energético ya es holg
 #### Puente H BTS7960 / IBT-2
 
 <p align="center">
-	<img src="other/assets/images/components/h-bridge-bts7960.webp" alt="Puente H BTS7960 / IBT-2" width="350">
+	<img src="other/assets/images/components/h-bridge-bts7960.webp" alt="Puente H BTS7960 / IBT-2" width="300">
 	<br>
 	<i>Puente H BTS7960 / IBT-2 (el que monta vTitan actualmente)</i>
 </p>
@@ -1681,7 +1686,7 @@ Este cambio también reordenó el análisis del resto de la ruta de potencia. Co
 #### Step Down Mini-560 Pro
 
 <p align="center">
-	<img src="other/assets/images/components/step-down-mini-560-pro.webp" alt="Step Down Mini-560 Pro" width="350">
+	<img src="other/assets/images/components/step-down-mini-560-pro.webp" alt="Step Down Mini-560 Pro" width="300">
 	<br>
 	<i>Step Down Mini-560 Pro (el que monta vTitan actualmente)</i>
 </p>
@@ -1726,7 +1731,7 @@ Diecinueve gramos no ganan una carrera por sí solos, y ese es justamente el pun
 #### Pantalla OLED SSD1306
 
 <p align="center">
-	<img src="other/assets/images/components/ssd1306-oled-display.webp" alt="SSD1306 OLED Display" width="350">
+	<img src="other/assets/images/components/ssd1306-oled-display.webp" alt="SSD1306 OLED Display" width="300">
 	<br>
 	<i>SSD1306 OLED Display 128x64</i>
 </p>
@@ -3249,54 +3254,27 @@ Esta misma lista está disponible en [`video/video.md`](video/video.md), dentro 
 
 ### Open Challenge Simulation
 
-<table align="center">
-<thead>
-<tr>
-<th align="center"><a href="https://youtu.be/S0tjWiyK1bM"><img src="https://img.youtube.com/vi/S0tjWiyK1bM/0.jpg" alt="Open Challenge Simulation #1"></a></th>
-<th align="center"></th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td align="center"><strong>Open Challenge Simulation #1</strong></td>
-<td align="center"></td>
-</tr>
-</tbody>
-</table>
+<p align="center">
+<a href="https://youtu.be/S0tjWiyK1bM"><img src="https://img.youtube.com/vi/S0tjWiyK1bM/0.jpg" alt="Open Challenge Simulation #1"></a>
+<br>
+<i>Open Challenge Simulation #1</i>
+</p>
 
 ### Obstacle Challenge Simulation
 
-<table align="center">
-<thead>
-<tr>
-<th align="center"><a href="https://youtu.be/fb5zcayUf0A"><img src="https://img.youtube.com/vi/fb5zcayUf0A/0.jpg" alt="Obstacle Challenge Simulation #1"></a></th>
-<th align="center"></th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td align="center"><strong>Obstacle Challenge Simulation #1</strong></td>
-<td align="center"></td>
-</tr>
-</tbody>
-</table>
+<p align="center">
+<a href="https://youtu.be/fb5zcayUf0A"><img src="https://img.youtube.com/vi/fb5zcayUf0A/0.jpg" alt="Obstacle Challenge Simulation #1"></a>
+<br>
+<i>Obstacle Challenge Simulation #1</i>
+</p>
 
 ### Parking Challenge
 
-<table align="center">
-<thead>
-<tr>
-<th align="center"><a href="https://youtube.com/shorts/dpk2NokeFFs"><img src="https://img.youtube.com/vi/dpk2NokeFFs/0.jpg" alt="Parking Challenge #1"></a></th>
-<th align="center"></th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td align="center"><strong>Parking Challenge #1</strong></td>
-<td align="center"></td>
-</tr>
-</tbody>
-</table>
+<p align="center">
+<a href="https://youtube.com/shorts/dpk2NokeFFs"><img src="https://img.youtube.com/vi/dpk2NokeFFs/0.jpg" alt="Parking Challenge #1"></a>
+<br>
+<i>Parking Challenge #1</i>
+</p>
 
 ### Otros
 
