@@ -159,6 +159,26 @@
       "type": "boolean",
       "description": "Retire the router's committed sign when an escape latches, so the plan it returns to is not the one that drove into it. Ships off.",
       "x-journal": "adr:0092-escape-does-not-retire-committed-sign"
+    },
+    "escape_dwell_seconds": {
+      "type": "number",
+      "description": "Seconds the chassis must have stayed inside escape_dwell_radius_m before an escape is allowed to switch its committed side. 0.0 disables the gate, which is how it ships. It exists because the attempt COUNTER is anti-correlated with the failure it was built for: measured over the 786 escape latches of the 2026-09-15 session, escalate_after_attempts fired on 24% of latches in a clean 3-lap round whose longest stay in a 0.30 m circle was 8 s, and on 0% in the round that spent 98 of its 183 s pinned inside one. The wedged robot does not sit still: it covers 22.3 m of path for 0.14 m of net displacement, and every thrash clears the 3 cm reset that the counter and the stuck detector both watch. Dwell measures the thing that actually distinguishes them. At 12 s the separation is perfect on that session: silent in all five rounds whose longest stay is under 25 s, including the only scoreable one (worst case 8.9 s), and firing 2-7 times in every round with a 35-170 s stall.",
+      "x-journal": "adr:0055-escape-maneuver-selection"
+    },
+    "escape_dwell_radius_m": {
+      "type": "number",
+      "description": "Radius of the circle the chassis must not leave for escape_dwell_seconds to accumulate. 0.30 m is large enough that the thrashing inside a wedge stays inside it and small enough that ordinary driving leaves it immediately.",
+      "x-journal": "adr:0055-escape-maneuver-selection"
+    },
+    "escape_dwell_cooldown_s": {
+      "type": "number",
+      "description": "Minimum seconds between two side switches from the dwell gate. Without it the gate fires on nearly every latch once the dwell threshold is met -- measured 137 firings in one round -- which is the same runaway the naive proximity counter produced.",
+      "x-journal": "adr:0055-escape-maneuver-selection"
+    },
+    "escape_dwell_max_per_place": {
+      "type": "integer",
+      "description": "How many times the dwell gate may fire without the chassis leaving escape_dwell_radius_m. Caps the response where it cannot help: if three side switches in one place have not freed the robot, a fourth is not the missing ingredient.",
+      "x-journal": "adr:0055-escape-maneuver-selection"
     }
   },
   "required": [
@@ -193,6 +213,10 @@
     "escape_side_override_min_clearance_m",
     "side_correction_follows_committed_sign",
     "obstacles_side_correction_follows_committed_sign",
-    "escape_retires_committed_sign"
+    "escape_retires_committed_sign",
+    "escape_dwell_seconds",
+    "escape_dwell_radius_m",
+    "escape_dwell_cooldown_s",
+    "escape_dwell_max_per_place"
   ]
 }

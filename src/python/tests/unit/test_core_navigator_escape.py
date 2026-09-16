@@ -822,3 +822,86 @@ class TestEscapeMirrorsReverse:
         assert reverses[1].maneuver_type is ManeuverType.STUCK_REVERSE
         assert reverses[0].steering == pytest.approx(-reverses[1].steering)
         assert reverses[0].steering != 0.0, "a zero lock would make the comparison vacuous"
+
+
+class TestDwellGate:
+    """The escape's side switch gated on TIME IN PLACE rather than attempt count.
+
+    The attempt counter cannot express this. It resets on 3 cm of travel, and
+    the failure it is meant to catch produces that 3 cm continuously: measured
+    over the 2026-09-15 session, a wedged round covered 22.3 m of path for
+    0.14 m of net displacement, so ``escalate_after_attempts`` fired on 0% of
+    its latches while firing on 24% of a clean round's. Dwell measures what
+    separates them. See ``adr:0055-escape-maneuver-selection``.
+    """
+
+    RADIUS_M = 0.30
+    DWELL_S = 12.0
+
+    @staticmethod
+    def _navigator(waypoints, tuning, *, dwell_s: float) -> CoreNavigator:
+        overridden = tuning_with_overrides(
+            {
+                "escape_dwell_seconds": dwell_s,
+                "escape_dwell_radius_m": TestDwellGate.RADIUS_M,
+                "escape_dwell_cooldown_s": 10.0,
+                "escape_dwell_max_per_place": 3,
+            },
+            group="escape",
+            base=tuning,
+        )
+        gateway = FakeGateway(Pose(x=0.0, y=0.0, yaw=0.0), lidar=None)
+        return CoreNavigator(gateway=gateway, waypoints=waypoints, num_laps=1, tuning=overridden)
+
+    @staticmethod
+    def _maneuver(steering: float = 0.4) -> EscapeManeuver:
+        return EscapeManeuver(
+            maneuver_type=ManeuverType.K_TURN, steering=steering, speed=-0.2, duration_frames=6
+        )
+
+    @staticmethod
+    def _thrash(nav: CoreNavigator, seconds: float, *, amplitude_m: float) -> None:
+        """Feed poses that move constantly and go nowhere, the measured wedge shape."""
+        for tick in range(int(seconds * nav._tuning.control.control_hz)):
+            nav.note_dwell_sample(amplitude_m * (1.0 if tick % 2 else -1.0), 0.0)
+
+    def test_thrashing_in_place_switches_the_side(self, waypoints, tuning):
+        nav = self._navigator(waypoints, tuning, dwell_s=self.DWELL_S)
+        # Twice the 3 cm the counter watches, so the counter would have reset
+        # on every single one of these ticks.
+        self._thrash(nav, self.DWELL_S + 1.0, amplitude_m=0.06)
+
+        flipped = nav._maybe_dwell_flip(self._maneuver(steering=0.4), 0.06, 0.0)
+
+        assert flipped.steering == pytest.approx(-0.4)
+        assert flipped.duration_frames == 6, "the gate switches the side and nothing else"
+
+    def test_shipped_default_is_inert(self, waypoints, tuning):
+        """The control. Without it, the test above proves only that a flip happens."""
+        nav = self._navigator(waypoints, tuning, dwell_s=0.0)
+        self._thrash(nav, self.DWELL_S + 1.0, amplitude_m=0.06)
+        maneuver = self._maneuver(steering=0.4)
+
+        assert nav._maybe_dwell_flip(maneuver, 0.06, 0.0) is maneuver
+
+    def test_driving_away_does_not_dwell(self, waypoints, tuning):
+        """The other control: the same elapsed time, spent actually going somewhere."""
+        nav = self._navigator(waypoints, tuning, dwell_s=self.DWELL_S)
+        for tick in range(int((self.DWELL_S + 1.0) * nav._tuning.control.control_hz)):
+            nav.note_dwell_sample(0.01 * tick, 0.0)
+        maneuver = self._maneuver(steering=0.4)
+
+        assert nav._maybe_dwell_flip(maneuver, 0.01 * tick, 0.0) is maneuver
+
+    def test_capped_per_place(self, waypoints, tuning):
+        nav = self._navigator(waypoints, tuning, dwell_s=self.DWELL_S)
+        cap = nav._tuning.escape.escape_dwell_max_per_place
+
+        fires = 0
+        for _ in range(cap + 3):
+            # Each round of thrashing also advances past the cooldown, so the
+            # cap is the only thing that can stop the gate here.
+            self._thrash(nav, self.DWELL_S + 1.0, amplitude_m=0.06)
+            if nav._maybe_dwell_flip(self._maneuver(), 0.06, 0.0).steering < 0:
+                fires += 1
+        assert fires == cap, "a fourth switch in the same place is not the missing ingredient"

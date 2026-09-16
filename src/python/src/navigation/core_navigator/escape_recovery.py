@@ -73,6 +73,11 @@ class EscapeRecovery:
     _escape_count: int
     _escape_steer_sign: float
     _escape_sequence_start_xy: tuple[float, float] | None
+    _dwell_trail: deque[tuple[int, float, float]]
+    _dwell_tick: int
+    _dwell_last_fire_tick: int
+    _dwell_place: tuple[float, float] | None
+    _dwell_place_fires: int
     _debug: NavigatorDebugSnapshot
     _base_debug: Callable[[float | None, float | None, float | None], NavigatorDebugSnapshot]
 
@@ -425,6 +430,72 @@ class EscapeRecovery:
         if (left >= no_data and right >= no_data) or left == right:
             return self._escape_steer_sign
         return -1.0 if left > right else 1.0
+
+    def note_dwell_sample(self, robot_x: float, robot_y: float) -> None:
+        """Record one tick of where the chassis is, for the dwell gate.
+
+        Sampled on EVERY tick, unlike ``_pose_trail``, which only records a
+        breadcrumb once the chassis has moved ``pose_trail_min_step_m``. That
+        gate is exactly what must not be applied here: the failure this gate
+        detects is a robot that moves constantly without going anywhere, so a
+        distance-triggered history would record it as travelling and lose the
+        one thing worth measuring.
+        """
+        if self._escape.escape_dwell_seconds <= 0.0:
+            return
+        self._dwell_tick += 1
+        self._dwell_trail.append((self._dwell_tick, robot_x, robot_y))
+
+    def _dwell_ticks(self, robot_x: float, robot_y: float) -> int:
+        """How many consecutive ticks the chassis has stayed within the dwell radius.
+
+        Walks backwards from now until a sample lies outside the circle centred
+        on the CURRENT position. Anchoring the circle on the current pose rather
+        than on where the dwell started means a slow drift does not accumulate
+        into a false dwell: the robot has to keep coming back to where it is
+        now, which is what a wedge does and what ordinary driving does not.
+        """
+        radius = self._escape.escape_dwell_radius_m
+        for tick, x, y in reversed(self._dwell_trail):
+            if math.hypot(robot_x - x, robot_y - y) > radius:
+                return self._dwell_tick - tick
+        return self._dwell_tick - self._dwell_trail[0][0] if self._dwell_trail else 0
+
+    def _maybe_dwell_flip(self, maneuver: EscapeManeuver, robot_x: float, robot_y: float) -> EscapeManeuver:
+        """Switch the committed side when the chassis has been pinned in one place.
+
+        The gate the attempt counter cannot be. ``_escape_count`` resets on
+        3 cm of travel, and a wedged robot produces that 3 cm constantly while
+        going nowhere -- measured at 22.3 m of path for 0.14 m of net
+        displacement -- so the counter reads the wedge as progress and fires
+        hardest in the rounds that never stalled. Dwell reads the wedge.
+
+        Switches the side and NOTHING else. ``_maybe_escalate`` also doubles the
+        duration, and that is the half worth leaving behind here: the windows
+        this gate fires in are already made of k_turns (902 of 140358's ticks
+        inside its 98 s wedge), so a longer escape there is more of what is
+        already failing. What the wedge provably never changes on its own is the
+        SIDE -- 96% of its latches sit at attempt one, so
+        ``escape_side_commit_attempts`` never alternates.
+
+        Rate-limited and capped, because raw dwell alone fires on nearly every
+        latch once the threshold is met (137 times in one measured round).
+        """
+        if self._escape.escape_dwell_seconds <= 0.0 or not maneuver.steering:
+            return maneuver
+        hz = self._tuning.control.control_hz
+        if self._dwell_ticks(robot_x, robot_y) < self._escape.escape_dwell_seconds * hz:
+            return maneuver
+        if self._dwell_tick - self._dwell_last_fire_tick < self._escape.escape_dwell_cooldown_s * hz:
+            return maneuver
+        here = (robot_x, robot_y)
+        if self._dwell_place is None or math.dist(here, self._dwell_place) > self._escape.escape_dwell_radius_m:
+            self._dwell_place, self._dwell_place_fires = here, 0
+        if self._dwell_place_fires >= self._escape.escape_dwell_max_per_place:
+            return maneuver
+        self._dwell_place_fires += 1
+        self._dwell_last_fire_tick = self._dwell_tick
+        return replace(maneuver, steering=-maneuver.steering)
 
     def _maybe_escalate(self, maneuver: EscapeManeuver) -> EscapeManeuver:
         """Escalate a repeated escape instead of repeating an identical pulse.

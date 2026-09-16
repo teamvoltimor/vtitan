@@ -20,6 +20,16 @@ side_correction_s = 0.20
 side_correction_blends = false
 tick_router_during_maneuver = false
 escalate_after_attempts = 3
+
+# The dwell gate. OFF (0.0) until a hardware round backs it: it is measured on recorded
+# runs, not simulated ones, because the corpus has no wedge to gate. It switches the
+# committed side only -- it deliberately does NOT double the duration the way
+# escalate_after_attempts does, since the windows it fires in are already 56-95% k_turn
+# ticks and the k_turn still turns against the plan 57% of the time. See the schema.
+escape_dwell_seconds = 0.0
+escape_dwell_radius_m = 0.30
+escape_dwell_cooldown_s = 10.0
+escape_dwell_max_per_place = 3
 escape_side_commit_attempts = 2
 max_escape_s = 1.8
 stuck_confirmation_checks = 3

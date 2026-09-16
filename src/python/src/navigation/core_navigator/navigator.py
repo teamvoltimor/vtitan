@@ -196,6 +196,16 @@ class CoreNavigator(EscapeRecovery):
         # retrace-reverse: ground the robot occupied a moment ago is known
         # free without any rear-facing sensor. See _retrace_steer.
         self._pose_trail: deque[Pose] = deque(maxlen=self._escape.pose_trail_len)
+        # Dwell history for the escape's side-switch gate. Bounded by the
+        # longest dwell that could ever matter, so a pinned robot cannot grow
+        # it without limit: the gate reads at most escape_dwell_seconds back.
+        self._dwell_trail: deque[tuple[int, float, float]] = deque(
+            maxlen=max(1, int(self._escape.escape_dwell_seconds * self._tuning.control.control_hz) + 1)
+        )
+        self._dwell_tick = 0
+        self._dwell_last_fire_tick = -(10**9)
+        self._dwell_place: tuple[float, float] | None = None
+        self._dwell_place_fires = 0
         self._retracing = False
 
         self._build_challenge_controllers(sign_router)
@@ -1022,6 +1032,7 @@ class CoreNavigator(EscapeRecovery):
             >= self._escape.pose_trail_min_step_m
         ):
             self._pose_trail.append(Pose(robot_x, robot_y, robot_yaw))
+        self.note_dwell_sample(robot_x, robot_y)
 
         # Continue an in-progress escape maneuver until its latched duration
         # elapses, so escapes are real motions rather than single-tick pulses that
@@ -1864,7 +1875,9 @@ class CoreNavigator(EscapeRecovery):
                 # The ceiling has to be the last word on the distance. See
                 # ``adr:0055-escape-maneuver-selection``.
                 self._begin_maneuver(
-                    self._fit_reverse_to_rear_gap(self._maybe_escalate(maneuver), scan)
+                    self._fit_reverse_to_rear_gap(
+                        self._maybe_dwell_flip(self._maybe_escalate(maneuver), robot_x, robot_y), scan
+                    )
                 )
                 self._debug = debug
                 # Hand over the snapshot rather than letting it be rebuilt: it
