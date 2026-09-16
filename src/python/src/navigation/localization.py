@@ -290,8 +290,26 @@ class LidarLocalizer:
         The search's cost is left alone. It only ever compares candidates
         against each other on one sweep, where a constant offset cancels; this
         one is compared against an absolute threshold, where it does not.
+
+        The SAME argument applies at the other end of the range and was missing
+        there for as long as this filter has existed. A ray that comes back from
+        the chassis itself is finite, so it passed this filter, and with the
+        wall metres away its residual clips to the maximum -- a full penalty,
+        every tick, wherever the robot is. MEASURED over 401 sweeps per
+        scenario, recomputing this exact cost with and without them: 6.8-7.0% of
+        rays sit below the sensor's own minimum range, and excluding them takes
+        the cost from 0.00776 to 0.00222 on an Open fixture and from 0.01142 to
+        0.00650 on an Obstacles one. Against a pure-noise floor of 0.0009 that
+        is the difference between eight times the floor and two and a half.
+
+        What that offset was hiding is the whole point of this number. In a
+        blind Obstacles run with a CORRECT wall model, the believed pose wanders
+        8-15 cm while this cost reads 0.00988 -- against 0.00973 with the pose
+        exact, and a relocalization threshold of 0.03. The pose error was never
+        a tenth of the signal; it was buried under rays that measure the robot's
+        own body.
         """
-        informative = ranges < RobotSpecs.LIDAR_MAX_RANGE
+        informative = (ranges < RobotSpecs.LIDAR_MAX_RANGE) & (ranges > RobotSpecs.LIDAR_MIN_RANGE)
         if not informative.any():
             return 0.0
         predicted = self._walls.raycast_grid(
