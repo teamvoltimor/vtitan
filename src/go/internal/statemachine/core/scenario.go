@@ -5,7 +5,7 @@ package core
 // because the challenge-mode jumper reuses the existing open-vs-obstacles
 // concept rather than introducing a duplicate enum (see types.py's module
 // docstring). Kept here rather than in a shared cross-package domain
-// module: nothing else in platform/robot-go imports it yet, and
+// module: nothing else in src/go imports it yet, and
 // go-architect §16 treats a shared root domain module as a deliberate
 // choice for types genuinely shared across bounded contexts, not a
 // default -- promote it if/when the nav-stack port needs the same type.

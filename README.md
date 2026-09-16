@@ -474,9 +474,9 @@ width="350">
 	<i>Primer Prototipo del Sistema de Dirección</i>
 </p>
 
-* **Mecanismo de Rueda:** Nuestro primer prototipo fue un rin estático que actúa como soporte/pivote en la tijera, mientras que el caucho exterior móvil incorpora una corona/cremallera interna accionada por piñones para transmitir tracción.
+* **Mecanismo de Rueda:** Nuestro primer prototipo fue un rin estático (es decir, la rueda sin el caucho exterior) que actúa como soporte/pivote en la tijera, mientras que el caucho exterior móvil incorpora una corona/cremallera interna accionada por piñones para transmitir tracción.
 
-* **Transmisión de Dirección/Potencia:** Se implementaron **guayas flexibles** (tipo mototool/rotamil) para llevar el movimiento de rotación a la rueda soportando el ángulo extremo de 90 grados.
+* **Transmisión de Dirección/Potencia:** Se implementaron **guayas flexibles** (cables de transmisión, tipo mototool/rotamil) para llevar el movimiento de rotación a la rueda soportando el ángulo extremo de 90 grados.
 
 * **Caja de Engranajes Modular:** Diseñada para distribuir el movimiento de un solo motor hacia 4 guayas independientes.
 
@@ -587,14 +587,10 @@ Todo el movimiento se transmite por engranajes, y los rines actúan a la vez com
 En cuanto al mecanismo, en primer lugar al servo le implementamos un eje de 20 dientes, el cual se conecta luego a otro engranaje de 20 dientes para transmitir ese mismo movimiento pero en dirección opuesta, cada engranaje de 20 dientes luego transmite su movimiento a un engranaje de 40 dientes, el cual conecta con el engranaje individual que conecta finalmente con cada rueda, ya sean delanteras o traseras.
 
 <p align="center">
-	<img src="models/vtitan/blueprints/pinon-33-dientes-direccion.webp" alt="Piñón de 33 dientes de dirección" 
+	<img src="models/vtitan/blueprints/ring-33-dientes.webp" alt="Ring de 33 dientes" 
 width="350">
 	<br>
-	<i>Piñón de 33 dientes</i>
-	<!-- PENDIENTE: el archivo se llama pinon-33-dientes-direccion.webp, pero en
-	     models/README.md los piñones de 33 dientes figuran en TRANSMISIÓN (etapa 1
-	     de la tabla de relaciones) y los de dirección son de 8, 20 y 40. Resolver
-	     si el plano está mal nombrado o si esta imagen no corresponde aquí. -->
+	<i>Ring de 33 dientes</i>
 </p>
 
 También es importante recalcar la base dentada del rin de las ruedas, o mejor dicho, el piñón de dirección de la misma, debido a que el sistema de transmisión de vTitan en lugar de utilizar engranajes diferenciales estándar, utiliza una transmisión por engranajes a cada rueda, lo que permite que la rueda pueda seguir recibiendo la tracción aún cuando está a 90 grados.
@@ -661,7 +657,7 @@ Algunas piezas para empezar, cada enlace abre el visor 3D de GitHub:
 |:---:|---|---|
 | [<img src="models/vtitan/blueprints/rueda-vtitan.webp" width="110">](models/vtitan/stl-files/rueda-vtitan.stl) | [`rueda-vtitan.stl`](models/vtitan/stl-files/rueda-vtitan.stl) | La rueda con corona dentada interna |
 | [<img src="models/vtitan/blueprints/pinon-90-cruceta-10-dientes.webp" width="110">](models/vtitan/stl-files/pinon-90-cruceta-10-dientes.stl) | [`pinon-90-cruceta-10-dientes.stl`](models/vtitan/stl-files/pinon-90-cruceta-10-dientes.stl) | El engranaje cónico que lleva la tracción a la rueda a 90° |
-| [<img src="models/vtitan/blueprints/pinon-40-dientes-eje-servo.webp" width="110">](models/vtitan/stl-files/pinon-40-dientes-servo-cajera.stl) | [`pinon-40-dientes-servo-cajera.stl`](models/vtitan/stl-files/pinon-40-dientes-servo-cajera.stl) | El piñón del eje del servo, la entrada de la dirección |
+| [<img src="models/vtitan/blueprints/pinon-40-dientes-servo.webp" width="110">](models/vtitan/stl-files/pinon-40-dientes-servo-cajera.stl) | [`pinon-40-dientes-servo-cajera.stl`](models/vtitan/stl-files/pinon-40-dientes-servo-cajera.stl) | El piñón del eje del servo, la entrada de la dirección |
 | [<img src="models/vtitan/blueprints/brazo-de-tensor-v2.webp" width="110">](models/vtitan/stl-files/brazo-de-tensor-v2.stl) | [`brazo-de-tensor-v2.stl`](models/vtitan/stl-files/brazo-de-tensor-v2.stl) | El tensor que mantiene la correa dentada |
 | (sin plano) | [`monochasis-v3.stl`](models/vtitan/stl-files/monochasis-v3.stl) | La estructura que cierra el conjunto (última iteración) |
 
@@ -908,7 +904,7 @@ width="350">
 
 El GY-BNO085 es nuestro sensor de orientación inercial (IMU). Lo usamos para que el robot mantenga rumbo en los cruces y cuente las vueltas dadas tanto en el Open Challenge como en el Obstacle Challenge, aunque exista algún problema mecánico que lo desvíe de su trayectoria.
 
-**Cómo lo usamos (y cómo no).** El BNO085 no alimenta un PID de rumbo: alimenta la **pose**. Corre en modo UART-RVC a 100 Hz, una fusión interna de 6 ejes (giroscopio + acelerómetro, sin magnetómetro) que el chip calcula por sí mismo. Elegimos descartar el magnetómetro a propósito: sobre la pista conviven tres motores, un chasis metálico y la electrónica de potencia, y un rumbo por campo magnético sería vulnerable a todo eso. La contrapartida es la deriva del datasheet (~0.5°/min), que acotamos por otras vías (ver abajo). Esta decisión, con su comparación cuantitativa contra el modo de 9 ejes, está documentada en `src/python/docs/blind-navigation-evaluation.md`.
+**Cómo lo usamos (y cómo no).** El BNO085 no alimenta un PID de rumbo: alimenta la **pose**. Corre en modo UART-RVC a 100 Hz, una fusión interna de 6 ejes (giroscopio + acelerómetro, sin magnetómetro) que el chip calcula por sí mismo. Elegimos descartar el magnetómetro a propósito: sobre la pista conviven tres motores, un chasis metálico y la electrónica de potencia, y un rumbo por campo magnético sería vulnerable a todo eso. La contrapartida es la deriva del datasheet (~0.5°/min), que acotamos por otras vías (ver abajo). Esta decisión, con su comparación cuantitativa contra el modo de 9 ejes, está documentada en `other/docs/adr/0079-imu-6axis-and-yaw-reference.md`.
 
 **Calibración y referencia de rumbo.** El modo RVC no expone rutinas de calibración al usuario: la calibración de gyro/acelerómetro la hace el chip en su arranque. Nuestra parte del proceso es la **referencia de yaw**, y es deliberadamente simple:
 
@@ -1083,8 +1079,8 @@ Los exportados (`harness.schematic.svg` y `harness.schematic.png`) se versionan 
 <!-- HUECO (rubro WRO 2026, criterio 2 "modos de fallo y fiabilidad").
 Falta la sección de protección eléctrica: fusible o limitador en la rama de
 tracción (picos medidos de ~20 A), corte por bajo voltaje de la LiPo 3S, y
-procedimiento de carga y almacenamiento. También queda abierta la discrepancia
-de la altura del plano del haz del LIDAR entre robot.toml, la TF estática y el URDF. -->
+procedimiento de carga y almacenamiento. (La discrepancia de la altura del haz
+del LIDAR quedó resuelta: 0.08 m, ver ADR 0014.) -->
 
 #### Calibración
 
@@ -1367,7 +1363,7 @@ flowchart TD
     Taper --> Pin["Ancla el punto justo<br/>a la altura de la señal"]:::optional
     Pin --> Steer["El carril se usa como<br/>objetivo de dirección"]
 
-    classDef optional stroke-dasharray: 5 5,fill:#f5f5f5,stroke:#888
+    classDef optional stroke-dasharray: 5 5
 ```
 
 <p align="center"><i>Regla de paso por señales de color (Obstacle Challenge)</i><br><sub>Fuente: <a href="schemes/flowcharts/obstacles/mermaid/regla-senales.mmd"><code>regla-senales.mmd</code></a> | <a href="schemes/flowcharts/obstacles/webp/regla-senales.webp">render WebP</a></sub></p>
@@ -1670,14 +1666,6 @@ flowchart TD
     HB --> MOT
     MOT --> TRANS
     SRV --> DIR
-
-    classDef fallo fill:#ffe5e5,stroke:#c00,stroke-width:2px
-    classDef energia fill:#fff4e0,stroke:#b8860b
-    classDef datos fill:#e8f0ff,stroke:#36c
-
-    class SW,PI5,ZERO,HB fallo
-    class BAT,REG,USBC energia
-    class LIDAR,CAM,IMU,ENC datos
 ```
 
 <p align="center"><i>Interacciones entre subsistemas: línea continua es energía, línea punteada es dato</i><br><sub>Fuente: <a href="schemes/flowcharts/common/mermaid/subsistemas.mmd"><code>subsistemas.mmd</code></a> | <a href="schemes/flowcharts/common/webp/subsistemas.webp">render WebP</a></sub></p>
@@ -1685,7 +1673,7 @@ flowchart TD
 **Lo que el diagrama hace visible y las secciones sueltas no:**
 
 - **Una sola batería alimenta dos mundos con exigencias opuestas.** La rama de tracción consume ~10 A con picos de ~20 A; la rama de lógica necesita 5 V estables. Van separadas desde el interruptor precisamente para que un pico de motor no arrastre la tensión de la Pi 5.
-- **Los cuatro puntos únicos de fallo están marcados en rojo**, y ninguno tiene redundancia: el interruptor de encendido (el eslabón más débil de la ruta de potencia desde que el puente pasó a 43 A), las dos placas, y el puente H. Si cae cualquiera, la ronda se pierde. Está asumido: añadir redundancia costaría peso, y el peso es la restricción que más aprieta.
+- **Los cuatro puntos únicos de fallo** no tienen redundancia: el interruptor de encendido (el eslabón más débil de la ruta de potencia desde que el puente pasó a 43 A), las dos placas (Pi 5 y Zero 2 W) y el puente H. Si cae cualquiera, la ronda se pierde. Está asumido: añadir redundancia costaría peso, y el peso es la restricción que más aprieta.
 - **La Pi Zero se alimenta por VBUS desde la Pi 5.** Esto acopla las dos placas: un reinicio de la Pi 5 se lleva por delante el control en tiempo real. Verificado con `vcgencmd get_throttled` en carrera (0x0, sin caída de tensión), pero es un acoplamiento real y conviene declararlo.
 - **El reparto de cómputo es una decisión de tiempo, no de potencia.** La inferencia de visión es pesada y de latencia variable; el lazo de control del servo no tolera fluctuaciones. Por eso viven en placas distintas, y por eso el enlace entre ellas es ROS2 sobre DDS con 29 tópicos declarados en un único archivo.
 - **La restricción más dura del robot es un detalle de silicio.** El SoC de la Pi Zero tiene exactamente **dos generadores de PWM por hardware**. Uno lo toma el servo, que necesita posición absoluta. El otro va a la marcha adelante del motor. La marcha atrás se queda sin PWM de hardware, y de ahí sale el riesgo del `LPWM` sin pull-down que aparece en la tabla de riesgos. Una limitación de cómputo se convirtió en una limitación eléctrica y luego en una restricción de estrategia: el estacionamiento y la recuperación son las únicas maniobras que usan reversa.

@@ -1,5 +1,5 @@
 // sign_slot_map.go ports
-// platform/robot/src/navigation/planning/sign_slot_map.py: a sign map that
+// src/python/src/navigation/planning/sign_slot_map.py: a sign map that
 // assigns evidence to the rulebook's 24 legal cells (at most two per section)
 // instead of clustering freely.
 //

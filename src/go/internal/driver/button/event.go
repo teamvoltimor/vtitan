@@ -1,7 +1,7 @@
 package button
 
 // Kind identifies which button event Read returned. Mirrors
-// platform/robot/src/hardware/button/event.py's ButtonEvent enum.
+// src/python/src/hardware/button/event.py's ButtonEvent enum.
 type Kind int
 
 // Event is one debounced button transition: a press, a release, or a hold
@@ -35,7 +35,7 @@ const (
 )
 
 // String returns the wire-style spelling used by the Python driver this
-// ports (platform/robot/src/hardware/button/event.py), e.g. "short_press".
+// ports (src/python/src/hardware/button/event.py), e.g. "short_press".
 func (k Kind) String() string {
 	switch k {
 	case KindPressed:

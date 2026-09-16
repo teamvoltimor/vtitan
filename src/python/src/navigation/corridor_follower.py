@@ -15,22 +15,22 @@ Starting on the assumed direction instead does not work. The path for the wrong
 direction runs the opposite way down the same corridor, so its lookahead point
 is *behind* the robot and pure pursuit turns it around inside the corridor.
 
-Tried and reverted (2026-08-02): a dead zone on the turn-below's ``left >
-right`` comparison, holding straight instead of committing to a side when the
-two were within a few centimetres -- meant to filter the occasional noisy scan
-that steers the wrong way for a tick before the direction estimator's own
-(much stricter, 5-vote) test corrects it. Even sized to real LIDAR noise
-(~3 cm), it regressed multiple blind Open Challenge fixtures into the 180 s
-round limit or stuck oscillating near a corner: in a narrow (0.6 m) corridor
-the asymmetry signal grows slowly approaching a turn, so any dead zone here
-eats into the same margin the deadlock-avoidance back-off branch below
-depends on, disproportionately to the noise it was filtering. The wrong-side
-steer this was meant to fix is now largely absorbed by
-:mod:`src.navigation.core_navigator`'s heading-aware ``replace_path`` reseek
-instead (a bad blind-phase guess gets a correctly-sized correction once the
-direction estimator settles, rather than an oversized one) -- do not
-re-attempt a dead zone here without re-measuring against the full Open
-Challenge sim battery, not just the fixture that motivated it.
+Tried and reverted: a dead zone on the turn-below's ``left > right``
+comparison, holding straight instead of committing to a side when the two were
+within a few centimetres -- meant to filter the occasional noisy scan that
+steers the wrong way for a tick before the direction estimator's own (much
+stricter, 5-vote) test corrects it. Even sized to real LIDAR noise it regressed
+multiple blind Open Challenge fixtures into the round limit or stuck
+oscillating near a corner: in a narrow corridor the asymmetry signal grows
+slowly approaching a turn, so any dead zone here eats into the same margin the
+deadlock-avoidance back-off branch below depends on, disproportionately to the
+noise it was filtering. The wrong-side steer this was meant to fix is now
+largely absorbed by :mod:`src.navigation.core_navigator`'s heading-aware
+``replace_path`` reseek instead (a bad blind-phase guess gets a correctly-sized
+correction once the direction estimator settles, rather than an oversized
+one) -- do not re-attempt a dead zone here without re-measuring against the
+full Open Challenge sim battery, not just the fixture that motivated it. See
+``adr:0057-blind-corridor-follower-and-width``.
 """
 
 from __future__ import annotations
@@ -67,8 +67,7 @@ def steer_cap_norm(commit_distance_m: float, follower: CorridorFollowerParams) -
     ``MAX_CORNER_STEER_DEG`` is sized by geometry against one distance,
     ``TURN_CLEARANCE_M``: the arc has to fit inside the room left ahead when the
     turn is committed. Three branches commit at three different distances and
-    all three used that one angle, so two of them drive an arc that cannot fit
-    -- the same defect the 13.75 deg value had at 0.60 m, one level down.
+    all three used that one angle, so two of them drive an arc that cannot fit.
 
     Holding the radius proportional to the commit distance keeps the argument
     and re-derives the angle::
@@ -76,10 +75,11 @@ def steer_cap_norm(commit_distance_m: float, follower: CorridorFollowerParams) -
         tan(cap) = tan(MAX_CORNER_STEER_DEG) * TURN_CLEARANCE_M / d
 
     At ``d = TURN_CLEARANCE_M`` this returns ``MAX_CORNER_STEER_DEG`` exactly,
-    so the measured wide-corner case is untouched and only the shorter commits
-    move. The ratio form also cancels the ``(1 + REAR_STEER_RATIO) * YAW_GAIN``
-    factor in the radius, so it inherits the anchor's calibration rather than
-    depending on those two separately.
+    so the anchor case is untouched and only the shorter commits move. The ratio
+    form also cancels the ``(1 + REAR_STEER_RATIO) * YAW_GAIN`` factor in the
+    radius, so it inherits the anchor's calibration rather than depending on
+    those two separately. See
+    ``adr:0049-corner-arcs-per-corridor-and-commit-distance``.
 
     Args:
         commit_distance_m: Forward clearance at which this branch commits.
@@ -185,22 +185,22 @@ def follow_corridor(
     # normalised exactly once, on the way out. Holding it in normalised units
     # instead made every constant below a fraction of whatever full lock
     # happened to be, so recalibrating the servo silently retuned the loop --
-    # see CorridorFollowerParams for the 55 -> 85 deg case that prompted this.
+    # see ``adr:0049-corner-arcs-per-corridor-and-commit-distance``.
     max_centering_rad = math.radians(follower.max_centering_steer_deg)
     centering_gain_rad_per_m = math.radians(follower.centering_gain_deg_per_m)
     heading_gain = follower.heading_gain
     # The corner and back-off branches steer AT their own angle rather than
     # sharing the centring clamp: one is sized by the arc having to fit inside
-    # TURN_CLEARANCE_M, the other by the 2026-08-07 limit cycle, and after the
-    # simulator was calibrated those two wanted opposite values. See
-    # MAX_CORNER_STEER_DEG.
+    # TURN_CLEARANCE_M, the other by the centring limit cycle, and after the
+    # simulator was calibrated those two wanted opposite values.
     #
     # They then took the SAME value anyway, because one constant was applied to
     # branches that commit at three different distances -- so lowering it to
-    # 21.25 deg on 2026-08-30 to make the corner arc fit 0.60 m also cut the
-    # back-off branch, which commits at 0.30 m and is where the colliding runs
-    # spend 59% of their creep ticks. Each branch now derives its own cap from
-    # its own commit distance; see steer_cap_norm.
+    # make the corner arc fit also cut the back-off branch, which commits
+    # closer and is where the colliding runs spend most of their creep ticks.
+    # Each branch now derives its own cap from its own commit distance; see
+    # steer_cap_norm and
+    # ``adr:0049-corner-arcs-per-corridor-and-commit-distance``.
     turn_clearance = follower.turn_clearance_m
     if believed_width_m is not None and classify_width(believed_width_m) == CorridorDimensions.NARROW:
         turn_clearance = follower.narrow_turn_clearance_m
@@ -231,18 +231,18 @@ def follow_corridor(
         # quarter of it, on a radius half again too wide to clear the wall.
         backoff_cap = steer_cap_norm(min_forward_clearance, follower)
         steering = backoff_cap if turn_left else -backoff_cap
-        # Re-measured 2026-08-31: the rear slot is back (~40 deg at +/-160..180),
-        # so this is no longer "always None" and the reverse below is now the
-        # normal path rather than dead code. The refusal reasoning stands for
-        # bearings still inside the wedges.
+        # The rear slot is measurable again (~40 deg straight back), so this is
+        # no longer "always None" and the reverse below is now the normal path
+        # rather than dead code. The refusal reasoning stands for bearings still
+        # inside the wedges. See ``adr:0056-raw-and-masked-scan``.
         #
         # None means the rear sector is unreadable on this mount, which is NOT
         # permission to reverse into it. Was a single raw ray straight back,
         # which cannot distinguish "open" from "occluded": the occlusion wedges
         # sit either side of that exact bearing and a no-return is substituted
-        # with max range, so the gate read 12 m of open road and backed into
-        # whatever was behind. Holding position is the worse-looking option and
-        # the correct one -- see MIN_REVERSE_CLEARANCE_M on why covering ground
+        # with max range, so the gate read open road and backed into whatever
+        # was behind. Holding position is the worse-looking option and the
+        # correct one -- see MIN_REVERSE_CLEARANCE_M on why covering ground
         # backwards is never a win here.
         rear = _rear_clearance(ranges_m, angles_rad, tuning)
         if rear is not None and rear > min_reverse_clearance:
@@ -257,10 +257,10 @@ def follow_corridor(
         # `CoreNavigator.step` is never reached, which means the stuck detector
         # never runs and no escape is ever considered.
         #
-        # Measured 2026-08-27: a robot started INSIDE the parking bay -- a legal
-        # start -- sat at exactly 0.00 m for the whole run, 8/8 scenarios. Front
-        # was 0.05-0.19 m against a parking fin while BOTH sides read 12.0 m.
-        # There was an open corridor either side and the robot could see it.
+        # A robot started INSIDE the parking bay -- a legal start -- would
+        # otherwise sit forever: front pinned against a parking fin while there
+        # was an open corridor either side it could see. See
+        # ``adr:0055-escape-maneuver-selection``.
         #
         # So pivot toward it instead, which is the same answer escape_recovery
         # already reached for this rear-free chassis (see its both-blocked

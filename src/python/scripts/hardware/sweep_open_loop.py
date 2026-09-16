@@ -73,6 +73,10 @@ from dotenv import load_dotenv
 # `097ab6cf` for run-lidar. Calling load_dotenv() any later is too late.
 load_dotenv()
 
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+
 from scripts.common.stats import fmean
 from src.hardware.motors.bts7960 import Driver as Bts7960Driver  # noqa: E402 - see load_dotenv() note above
 from src.hardware.motors.config import Config  # noqa: E402

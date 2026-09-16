@@ -1,5 +1,5 @@
 // Package parking_test is the black-box test suite for package parking,
-// mirroring platform/robot/tests/unit/test_parking.py.
+// mirroring src/python/tests/unit/test_parking.py.
 package parking_test
 
 import (

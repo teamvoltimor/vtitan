@@ -17,7 +17,7 @@ type Detection struct {
 
 // TelemetrySummary is the low-rate LIDAR/yaw/detection readout the OLED
 // needs, field-for-field matching TelemetrySummaryWire
-// (platform/robot/src/ros2/wire_models.py) and what
+// (src/python/src/ros2/wire_models.py) and what
 // telemetry_bridge_node.py's `_publish_ui_summary` computes:
 //
 //   - LidarFrontCM / LidarLeftCM / LidarRightCM: mean LIDAR range (cm) in

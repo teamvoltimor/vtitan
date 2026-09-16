@@ -20,12 +20,12 @@
     "rear_self_detection_from_chassis": {
       "type": "boolean",
       "description": "Gate the REAR sector's self-detection by chassis geometry instead, per bearing. One scalar cannot describe the rear: the chassis boundary runs from 0.137 m at the sector edges to 0.2722 m straight back, and 0.08 is inside the body everywhere in between. Measured on run_20260906_192424 the rear minimum was the ROBOT on 100% of scans (-157 deg / 0.125 m, -172 deg / 0.187 m), so most_constrained_side read BACK on 84% of driving ticks -- and there is no BACK escape branch, so no maneuver was ever generated. 212 ticks of escape_risk=critical across the five pillar contacts produced zero escapes.",
-      "x-journal": "adr:0040-rear-self-detection-chassis-geometry"
+      "x-journal": "adr:0056-raw-and-masked-scan"
     },
     "min_valid_range_m": {
       "type": "number",
       "description": "No-return / invalid reading floor. Must sit STRICTLY BELOW RobotSpecs.LIDAR_MIN_RANGE (0.045, the C1's rated minimum), because the filter is `r > min_valid_range_m` and the sensor REPORTS 0.045 for anything closer than it can measure. Held 0.05 until 2026-09-10 while its comment claimed to \"match\" 0.045: every floor reading was therefore discarded as invalid, so a chassis nosed into a corner had its whole forward cone thrown away and AssessRisk returned the unconditional RiskCritical for a fully-invalid lane -- a wedge it could not read its way out of.",
-      "x-journal": "adr:0041-lidar-valid-range-floor"
+      "x-journal": "adr:0056-raw-and-masked-scan"
     },
     "threat_no_detection_range_m": {
       "type": "number",

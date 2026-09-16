@@ -128,18 +128,23 @@ class TestRepointing:
         re-points, so it is not a corner case."""
         sign_map = _map()
         cells = _cells_of(corridor_for_position(*legal_sign_positions()[0]))
-        _feed(sign_map, cells[0], SignColor.RED, times=1)
-        _feed(sign_map, cells[1], SignColor.RED, times=1)
+        # Three cells on three DIFFERENT depth lines: two laterals of one depth
+        # are the same pillar under the one-per-depth rule and would be merged
+        # before this test's question is even asked.
+        first, second, third = cells[0], cells[2], cells[4]
+        assert len({c[0] for c in (first, second, third)} | {c[1] for c in (first, second, third)}) >= 4
+        _feed(sign_map, first, SignColor.RED, times=1)
+        _feed(sign_map, second, SignColor.RED, times=1)
         for i, slot in enumerate(sign_map.newly_confirmed()):
             slot.published_index = i
         sign_map.retire(0)
         sign_map.retire(1)
 
-        _feed(sign_map, cells[2], SignColor.GREEN, times=20)
-        sign_map.observe(None, Waypoint(cells[2][0], cells[2][1] - 0.4))
+        _feed(sign_map, third, SignColor.GREEN, times=20)
+        sign_map.observe(None, Waypoint(third[0], third[1] - 0.4))
 
-        assert [s.cell for s in sign_map.newly_confirmed()] == [cells[2]]
-        assert sign_map._slots[0].cell == cells[0], "a retired index was re-pointed"  # noqa: SLF001
+        assert [s.cell for s in sign_map.newly_confirmed()] == [third]
+        assert sign_map._slots[0].cell == first, "a retired index was re-pointed"  # noqa: SLF001
 
 
 class TestFailSafe:
@@ -219,3 +224,67 @@ class TestTheCapHoldsUnderPressure:
         sign_map.observe(None, Waypoint(cells[2][0], cells[2][1] - 0.4))
 
         assert [s.cell for s in sign_map.newly_confirmed()] == [cells[2]]
+
+
+class TestOnePillarPerDepthLine:
+    """The rulebook never places two pillars on one depth line of a section.
+
+    Measured on run_20260915_002408: one green pillar standing between the two
+    lateral cells at depth 1.0 filled BOTH east slots, and the red pillar at
+    depth 2.0 was refused for the whole round while the chassis escaped 30 times
+    against it.
+    """
+
+    @staticmethod
+    def _east_cells() -> dict[tuple[float, float], tuple[float, float]]:
+        section = corridor_for_position(2.4, 1.0)
+        return {c: c for c in _cells_of(section)}
+
+    def test_both_laterals_of_one_depth_publish_one_pillar(self) -> None:
+        sign_map = _map()
+        _feed(sign_map, (2.4, 1.0), SignColor.GREEN, times=4)
+        _feed(sign_map, (2.6, 1.0), SignColor.GREEN, times=3)
+
+        published = {s.cell for s in sign_map.newly_confirmed()}
+
+        assert published == {(2.4, 1.0)}, published
+
+    def test_the_freed_slot_goes_to_a_pillar_at_another_depth(self) -> None:
+        sign_map = _map()
+        _feed(sign_map, (2.4, 1.0), SignColor.GREEN, times=6)
+        _feed(sign_map, (2.6, 1.0), SignColor.GREEN, times=5)
+        # Weaker than either twin: under the old top-two rule this never entered.
+        _feed(sign_map, (2.4, 2.0), SignColor.RED, times=2)
+
+        published = {s.cell for s in sign_map.newly_confirmed()}
+
+        assert published == {(2.4, 1.0), (2.4, 2.0)}, published
+
+    def test_a_twin_incumbent_is_displaced_without_the_margin(self) -> None:
+        """The twin publishes first, then the real second pillar arrives late."""
+        sign_map = _map()
+        _feed(sign_map, (2.6, 1.0), SignColor.GREEN, times=5)
+        _feed(sign_map, (2.4, 1.0), SignColor.GREEN, times=1)
+        for i, slot in enumerate(sign_map.newly_confirmed()):
+            slot.published_index = i
+        assert [s.cell for s in sign_map._slots] == [(2.6, 1.0)]  # noqa: SLF001
+        # The lighter lateral catches up and overtakes: the section must still
+        # hold ONE pillar at depth 1.0, never both.
+        _feed(sign_map, (2.4, 1.0), SignColor.GREEN, times=6)
+        held = [s.cell for s in sign_map._slots + sign_map._unpublished]  # noqa: SLF001
+        assert held in ([(2.4, 1.0)], [(2.6, 1.0)]), held
+        _feed(sign_map, (2.4, 2.0), SignColor.RED, times=2)
+
+        cells = [s.cell for s in sign_map._slots + sign_map._unpublished]  # noqa: SLF001
+
+        assert (2.4, 2.0) in cells, cells
+        assert sum(1 for c in cells if c[1] == 1.0) == 1, cells
+
+    def test_two_pillars_at_different_depths_are_untouched(self) -> None:
+        sign_map = _map()
+        _feed(sign_map, (2.4, 1.0), SignColor.GREEN, times=3)
+        _feed(sign_map, (2.6, 2.0), SignColor.RED, times=3)
+
+        published = {s.cell for s in sign_map.newly_confirmed()}
+
+        assert published == {(2.4, 1.0), (2.6, 2.0)}, published

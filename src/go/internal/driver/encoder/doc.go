@@ -1,7 +1,7 @@
 // Package encoder provides the quadrature-encoder driver bolted to the
 // drive motor shaft, plus the pure count->distance/RPM primitives both the
 // real driver and its tests are built on. It ports
-// platform/robot/src/hardware/motors/encoder/{driver,control}.py.
+// src/python/src/hardware/motors/encoder/{driver,control}.py.
 //
 // The encoder is a plain sensor, independent of whichever H-bridge is
 // turning the shaft it reads -- the same separation Python's base.py

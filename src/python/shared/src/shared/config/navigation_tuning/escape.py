@@ -111,6 +111,10 @@ class EscapeManeuverParams(NavigationEscapeEscape):
                     "escape_side_follows_committed_sign",
                     self.obstacles_escape_side_follows_committed_sign,
                 ),
+                (
+                    "side_correction_follows_committed_sign",
+                    self.obstacles_side_correction_follows_committed_sign,
+                ),
             )
             if obstacle_value is not None and obstacle_value != getattr(self, name)
         }

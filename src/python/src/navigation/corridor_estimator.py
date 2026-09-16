@@ -7,9 +7,9 @@ someone measured the mat and wrote the file first: WRO places the inner walls
 randomly before each round, so the true widths cannot be known in advance.
 
 This closes that gap. It exploits the one thing the rules *do* guarantee: each
-corridor is either 0.6 m or 1.0 m. So the robot never has to measure a width,
-only decide between two values 0.4 m apart — against a 0.03 m LIDAR sigma, a
-better-than-4-sigma call.
+corridor is either 0.6 m or 1.0 m, so the robot never has to measure a width,
+only decide between two values. See
+``adr:0057-blind-corridor-follower-and-width``.
 
 The measurement needs no map and no position estimate. The LIDAR sits at the
 chassis centre, so the range directly left plus the range directly right spans
@@ -158,16 +158,13 @@ class CorridorWidthEstimator:
     where it starts, not whether it measures -- unless constructed with
     ``fixed=True``, for a challenge whose width is a *known constant* rather
     than a prior. The Obstacles Challenge is exactly that case: every corridor
-    is 1.0 m by rule, not by discovery, so a corridor with a sign or pillar
-    hugging one wall can feed the vote a run of falsely-narrow readings (a
-    LIDAR ray clipping the obstacle instead of the real wall) with nothing to
-    correct it back -- and unlike the Open Challenge, where believing narrow
-    is deliberately the safe direction to be wrong in, an Obstacles corridor
-    wrongly believed narrow re-plans with *less* room than actually exists,
-    right where an obstacle already eats into the true 1.0 m. ``fixed=True``
-    keeps every other behaviour (creep-width buffering, direction-inference
-    replay) identical -- it only stops ``observe_measurement`` from ever
-    changing ``widths`` away from ``assumed_width``.
+    is 1.0 m by rule, so a sign- or pillar-hugging ray (clipping the obstacle
+    instead of the real wall) must not vote it falsely narrow and make the
+    planner re-plan with *less* room than actually exists. ``fixed=True`` keeps
+    every other behaviour (creep-width buffering, direction-inference replay)
+    identical -- it only stops ``observe_measurement`` from ever changing
+    ``widths`` away from ``assumed_width``. See
+    ``adr:0057-blind-corridor-follower-and-width``.
     """
 
     def __init__(

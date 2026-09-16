@@ -13,7 +13,7 @@ import (
 )
 
 // Config configures an RVCDriver's serial connection. Matches the fields
-// platform/robot/src/hardware/imu/bno08x/uart_rvc.py's Config exposes for
+// src/python/src/hardware/imu/bno08x/uart_rvc.py's Config exposes for
 // the serial link itself (port, baudrate) — polling rate isn't configured
 // here since RVCDriver.Read blocks on the next hardware-streamed frame
 // rather than polling on a timer (see Read's doc comment).
@@ -23,7 +23,7 @@ type Config struct {
 }
 
 // RVCDriver reads BNO08x UART-RVC frames from a serial port. It implements
-// driver.Driver[Reading] (platform/robot-go/internal/driver).
+// driver.Driver[Reading] (src/go/internal/driver).
 type RVCDriver struct {
 	cfg    Config
 	port   serial.Port
@@ -38,7 +38,7 @@ type readResult struct {
 }
 
 // DefaultBaudRate is the BNO08x UART-RVC mode's documented serial rate,
-// matching platform/robot's Config.baudrate default.
+// matching src/python's Config.baudrate default.
 const DefaultBaudRate = 115200
 
 var (

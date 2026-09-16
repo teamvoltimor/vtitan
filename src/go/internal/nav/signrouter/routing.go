@@ -1,5 +1,5 @@
 // routing.go ports
-// platform/robot/src/navigation/planning/sign_router/routing.py's
+// src/python/src/navigation/planning/sign_router/routing.py's
 // ROUTING_TABLE and pure helpers (signs_from_metadata excluded -- see
 // doc.go).
 

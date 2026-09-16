@@ -6,10 +6,10 @@ matching scans against the walls, but that solver takes yaw *as given* -- so
 yaw comes from the IMU alone, and a BNO085 in UART-RVC mode is 6-axis with no
 magnetometer and no absolute reference. Its error is a ramp, not a bound.
 
-The measurements say that is the axis that decides rounds. Across the 28 Open
-Challenge fixtures, 20 cm of position error costs nothing at all, while
-0.1 deg/s of gyro drift takes 28/28 to 6/28 and 0.5% of gyro scale error takes
-it to 25/28.
+The measurements say heading is the axis that decides rounds: 0.5% of gyro
+scale error takes 28/28 to 25/28, while the position-error and drift budgets
+are in ``adr:0054-absolute-heading-from-walls``,
+``adr:0079-imu-6axis-and-yaw-reference`` and ``adr:0086-simulator-realism``.
 
 ## The observation
 

@@ -5,7 +5,7 @@
 // for isolated bench testing and local debugging without the whole board
 // binary.
 //
-// It dials the backend's RobotCommandService (platform/proto/telemetry/v1/
+// It dials the backend's RobotCommandService (other/contracts/proto/telemetry/v1/
 // commands.proto) via internal/statemachine/robotcmd, dispatches every
 // received command through internal/statemachine/command.Dispatcher, and
 // publishes synthetic button events on the vtitan.ui.v1.button_event NATS
@@ -40,7 +40,7 @@ type cliConfig struct {
 	robotID     string
 }
 
-// defaultBackendAddr matches platform/backend/cmd/server's default
+// defaultBackendAddr matches other/apps/backend/cmd/server's default
 // --grpc-addr for local bench/dev use against a backend running on the
 // same machine.
 const defaultBackendAddr = "127.0.0.1:50051"

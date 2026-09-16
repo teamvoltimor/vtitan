@@ -10,6 +10,7 @@ without Gazebo, ROS2, or a physics engine.
 from __future__ import annotations
 
 import math
+from collections.abc import Sequence
 from collections import deque
 from dataclasses import dataclass, replace
 from typing import TYPE_CHECKING, cast
@@ -49,6 +50,7 @@ if TYPE_CHECKING:
 
 
 @dataclass(frozen=True, slots=True)
+
 class _SimulatorConstants:
     """Tuning-derived simulator constants, computed on-demand instead of frozen at module level."""
 
@@ -473,20 +475,46 @@ class SimulatedHardwareGateway:
         return self._through_vision_pipeline(fresh)
 
     def _corrupt_detections(
-        self, observations: list[TrafficSignObservation]
+        self, observations: list[TrafficSignObservation], origin: Pose | None = None
     ) -> list[TrafficSignObservation]:
-        """Apply the camera's colour errors, which the emulator otherwise has none of.
+        """Apply the camera errors the emulator otherwise has none of.
 
-        The rate ships at 0.0. It is UNMEASURED, and defaulting an invented
-        error rate would make the simulator wrong in a new way rather than more
-        realistic -- so the knob exists, is wired, and waits for a bag-derived
-        number. What it is for: the emulator copies ground-truth colour
-        directly and never invents a sign, so the single biggest real perception
-        failure (the magenta parking barrier arriving as a RED pillar at p50
-        confidence 0.79) cannot be screened in simulation at all, and the whole
-        aspect-gate defence built against it is dead code here.
+        Two of them, both MEASURED 2026-09-15 against the operator's stated
+        layout on the three rounds whose pillar map reconstructs to it:
+
+        * **Colour** -- 111 of 2,162 detections carry the opposite colour, 5.1%.
+          The emulator copies ground-truth colour, so without this the biggest
+          real perception failure (the magenta parking barrier arriving as a RED
+          pillar) cannot be screened here at all and the aspect-gate defence
+          built against it is dead code. NOTE the real errors are CONCENTRATED
+          -- most pillars near 0%, one at 47% -- while this flip is i.i.d.; the
+          marginal rate is honest, its structure is not.
+        * **Bearing** -- sigma 0.232 rad (13.3 deg), from an interquartile range
+          of -9.36 to +8.59 deg over 2,588 detections. The emulator projects
+          from the TRUE bearing, so the only angular error a simulated run
+          carried was the pose estimate's ~1.7 deg. At 1.5 m the real scatter is
+          0.35 m of lateral miss, WIDER than the radii meant to contain it
+          (association_dist_m 0.25, detection_match_dist_m 0.30).
+
+        Bearing is applied FIRST and colour second: they are independent
+        failures of the same frame, and rotating an already-flipped observation
+        is the same thing as flipping a rotated one.
+
+        ``origin`` is the frame the observation's world point was projected
+        from; the scatter is a rotation about it, which is what a bearing error
+        physically is. Without it the rotation would be about the world origin,
+        which is not an error any camera can make.
         """
         sim = self.tuning.simulation
+        quantiles = sim.vision_confidence_quantiles
+        if quantiles:
+            observations = [
+                replace(obs, confidence=self._sample_confidence(quantiles, sim.vision_confidence_levels))
+                for obs in observations
+            ]
+        scatter = sim.vision_bearing_scatter_rad
+        if scatter > 0.0 and origin is not None:
+            observations = [self._scatter_bearing(obs, origin, scatter) for obs in observations]
         flip = sim.vision_color_flip_rate
         if flip > 0.0:
             observations = [
@@ -496,6 +524,61 @@ class SimulatedHardwareGateway:
                 for obs in observations
             ]
         return observations
+
+    def _sample_confidence(self, quantiles: Sequence[float], levels: Sequence[float]) -> float:
+        """Draw a detection confidence from the MEASURED distribution.
+
+        Piecewise-linear inverse-CDF interpolation at ``levels``, so
+        five numbers in a TOML reproduce the shape of 3,315 real detections
+        without fitting a parametric family the data does not obviously have
+        (it is skewed and bounded near 0.96).
+
+        The levels are NOT evenly spaced, and assuming they were is a silent
+        error rather than a loud one: with [0, .25, .5, .75, 1] the sampler
+        still returns the median exactly while reading p10 as 0.477 against a
+        measured 0.515 and p90 as 0.942 against 0.917. It looks calibrated at
+        the one point anybody checks.
+
+        The emulator otherwise stamps a CONSTANT, which sits at the real p90 --
+        every frame one of its best. That matters less for
+        `sign_router.min_confidence`, which rejects nothing at either value,
+        than for `_SignTrack`: it weights its colour vote by confidence, so a
+        constant makes every vote equal where the robot makes a 0.45 detection
+        count half of a 0.95 one.
+        """
+        if len(quantiles) != len(levels) or len(levels) < 2:
+            # A length the levels do not describe cannot be interpolated
+            # honestly; fall back to the constant rather than invent a shape.
+            return float(self.tuning.simulation.detection_confidence)
+        u = float(self._vision_rng.random())
+        for i in range(1, len(levels)):
+            if u <= levels[i]:
+                span = levels[i] - levels[i - 1]
+                frac = 0.0 if span <= 0.0 else (u - levels[i - 1]) / span
+                return float(quantiles[i - 1] + frac * (quantiles[i] - quantiles[i - 1]))
+        return float(quantiles[-1])
+
+    def _scatter_bearing(
+        self, obs: TrafficSignObservation, origin: Pose, sigma: float
+    ) -> TrafficSignObservation:
+        """Rotate one observation about ``origin`` by a Gaussian bearing error.
+
+        RANGE is preserved exactly. A bearing error moves a detection along the
+        arc at its own range and does not change how far away the camera thinks
+        it is -- and on this robot the range does not come from the camera at
+        all when the LIDAR fusion agrees, so corrupting it here would model the
+        wrong sensor.
+        """
+        dx, dy = obs.world_x_m - origin.x, obs.world_y_m - origin.y
+        rng_m = math.hypot(dx, dy)
+        if rng_m <= 0.0:
+            return obs
+        theta = math.atan2(dy, dx) + float(self._vision_rng.normal(0.0, sigma))
+        return replace(
+            obs,
+            world_x_m=origin.x + rng_m * math.cos(theta),
+            world_y_m=origin.y + rng_m * math.sin(theta),
+        )
 
     def _through_vision_pipeline(
         self, fresh: list[TrafficSignObservation]
@@ -536,7 +619,8 @@ class SimulatedHardwareGateway:
                     tuning=self.tuning,
                 )
             ]
-            return self._corrupt_detections([obs for obs in observations if obs is not None])
+            return self._corrupt_detections([obs for obs in observations if obs is not None], pose)
+        true_pose = Pose(x=self._state.x, y=self._state.y, yaw=self._state.yaw)
         return self._corrupt_detections(
             emulate_sign_observations(
                 signs,
@@ -545,7 +629,11 @@ class SimulatedHardwareGateway:
                 tuning=self.tuning,
                 believed_pos=Waypoint(believed.x, believed.y) if believed is not None else None,
                 believed_yaw=believed.yaw if believed is not None else None,
-            )
+            ),
+            # The frame the point was projected from: `emulate_sign_observations`
+            # reprojects through the BELIEVED pose when it has one, so rotating
+            # about anything else would not be a bearing error.
+            believed if believed is not None else true_pose,
         )
 
     # Simulation stepping

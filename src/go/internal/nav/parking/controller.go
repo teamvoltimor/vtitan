@@ -38,7 +38,7 @@ type ParkCommand struct {
 // genuine containment, that is not sufficient to park this chassis -- the
 // controller will honestly time out rather than falsely report success. The
 // entry maneuver itself is a separate piece of work; see
-// platform/docs/internal/2026-07-25-parking-review.md.
+// adr:0060-bay-exit-clearance-guard.
 type ParkController struct {
 	cfg       Config
 	section   trackmodel.Section

@@ -1,6 +1,6 @@
 // Package parking drives the robot into the bay between the two magenta
 // parking blocks, the final maneuver of the WRO 2026 Obstacles challenge.
-// Ports platform/robot/src/navigation/maneuvers/parking.
+// Ports src/python/src/navigation/maneuvers/parking.
 //
 // The challenge adds a parallel-park after completing the laps. WRO's rule is
 // exact, not approximate: the robot's whole projection on the mat must lie
@@ -27,7 +27,7 @@
 // controlling the final heading. With the honest containment stop condition,
 // that is not enough to actually park this chassis: the controller will
 // time out rather than falsely report success. The real entry maneuver is a
-// separate piece of work (see platform/docs/internal/2026-07-25-parking-review.md);
+// separate piece of work (see adr:0060-bay-exit-clearance-guard);
 // this port preserves that known limitation rather than papering over it with
 // the old center-in-box test.
 //

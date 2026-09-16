@@ -262,6 +262,23 @@ class TestVisionConfirmedSignRouting:
         )
         failed = result.collided or result.laps_completed < scenario.laps
         assert not failed, (scenario.label, result.collision_xy or result.final_pose)
+        # A wrong-side pass ENDS THE ROUND under the Obstacles rules -- it is
+        # not a deduction -- so it is asserted beside the collision, not folded
+        # into it. The simulator already scores this from the TRUE layout and
+        # TRUE pose (`scenario_simulator/scoring.py`), judging every sign on
+        # every lap: measured 18 scoring events over 6 signs on a 3-lap round.
+        #
+        # It reads ZERO violations across all 32 corpus runs today, so this
+        # costs nothing to add and catches nothing yet. That is the point and
+        # also the caveat: it is a REGRESSION GUARD, not headroom. A pass-side
+        # fix cannot be adjudicated here, because there is no violation in the
+        # simulator to remove -- which is why three side-correction formulations
+        # could only ever measure their cost.
+        assert not result.pass_side_violation, (
+            scenario.label,
+            "wrong-side pass on signs",
+            result.pass_side_violation_signs,
+        )
 
     def test_wrong_camera_color_overrides_ground_truth_mid_run(
         self,

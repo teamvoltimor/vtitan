@@ -2,7 +2,7 @@
 
 ackermann_motor_node (steering + drive) runs on its own so it isn't sharing
 executor threads/CPU with the lower-rate peripherals -- see
-src/docs/sensor-verification.md's feedback-rate tuning section
+src/python/docs/sensor-verification.md's feedback-rate tuning section
 for the measurements behind this split. button_node and oled_display_node
 stay merged into pi_zero_peripherals_node (fewer DDS participants, less RAM
 -- neither is latency-sensitive enough to need its own process).

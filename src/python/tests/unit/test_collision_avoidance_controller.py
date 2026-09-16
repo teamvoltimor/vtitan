@@ -1015,3 +1015,150 @@ class TestEscapeSideFollowsCommittedSign:
         ranges[right - 20 : right + 20] = 0.40
 
         assert controller._k_turn_steer_sign(ranges, ANGLES_FULL_ROTATION, None, -1.0) == -1.0
+
+
+class TestSideCorrectionFollowsTheCommittedPassSide:
+    """SIDE_CORRECTION is where the escape actually spends its time.
+
+    MEASURED on run_20260915_002408 (ccw, 3/3 laps, 42 escapes): 10 of the 12
+    usable episodes were SIDE_CORRECTION, and the escape agreed with the side
+    the router needed on 3 of 12 overall. Until this flag, ``preferred_sign``
+    reached only ``_k_turn_steer_sign`` and the two SIDE branches chose from
+    the threat side alone -- the operator-reported pendulum.
+
+    The rule REFUSES rather than redirects: on a conflict it reverses straight.
+    Steering toward the wanted side on clearance alone cost 12 -> 15 (see
+    ``_side_correction_steer_sign``).
+    """
+
+    def _controller(self, *, follows: bool):
+        tuning = NavigationTuning.load_default()
+        escape = tuning.escape.model_copy(
+            update={"side_correction_follows_committed_sign": follows},
+        )
+        return CollisionAvoidanceController.from_tuning(tuning, escape=escape)
+
+    def _scan_with_room_on_both_sides(self):
+        """Both flanks well clear, so only the ROUTER's side can decide."""
+        ranges = create_numpy_scan()
+        left = angle_to_index(math.pi / 2)
+        right = angle_to_index(-math.pi / 2)
+        ranges[left - 20 : left + 20] = 0.60
+        ranges[right - 20 : right + 20] = 0.60
+        return ranges, ANGLES_FULL_ROTATION
+
+    def test_off_keeps_the_old_steer_away_behaviour(self):
+        """The control: a LEFT threat creeps forward steering right."""
+        ranges, angles = self._scan_with_room_on_both_sides()
+        maneuver = self._controller(follows=False).compute_escape_maneuver(
+            RiskLevel.CRITICAL, "left", ranges, angles, preferred_sign=-1.0
+        )
+
+        assert maneuver.steering < 0
+
+    def test_on_refuses_when_the_router_wants_the_threats_side(self):
+        """REACHABILITY: same inputs, different answer, or the flag is inert.
+
+        preferred_sign -1.0 is LEFT and the threat is LEFT, so steering away
+        would push to the wrong side of the pillar. Reverse straight instead.
+        """
+        ranges, angles = self._scan_with_room_on_both_sides()
+        maneuver = self._controller(follows=True).compute_escape_maneuver(
+            RiskLevel.CRITICAL, "left", ranges, angles, preferred_sign=-1.0
+        )
+
+        assert maneuver.steering == 0.0
+
+    def test_it_never_steers_toward_the_threat(self):
+        """The restraint that the 12 -> 15 arm lacked, pinned for both flanks."""
+        ranges, angles = self._scan_with_room_on_both_sides()
+        controller = self._controller(follows=True)
+
+        left = controller.compute_escape_maneuver(
+            RiskLevel.CRITICAL, "left", ranges, angles, preferred_sign=-1.0
+        )
+        right = controller.compute_escape_maneuver(
+            RiskLevel.CRITICAL, "right", ranges, angles, preferred_sign=1.0
+        )
+
+        assert left.steering == 0.0
+        assert right.steering == 0.0
+
+    def test_no_conflict_leaves_the_manoeuvre_untouched(self):
+        """Threat left, router wants right: steering away already agrees."""
+        ranges, angles = self._scan_with_room_on_both_sides()
+        on = self._controller(follows=True).compute_escape_maneuver(
+            RiskLevel.CRITICAL, "left", ranges, angles, preferred_sign=1.0
+        )
+        off = self._controller(follows=False).compute_escape_maneuver(
+            RiskLevel.CRITICAL, "left", ranges, angles, preferred_sign=1.0
+        )
+
+        assert on.steering == off.steering
+
+    def test_the_conflict_test_survives_the_reverse_flip(self):
+        """``away_sign`` inverts once touching; the threat side does not.
+
+        Deriving the threat side from ``away_sign`` got this backwards once, so
+        it is pinned: touching on the left with the router wanting left is the
+        same conflict as the creeping case above, and must still refuse.
+        """
+        ranges, angles = self._scan_with_room_on_both_sides()
+        i = angle_to_index(math.pi / 2)
+        ranges[i - 6 : i + 6] = 0.09  # touching left, above self_detection_threshold_m
+        maneuver = self._controller(follows=True).compute_escape_maneuver(
+            RiskLevel.CRITICAL, "left", ranges, angles, preferred_sign=-1.0
+        )
+
+        assert maneuver.speed < 0, "reversing"
+        assert maneuver.steering == 0.0
+
+    def test_a_refusal_reverses_rather_than_creeping_forward(self):
+        """The hole the 12 -> 15 measurement fell through.
+
+        A refusal that only zeroes the steering keeps ``side_correction_speed``
+        (+0.1 m/s, FORWARD) whenever the flank is not already touching, so it
+        deletes the steer-away reflex and creeps straight at the threat. The
+        sibling reverse test forces ``already_touching`` first and therefore
+        takes the reverse branch for a different reason, which is why nothing
+        caught this. Here the flanks are CLEAR, so only the refusal can pick
+        the speed.
+        """
+        ranges, angles = self._scan_with_room_on_both_sides()
+        maneuver = self._controller(follows=True).compute_escape_maneuver(
+            RiskLevel.CRITICAL, "left", ranges, angles, preferred_sign=-1.0
+        )
+
+        assert maneuver.steering == 0.0
+        assert maneuver.speed < 0, "a refusal must reverse, not creep forward at the threat"
+
+    def test_a_refusal_lasts_long_enough_to_change_the_geometry(self):
+        """``side_correction_s`` is 0.20 s; reversing for that long moves 2 cm.
+
+        The pendulum this rule targets moved the range to the committed pillar
+        0.497 -> 0.526 m across a whole episode. A refusal that retreats less
+        than the planner needs to re-approach just feeds the limit cycle, so it
+        takes the K-turn's duration rather than the side correction's.
+        """
+        ranges, angles = self._scan_with_room_on_both_sides()
+        controller = self._controller(follows=True)
+        refused = controller.compute_escape_maneuver(
+            RiskLevel.CRITICAL, "left", ranges, angles, preferred_sign=-1.0
+        )
+        untouched = controller.compute_escape_maneuver(
+            RiskLevel.CRITICAL, "left", ranges, angles, preferred_sign=1.0
+        )
+
+        assert refused.duration_frames > untouched.duration_frames
+
+    def test_no_committed_side_leaves_the_manoeuvre_untouched(self):
+        """Every tick of the Open Challenge takes this path."""
+        ranges, angles = self._scan_with_room_on_both_sides()
+        on = self._controller(follows=True).compute_escape_maneuver(
+            RiskLevel.CRITICAL, "left", ranges, angles, preferred_sign=None
+        )
+        off = self._controller(follows=False).compute_escape_maneuver(
+            RiskLevel.CRITICAL, "left", ranges, angles, preferred_sign=None
+        )
+
+        assert on.steering == off.steering

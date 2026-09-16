@@ -3,10 +3,10 @@
 // before writing it out.
 //
 // Scope, deliberately narrow for this pass: this package ports only
-// platform/robot/src/hardware/display/ssd1306/driver_raw_i2c.py — the
+// src/python/src/hardware/display/ssd1306/driver_raw_i2c.py — the
 // raw-ioctl I2C backend (init sequence, page-addressed framebuffer write,
 // command/data control-byte protocol). It does NOT port
-// platform/robot/ros2_ws/src/vtitan_drivers/vtitan_drivers/oled_display_node.py's
+// src/python/ros2_ws/src/vtitan_drivers/vtitan_drivers/oled_display_node.py's
 // page-orchestration logic (which screen renders for /robot_state,
 // /race_metrics, /ui/telemetry_summary, /button/hold, /system_status, and
 // the button-driven/state-driven switching between them). That logic
@@ -16,10 +16,10 @@
 // of scope here, not silently skipped.
 //
 // Like internal/driver/motor, a display has nothing to "Read" in the sense
-// driver.Driver[T] (platform/robot-go/internal/driver) models — it is
+// driver.Driver[T] (src/go/internal/driver) models — it is
 // written to, not sampled — so this package exposes its own narrow
 // Actuator interface (Connect/WriteFramebuffer/Clear/Close) instead of
-// implementing driver.Driver[T]. See platform/robot-go/internal/driver/imu
+// implementing driver.Driver[T]. See src/go/internal/driver/imu
 // (rvc_driver.go) for the Config/New/Connect/Close shape this package
 // follows, and internal/driver/motor for the actuator-shaped-interface
 // precedent.

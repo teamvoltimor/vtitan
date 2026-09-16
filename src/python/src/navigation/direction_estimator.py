@@ -27,10 +27,10 @@ is the whole measurement.
 ## Why it is easy
 
 The discrimination is between "a wall at 0.6-1.0 m" and "no wall for at least
-the next corridor", so the gap is metres against ~3 cm of LIDAR noise. It does
-not need the robot to be centred, or to know where it is, or even to know the
+the next corridor", so the gap is metres against the LIDAR noise. It does not
+need the robot to be centred, or to know where it is, or even to know the
 corridor width -- only that one side stopped returning a wall and the other did
-not.
+not. See ``adr:0053-direction-inference-and-start-pose``.
 
 The robot cannot follow a planned path before this resolves, since the path
 depends on the answer. It only has to drive *along* its corridor, which is a
@@ -99,12 +99,10 @@ def infer_direction(
     # jumps by a corridor length. That makes the test immune to being
     # off-centre, which is the whole difficulty:
     #
-    # Comparing the two ranges directly does not work. Drifted toward the inner
-    # block, a robot reads 0.27 m to the block on its left and 0.72 m to the
-    # outer wall on its right, and "the larger side is open" then picks the
-    # outer wall and returns exactly the wrong answer. That is which wall is
-    # *nearer*, not which side is *open*, and it cost two fixtures a confident
-    # wrong direction inside six seconds.
+    # Comparing the two ranges directly does not work: it measures which wall is
+    # *nearer*, not which side is *open*, so a chassis drifted toward the inner
+    # block reads the outer wall as the larger side and returns exactly the
+    # wrong answer. See ``adr:0053-direction-inference-and-start-pose``.
     if left + right <= plausible_span:
         return None
     if abs(left - right) < min_asymmetry:
@@ -159,7 +157,7 @@ class DirectionEstimator:
 
         Deliberately not a general escape hatch: settling wrongly is worse than
         settling late, and a confidently wrong direction is a known failure mode
-        (see cw_direction_inference_failure_2026_08_06). Ignores a second call
+        (see ``adr:0053-direction-inference-and-start-pose``). Ignores a second call
         so a bootstrap can never overwrite a direction already committed.
         """
         if self._settled is None:
@@ -197,8 +195,8 @@ def direction_from_parking_bay(
     the inner block -- and a lap always turns toward the inner block. Open side,
     inner side and corner-turn side are therefore the same side by track design,
     which makes the direction readable without moving: inner on the left is
-    counterclockwise, on the right is clockwise. Checked against every corpus
-    scenario, 256/256.
+    counterclockwise, on the right is clockwise. See
+    ``adr:0053-direction-inference-and-start-pose``.
 
     This is the one place the estimator's usual difficulty is inverted. From the
     corridor centreline both sides are walls at comparable ranges, which is why

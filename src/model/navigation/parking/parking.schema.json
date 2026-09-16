@@ -44,12 +44,12 @@
     "attempt_after_final_lap": {
       "type": "boolean",
       "description": "Pursue the parking bay after the final lap, or stop in the finish section. False ships: the bay is geometrically unreachable (0.194 m chassis, 0.20 m bay) and chasing it costs far more than it can pay. Blind, 256 corpus, OFF vs ON: in-time 158 vs 62, collisions 4 vs 51, timeouts 61 vs 110, with laps>=3 identical at 159.",
-      "x-journal": "adr:0036-no-parking-after-final-lap"
+      "x-journal": "adr:0062-sim-contact-model-and-parking"
     },
     "derive_lot_from_in_bay_start": {
       "type": "boolean",
       "description": "Build the parking lot from the START POSE when the metadata carries none. Without this, parking is UNREACHABLE CODE on hardware: blind runs give the navigator only starting_conditions, so the factory finds no parking_lot and returns None. Measured over 255 bags, a ParkController has never been constructed -- 0 of 227 readable, 67 of which reached three laps. Every parking figure in this repo comes from the simulator. The lot needs no sensing: in Obstacles the robot STARTS INSIDE IT, so the start pose is the lot, fins 1.5 chassis lengths (0.45 m) apart along the wall. ON because 'it never tried' is a worse failure than 'it tried and could not'. It will probably still fail -- 6 mm of depth slack, 1.16 deg of heading tolerance against the rule's 6.0 -- and that is geometry, not this flag.",
-      "x-journal": "adr:0037-parking-lot-from-in-bay-start"
+      "x-journal": "adr:0062-sim-contact-model-and-parking"
     }
   },
   "required": [

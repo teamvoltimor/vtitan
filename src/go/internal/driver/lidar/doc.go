@@ -1,6 +1,6 @@
 // Package lidar implements driver.Driver[Scan] (see
-// platform/robot-go/internal/driver) for the Slamtec RPLIDAR C1 — the
-// LIDAR this robot uses (platform/robot/docs references "LIDAR Slamtec
+// src/go/internal/driver) for the Slamtec RPLIDAR C1 — the
+// LIDAR this robot uses (src/python/docs references "LIDAR Slamtec
 // C1"). Two scan-mode drivers are provided:
 //
 //   - DenseSerialDriver (frame_dense.go/driver_dense.go): the Express Scan

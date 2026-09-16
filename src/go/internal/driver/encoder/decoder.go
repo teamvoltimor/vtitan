@@ -26,7 +26,7 @@ type Decoder struct {
 // against gpiozero's RotaryEncoder), not derived from the encoder's
 // datasheet. If gpiozero counts at a different rate than 4x, distance from
 // this driver is off by exactly that ratio. Re-run
-// platform/robot/scripts/hardware/calibrate_encoder.py against THIS driver
+// src/python/scripts/hardware/calibrate_encoder.py against THIS driver
 // before trusting its distance on hardware -- the value is a measurement of
 // a driver-plus-drivetrain pair, not of the encoder alone.
 const CountsPerEdge = 1

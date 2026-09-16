@@ -1,12 +1,12 @@
 // Package robotcmd is the gRPC client half of the backend command channel:
-// it dials platform/backend's already-running RobotCommandService
-// (platform/proto/telemetry/v1/commands.proto), decodes each streamed
+// it dials other/apps/backend's already-running RobotCommandService
+// (other/contracts/proto/telemetry/v1/commands.proto), decodes each streamed
 // RobotCommand into an internal/statemachine/command.Command, dispatches
 // it through a command.Dispatcher, and acks the outcome back --
-// mirroring platform/robot/ros2_ws/src/vtitan_state_machine's
+// mirroring src/python/ros2_ws/src/vtitan_state_machine's
 // command_channel.py's CommandChannel exactly, on this transport.
 //
-// The migration plan's NATS choice (docs/internal/plans/go-migration-plan.md)
+// The migration plan's NATS choice (adr:0068-go-parallel-track-single-cutover)
 // is scoped to intra-fleet messaging between this robot's own boards, not
 // backend<->robot traffic -- that stays on the backend's existing gRPC
 // channel, which is already deployed and already used by the Python stack

@@ -68,7 +68,7 @@
     "commit_hysteresis": {
       "type": "boolean",
       "description": "Once the router has engaged a sign, keep routing around THAT sign until it is cleared, rather than re-running the nearest-wins race every tick. With two signs in play -- the WRO grid spaces them 0.50 m apart along a 1.0 m corridor, so this is common -- a pure per-tick race can flip the winner mid-approach and jump the commanded lateral line from one sign's required value to the other's with no runway left to track it. Set true to hold the committed sign.  ON since 2026-09-07, and the reason it was off is worth keeping. Measured 2026-08-01 over the corpus it read flat (sighted 229 collisions either way, blind 227 off vs 228 on) and was dismissed as not earning its place. Re-run 2026-09-07 the corpus still reads flat: in-time 59 = 59, laps>=3 71 -> 70, collided 18 -> 19.  What changed is the instrument, not the number. This holds the aim point still when two tracks of the SAME pillar compete, and duplicate tracks exist in both worlds at the same rate (sim 2.0x, hardware 2.2x) but NOT at the same separation:  duplicate nearest-neighbour, p50:   sim 0.012 m    hardware 0.21 m  So a winner-switch moves the commanded line 1.2 cm in the corpus and 21 cm on the mat -- a factor of 17. The corpus was pricing a defect it barely has. Replayed over recorded detections from the 09-07 runs (see scripts/bag/diag_bag_sign_target_churn.py), holding the commitment cuts aim-point jumps over 0.15 m from 38 to 21, with the committed-tick count unchanged at 1538 -- so it is not buying that by disengaging.  Reported from the track first: the robot lines up correctly to pass a sign, keeps correcting, and arrives badly placed. It is not a hunting controller (median steering flips during an approach is ZERO); the target was moving.",
-      "x-journal": "adr:0045-sign-router-commit-hysteresis"
+      "x-journal": "adr:0051-sign-lane-planner"
     },
     "corridor_flip_ticks": {
       "type": "integer",
@@ -229,6 +229,10 @@
     "sign_lidar_propose": {
       "type": "boolean",
       "description": "Hand LIDAR-resolved pillars to discovery as sign candidates, in place of the camera's boxes. Ships off while discovery's own camera pipeline is trusted."
+    },
+    "pair_handoff_span_m": {
+      "type": "number",
+      "description": "Metres of travel past the committed sign over which the lateral target is interpolated toward the NEXT sign's line, instead of stepping to it in one tick when the claim moves. The router claims one sign at a time, so at handoff the commanded line JUMPS -- and when a pair wants opposite sides (the WRO grid puts pillars 0.50 m apart in a 1.0 m corridor, so a red-then-green pair is routine) that jump IS the crossing, issued with whatever runway is left. MEASURED over the four 2026-09-14 rounds, 41 passes: a pass begun on the WRONG side grazes 4.8x more often (23.8% against 5.0%) and finishes on the wrong side 2.9x more often (14.3% against 5.0%), and five of the six sub-30 mm grazes were crossings. The runway is not there either: commitment lands at p50 0.498 m where the crossing needs about 0.614 m, publication costing 0.317 m and the commit criteria 0.266 m of the 1.081 m the camera gives. SHIPS AT 0.0, inert, pending a corpus A/B -- it moves the commanded lateral line, the same surface two earlier clearance-bound attempts got wrong. Applies only once the committed sign is BEHIND the chassis, so no pass is compromised to set up the next."
     }
   },
   "required": [
@@ -287,6 +291,7 @@
     "sign_lidar_align_deadband_deg",
     "sign_lidar_align_gain",
     "sign_lidar_align_max_steer",
-    "sign_lidar_propose"
+    "sign_lidar_propose",
+    "pair_handoff_span_m"
   ]
 }

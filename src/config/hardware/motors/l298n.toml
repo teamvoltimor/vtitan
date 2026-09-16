@@ -1,19 +1,10 @@
 #:schema ../../../model/hardware/motors/l298n.schema.json
-# L298N drive H-bridge PWM -- src/hardware/motors/l298n/config.py
+# L298N drive H-bridge PWM (retired; BTS7960 is the current bridge).
+# Rationale: adr:0076-drivetrain-and-steering-hardware
 
 pwmchip = 0
 pwm_channel = 1
-# GPIO 13 (the drive motor's PWM pin) is channel 1 under the pwm-2chan
-# overlay; GPIO 12 (the servo) is channel 0. See l298n/config.py.
-
 frequency_hz = 1000
-
-pwm_pin = 13       # L298N ENA
-dir_a_pin = 5      # L298N IN3
-dir_b_pin = 6      # L298N IN4
-# standby_pin is left unset (null) -- L298N has no STBY line. Set it if this
-# is actually a TB6612FNG.
-
-# Encoder calibration + PID gains live in config/hardware/motors/encoder.toml
-# -- the encoder is a separate component from this H-bridge, see
-# src/hardware/motors/encoder/.
+pwm_pin = 13
+dir_a_pin = 5
+dir_b_pin = 6

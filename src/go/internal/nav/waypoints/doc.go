@@ -1,4 +1,4 @@
-// Package waypoints ports platform/robot/src/navigation/planning/waypoints/
+// Package waypoints ports src/python/src/navigation/planning/waypoints/
 // (classification.py, geometry.py, segments.py, and generation.py), the
 // geometry-and-assembly half of WRO waypoint generation, including
 // CorridorForPosition (used by internal/nav/signrouter and the navigator).

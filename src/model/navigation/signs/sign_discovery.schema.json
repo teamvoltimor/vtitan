@@ -40,7 +40,7 @@
     "lidar_range_fusion": {
       "type": "boolean",
       "description": "Take the sign's range from the LIDAR ray at the camera's bearing. ONLY VALID PAIRED WITH lidar_range_fusion_cluster BELOW -- the two are one mechanism.  Shipped TRUE until 2026-09-06 and measured to make the estimate WORSE: at the camera's bearing the return is wall-shaped 51% of the time and pillar-shaped 27%, median implied chord 34 cm against a 5 cm sign. It fired on 92.5% of detections (the gate is 0.05 < r < 10.0, i.e. no gate) and a wall behind a sign is always FURTHER, so it was half the outward bias that pinned believed signs to the walls. Costs 28 cm of median position error with the corrected bearing.  Back ON 2026-09-11, gated. Replayed over 78 hardware bags (09-06 to 09-10), pass-side routing errors / passes judged: both off (baseline)     194 / 654   29.7% fusion UNGATED          227 / 605   37.5%   <- reproduces the refutation fusion + cluster gate   180 / 712   25.3%   <- fewer errors, MORE passes The ungated arm reproducing its own refutation is what validates the harness. The gated arm is the only one that improves without shrinking the denominator.",
-      "x-journal": "adr:0042-sign-range-fusion-gated"
+      "x-journal": "adr:0058-sign-discovery-range-and-barrier-belief"
     },
     "vision_latency_s": {
       "type": "number",
@@ -53,12 +53,12 @@
     "lidar_range_fusion_cluster": {
       "type": "boolean",
       "description": "The two knobs below parameterise lidar_range_fusion above. The gate requires a free-standing cluster of pillar width at the camera's bearing whose range AGREES with the pinhole within lidar_range_fusion_agreement; failing either test, the pinhole stands. NOT optional: with this false the fusion above is the version measured harmful.",
-      "x-journal": "adr:0042-sign-range-fusion-gated"
+      "x-journal": "adr:0058-sign-discovery-range-and-barrier-belief"
     },
     "lidar_range_fusion_agreement": {
       "type": "number",
       "description": "Fractional range disagreement (fraction of the pinhole estimate) above which the LIDAR cluster is rejected and the pinhole range stands.",
-      "x-journal": "adr:0042-sign-range-fusion-gated"
+      "x-journal": "adr:0058-sign-discovery-range-and-barrier-belief"
     },
     "max_signs_per_section": {
       "type": "integer",
@@ -67,6 +67,22 @@
     "colour_pool_radius_m": {
       "type": "number",
       "description": "pool colour votes across fragments of one pillar within this radius (0 = off)"
+    },
+    "barrier_belief_min_sightings": {
+      "type": "integer",
+      "description": "Magenta sightings that must agree on a location before it is believed to be the parking barrier. The camera labels the barrier MAGENTA correctly far more often than it mislabels it RED -- measured over the four 2026-09-14 rounds, 1,921 magenta detections against 748 wall-shaped reds admitted to the sign map -- and every one of those magenta detections was DISCARDED by detection_to_observation, which returns None for any non-routing colour. This is the threshold for using them instead. 0 disables the belief entirely."
+    },
+    "barrier_merge_radius_m": {
+      "type": "number",
+      "description": "Two magenta sightings within this distance are treated as the same barrier. The lot is 0.20 m long, so this is sized to absorb the pinhole range error rather than to resolve the object."
+    },
+    "barrier_span_along_wall": {
+      "type": "boolean",
+      "description": "Treat the believed parking lot as the 0.45 m SPAN the rulebook gives it rather than a point, extending the suppression test ALONG the wall only. The lot is two fins BLOCK_SPACING_FACTOR chassis lengths apart, which parking_lot_from_in_bay_start already builds as BLOCK1 and BLOCK2; the belief kept a single centroid, so a 0.30 m radius had to cover a 0.45 m object and reached each fin with 7 cm to spare against a believed position measured wandering 0.57 m between rounds. THE FAILURE IT FIXES, measured on two hardware wedges hours apart at the same place: the true fins sit at x = 0.94 (14,403 LIDAR returns) and 1.42, a 0.48 m span centred on 1.18, while the belief placed its centroid at 1.30 -- so the WEST fin landed 0.36 m out, beyond the 0.30 m bubble. Wall-shaped reds on that fin were suppressed on 1 of 14 and 2 of 19 with the point model, against 10 of 14 and 13 of 19 with the span. The chassis spent 70 s and 172 s (46% of each round) fighting a fin at (0.93, 0.16) while the planner routed around a phantom at (1.0, 0.6), 0.45 m away. barrier_belief.py's own docstring records the SAME wedge at (0.75, 0.25) on 2026-09-14, which is what that belief was built to fix. THE TRADE IS NOT FREE and the aggregate does not improve: over three rounds the barrier share suppressed rises 60.8->66.8%, 23.5->27.9% and 68.3->75.7%, while real pillar detections refused rise 25.5->26.4%, 2.7->4.9% and 8.8->12.7%. The benefit/cost RATIO is slightly worse on two of three. Narrowing the radius to 0.22 or 0.18 alongside the span moves back down the same curve rather than off it. What the aggregate cannot see is the west fin, which is the thing that ends rounds. THE SIMULATOR CANNOT SCORE THIS AT ALL -- it never emits a magenta detection -- so there is no corpus regression guard and the only instrument is a counter-clockwise hardware round. SHIPS OFF AND UNVALIDATED ON TRACK. Diagnostic: scripts/bag/diag_bag_barrier_belief.py --shape both"
+    },
+    "barrier_suppression_radius_m": {
+      "type": "number",
+      "description": "A RED detection landing within this distance of a believed barrier is dropped instead of seeded as a pillar. This is the whole point of the belief: the magenta barrier reaching the sign map as a red pillar is what makes the router plan a pass around a WALL, and on run_20260914_214824 that pendulumed the chassis for 66.4 s at (0.75, 0.25) beside the west parking corridor. Sized from the pinhole position error, not from the lot."
     }
   },
   "required": [
@@ -84,6 +100,9 @@
     "lidar_range_fusion_cluster",
     "lidar_range_fusion_agreement",
     "max_signs_per_section",
-    "colour_pool_radius_m"
+    "colour_pool_radius_m",
+    "barrier_belief_min_sightings",
+    "barrier_merge_radius_m",
+    "barrier_suppression_radius_m"
   ]
 }

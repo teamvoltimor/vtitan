@@ -8,35 +8,31 @@ WRO pass-side rule is colour-keyed, and a colourless proposal has no side (see
 COLOUR LATE -- when the colour finally arrives, the geometry is already settled
 instead of being established from scratch inside the last 0.3 m.
 
-Measured against the simulator's known layout (`diag_sim_lidar_proposer.py`,
-16 scenarios / 84 signs / 563 tracks):
-
-    raw detector                precision 46%, recall 100% (84/84 signs)
-    + the placement lattice     precision 84%, recall  85%
+Measured against the simulator's known layout and on hardware, the placement
+lattice raises the detector's precision from roughly half to mid-eighties percent
+while giving up a little recall. Measured rationale, the precision/recall table
+and the hardware-transfer figures: ``adr:0058-sign-discovery-range-and-barrier-belief``.
 
 **The lattice is what makes a proposal trustworthy.** Signs stand on a 6-point
 grid per section -- ``GRID_WIDTH_OUTER``/``_INNER`` 0.4/0.6 m across a 1.0 m
 corridor, ``GRID_DEPTH_NEAR/MIDDLE/FAR`` 1.0/1.5/2.0 m -- so a sign is always
 0.4 m from its nearer lateral border while a wall corner is at ~0. Two
 shape-based filters (world-position spread, chord stability) were tried FIRST
-and are REFUTED: each discarded ~29% of tracks to move precision by 2 points,
-because a corner viewed across a short arc of travel holds just as still as a
-pillar does.
+and are REFUTED: a corner viewed across a short arc of travel holds just as
+still as a pillar does.
 
-TRAPS, both of which nearly cost the measurement:
+TRAPS:
 
-* The medians do NOT separate -- true signs sit at p50 0.31 m from the nearer
-  wall and false tracks at 0.24 m. The filter works on the BAND, so never judge
+* The medians do NOT separate -- true signs and false tracks sit close together
+  in distance from the nearer wall. The filter works on the BAND, so never judge
   it by comparing medians.
 * The wall estimate MUST be gated on the known corridor width. Ungated it drifts
-  to p50 1.24 m against a true 1.00 m (corners and section openings), stretching
-  every lateral offset derived from it; gated it reads 1.02 m in sim and 0.99 m
-  on hardware.
+  on corners and section openings, stretching every lateral offset derived from
+  it; gated it stays near the true width.
 
-Hardware transfer is measured, not assumed: cluster YIELD matches (3.10 per scan
-against the sim's 2.95, 204 tracks against 198), but the sim spots a candidate
-~0.44 m earlier and hardware's lattice-consistent population is a third thinner
-(23% of tracks in the sign band against 35%). Treat 84% as an upper bound.
+Hardware transfer is measured, not assumed: the sim spots a candidate earlier
+and hardware's lattice-consistent population is thinner, so the sim precision is
+an upper bound.
 """
 
 from __future__ import annotations
@@ -86,8 +82,9 @@ class ProposerParams:
 
     wall_window_deg: float = 20.0
     """Half-window either side of +/-90 deg for the wall medians. A WINDOW, never
-    a single ray: the -90 deg ray alone has no return on 12-19% of hardware
-    ticks, which the window brings to 0.0-1.7%."""
+    a single ray: a single ray alone has no return on some hardware ticks, which
+    the window brings near zero. See
+    ``adr:0058-sign-discovery-range-and-barrier-belief``."""
 
     max_wall_range_m: float = 1.50
     corridor_width_m: float = CorridorDimensions.OBSTACLES_WIDTH

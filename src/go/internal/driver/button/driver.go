@@ -27,9 +27,9 @@ var errReadBeforeConnect = errors.New("button: Read called before Connect")
 // Config configures a Driver's GPIO wiring and poll rate, plus the embedded
 // debounce/hold-threshold timings (Thresholds). GPIOChip/Line/PullUp are
 // real hardware facts, matching
-// platform/robot/src/hardware/button/gpio/driver.py's Config fields
+// src/python/src/hardware/button/gpio/driver.py's Config fields
 // (gpio_pin, pull_up) -- PollInterval is the node-level tunable
-// platform/robot/ros2_ws/.../button_node.py sources from
+// src/python/ros2_ws/.../button_node.py sources from
 // button_node.toml's POLL_HZ (default 20Hz). It's ported here as a
 // driver-level field rather than kept as a separate lifecycle-node timer,
 // since this Go port folds the node's poll loop into Driver.Read itself --
@@ -55,7 +55,7 @@ const DefaultPollInterval = 50 * time.Millisecond
 // Driver is the hardware GPIO-backed button driver: a single input line,
 // sampled at Config.PollInterval and run through the pure evaluator
 // (evaluator.go) to produce debounced press/hold/release events. It
-// implements driver.Driver[Event] (platform/robot-go/internal/driver).
+// implements driver.Driver[Event] (src/go/internal/driver).
 type Driver struct {
 	cfg  Config
 	line *gpiocdev.Line

@@ -12,14 +12,16 @@ geometric measurement this project makes.
 FOUR attempts to repair it at PUBLICATION time are on file and all failed,
 because each one still had to answer "is this the same object" from position:
 
-* position-keyed merging, two variants: collisions 209 and 231 against a 202
-  baseline;
+* position-keyed merging, two variants: measured worse than baseline;
 * ``SNAP_TO_LATTICE_M`` quantisation at 0.40: routing errors appeared to halve
   while 264 passes vanished from the denominator and the PEAK believed count
   ROSE from 26 to 40;
 * a per-section cardinality cap: it retains REAL signs, because a phantom that
   published first holds the slot. Being monotone is what made it safe and is
   exactly what stops the real pillar entering later.
+
+The measurements behind these are in
+``adr:0058-sign-discovery-range-and-barrier-belief``.
 
 This module asks a different question. The rulebook says a pillar stands on one
 of 24 legal cells -- six per section, at 0.4 m from the outer wall or 0.4 m from
@@ -33,13 +35,12 @@ MEASURED over 125 bags against the shipped map on identical observations:
 
 | | shipped | slots |
 |---|---|---|
-| routing error | 23.3% | **15.0%** |
 | worst peak believed | 24 | **7** |
 | runs over the physical max | 32/125 | **0/125** |
-| position changes per run | 44.9 | **3.1** |
 | re-points / colour flips while COMMITTED | 1062 / 66 | **0 / 0** |
 
-Two results worth carrying, because both are counter-intuitive:
+The headline routing error and per-run position changes are in
+``adr:0058-sign-discovery-range-and-barrier-belief``.
 
 **The win is CARDINALITY, not lane accuracy.** Which of the two lanes a pillar
 lands in is close to a coin flip (the lane partner has zero evidence 21% of the
@@ -52,10 +53,10 @@ committing to phantoms that contradict each other. Lane error is not free, it
 lands on EXECUTION instead (+7 points).
 
 **Colour pooling is REFUTED.** Pooling a cell's colour vote with its neighbours
-does not remove flips, it relocates them: at radius 0.00/0.25/0.55 the totals are
-157/159/166, buying down re-point flips and paying the same back in same-cell
-vote flips. What removes the flips that matter is freezing the slot the router is
-committed to -- flips-while-committed 66 to 0, and routing IMPROVES.
+does not remove flips, it relocates them (at radius 0.00/0.25/0.55 the totals
+are 157/159/166). What removes the flips that matter is freezing the slot the
+router is committed to. See
+``adr:0058-sign-discovery-range-and-barrier-belief``.
 
 NEVER screen any of this in the simulator. Its sign map is exact (0.0% of ticks
 above the physical maximum, against 86% on hardware), so every number above
@@ -71,6 +72,7 @@ from collections import defaultdict
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
+from shared.domain.enums import Section
 from shared.domain.models import SignColor
 
 from src.config.tuning_helpers import get_tuning
@@ -79,7 +81,6 @@ from src.navigation.planning.waypoints import corridor_for_position
 
 if TYPE_CHECKING:
     from shared.config.navigation_tuning import NavigationTuning
-    from shared.domain.enums import Section
     from shared.domain.models import TrafficSignObservation, Waypoint
 
 logger = logging.getLogger(__name__)
@@ -117,9 +118,8 @@ class _CellEvidence:
         """The cell's colour: argmax over its OWN votes, pooled over the round.
 
         Not pooled with neighbouring cells. That was measured and refuted -- it
-        relocates flips rather than removing them (157/159/166 at pooling radius
-        0.00/0.25/0.55), because what it buys in re-point flips it pays back in
-        same-cell vote flips.
+        relocates flips rather than removing them. See
+        ``adr:0058-sign-discovery-range-and-barrier-belief``.
         """
         if not self.votes:
             return SignColor.UNKNOWN
@@ -252,7 +252,46 @@ class SlotSignMap:
 
         for section, scored in by_section.items():
             scored.sort(reverse=True)
-            self._apply_section(section, [cell for _, cell in scored[:_SIGNS_PER_SECTION]])
+            self._apply_section(section, self._one_per_depth(section, [cell for _, cell in scored]))
+
+    @staticmethod
+    def _depth(cell: Cell, section: Section) -> float:
+        """The cell's coordinate ALONG its section: x on north/south, y on east/west."""
+        return cell[0] if section in (Section.NORTH, Section.SOUTH) else cell[1]
+
+    def _one_per_depth(self, section: Section, ranked: list[Cell]) -> list[Cell]:
+        """The section's top cells, at most one per depth line, up to the cap.
+
+        The rulebook's 36-scenario table never puts two pillars on the same
+        depth line: every double is depth 1.0 plus depth 2.0, and 1.5 only ever
+        appears alone (verified over all 24 doubles and all 514 same-section
+        pairs in the 256 corpus). So a section that believes BOTH laterals of
+        one depth is not believing two pillars, it is believing one pillar
+        twice -- which is exactly what a 0.1 m pose bias does to a pillar
+        standing between the 0.4 m and 0.6 m lanes.
+
+        MEASURED on run_20260915_002408 (counter-clockwise, 3/3 laps): the east
+        section's two slots were held by (2.4, 1.0) AND (2.6, 1.0), one green
+        pillar the LIDAR places at x = 2.49-2.55, and the red pillar the LIDAR
+        places at (2.40, 1.88) was refused for the whole round -- 55 fused
+        observations landed on its cell and never displaced either twin. The
+        chassis then escaped 30 times in one 0.5 m cell against a pillar its
+        map did not contain. The same twin pair shows on run_20260914_215248.
+
+        Choosing the heavier lateral per depth frees the second slot for a real
+        pillar at another depth and drops nothing the rules could have placed.
+        """
+        wanted: list[Cell] = []
+        taken: set[float] = set()
+        for cell in ranked:
+            depth = self._depth(cell, section)
+            if depth in taken:
+                continue
+            wanted.append(cell)
+            taken.add(depth)
+            if len(wanted) == _SIGNS_PER_SECTION:
+                break
+        return wanted
 
     def _apply_section(self, section: Section, wanted: list[Cell]) -> None:
         """Point this section's LIVE slots at ``wanted``, never opening a third.
@@ -267,6 +306,12 @@ class SlotSignMap:
         Slots at a RETIRED index do not count: the router excludes ``_passed``
         from ``active_sign_count``, so they are not live pillars and refusing to
         replace them would strand a real one for the rest of the lap.
+
+        An incumbent that shares a depth line with a wanted cell is the other
+        lateral of the same pillar (see ``_one_per_depth``), so it is re-pointed
+        without the hysteresis margin: the margin exists to stop two CANDIDATE
+        pillars churning on noise, and a twin is not a candidate the rulebook
+        allows at all.
         """
         for cell in wanted:
             slots = [s for s in self._slots + self._unpublished if s.section == section]
@@ -274,10 +319,21 @@ class SlotSignMap:
             if any(s.cell == cell for s in slots):
                 self._refresh_colour(next(s for s in slots if s.cell == cell))
                 continue
+            free = [s for s in live if s.cell not in wanted and not s.frozen]
+            # THIS cell's depth, not the set of all wanted depths: an incumbent
+            # at another wanted depth is a different pillar, and hijacking its
+            # slot would hand the router's index for the depth-2.0 pillar to the
+            # depth-1.0 one.
+            twins = [s for s in free if self._depth(s.cell, section) == self._depth(cell, section)]
+            if twins:
+                # Checked BEFORE the cap: a twin below the cap would otherwise
+                # be joined by its own other lateral, and the section would
+                # hold one pillar twice with a slot to spare.
+                self._repoint(min(twins, key=lambda s: self._weight(s.cell)), cell)
+                continue
             if len(live) < _SIGNS_PER_SECTION:
                 self._open_slot(cell, section)
                 continue
-            free = [s for s in live if s.cell not in wanted and not s.frozen]
             if not free:
                 # At the cap with nothing displaceable. Wait: the evidence does
                 # not expire, so this cell takes a slot as soon as one frees,
@@ -375,35 +431,49 @@ class SlotSignMap:
     def retire(self, index: int) -> None:
         """Record that the router has marked ``index`` as passed.
 
-        NOT WIRED, found 2026-09-13. Nothing in ``src/`` calls this; the only
-        callers are ``tests/unit/test_sign_slot_map.py``. ``SignRouter`` fills
-        its own ``_passed`` set at ``router.py:803`` and never tells the map, so
-        ``_retired`` is empty on every production tick and both branches written
-        against it are dead:
+        WIRED. ``router.py`` calls this on every published-map refresh::
 
-        * ``_apply_section`` counts passed slots as LIVE, so a section holding
-          two pillars the robot has already driven past will not open a slot for
-          a third it can see. Conservative, and it is what keeps the published
-          index count at or under the physical maximum of 8.
-        * ``_repoint``'s retired branch never fires, so a passed slot IS
-          re-pointed and the new pillar inherits the "already behind us" flag --
-          invisible until the lap resets. This module's own docstring measures
-          that at 168 of 708 re-points, 24%.
+            retire = getattr(self._sign_map, "retire", None)
+            if retire is not None:
+                for passed_index in self._passed:
+                    retire(passed_index)
 
-        Wiring it is a real behaviour change, not a repair: the design was
-        measured as a package (23 recovered passes over 125 runs at +1.0 point
-        of routing error) and it trades index growth for recovered pillars. It
-        needs its own A/B before shipping, which is why this is a note and not a
-        one-line call.
+        A note here claimed the opposite from 2026-09-13 to 2026-09-15 and cost
+        a session: the call is duck-typed through a local, so ``grep for a dotted .retire(``
+        and ``grep '_sign_map.retire'`` both miss it and only ``grep 'retire('``
+        finds it. ``ObservedSignMap`` really has no ``retire``, so the NON-slot
+        arm is unwired, which is what made the wrong reading look plausible. The
+        wiring landed 2026-09-11 in ``dabd57c7``; the NOT-WIRED note landed two
+        days after it.
+
+        WHAT IS ACTUALLY BROKEN is the other half, and it is an asymmetry.
+        ``SignRouter.reset_for_new_lap`` clears ``_passed`` and never forwards
+        to this map, so at a lap line ``_passed`` empties while ``_retired``
+        keeps every lap-1 index. ``_apply_section`` caps LIVE (non-retired)
+        slots, so each section is then free to open two more, and a 3-lap round
+        ratchets toward 6 published indices per section against a physical 2.
+
+        Measured 2026-09-15 over five rounds spanning two builds: **zero ticks
+        reading over 8 on lap 1** -- the cap holds exactly while
+        ``_passed == _retired`` -- against 20-53% of ticks on laps 2 and 3, peak
+        14. Longstanding rather than a regression; the 2026-09-14 rounds show it
+        identically.
+
+        Forwarding the lap reset is therefore NO LONGER a no-op. It is a real
+        behaviour change and needs its own A/B: the design was measured as a
+        package (23 recovered passes over 125 runs at +1.0 point of routing
+        error) and it trades index growth for recovered pillars.
         """
         self._retired.add(index)
 
     def reset_for_new_lap(self) -> None:
         """Passed indices come back next lap; the evidence deliberately does not.
 
-        NO-OP TODAY, and forwarding a call to it from
-        ``SignRouter.reset_for_new_lap`` would stay a no-op: ``_retired`` is
-        never populated because ``retire`` above has no production caller. Wire
-        ``retire`` first or this changes nothing.
+        NO PRODUCTION CALLER, which is the live defect rather than a dead
+        branch: ``retire`` above IS wired, so ``_retired`` is populated, and
+        ``SignRouter.reset_for_new_lap`` clearing ``_passed`` without clearing
+        this leaves the two sets disagreeing for the rest of the round. See
+        ``retire``'s docstring for the measurement (0% of lap-1 ticks over the
+        physical max, 20-53% afterwards).
         """
         self._retired.clear()

@@ -14,7 +14,7 @@ import (
 )
 
 // Actuator is the actuator-shaped counterpart to driver.Driver[T]
-// (platform/robot-go/internal/driver): commanded via WriteFramebuffer
+// (src/go/internal/driver): commanded via WriteFramebuffer
 // rather than sampled via Read — see doc.go. Kept to 3 methods
 // (interfacebloat's cap, go-migration-plan.md's "Interfaces" guidance);
 // Clear is exposed as an additional Driver method rather than folded into

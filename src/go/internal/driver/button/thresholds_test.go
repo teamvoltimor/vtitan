@@ -77,7 +77,7 @@ func TestThresholds_Validate(t *testing.T) {
 }
 
 // TestKind_String locks down the wire-style spellings Kind.String returns,
-// matching platform/robot/src/hardware/button/event.py's ButtonEvent
+// matching src/python/src/hardware/button/event.py's ButtonEvent
 // values -- a silent drift here would be invisible everywhere String is
 // used for logging/debug output.
 func TestKind_String(t *testing.T) {

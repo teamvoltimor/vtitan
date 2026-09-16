@@ -6,7 +6,7 @@ import (
 	"github.com/teamvoltimor/vtitan/src/go/internal/nav/trackmodel"
 )
 
-// These tests port platform/robot/tests/unit/test_sign_slot_map.py on the
+// These tests port src/python/tests/unit/test_sign_slot_map.py on the
 // package-internal surface (slots, unpublished, weight) the Python tests reach
 // into. Each property is paired with the control that would otherwise let it
 // pass vacuously.

@@ -96,6 +96,28 @@ type NavigationSimulationSimulation struct {
 	// as Python literals, at these same shipped values.
 	NoProgressWindowS float64 `json:"no_progress_window_s" yaml:"no_progress_window_s" mapstructure:"no_progress_window_s"`
 
+	// Does a shoved pillar actually MOVE in the simulated world, or only on the
+	// scoreboard? The scorer already works out how far each pillar was pushed and by
+	// which component of travel, but that number stayed a scalar: the pillar's
+	// collision box -- the same box the LIDAR raycasts against -- never moved, so the
+	// sensor kept reporting it from its original cell while the robot was physically
+	// shifting it, and the robot's map stayed consistent with a track that no longer
+	// existed. MEASURED on hardware 2026-09-15: accumulating LIDAR returns PER LAP
+	// rather than over the whole bag shows pillars marching monotonically, up to 0.15
+	// m over a single round, with a stationary neighbour moving 0.4 cm as the
+	// control. SHIPS FALSE. It only bites inside the window before the displacement
+	// rule ends the run anyway -- 0.0594 m, the point at which a corner leaves the 85
+	// mm placement circle -- so the realism it buys is at most six centimetres of
+	// pillar movement, but within that window it can change what the planner sees and
+	// therefore which runs finish. Needs its own corpus A/B before it ships on. Note
+	// what this does NOT model: a TOPPLED pillar. On hardware three objects left the
+	// LIDAR plane entirely in run_20260915_140014 and never came back. That cannot
+	// matter here, because 0.15 m of drift is 2.5x the legal limit -- a judge would
+	// have ended the round long before the object went over. Toppling is a
+	// post-failure phenomenon and modelling it would add fidelity that no score can
+	// read.
+	ObstaclesArePushed bool `json:"obstacles_are_pushed" yaml:"obstacles_are_pushed" mapstructure:"obstacles_are_pushed"`
+
 	// Does inner-wall contact END an Obstacles run? In the RULES it does not. The
 	// rule set, operator-confirmed 2026-09-11: OPEN      -- the OUTER wall may not be
 	// touched (unchanged by this flag). BOTH      -- a wall may not be MOVED if it is
@@ -133,6 +155,29 @@ type NavigationSimulationSimulation struct {
 	// easy side of every question that depends on the pose estimate.
 	SensorYawBiasRad float64 `json:"sensor_yaw_bias_rad" yaml:"sensor_yaw_bias_rad" mapstructure:"sensor_yaw_bias_rad"`
 
+	// Probability levels `sim_tick_period_quantiles` is measured at, same length and
+	// order. Half of a PAIR: quantiles without their levels cannot be interpolated.
+	// Not evenly spaced -- the resolution is spent in the upper tail, where a late
+	// tick actually costs distance.
+	SimTickPeriodLevels []float64 `json:"sim_tick_period_levels" yaml:"sim_tick_period_levels" mapstructure:"sim_tick_period_levels"`
+
+	// Control-loop PERIOD quantiles in seconds, sampled per tick by inverse-CDF
+	// interpolation at `sim_tick_period_levels`. EMPTY keeps the fixed `dt` the
+	// simulator has always stepped at. MEASURED 2026-09-15 over 9,552 nav ticks
+	// across five rounds: p50 0.0500 (the nominal 20 Hz), p90 0.0633, p99 0.0795. The
+	// minimum knot 0.0440 is below p50 because the loop also runs EARLY, not only
+	// late. Why it is not free: `dt` feeds the time accounting that the round's time
+	// limit is judged on, so a jittered simulator must ACCUMULATE elapsed time rather
+	// than multiply steps by a constant. That is the whole of the change; the claim
+	// that jitter touches the entire physics chain was overstated -- dt reaches
+	// `gw.advance`, the no-progress window and the elapsed-time total, and nothing
+	// else. DELIBERATELY EXCLUDES THE STALL. One round carried a 1,977 ms gap, which
+	// at 0.229 m/s is 45 cm driven with no control update at all -- far more
+	// significant than the jitter modelled here. It is left out because it appeared
+	// in ONE round of five (stdev 72.7 ms against 10-12 ms in the others) and a
+	// one-off promoted to a 1%-of-ticks event would be inventing physics.
+	SimTickPeriodQuantiles []float64 `json:"sim_tick_period_quantiles" yaml:"sim_tick_period_quantiles" mapstructure:"sim_tick_period_quantiles"`
+
 	// How long such an opening contact may persist before it counts as a real failure
 	// rather than "still steering clear".
 	StartCollisionGraceS float64 `json:"start_collision_grace_s" yaml:"start_collision_grace_s" mapstructure:"start_collision_grace_s"`
@@ -145,6 +190,26 @@ type NavigationSimulationSimulation struct {
 	// fail a placement the rules allow.
 	StartCollisionWindowS float64 `json:"start_collision_window_s" yaml:"start_collision_window_s" mapstructure:"start_collision_window_s"`
 
+	// Standard deviation of the per-detection camera BEARING error, in radians. The
+	// emulator projects every sign from its TRUE bearing, so the only angular error a
+	// simulated run carries is the pose estimate's -- and the camera's own scatter is
+	// an order of magnitude larger than that. MEASURED 2026-09-15 over 2,588
+	// detections on the three rounds of that day whose pillar map reconstructs to the
+	// operator's stated layout: median +1.27 deg (so it is SCATTER, not a mountable
+	// offset), interquartile range -9.36 to +8.59 deg, giving a robust sigma of 13.30
+	// deg = 0.232 rad. The raw standard deviation is 18.19 deg, inflated by outliers
+	// and by detections attributed to the wrong pillar, so the IQR-derived figure is
+	// the one to use. Why it matters: 0.232 rad at 1.5 m is 0.35 m of lateral miss,
+	// which is WIDER than sign_discovery.association_dist_m (0.25) and the router's
+	// detection_match_dist_m (0.30) -- the radii meant to contain it. A simulator
+	// without this cannot exercise the slot map, the colour vote's neighbour
+	// confusion, or any gate sized against that scatter. The measurement includes the
+	// localiser's yaw error, which the simulator already injects separately as
+	// sensor_yaw_bias_rad (0.03) and sensor_imu_noise_rad (0.005); together those are
+	// about 1.7 deg, so the double-count is under 2% of the figure. 0.0 reproduces
+	// the old idealised behaviour.
+	VisionBearingScatterRad float64 `json:"vision_bearing_scatter_rad" yaml:"vision_bearing_scatter_rad" mapstructure:"vision_bearing_scatter_rad"`
+
 	// Probability that a detection reports the OPPOSITE colour. UNMEASURED, so it
 	// ships at 0.0 rather than at a guess -- defaulting an invented error rate would
 	// make the simulator wrong in a new way rather than more realistic. The knob
@@ -154,6 +219,35 @@ type NavigationSimulationSimulation struct {
 	// failure mode is currently unscreenable. Needs a bag-derived confusion rate
 	// before it can ship non-zero.
 	VisionColorFlipRate float64 `json:"vision_color_flip_rate" yaml:"vision_color_flip_rate" mapstructure:"vision_color_flip_rate"`
+
+	// Probability levels that `vision_confidence_quantiles` is measured AT, same
+	// length and same order. Deliberately NOT evenly spaced: the tails are what a
+	// confidence-weighted vote turns on, so the measurement spends its resolution at
+	// p10 and p90 rather than at the quartiles. It lives here rather than as a Python
+	// constant because it is half of a PAIR -- a quantile array without the levels it
+	// was measured at cannot be interpolated, and changing one without the other is
+	// silently wrong rather than loudly wrong: assuming even spacing still returns
+	// the median exactly while reading p10 as 0.477 against a measured 0.515. The
+	// emulator falls back to the constant `detection_confidence` if the two lengths
+	// disagree.
+	VisionConfidenceLevels []float64 `json:"vision_confidence_levels" yaml:"vision_confidence_levels" mapstructure:"vision_confidence_levels"`
+
+	// Empirical detection-confidence distribution, as five quantiles at levels [0.00,
+	// 0.10, 0.50, 0.90, 1.00]; the emulator samples it by piecewise-linear
+	// inverse-CDF interpolation. EMPTY keeps the old behaviour, a constant
+	// simulation.detection_confidence on every detection. MEASURED 2026-09-15 over
+	// 3,315 red/green detections on the three rounds whose pillar map reconstructs to
+	// the operator's layout: min 0.451, p10 0.515, p50 0.760, p90 0.917, max 0.958.
+	// Two things a constant breaks. First, sign_router.min_confidence (0.25) is never
+	// exercised -- though note it is inert on hardware too, since the real minimum is
+	// 0.451, so the gate rejects nothing either way and raising it would start
+	// discarding genuine detections. Second and more important, `_SignTrack` weights
+	// its COLOUR VOTE by confidence. With a constant every vote weighs the same,
+	// while on the robot a 0.45 detection counts half of a 0.95 one -- so the vote's
+	// tie-breaking behaviour, which decides a round-ending rule, is untested in
+	// simulation. The shipped constant 0.9 sits at the real p90, i.e. the emulator
+	// believes every frame is one of its best.
+	VisionConfidenceQuantiles []float64 `json:"vision_confidence_quantiles" yaml:"vision_confidence_quantiles" mapstructure:"vision_confidence_quantiles"`
 
 	// Width (m) of the logistic detection-probability falloff around
 	// vision_detect_r50_m; smaller is a sharper cliff.

@@ -51,7 +51,7 @@ Environment Variables:
     MOTOR_STEERING__MAX_STEERING_ANGLE: Maximum steering angle in degrees
     MOTOR_STEERING__REVERSED: Invert steering direction
     MOTOR_DRIVE__REVERSED: Invert drive motor direction (true on this robot --
-        see .env.example and docs/sensor-verification.md)
+        see .env.example and src/python/docs/sensor-verification.md)
     MOTOR_DRIVE__MIN_SPEED / MOTOR_DRIVE__MAX_SPEED: Drive speed clamp
     MOTOR_DRIVE__SPEED_SCALE: motor_speed = velocity_m_s * scale
     See src.hardware.motors.config.Config for the full set and defaults.

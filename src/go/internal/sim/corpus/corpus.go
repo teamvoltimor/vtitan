@@ -20,7 +20,7 @@ type Scenario struct {
 
 // metadataGlob is the filename pattern every scenario metadata file matches,
 // mirroring _load_fixture_scenarios' own "*_metadata.json" glob in
-// platform/robot/src/simulation/scenario_catalog.py.
+// src/python/src/simulation/scenario_catalog.py.
 const metadataGlob = "*_metadata.json"
 
 // metadataSuffix is the filename suffix every scenario metadata file

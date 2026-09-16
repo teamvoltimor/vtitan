@@ -164,8 +164,8 @@ func openCorpusDir(t *testing.T) string {
 	if !ok {
 		t.Fatal("runtime.Caller(0) failed")
 	}
-	// this file: platform/robot-go/internal/sim/scenario/native_runner_integration_test.go
-	// three levels up -> platform/robot-go ; join simgen's training_data/open/scenarios.
+	// this file: src/go/internal/sim/scenario/native_runner_integration_test.go
+	// three levels up -> src/go ; join simgen's training_data/open/scenarios.
 	robotGoDir := filepath.Join(filepath.Dir(thisFile), "..", "..", "..")
 	return filepath.Join(robotGoDir, "training_data", "open", "scenarios")
 }

@@ -53,10 +53,8 @@ class EscapeRecovery:
     # The per-challenge clearance zones resolved once in ``CoreNavigator.__init__``.
     # Read this, NOT ``_tuning.clearance``, for any CONTACT_DIST gate: on Obstacles
     # the two differ whenever ``OBSTACLES_CONTACT_DIST`` is set, and these gates are
-    # the escape path the override exists to move. Measured 2026-09-01 on the 256
-    # corpus: with four gates here still on the unresolved value, setting the
-    # override diverged from setting the shared field (sign collisions 7 vs 4, wall
-    # 13 vs 17) when the two must be identical.
+    # the escape path the override exists to move. See
+    # ``adr:0061-contact-zone-per-challenge``.
     _clearance: ClearanceZones
     # The per-challenge escape parameters resolved once in ``CoreNavigator.__init__``,
     # for the same reason and on the same discriminator as ``_clearance`` above.
@@ -82,26 +80,11 @@ class EscapeRecovery:
         """Steering that reverses the chassis back along ground it just occupied.
 
         A generic reverse escape backs along an ARC into space the robot has
-        never been and, on this chassis, largely cannot see: the rear sector is
-        already masked from -160..-115 deg and +115..+175 deg by mount
-        occlusion, leaving a ~25 deg slot straight back as the only rear vision
-        there is. Two consequences, and both argue for retracing instead:
-
-        * That slot may not exist on the next chassis at all. If it goes, the
-          rear sector has no valid rays and ``compute_rear_clearance`` reports
-          the same ``NO_DATA_RANGE_M`` (10 m) it reports for open road;
-          ``_reversing_into_unseen_wall`` now refuses that case outright, so
-          the gate fails closed -- but a refused reverse is a robot that isn't
-          escaping, not a robot that escaped safely.
-        * The arc is what produces the wall strikes. Measured blind with the
-          escape mask off, sign collisions fall 57 -> 41 but wall collisions
-          rise 0 -> 13, in a corridor only 1.0 m wide.
-
-        Retracing needs no rear sensor by construction: the chassis was
-        physically standing on this ground seconds ago, so it is free unless
-        something moved into it, and nothing on this track does. It also cannot
-        swing into a wall, because it follows a path already driven rather than
-        an arc into the unknown.
+        never been and largely cannot see; retracing needs no rear sensor by
+        construction, because the chassis was physically standing on this ground
+        seconds ago, and it cannot swing into a wall. Measured rationale and the
+        refuted alternative: ``adr:0050-escape-steering-degrees-and-committed-side``
+        and ``adr:0055-escape-maneuver-selection``.
 
         Reverse pure pursuit: curvature is the NEGATIVE of the forward case,
         since the vehicle rotates the other way for a given steer angle when
@@ -176,36 +159,22 @@ class EscapeRecovery:
     def _fit_reverse_to_rear_gap(self, maneuver: EscapeManeuver, scan: LidarScan) -> EscapeManeuver:
         """Shorten a reversing escape to the rear room actually measured.
 
-        ``_reversing_into_unseen_wall`` above answers "may this reverse start?"
-        and nothing else: it compares the gap at the FIRST frame against
-        ``CONTACT_DIST`` and then the manoeuvre runs its full latched duration
-        regardless. That duration comes from the severity of what is in FRONT
-        (``k_turn_max_s`` at CRITICAL, ``k_turn_min_s`` otherwise), so at
-        ``rev_speed`` the critical escape asks for 21.6 cm of reverse against a
-        rear gap measured at p50 17 cm and p10 7 cm -- the gate waves it through
-        at 17 cm and the chassis is driven into the pillar it is escaping.
-        Measured over 46 escape episodes on the 09-10 bags: 35% did not fit.
+        ``_reversing_into_unseen_wall`` compares the gap only at the FIRST frame
+        and then the manoeuvre runs its full latched duration, which comes from
+        FRONT severity, so a reverse can be driven into the pillar behind. A
+        CEILING, not a replacement: front severity still proposes, the rear room
+        only caps, and a reverse that already fits comes back unchanged. See
+        ``adr:0055-escape-maneuver-selection``.
 
-        A CEILING, not a replacement. Front severity still proposes; the rear
-        room only caps. A reverse that already fits comes back unchanged, which
-        is 65% of them, so this cannot shorten the manoeuvres that work.
+        Two deliberate non-interventions: an unmeasured rear sector is left
+        ALONE rather than capped to zero (authorisation is
+        ``_reversing_into_unseen_wall``'s job), and a gap already inside
+        ``CONTACT_DIST`` is left alone too (a refusal, not a truncation).
 
-        Two deliberate non-interventions:
-
-        * An unmeasured rear sector is left ALONE, not capped to zero. The slot
-          this mount leaves is ~40 deg and can vanish entirely; capping on a
-          sentinel would silently delete the manoeuvre on a chassis with no rear
-          vision. Authorising that reverse stays ``_reversing_into_unseen_wall``'s
-          job, which refuses it unless the pose trail vouches for the ground.
-        * A gap already inside ``CONTACT_DIST`` is left alone too, for the same
-          division of labour: that is a refusal, not a truncation, and the gate
-          above already makes it. Returning a one-frame stub here would convert
-          a clean refusal into a twitch.
-
-        Obstacles-only by configuration (``obstacles_k_turn_fit_rear_gap``), not
-        by construction: Open escapes fire in corners against walls, where a
-        shortened reverse under-rotates and re-triggers, and nothing has been
-        measured that says Open wants this.
+        Obstacles-only by configuration (``obstacles_k_turn_fit_rear_gap``):
+        Open escapes fire in corners against walls, where a shortened reverse
+        under-rotates and re-triggers, and nothing has measured that Open wants
+        this.
         """
         if not self._escape.k_turn_fit_rear_gap or maneuver.speed >= 0 or self._retracing:
             # Retracing backs along ground the chassis physically occupied, so
@@ -267,19 +236,8 @@ class EscapeRecovery:
         that has switched to reverse (``already_touching``) is one too -- the
         planner has no model for backing off a wall it is already against.
 
-        MEASURED 2026-09-11 on the two Obstacles rounds that wedged: while a
-        manoeuvre was latched it supplied 100% of the commanded steering and
-        ``steer_target`` went unpublished on 92-93% of those ticks, because the
-        navigator returns before the planner runs. Outside them the commanded
-        steering agreed with the router's own lateral request on 98-100% of
-        ticks. So the planner is not wrong and the correction is not wrong --
-        they simply never run together, and alternate at 2.7-4.4x absolute over
-        signed wheel travel. `side_correction` dominates those windows 184 and
-        198 ticks against the k-turn's 22.
-
-        Ships OFF. Adding two steering signals can saturate the wheel or
-        produce a curvature neither layer asked for, which is exactly the kind
-        of thing a corpus has to rule out.
+        Ships OFF: adding two steering signals can saturate the wheel. See
+        ``adr:0088-refuted-config-knobs``.
         """
         maneuver = self._active_maneuver
         return (
@@ -318,17 +276,10 @@ class EscapeRecovery:
         """Publish the active escape command and count down its latched duration.
 
         ``base`` is the snapshot the caller has already filled in, used instead
-        of building a fresh one. Rebuilding unconditionally discards everything
-        the caller computed this tick -- in particular ``risk``/``escape_risk``
-        and the ray the escape verdict came from -- so the ESCAPE_TRIGGERED
-        tick, the one tick that can explain why a maneuver fired, published
-        exactly the fields that would explain it as None.
-
-        That is not only a reporting problem: it made escapes look
-        unattributable to the contact gate. A 2026-09-02 sweep of the 256
-        corpus read 37 of 19,276 engagements as gate-triggered, which would
-        have meant OBSTACLES_CONTACT_DIST governs almost nothing, when in fact
-        the evidence was being erased one line after it was recorded.
+        of building a fresh one. Rebuilding unconditionally discards the risk and
+        the ray the escape verdict came from, so the ESCAPE_TRIGGERED tick
+        published exactly the fields that would explain it as None. See
+        ``adr:0056-raw-and-masked-scan``.
 
         Callers with nothing to carry pass None and get the old behaviour --
         the stuck paths reach here from branches that never computed a risk
@@ -343,20 +294,11 @@ class EscapeRecovery:
             self._retracing = False
             # Re-anchor the escape sequence to where this manoeuvre ENDED.
             #
-            # The reset in navigator.py clears _escape_count once the robot is
-            # stuck_move_threshold (0.03 m) from the anchor. Anchored at the
-            # LATCH point, the manoeuvre satisfied that test with its own
-            # travel -- a K-turn reverses 0.117 m median -- so every escape
-            # certified itself as having worked, _escape_count never reached
-            # escalate_after_attempts, and _maybe_escalate could not fire.
-            # Measured: 59 of 149 K-turns were repeats within 0.40 m and 30 s,
-            # and run_20260914_000926 spent 179 s of a 292 s round in one limit
-            # cycle at a single spot with the waypoint index frozen.
-            #
-            # Measuring from the END instead asks the question the reset was
-            # written to ask: has the robot made progress SINCE the escape,
-            # rather than during it. Displacement the manoeuvre produced itself
-            # no longer counts as evidence that it worked.
+            # Anchored at the LATCH point, the manoeuvre satisfied the reset's
+            # own movement test with its own travel, so every escape certified
+            # itself as having worked and escalation could not fire. Measuring
+            # from the END asks whether the robot made progress SINCE the escape,
+            # rather than during it. See ``adr:0055-escape-maneuver-selection``.
             if self._escape_sequence_start_xy is not None:
                 self._escape_sequence_start_xy = (robot_x, robot_y)
         # A retrace is re-aimed every tick, unlike a latched arc: the whole
@@ -389,12 +331,9 @@ class EscapeRecovery:
         is held for ``escape_side_commit_attempts`` consecutive attempts before
         the other is tried. Flipping on every attempt (which all three escape
         paths used to do independently) means consecutive attempts rotate the
-        chassis in opposite directions and undo each other: measured on real
-        hardware 2026-08-05 (run_20260805_200011) as four escalating escapes
-        over 40 s that rocked the yaw between -0.4 and -0.8 rad and translated
-        the robot exactly nowhere. Escaping a wedge needs several attempts
-        pushing the *same* way to accumulate; alternating guarantees they
-        cannot.
+        chassis in opposite directions and undo each other. A wedge needs
+        several attempts pushing the *same* way to accumulate; alternating
+        guarantees they cannot. See ``adr:0055-escape-maneuver-selection``.
 
         ``_escape_steer_sign`` is the base side, not a running toggle -- the
         blocks alternate around it.
@@ -459,15 +398,10 @@ class EscapeRecovery:
 
         Measured on the 2026-09-10 Obstacles bags: this base was hardcoded to
         1.0 at every reset and NEVER read from LIDAR, so the stuck K-turn
-        (as opposed to the reactive one _k_turn_steer_sign already serves,
-        and the both-blocked pivot _pivot_steer_sign already serves) opposed
-        the clearer side 57% of the time, against 11% for side_correction --
-        the one escape type that already read a threat direction. This closes
-        that gap the same way: a left/right clearance comparison, seeded
-        once per sequence rather than re-read every tick (a live re-read
-        would fight the block-alternation this class already depends on to
-        accumulate rotation across attempts, see
-        ``_escape_steer_sign_for_attempt``).
+        opposed the clearer side far more often than the one escape type that
+        already read a threat direction. This closes that gap the same way: a
+        left/right clearance comparison, seeded once per sequence rather than
+        re-read every tick. See ``adr:0050-escape-steering-degrees-and-committed-side``.
 
         The clearer-side sign is numerically identical whether the escape
         that follows drives forward or reverses: Ackermann reverse flips
@@ -517,23 +451,13 @@ class EscapeRecovery:
         The reverse is latched for several frames (escalating with repeated
         attempts) and switches steering side only after committing to one for
         several attempts (see ``_escape_steer_sign_for_attempt``), so a
-        wall-pinned robot actually backs away instead of twitching one
-        centimetre every few seconds forever.
+        wall-pinned robot actually backs away instead of twitching.
 
-        When reverse itself is blocked (wedged both front and rear -- a real
-        corner, or a moderate turn normal_drive's own curvature-based
-        steering isn't decisive enough to complete at creep speed), this used
-        to just hold and reset the stuck detector, over and over, forever:
-        confirmed on real hardware 2026-08-04 as a robot frozen at the same
-        position for 27s straight, is_stuck firing repeatedly and each time
-        just re-arming the same forward command that had already failed for
-        the previous window (see docs/known-issues-backlog.md). Holding is
-        only actually the safe choice when forward is *also* blocked; when
-        it isn't, a forward creep at full steering lock (same side-commit and
-        escalation pattern as the reverse case) gives the
-        robot a real chance to walk itself clear using more decisive
-        steering than normal_drive's own pure-pursuit curvature was willing
-        to command for this geometry.
+        When reverse itself is blocked (wedged both front and rear), the old
+        code just held and reset the stuck detector forever, re-arming the same
+        failed command; a forward creep at full steering lock (same side-commit
+        and escalation pattern) instead walks the nose clear. See
+        ``adr:0055-escape-maneuver-selection``.
         """
         logger.warning("Robot stuck - triggering escape")
         stuck_diag = self._stuck_detector.get_diagnostics()
@@ -562,12 +486,9 @@ class EscapeRecovery:
             rear_clear = bumper_gap_behind(rear.min_range_m)
             # The front needs the SAME distinction the rear has above, and for
             # the same reason: an unreadable forward cone reports NO_DATA_RANGE_M
-            # and is indistinguishable from open road. Measured on hardware
-            # 2026-08-31 (run_20260831_205208/_205235) -- wedged against a wall,
-            # every forward ray fell below min_valid_range_m, forward_clear read
-            # ~10 m, `forward_clear >= CONTACT_DIST` passed, and this chose
-            # STUCK_FORWARD: it escaped INTO the wall it was already touching,
-            # then stood down. `maneuver types seen: stuck_forward`, 0 laps.
+            # and is indistinguishable from open road, so choosing STUCK_FORWARD
+            # from it escapes INTO a wall the robot is already touching. See
+            # ``adr:0056-raw-and-masked-scan``.
             front = self._collision_controller.front_sector(scan.ranges_m, scan.angles_rad)
             forward_blind = not front.measured
             forward_clear = bumper_gap_ahead(front.min_range_m)

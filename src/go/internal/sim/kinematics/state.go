@@ -16,7 +16,7 @@ type AckermannState struct {
 // WheelPose is one road wheel's chassis-frame mount point and its own
 // steer angle, matching src.simulation.kinematics.WheelPose. Name matches
 // the corresponding URDF link in
-// platform/gazebo/runtime/robot_description/wro_robot.urdf.xacro so the
+// other/apps/gazebo/runtime/robot_description/wro_robot.urdf.xacro so the
 // two descriptions of the same wheel can be lined up by eye.
 type WheelPose struct {
 	Name string

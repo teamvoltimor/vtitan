@@ -84,7 +84,7 @@ func (ButtonEvent_Kind) EnumDescriptor() ([]byte, []int) {
 
 // ButtonEvent is one debounced button transition, matching
 // internal/driver/button.Event (the Go analog of
-// platform/robot/src/hardware/button/event.py's ButtonEvent). Published on
+// src/python/src/hardware/button/event.py's ButtonEvent). Published on
 // the `vtitan.ui.v1.button_event` NATS subject by cmd/pi-zero's physical
 // button driver, and by anything (e.g. a future backend-command dispatcher)
 // synthesizing a button press remotely -- both producers publish to the

@@ -2,7 +2,7 @@
 
 // Command pi-zero is the production combined board binary for the Pi Zero:
 // motor + button + OLED, run as supervised goroutines in a single process.
-// See platform/robot/docs/internal/plans/go-migration-plan.md ("Process
+// See adr:0068-go-parallel-track-single-cutover ("Process
 // model").
 //
 // The motor control loop is internal/node/motor, shared with cmd/motor-node

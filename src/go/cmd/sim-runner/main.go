@@ -1,7 +1,7 @@
 // Command sim-runner orchestrates N scenario runs concurrently (Obstacles
 // and Open corpora) against the existing Python simulator, for sim-corpus
 // parity testing against the Python baseline (see
-// docs/internal/plans/go-migration-plan.md, "Simulation" and "Testing"
+// adr:0068-go-parallel-track-single-cutover, "Simulation" and "Testing"
 // sections). It does not reimplement any simulation math: each scenario run
 // is a subprocess call into scripts/sim/run_scenario.py — see
 // internal/sim/scenario.SubprocessRunner. Only the orchestration
@@ -150,7 +150,7 @@ func newRootCmd(cfg *cliConfig, logger *slog.Logger, stdout io.Writer) *cobra.Co
 		&cfg.workDir,
 		"workdir",
 		"",
-		"working directory to run the script from, normally platform/robot",
+		"working directory to run the script from, normally src/python",
 	)
 	flags.StringVar(&cfg.pythonPath, "python-path", ".", "PYTHONPATH to set for the subprocess")
 	flags.StringVar(

@@ -281,15 +281,9 @@ def calculate_waypoints(
     # which makes the arc -- and therefore the turn-entry point, `r` back from a
     # 90 deg corner -- independent of a belief that starts out wrong.
     #
-    # Blind rounds begin believing every corridor NARROW, so a narrow->wide
-    # corner plans a 0.300 m entry where the true geometry wants 0.450 m and the
-    # robot commits 0.15 m late (0.38 s at the medium tier). Confirming wide
-    # needs min_samples=12 readings ~= 0.5 m of travel, so the correction
-    # generally arrives AFTER the entry point has already passed: late is the
-    # default on every corner touching a wide corridor, not an edge case.
-    #
     # Turning early into a corridor wider than planned is the safe direction to
-    # be wrong; turning late is what puts the nose in the outer wall.
+    # be wrong; turning late is what puts the nose in the outer wall. See
+    # ``adr:0057-blind-corridor-follower-and-width``.
     # Annotated rather than inferred: joining the two lambda types across the
     # conditional loses the tuple's LENGTH, and the `*effective(...)` unpack
     # below then reads as an arbitrary number of arguments, which mypy reports

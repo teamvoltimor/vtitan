@@ -17,7 +17,7 @@ import (
 type OrchestratorConfig struct {
 	// Concurrency caps how many scenarios run at once. Left at 0, it
 	// defaults to runtime.NumCPU() — sim runs are CPU-bound (see the
-	// "Simulation" section of docs/internal/plans/go-migration-plan.md),
+	// "Simulation" section of adr:0068-go-parallel-track-single-cutover),
 	// so the host's core count is the sane default, but a deployment
 	// running the orchestrator alongside other CPU-heavy work (e.g. CI
 	// sharing a runner) may reasonably want to override it, so it is
@@ -64,7 +64,7 @@ type OutcomeCount struct {
 // bounded by a semaphore-style worker pool, and aggregates results via a
 // channel read by a single collector goroutine rather than a shared map
 // guarded by a mutex — matching the sim-orchestrator pattern in
-// docs/internal/plans/go-migration-plan.md's "Workers / concurrency model".
+// adr:0068-go-parallel-track-single-cutover's "Workers / concurrency model".
 type Orchestrator struct {
 	runner      Runner
 	concurrency int

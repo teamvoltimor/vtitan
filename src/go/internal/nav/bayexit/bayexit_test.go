@@ -9,7 +9,7 @@ import (
 )
 
 // There is no Python oracle test file for bay_exit.py (none exists in the
-// source tree, confirmed against platform/robot/tests), so these tests pin
+// source tree, confirmed against src/python/tests), so these tests pin
 // the module's own documented behavioral contracts directly.
 
 const creepSpeedMPS = 0.15

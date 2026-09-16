@@ -12,7 +12,7 @@ import (
 )
 
 // repoRoot walks up from this test file's package directory
-// (platform/robot-go/internal/nav/waypoints) to the repo root, so
+// (src/go/internal/nav/waypoints) to the repo root, so
 // ConfigFor can be exercised against the real checked-in waypoints.toml
 // -- catching a path/field-name mismatch a testdata-fixture-only test
 // wouldn't.

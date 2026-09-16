@@ -25,7 +25,7 @@ const shippedObstaclesContactDist = 0.10
 var hardwareProfileNames = []string{"270deg-hiwonder-35kg", "rev-hd-hex-motor-6000rpm"}
 
 // repoRoot walks up from this test file's package directory
-// (platform/robot-go/internal/nav/controllers) to the repo root, so
+// (src/go/internal/nav/controllers) to the repo root, so
 // ConfigFor can be exercised against the real checked-in TOML files --
 // catching a path/field-name mismatch a testdata-fixture-only test
 // wouldn't, matching the pattern already established in

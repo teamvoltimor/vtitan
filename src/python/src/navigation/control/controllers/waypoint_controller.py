@@ -234,8 +234,7 @@ class WaypointController:
         curvature-based steering (see ``compute_steering``), a long lookahead
         to a target that is only modestly off-axis commands a much smaller
         curvature than the corner needs, producing a wide, slow arc instead of
-        a decisive turn -- measured on real hardware 2026-08-03 (see
-        ``docs/internal/audits/2026-08-03-realtrack-control-instability-findings.md``).
+        a decisive turn (see ``adr:0052-pursuit-target-selection``).
 
         Gating on crosstrack error instead closes the loop correctly: falling
         behind on a turn grows the crosstrack error, which shortens the
@@ -244,27 +243,27 @@ class WaypointController:
 
         The threshold is the smaller of ``lookahead_transition`` and what the
         path itself can afford (see :meth:`set_crosstrack_budget`). The fixed
-        value silently assumes at least 0.30 m of room to drift into, which the
-        blind narrow prior does not leave: measured on hardware 2026-08-06,
-        crosstrack ran 0.09 -> 0.15 through a corner and never crossed 0.30, so
-        the lookahead stayed long and the curvature stayed weak the whole way
-        into the wall. The loop above is sound; it was armed past the point of
-        no return.
+        value assumes 0.30 m of room to drift into, which the blind narrow
+        prior does not leave: on hardware crosstrack ran 0.09 -> 0.15 through a
+        corner and never crossed 0.30, so the lookahead stayed long and the
+        curvature stayed weak the whole way into the wall. The loop above is
+        sound; it was armed past the point of no return. See
+        ``adr:0052-pursuit-target-selection``.
 
         Crosstrack is nonetheless a *lagging* signal -- it cannot rise until
         the corner has already been missed -- so it is joined here by the
         planned path's own upcoming turn, which is known in advance. On
-        hardware 2026-08-06 the robot sat at 0.9 rad of heading error for three
-        seconds commanding 0.23 of full lock, because it was still on-path
-        (crosstrack ~0.01) and so still on the long lookahead; the moment
-        crosstrack reached 0.13 the short lookahead armed and steering jumped
-        to 0.52. The magnitude was right and the timing was a corner late.
-        Previewing the turn arms the same response on entry instead.
+        hardware the robot sat at 0.9 rad of heading error for three seconds
+        commanding 0.23 of full lock, because it was still on-path and so still
+        on the long lookahead; the moment crosstrack reached 0.13 the short
+        lookahead armed and steering jumped to 0.52. The magnitude was right
+        and the timing was a corner late. Previewing the turn arms the same
+        response on entry instead. See ``adr:0052-pursuit-target-selection``.
 
         Either signal alone shortens the lookahead. Curvature (``2y/L**2``) is
         quadratic in lookahead, so halving it quadruples the commanded turn
         without touching a gain -- which is why this is the lever rather than
-        ``STEER_KP``, whose removal fixed the 2026-08-03 oscillation.
+        ``STEER_KP``.
 
         A third signal, ``sign_ahead``, exists for the same reason: a sign
         deformation biases ``select_target_point``'s OUTPUT sideways, but
@@ -272,13 +271,11 @@ class WaypointController:
         BEFORE that bias is applied -- by design the robot is still close to
         the raw centerline during a sign pass, so crosstrack reads near-zero
         and never arms the short lookahead the deformation actually needs.
-        The long lookahead then hands the router a point 0.4m down-path to
-        bias, and the same quadratic-curvature relationship that makes
-        crosstrack/turn_ahead effective here makes a long lookahead
-        undershoot the lateral offset it's asked to add -- traced as a
-        consistent ~6.5cm shortfall between the commanded line and the
-        chassis at the moment it draws level with the sign (subset64,
-        go_obstacles_0009/0011/0020/0046). Unlike crosstrack and turn_ahead,
+        The long lookahead then hands the router a point down-path to bias,
+        and the same quadratic-curvature relationship makes a long lookahead
+        undershoot the lateral offset it's asked to add. See
+        ``adr:0052-pursuit-target-selection`` and
+        ``adr:0051-sign-lane-planner``. Unlike crosstrack and turn_ahead,
         this is a boolean rather than a magnitude: whether a routed sign
         exists within activation distance, not how far off the deformation
         would move.
@@ -312,13 +309,12 @@ class WaypointController:
 
         Was a bare ``value > threshold`` step, which is why this exists. Both
         signals hover near their thresholds in normal driving, and a step there
-        flips the lookahead between long and short on consecutive ticks --
-        observed on hardware run_20260829_104641 as ``0.320, 0.160, 0.320,
-        0.160`` at ~2.5 Hz. Because curvature is ``2y/L**2``, quadratic in the
-        lookahead, each flip swings the commanded curvature by 4x, which the
-        chassis renders as a visible zigzag. Hysteresis would stop the chatter
-        but keep the 4x jump; a ramp removes the discontinuity itself, so
-        there is no jump left to chatter.
+        flips the lookahead between long and short on consecutive ticks.
+        Because curvature is ``2y/L**2``, quadratic in the lookahead, each flip
+        swings the commanded curvature by 4x, which the chassis renders as a
+        visible zigzag. Hysteresis would stop the chatter but keep the 4x jump;
+        a ramp removes the discontinuity itself, so there is no jump left to
+        chatter. See ``adr:0052-pursuit-target-selection``.
 
         ``lookahead_blend_start=1.0`` collapses this back to the original step,
         which is the constructor default -- the ramp is opt-in via tuning.
@@ -374,20 +370,17 @@ class WaypointController:
         of a lap (or right after a reseek lands close to the tail) and fall
         back to a single fixed final point instead of continuing around the
         loop, producing a long stretch of barely-changing bearing to a point
-        that should have already been left behind -- measured on real
-        hardware 2026-08-03 as steering pinned near zero for tens of seconds
-        while heading drifted 85+ degrees (see
-        ``docs/internal/audits/2026-08-03-realtrack-control-instability-findings.md``).
+        that should have already been left behind (see
+        ``adr:0052-pursuit-target-selection``).
 
         Also skips any candidate that is behind the chassis in its current
         local frame -- accepting one there previously handed ``compute_steering``
         a target its curvature formula is not valid for, forcing an
-        unreliable side-guessing fallback (also measured 2026-08-03 as a
-        wrong-direction turn on real hardware; not reproducible in sim, where
-        the localizer's pose estimate does not drift between ticks the way
-        real sensor noise does). Skipping forward instead of guessing means
-        the chosen target is always one the curvature formula actually
-        applies to.
+        unreliable side-guessing fallback (a wrong-direction turn on real
+        hardware; not reproducible in sim, where the localizer's pose estimate
+        does not drift between ticks the way real sensor noise does). Skipping
+        forward instead of guessing means the chosen target is always one the
+        curvature formula actually applies to.
 
         Args:
             current_pos: Robot position (x, y)
@@ -409,13 +402,13 @@ class WaypointController:
             curvature formula divides by the target's actual squared distance, so
             a farther fallback target produces a *weaker* commanded curvature --
             backwards from what a large heading error needs. Picking farthest
-            when nothing qualified handed back points 1-3m away (multiple laps'
-            worth of waypoint spacing) while the chassis sat 90 deg off the path,
+            when nothing qualified handed back points far away (multiple laps'
+            worth of waypoint spacing) while the chassis sat well off the path,
             starving the correction and locking the robot into repeatedly
-            re-selecting a similarly distant point forever -- measured on real
-            hardware 2026-08-03/04 as a self-reinforcing deadlock: creep speed +
-            weak curvature never closes the heading error that caused both (see
-            ``docs/internal/audits/2026-08-03-realtrack-control-instability-findings.md``).
+            re-selecting a similarly distant point forever -- a self-reinforcing
+            deadlock: creep speed + weak curvature never closes the heading
+            error that caused both (see
+            ``adr:0052-pursuit-target-selection``).
             Nearest keeps the fallback target's distance close to a sane
             pure-pursuit lookahead instead.
         """
@@ -431,34 +424,31 @@ class WaypointController:
         # still available as a fallback. NOTE the cost this carries: taking a
         # later candidate takes a FARTHER one, and curvature divides by the
         # target's squared distance, so the filter trades an impossible bearing
-        # for a weaker correction. Measured NEGATIVE at 0.29 -- see
-        # PurePursuitParams.min_target_radius_m -- which is why it ships off.
+        # for a weaker correction. Measured NEGATIVE -- see
+        # PurePursuitParams.min_target_radius_m and
+        # ``adr:0052-pursuit-target-selection`` -- which is why it ships off.
         nearest_unreachable: tuple[float, float] | None = None
         # How far ALONG THE PATH the scan may walk. Without a bound this loop
         # wraps a whole lap and returns the first waypoint that is merely
         # geometrically in front of the chassis -- which, once the chassis has
         # turned toward the way it came, is on the FAR SIDE OF THE RING.
         #
-        # That is not hypothetical; it is what lost all three rounds of
-        # 2026-09-11 and it is the mechanism behind "the car turned around and
-        # drove back". Measured in those windows: the selected target sat p50
-        # 2.08-2.50 m away at a bearing 97-140 deg BACKWARDS around the loop,
-        # on 60-91% of ticks, while pure pursuit tracked it perfectly -- small
-        # crosstrack, angle_error pinned at its clamp -- because driving toward
-        # the far side of a ring corridor means driving back the way you came.
-        # ``waypoint_index`` froze meanwhile, since advancing it needs a
+        # That is not hypothetical; it is the mechanism behind "the car turned
+        # around and drove back". The selected target sat far away at a bearing
+        # BACKWARDS around the loop while pure pursuit tracked it perfectly --
+        # small crosstrack, angle_error pinned at its clamp -- because driving
+        # toward the far side of a ring corridor means driving back the way you
+        # came. ``waypoint_index`` froze meanwhile, since advancing it needs a
         # waypoint the robot is receding from, which is why every backward-jump
-        # guard in this tree reads clean.
+        # guard in this tree reads clean. See ``adr:0052-pursuit-target-selection``.
         #
         # The bound is a SPAN, not a replacement for the wrap: the modulo stays,
-        # so the 2026-08-03 seam fix is untouched. And it never writes
+        # so the seam fix is untouched. And it never writes
         # ``waypoint_index``, so REPLAN_MONOTONIC_INDEX, FORWARD_ONLY_RESEEK,
         # the seam guard and the lap odometer are byte-for-byte unaffected.
         #
-        # 1.0 m because the control says healthy driving never comes near it:
-        # over a clean 3-lap round the selected target never exceeded 0.91 m in
-        # 2533 ticks and 0 of them were beyond 1.0 m, against 27-30% of ticks
-        # beyond it on each of the three lost rounds.
+        # ``target_search_span_m`` is 1.0 m because healthy driving never
+        # approaches it (see ``adr:0052-pursuit-target-selection``).
         #
         # Measured as ARC LENGTH walked, not as a waypoint count derived from
         # mean spacing: spacing is not uniform (a sign lane, a replan and a
@@ -566,8 +556,7 @@ class WaypointController:
         front-steer in the simulator the old gain was tuned against, when it
         actually steers both axles in counter-phase (double the yaw rate for the
         same angle), and that mismatch produced full-lock steering oscillation on
-        real hardware (2026-08-03, see
-        ``docs/internal/audits/2026-08-03-realtrack-control-instability-findings.md``).
+        real hardware. See ``adr:0052-pursuit-target-selection``.
         The lookahead still only selects *which* waypoint to aim at; it is the
         steering law itself that changed.
 

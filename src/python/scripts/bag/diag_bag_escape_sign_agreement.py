@@ -67,9 +67,12 @@ Usage::
 from __future__ import annotations
 
 import math
+import sys
 from collections import Counter
 from dataclasses import dataclass
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from scripts.common.bag_io import create_bags_parser, load_nav_debug_rows
 from scripts.common.stats import fmean

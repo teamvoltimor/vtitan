@@ -19,6 +19,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
+import shared.domain.enums  # noqa: F401  (imported first: models <-> enums cycle)
 from shared.domain.models import NavigatorDebugSnapshot
 
 from scripts.common.bag_io import create_bag_parser, load_nav_debug_rows

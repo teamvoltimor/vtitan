@@ -61,20 +61,13 @@ def _bicycle_yaw_step(step_m: float, wheel_rad: float) -> float:
     """Yaw the chassis turns over ``step_m`` of travel at ``wheel_rad`` of lock.
 
     The curvature is FLOORED by ``RobotSpecs.MIN_TURN_RADIUS_M``, exactly as
-    ``AckermannKinematics`` floors it, and that is the whole point of this
-    helper existing rather than the expression being written out twice: the two
-    are the same physical model and had already drifted apart. The unfloored
-    bicycle term gives 1.5 cm of radius at the shipped 85 degree lock, against a
-    chassis measured to saturate near 0.29 m.
-
-    While only the kinematics honoured the floor, this manoeuvre's dead
-    reckoning believed it was ratcheting out of the pocket 31x faster than it
-    was -- 0.113 m of modelled outward travel against 0.0036 m of real, measured
-    2026-09-09 over four in-bay fixtures with ``scripts/sim/diag_bay_guard.py``.
-    That inflated ``_dr_out`` feeds ``_wall_feasible_yaw_rad``, so the guard
-    believed the wall had released it, allowed a yaw the chassis could not make,
-    predicted a pose inside a fin and vetoed legs that were in fact clear. Every
-    bay-exit remedy tried before this one tuned a term downstream of it.
+    ``AckermannKinematics`` floors it: the two are the same physical model and
+    had already drifted apart, and an unfloored bicycle term gives a radius far
+    below the chassis's measured saturation. While only the kinematics honoured
+    the floor, this manoeuvre's dead reckoning believed it was ratcheting out
+    far faster than it was, which fed ``_wall_feasible_yaw_rad`` a released wall
+    and vetoed legs that were in fact clear. See
+    ``adr:0060-bay-exit-clearance-guard`` and ``adr:0086-simulator-realism``.
     """
     curvature = math.tan(wheel_rad) * RobotSpecs.YAW_GAIN / _EFFECTIVE_WHEELBASE_M
     if RobotSpecs.MIN_TURN_RADIUS_M > 0.0:
@@ -151,25 +144,16 @@ def _open_side_score(
     """How open a sector is: valid fraction times median valid range.
 
     A NO-RETURN AT THE POCKET WALL IS THE SIGNAL, NOT AN ABSENCE OF ONE. The
-    gateway substitutes ``LIDAR_MAX_RANGE`` for every dropout (see
-    ``_lidar_callback``), and the wall in the pocket sits at 0.08-0.13 m, close
-    enough that the C1 returns nothing on a large share of rays. Compared as
-    ranges, the substituted 12 m beats the open corridor's real 0.84 m and the
-    side reads BACKWARDS -- and ``BAY_EXIT_LATCH_DIRECTION`` then freezes that
-    verdict for the whole round, steering the ratchet into the wall.
+    gateway substitutes ``LIDAR_MAX_RANGE`` for every dropout, and the wall in
+    the pocket sits close enough that the C1 returns nothing on a large share of
+    rays. Compared as ranges, the substituted max beats the open corridor's real
+    reading and the side reads BACKWARDS, and ``BAY_EXIT_LATCH_DIRECTION`` then
+    freezes that verdict for the round.
 
-    Measured over the 383 bay-exit scans of the 2026-09-06 hardware runs, the
-    ray facing the near wall dropped out on 21-37% of ticks against 0-5% for the
-    ray facing open space. The shipped single-ray comparison scored 70.6/72.9/
-    71.2% per tick and was WRONG ON THE FIRST TICK OF TWO OF THE THREE RUNS.
-
-    Both halves of this score carry signal and they are multiplied because they
-    fail independently: the valid FRACTION is the dropout signal read the right
-    way up (the closed side keeps only 62-78% of its returns), and the MEDIAN is
-    the distance signal, which is far stronger but is exactly what a dropout
-    corrupts. Their product scores 100% of all 383 scans with a worst-tick
-    margin of 1.15x and a median of ~10x, where the count alone reaches a 1.00
-    dead tie and the median alone still trusts a corrupted ray.
+    Both halves carry signal and are multiplied because they fail independently:
+    the valid FRACTION is the dropout signal read the right way up, and the
+    MEDIAN is the distance signal, which a dropout corrupts. See
+    ``adr:0060-bay-exit-clearance-guard``.
 
     Validity is ``isfinite`` and non-zero, taken here as "below the substituted
     max range" because the substitution has already happened by the time a scan
@@ -197,19 +181,16 @@ def _open_side_score(
 def _along_slack_m() -> float:
     """Greatest along-wall displacement the pocket physically admits.
 
-    The fins' inner faces stand at ``half_spacing - WIDTH / 2`` either side of
-    the placement, and the chassis is ``LENGTH`` long, so its centre cannot pass
-    ``inner - LENGTH / 2`` without the body being inside a fin. 65 mm at the
-    shipped geometry, and a STRICT outer bound: any yaw only grows the swept
-    extent, so the true limit is tighter, never wider.
+    The fins' inner faces stand ``half_spacing - WIDTH / 2`` either side of the
+    placement, and the chassis is ``LENGTH`` long, so its centre cannot pass
+    ``inner - LENGTH / 2`` without the body being inside a fin. A STRICT outer
+    bound: any yaw only grows the swept extent, so the true limit is tighter.
 
-    Dead reckoning has no way to notice it has exceeded this. ``_dr_along``
-    integrates wheel travel, and a wheel that spins against a chassis the wall
-    is holding reports travel the body never made -- measured on
-    run_20260906_192358, ``_dr_along`` reached 0.106 m, 63% beyond the entire
-    slack the bay has, while the chassis moved ~0.05 m of net path. A modelled
-    pose outside this bound is not merely uncertain, it is impossible, and
-    ``_predicted_gap`` taken there vetoes every leg (see ``_guarded_command``).
+    Dead reckoning cannot notice it has exceeded this: ``_dr_along`` integrates
+    wheel travel, and a wheel spinning against a chassis the wall is holding
+    reports travel the body never made. A modelled pose outside this bound is
+    impossible, and ``_predicted_gap`` taken there vetoes every leg. See
+    ``adr:0060-bay-exit-clearance-guard``.
     """
     half_spacing = ParkingLotSpecs.BLOCK_SPACING_FACTOR * RobotSpecs.LENGTH / 2.0
     inner = half_spacing - ParkingLotSpecs.WIDTH / 2.0
@@ -219,15 +200,12 @@ def _along_slack_m() -> float:
 def _wall_feasible_yaw_rad(out_m: float) -> float:
     """Greatest yaw the pocket's DEPTH allows at this outward displacement.
 
-    The lot is 0.20 m deep against a 0.194 m chassis, so the wall behind pins
-    rotation until the body has eased out of the pocket: the swept depth
-    ``(L sin t + W cos t) / 2`` has to clear ``out + WALL_OFFSET``. Written as
-    ``hypot(L, W) sin(t + atan2(W, L))`` that inverts in closed form. It is
-    1.15 degrees at the judges' placement, 3.11 at 5 mm out, 9.31 at 20 mm,
-    and unbounded past 78.6 mm -- so the escape is a RATCHET, each shuffle
-    buying the yaw that buys the next shuffle. Coupling
-    ``d(out)/d(along) = tan t`` grows exponentially with a 0.15 m length
-    scale, which reaches free rotation in about 0.50 m of shuffling.
+    The lot is barely deeper than the chassis, so the wall behind pins rotation
+    until the body has eased out of the pocket: the swept depth has to clear
+    ``out + WALL_OFFSET``. Written as ``hypot(L, W) sin(t + atan2(W, L))`` it
+    inverts in closed form. The escape is therefore a RATCHET, each shuffle
+    buying the yaw that buys the next shuffle. See
+    ``adr:0060-bay-exit-clearance-guard``.
 
     The FIRST crossing is the bound, not the largest feasible angle. Past the
     peak at ``atan2(W, L)`` the swept depth falls again, so wide angles are
@@ -246,25 +224,17 @@ def _leg_speed(creep_speed_mps: float, follower: object, *, reverse: bool, exit_
     """Speed for one bay-exit leg, as a POSITIVE magnitude.
 
     The manoeuvre inherits the driving ladder's creep speed and scales it down
-    twice, which lands at 0.067 m/s -- and the drivetrain does not deliver that.
-    Measured on run_20260906_181613/_181839: the navigator commanded 0.067 m/s
-    on 876 of 882 ticks, never pausing more than 0.1 s, while /motor/drive_speed
-    read 0 deg/s on 92-97% of them against the ~110 deg/s that speed implies on
-    a 7 cm wheel. The chassis was not waiting; it was being asked for a speed
-    below the motor's usable range, and it lurched only when a leg happened to
-    break static friction.
-
+    twice, which lands below the drivetrain's usable range: the wheel stalls and
+    the chassis only lurches when a leg happens to break static friction.
     ``BAY_EXIT_SPEED_MPS`` overrides the whole chain with an ABSOLUTE value,
     because what this manoeuvre needs is set by torque against static friction
-    at full lock, not by any relationship to cruising speed. 0 keeps the
+    at full lock, not by any relationship to cruising speed; 0 keeps the
     inherited scaling.
 
-    The tension is real and is not resolved by picking a big number: the leg has
-    to STOP inside the pocket, the drivetrain coasts v * SPEED_RESPONSE_TAU_S,
-    and the fin guard refuses any leg it cannot stop in time. In the simulator
-    -- which has no deadband and so moves at any commanded speed -- 0.086 m/s
-    already collides in 32/32 scenarios. The working window may be narrow, and
-    only the robot can say where it is.
+    The tension is real: the leg has to STOP inside the pocket, the drivetrain
+    coasts ``v * SPEED_RESPONSE_TAU_S``, and the fin guard refuses any leg it
+    cannot stop in time. Only the robot can say where the window is. See
+    ``adr:0060-bay-exit-clearance-guard``.
     """
     absolute = follower.bay_exit_speed_mps
     if absolute > 0.0:

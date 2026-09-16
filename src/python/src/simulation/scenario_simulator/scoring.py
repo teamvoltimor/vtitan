@@ -62,6 +62,8 @@ class PassSideScorer:
     _true_signs: list[SignSpec]
     _max_sign_push: float | None
     _sign_push: dict[int, float]
+    # Whether a shoved pillar MOVES in the world, or only on the scoreboard.
+    _obstacles_move: bool
     _prev_contact_xy: Waypoint
     # Signs whose radius the chassis has begun to cross but not completed.
     # Kept because a partial crossing is exactly the recoverable state the rules
@@ -289,6 +291,11 @@ class PassSideScorer:
             push = (dx * to_sign_x + dy * to_sign_y) / norm
             if push > 0.0:
                 self._sign_push[index] = self._sign_push.get(index, 0.0) + push
+                if self._obstacles_move:
+                    # The world, not just the scoreboard. `push` is already the
+                    # component of travel pointing at the pillar, so the shove
+                    # is that far along the same unit vector.
+                    self._track.shift_obstacle(index, push * to_sign_x / norm, push * to_sign_y / norm)
         if any(push > self._max_sign_push for push in self._sign_push.values()):
             return surface
         # Touched, but still inside its circle: not a collision, and not the

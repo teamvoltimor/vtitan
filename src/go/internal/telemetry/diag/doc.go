@@ -1,9 +1,9 @@
 // Package diag aggregates several sensor/perception inputs (LIDAR scan,
 // IMU orientation, vision detections) into the low-rate summary the OLED/UI
 // needs, mirroring telemetry_bridge_node.py's `_publish_ui_summary` path
-// (platform/robot/ros2_ws/src/vtitan_state_machine/vtitan_state_machine/
+// (src/python/ros2_ws/src/vtitan_state_machine/vtitan_state_machine/
 // telemetry_bridge_node.py) and the wire shape of TelemetrySummaryWire
-// (platform/robot/src/ros2/wire_models.py).
+// (src/python/src/ros2/wire_models.py).
 //
 // This is a telemetry-aggregation node, not a hardware driver: it owns no
 // sensor I/O of its own, only the fan-in/summarize logic that sits between

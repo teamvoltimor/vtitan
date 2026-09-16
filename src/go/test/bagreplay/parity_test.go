@@ -30,7 +30,7 @@ type parityGateway struct {
 }
 
 // repoRootFromPackageDir is the relative path from this package
-// (platform/robot-go/test/bagreplay) back to the repo root, where
+// (src/go/test/bagreplay) back to the repo root, where
 // profile.DefaultRobotTOMLPath (src/config/robot.toml) lives.
 const repoRootFromPackageDir = "../../../.."
 

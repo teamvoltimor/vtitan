@@ -1,0 +1,85 @@
+# 0072. The camera feeds the NPU in-process and vision owns identity, not distance
+
+- Status: accepted
+- Date: 2026-09-15
+
+## Context
+
+The vision path had several silent-failure modes. A class-order or channel-order
+mistake swaps red and green with nothing failing loudly, which inverts the WRO
+pass-side rule on every obstacle. A ROS image hop would add latency to a pipeline
+already budgeted tightly. And a vision miss must not remove collision safety.
+
+## Options considered
+
+- (a) Publish `sensor_msgs/Image` and give the NPU its own subscriber; trust the
+      dataset's `data.yaml` class order and a single NMS layout.
+- (b) Open the camera in-process and feed the NPU directly; pin the class order to
+      the checkpoint; keep one NMS decoder; give identity and bearing to vision
+      and distance and safety to the LIDAR.
+
+## Decision
+
+(b). The vision node opens the camera in-process (`camera_source = "direct"`) and
+feeds frames straight to the Hailo NPU; a race publishes only `/vision/detections`
+and no imagery (debug image topics are opt-in and cost about 4 MB per frame). The
+live chain runs at 15 Hz, set by `capture_fps` (the HEF itself benchmarks about
+101 FPS, so the cap is the timer, not the model). The camera backend prefers
+Picamera2 and falls back to `rpicam-vid` MJPEG, because picamera2's libcamera
+bindings target the system interpreter while ROS nodes run a different pixi
+Python, and OpenCV cannot open libcamera media nodes.
+
+The class order is authoritative from the checkpoint metadata (0 green, 1 magenta,
+2 red); `GMR_CLASS_NAMES` is the one declaration and the driver's colour mapping
+derives from it. `iter_nms_by_class` is the single decoder, normalising the
+list-of-per-class Hailo layout and raising on any other shape. The HEF is compiled
+with `--classes 3`, because without it the NMS config is regenerated for COCO's 80
+classes and the HEF decodes garbage.
+
+The confidence floors are 0.45 at the detector (below that a detection never
+reaches the navigator) and 0.25 at the sign router, which is only for late
+confirmation of an already-discovered sign, never to create a new track.
+
+The division of labour: the LIDAR proposes WHERE and the camera decides WHAT. A
+LIDAR proposal is position-only and never publishes a sign by itself. The camera
+is explicitly NOT the safety net: a false detection causes an unnecessary dodge,
+a missed one leaves the LIDAR collision controller active. This is carried into
+0058.
+
+## Consequences
+
+- No image hop in the normal path, so the latency budget holds.
+- A wrong channel or class order is caught at one declaration, not four.
+- Camera or NPU failure degrades strategy, not collision avoidance.
+- The ungated LIDAR range fusion is the version measured harmful; the cluster gate
+  is mandatory (see 0058).
+
+## History
+
+- 85ebafed 2026-07-26: compile the retrained 3-class detector with `--classes 3`.
+- 1e3df713 2026-07-26: consume the HEF and collapse class-order drift; one NMS
+  decoder and `GMR_CLASS_NAMES`.
+- daf70c06 2026-07-26: level 0 beat level 2 plus QAT: level 0 is within 0.01
+  percent mAP@0.5 and 0.8 percent mAP@0.5:0.95 of float, while level 2 + QAT lost
+  2.0 to 2.7 percent mAP@0.5 and 7.5 to 8.1 percent mAP@0.5:0.95 and produced the
+  only red/magenta confusions.
+- 6b97d7ca 2026-07-26: capture in-process and add an opt-in debug video; rpicam
+  MJPEG fallback.
+- f9b3d6b9 and 36689f7c 2026-07-26 / 2026-08-02: make the confidence floor
+  actually gate detections; align the detector floor to 0.45.
+- d9c62a17 2026-08-12: letterbox replaces `cv2.resize` for the NPU (pad 114).
+- 6d3e3328 2026-09-06: the camera's bearing was mirrored, placing every sign on
+  the far wall (174 px upright against 528 px mirrored); turns ungated range fusion
+  off.
+- 91b2ffe3 2026-09-10: one shipped detection-confidence floor; Hailo fields resolve
+  back to `detector.toml` (three copies collapsed).
+- 0e088ada 2026-09-14: the emulated camera gets the hardware's detection rate and
+  latency (54.5 percent to 11.0 percent, against hardware's 11.6 percent).
+- c9358428 2026-09-15: range is not the limit; the residual is zero-mean bearing
+  scatter (see 0058).
+
+## Cross-references
+
+- 0058 owns the sign discovery and range fusion this path feeds.
+- 0069 owns the config; 0073 owns the challenge resolved at runtime.
+- 0044 (camera autofocus) is carried in the hardware batch.

@@ -17,6 +17,24 @@ type NavigationEscapeEscape struct {
 	// A/B.
 	EscapeMirrorsReverse bool `json:"escape_mirrors_reverse" yaml:"escape_mirrors_reverse" mapstructure:"escape_mirrors_reverse"`
 
+	// When an escape maneuver latches, RETIRE the sign the router is committed to, so
+	// the plan it returns to is not the one that drove into it. MEASURED 2026-09-15
+	// over 105 escape episodes on five rounds: the escape WORKS -- a median 9.8 cm of
+	// forward clearance gained, only 15% gain nothing, efficiency 0.63 -- and 62% are
+	// followed by another escape within two seconds, because 97% are handed back the
+	// same target and 79% still hold the SAME committed sign. The router is still
+	// routing around the object the chassis just escaped. That measurement is also
+	// what rules out the alternatives: re-planning after the maneuver reproduces the
+	// same target, because the map still holds the sign; and only 9% of escapes fire
+	// with NO committed sign, so this is not a case of the escape reacting to
+	// something the router never saw. THE RISK, which is why it ships off: retiring a
+	// sign the chassis has not actually passed forfeits its pass side, and a
+	// wrong-side pass ENDS an Obstacles round. The defence is that by the time an
+	// escape fires the pass is already compromised -- the chassis is inside contact
+	// range of the thing it was supposed to go around. That is an argument, not a
+	// measurement, and the corpus scores both collisions and pass sides.
+	EscapeRetiresCommittedSign bool `json:"escape_retires_committed_sign" yaml:"escape_retires_committed_sign" mapstructure:"escape_retires_committed_sign"`
+
 	// Attempts spent on one side before trying the other (1 = alternate every
 	// attempt, which cancels itself out)
 	EscapeSideCommitAttempts int `json:"escape_side_commit_attempts" yaml:"escape_side_commit_attempts" mapstructure:"escape_side_commit_attempts"`
@@ -94,6 +112,11 @@ type NavigationEscapeEscape struct {
 	// rear room the LIDAR actually measures.
 	ObstaclesKTurnFitRearGap bool `json:"obstacles_k_turn_fit_rear_gap" yaml:"obstacles_k_turn_fit_rear_gap" mapstructure:"obstacles_k_turn_fit_rear_gap"`
 
+	// Obstacles-challenge value for side_correction_follows_committed_sign. Only the
+	// Obstacles challenge has a committed pass side at all, so this is the one that
+	// matters; the shared field exists so the Open path stays byte-identical.
+	ObstaclesSideCorrectionFollowsCommittedSign bool `json:"obstacles_side_correction_follows_committed_sign" yaml:"obstacles_side_correction_follows_committed_sign" mapstructure:"obstacles_side_correction_follows_committed_sign"`
+
 	// ~1.3 m of travel at the spacing above
 	PoseTrailLen int `json:"pose_trail_len" yaml:"pose_trail_len" mapstructure:"pose_trail_len"`
 
@@ -133,6 +156,20 @@ type NavigationEscapeEscape struct {
 	// it qualifies is 44/12/0/0 ticks (0.8/0.3/0.0/0.0%) against 550/572/143/88
 	// reversing, over the four 2026-09-11 Obstacles rounds.
 	SideCorrectionBlends bool `json:"side_correction_blends" yaml:"side_correction_blends" mapstructure:"side_correction_blends"`
+
+	// Let the sign router's committed pass side outrank "steer away from the threat"
+	// in a SIDE_CORRECTION, the way escape_side_follows_committed_sign already does
+	// for the K-turn. MEASURED on run_20260915_002408 (ccw, 3/3 laps, 42 escapes):
+	// SIDE_CORRECTION is 10 of the 12 usable escape episodes, and the escape agreed
+	// with the side the router needed on only 3 of 12 overall, with the alignment
+	// delta NEGATIVE in every category and the range to the committed pillar moving
+	// just 0.497 -> 0.526 m. That is the operator-reported pendulum: back off three
+	// centimetres, steer the wrong way, come back. Uses the SAME arbitration as the
+	// K-turn including its refusal -- the wanted side must have
+	// escape_side_override_min_clearance_m of room, and when it is shut the manoeuvre
+	// reverses STRAIGHT rather than take the other side, because a wrong-side pass
+	// ENDS the round where a slower recovery only costs time.
+	SideCorrectionFollowsCommittedSign bool `json:"side_correction_follows_committed_sign" yaml:"side_correction_follows_committed_sign" mapstructure:"side_correction_follows_committed_sign"`
 
 	// Duration of a side-threat correction
 	SideCorrectionS float64 `json:"side_correction_s" yaml:"side_correction_s" mapstructure:"side_correction_s"`

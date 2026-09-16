@@ -1,6 +1,6 @@
 // Package kinematics implements the counter-phase four-wheel-steer
 // integrator the headless simulator uses to advance the car's pose,
-// ported from platform/robot/src/simulation/kinematics.py.
+// ported from src/python/src/simulation/kinematics.py.
 //
 // Both axles steer, in opposite directions and by the same amount --
 // confirmed on the real chassis 2026-07-25. That is not the textbook
@@ -18,7 +18,7 @@
 // front-steer car made the simulation turn half as sharply as the
 // hardware, so any gain tuned against it was hotter on the real robot than
 // in sim -- see
-// platform/robot/tests/unit/test_kinematics_4ws.py, this package's Go test
+// src/python/tests/unit/test_kinematics_4ws.py, this package's Go test
 // oracle, whose docstring documents the historical regression (fixed
 // 8eb3c38e).
 //

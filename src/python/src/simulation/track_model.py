@@ -381,6 +381,31 @@ class TrackModel:
                 depths[i] = depth
         return depths
 
+    def shift_obstacle(self, index: int, dx: float, dy: float) -> None:
+        """Translate a pillar that the chassis has shoved.
+
+        The scorer already works out HOW FAR each pillar was pushed and by
+        which component of travel; until now that number stayed a scalar in the
+        scorer and the world never heard about it. So the LIDAR kept returning
+        the pillar from its original cell while the robot was physically moving
+        it, and the map stayed consistent with a track that no longer existed.
+
+        Measured on hardware 2026-09-15: accumulating the LIDAR returns PER LAP
+        instead of over the whole bag shows pillars marching monotonically, up
+        to 0.15 m over one round, with a stationary neighbour 0.4 cm away as the
+        control. The robot then plans against where the pillar WAS.
+
+        Moves the collision box, which is the same box the LIDAR raycasts
+        against (``_lidar_sees_obstacles``), so one translation moves both what
+        the chassis can hit and what the sensor reports. ``ObstacleBox`` itself
+        is left alone: it is the scenario's description of where the pillar was
+        PLACED, and the placement circle is measured from it.
+        """
+        if index < 0 or index >= len(self._obstacle_boxes):
+            return
+        box = self._obstacle_boxes[index]
+        self._obstacle_boxes[index] = _Box(box.x_min + dx, box.y_min + dy, box.x_max + dx, box.y_max + dy)
+
     def obstacle_center(self, index: int) -> Waypoint | None:
         """Centre of the indexed obstacle, or ``None`` if there is no such box.
 

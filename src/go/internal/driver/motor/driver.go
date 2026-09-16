@@ -15,7 +15,7 @@ import (
 )
 
 // Config configures a Driver's hardware wiring. Field defaults mirror
-// Bts7960PwmConfig (platform/robot/src/hardware/motors/bts7960/config.py) --
+// Bts7960PwmConfig (src/python/src/hardware/motors/bts7960/config.py) --
 // override via the New caller, same as that struct's env/TOML overrides.
 type Config struct {
 	GPIOChip       string `validate:"required"`

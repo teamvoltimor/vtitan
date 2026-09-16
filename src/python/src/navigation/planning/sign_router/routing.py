@@ -11,16 +11,12 @@ extract signs from metadata. No router state.
 
 Because the vehicle's right is the OUTER wall when driving counterclockwise and
 the INNER square when driving clockwise, the same rule inverts in world terms
-between the two directions -- so the CW rows are the negation of the CCW rows,
-and **the rule cannot be evaluated without knowing the travel direction**.
-
-Corrected 2026-09-03 after reading the official PDF. Between 2026-07-05 and then
-this table was ABSOLUTE (red always outward, CW rows identical to CCW), which is
-right for counterclockwise and backwards for every clockwise round. It was
-invisible because ``scenario_simulator/scoring.py`` scored the same absolute
-convention the router drove, so the simulator graded itself against its own
-mistake -- 256-corpus pass-side counts recorded before this date are scored on
-the absolute rule and mean nothing under the real one.
+between the two directions, so the CW rows are the negation of the CCW rows and
+the rule cannot be evaluated without knowing the travel direction. This table
+spent time as an ABSOLUTE rule (red always outward, CW rows identical to CCW),
+which was invisible while the simulator's scorer shared the same convention.
+See ``adr:0059-pass-side-travel-relative-and-scorer-independence`` for the
+history and the superseded figures.
 """
 
 from __future__ import annotations
@@ -78,12 +74,10 @@ def pass_side_lateral_axis(
 ) -> tuple[Axis, int] | None:
     """World-frame axis and sign of the pass-side rule for ``corridor``.
 
-    ``direction`` is REQUIRED and may not be guessed. Until 2026-09-03 this was
-    ``outward_lateral_axis(corridor, color)``, which looked the rule up under a
-    fixed CLOCKWISE key and documented itself as direction-agnostic -- true only
-    while the table's CW and CCW rows were identical, which was itself the bug.
-    Under the real travel-relative rule the two rows are negations, so a caller
-    without a settled direction cannot evaluate the rule at all.
+    ``direction`` is REQUIRED and may not be guessed: the table's CW and CCW rows
+    are negations, so a caller without a settled direction cannot evaluate the
+    rule at all. See
+    ``adr:0059-pass-side-travel-relative-and-scorer-independence``.
 
     Returns ``None`` when ``direction`` is unknown, which callers must treat as
     "the pass-side rule is unavailable on this tick" and fall back to generic
@@ -128,18 +122,19 @@ def clamp_lateral(value: float, corridor: Section, context: SignRouterContext | 
 
     This clamp is asymmetric by nature and that is deliberate but NOT free: it
     keeps the full boundary clearance and hands whatever squeeze remains entirely
-    to the sign. On 646 of the corpus's 1282 signs it binds, and the resulting
-    lane clears its sign only within +/-28.2 deg of the corridor axis (the
-    simulator collides via exact SAT on the oriented chassis, so clearance is
-    yaw-dependent -- do not model it as a flat half-diagonal threshold).
+    to the sign, so the resulting lane clears its sign only within a narrow yaw
+    band. The simulator collides via exact SAT on the oriented chassis, so
+    clearance is yaw-dependent: do not model it as a flat half-diagonal
+    threshold. See ``adr:0064-corridor-by-depth-and-clearance-budget`` for the
+    counts and the clearance budget.
 
     Rebalancing it has been measured and REFUTED. A ``pass_lateral`` that
     interpolated a squeezed plateau toward the midpoint of its free gap -- the
     maximin placement, clear of both sides at every yaw -- moved the sign column
-    exactly as predicted (199 collisions to 168) and the wall column far more (3
-    to 61), for 229/256 against a 202/256 baseline; swept at 0.25/0.40/0.55/0.70
-    it was worse at every value. Do not re-try a placement change here without
-    first reducing that tracking error.
+    as predicted but the wall column far more, and was worse at every swept
+    value. Do not re-try a placement change here without first reducing the
+    tracking error. See ``adr:0064-corridor-by-depth-and-clearance-budget`` and
+    ``adr:0051-sign-lane-planner``.
     """
     context = context or _DEFAULT_SIGN_ROUTER_CONTEXT
     wall_clearance = CHASSIS_HALF_DIAGONAL + context.constants.wall_clearance_margin_m
@@ -170,43 +165,22 @@ def pass_lateral(
     the SIGN side. The result is a plan that is over-margined at the wall and
     under-margined at the pillar.
 
-    The corpus geometry makes that the common case rather than an edge one:
-    signs sit 0.10 m off the centreline while the pass offset is 0.279 m, so
-    the clamp binds on 646 of 1282 signs (50.4%), in 248 of 256 scenarios.
-    Measured against the simulator's own collision test -- an exact SAT
-    between the oriented 0.30 x 0.194 m chassis and the 0.05 m sign box, so
-    the required lateral gap is yaw-dependent -- the three candidate
-    placements for the worst squeeze (a red SOUTH sign at y=0.40, passed
-    outward against the wall) are:
+    The corpus geometry makes that the common case rather than an edge one. The
+    counts, the three candidate placements for the worst squeeze, and the
+    simulator's yaw-dependent collision test are worked through in
+    ``adr:0064-corridor-by-depth-and-clearance-budget``. The midpoint of the free
+    gap is the maximin placement, and that caveat is the whole reason ``frac``
+    exists.
 
-    * clamped to the boundary limit (shipped): 0.156 m of pillar margin,
-      which holds only while the chassis is within +/-28.2 deg of the
-      corridor axis;
-    * the unclamped full offset: 0.121 m of WALL margin, +/-9.9 deg -- worse,
-      which is why the clamp exists at all;
-    * the midpoint of the free gap: 0.1875 m on both sides, against a
-      0.1786 m chassis half-diagonal -- clear at EVERY yaw, by 0.9 cm.
-
-    Centring is the maximin placement, so the third row is the best any
-    planner can do with this gap FOR A CHASSIS EXACTLY ON THE LANE. That
-    caveat is the whole reason ``frac`` exists.
-
-    HISTORY, and why this is back. Measured on the full corpus at 2026-08-20,
-    full centring did what the geometry predicts to the sign column -- 199
-    sign collisions down to 168 -- and lost far more to the wall, 3 up to 61,
-    for 229/256 against a 202/256 baseline. It was refuted and reverted in
-    ``640dd86b``. That measurement scored the Obstacles INNER WALL as
-    round-ending, which the rules do not: see
-    ``SimulationParams.obstacles_inner_wall_terminal``. The refutation is
-    therefore measured under a criterion stricter than the event, on the
-    exact column that decided it, and is being re-measured under both
-    scorings. Until that re-measurement lands, ``frac`` ships at 0.0 and this
-    function reproduces ``clamp_lateral`` exactly.
+    Full centring was once refuted and reverted under a scoring criterion
+    stricter than the rule, then restored; the history and the shipped value
+    are in ``adr:0064-corridor-by-depth-and-clearance-budget`` and
+    ``adr:0051-sign-lane-planner``.
 
     Nothing here is loosened: the returned value is never further from the
     sign than ``lateral_offset`` asked for, and never outside the corridor.
-    Where the offset already fits (the other 49.6%) this returns exactly what
-    ``clamp_lateral`` did, so only the squeezed signs move.
+    Where the offset already fits this returns exactly what ``clamp_lateral``
+    did, so only the squeezed signs move.
 
     Purely relative geometry -- the sign estimate, the corridor and its
     boundaries are all in whatever frame discovery is working in -- so this
@@ -289,26 +263,18 @@ def depth_consistent_corridor(x: float, y: float, fallback: Section) -> Section:
     """The candidate face whose straight this point actually lies along.
 
     ``corridor_for_position`` resolves a corner by NEAREST FACE, which is the
-    wrong axis to decide it on. A sign at depth exactly 2.00 -- and 1211 of 1282
-    corpus signs sit at depth 1.00 or 2.00, right where the corner arc meets the
-    straight -- needs only a millimetre of estimate error to tip past
-    ``CORNER_MAX``. It is then millimetres from the perpendicular face and 0.6 m
-    from its own, so nearest-face hands it the perpendicular one. There the
-    sign's LATERAL offset becomes its depth, the lane target is computed on the
-    wrong axis, and ``clamp_lateral`` clamps against the wrong bound.
-
-    Measured 2026-08-26 over the 256 corpus with the belief offset removed, so
-    this is the tie-break and not localization: 42.1% of published specs are
-    filed against the perpendicular face, and the resulting "distance past the
-    corner" is not a distribution but two spikes at 0.40 m (x568) and 0.60 m
-    (x483) -- exactly the lateral offsets signs are allowed to take. Confined to
-    boundary signs: 44.9% at depth 1.00 and 44.8% at 2.00 against 0 of 153
-    mid-straight signs, which is what an unresolved exact tie looks like.
+    wrong axis to decide it on. A sign at depth exactly 2.00, right where the
+    corner arc meets the straight, needs only a millimetre of estimate error to
+    tip past ``CORNER_MAX``. It is then millimetres from the perpendicular face
+    and 0.6 m from its own, so nearest-face hands it the perpendicular one. There
+    the sign's LATERAL offset becomes its depth, the lane target is computed on
+    the wrong axis, and ``clamp_lateral`` clamps against the wrong bound.
 
     Deciding on depth instead makes the tie answerable, because 0.40 m is not a
     legal depth: the winner is simply the candidate least outside its own
     straight. Ties keep ``fallback`` so a genuine diagonal is left where
-    ``corridor_for_position`` put it.
+    ``corridor_for_position`` put it. The measured misfiled-spec distribution is
+    in ``adr:0064-corridor-by-depth-and-clearance-budget``.
     """
     candidates = candidate_corridors(x, y)
     # One candidate is already unambiguous; disambiguating by depth violation
@@ -349,10 +315,9 @@ def satisfiable_corridor(spec: SignSpec, corridor: Section, lateral_offset: floa
     Under the wrong one it reads as past that corridor's straight and hard
     against the inner square, so its clamped target lands on the forbidden side
     of the sign and the planner lays a line that violates its own rule by
-    construction. Measured blind over the 256 corpus: specs inside their
-    corridor's straight plan wrong-side 5% of the time against 29% for specs
-    past the corner, and EVERY inverted spec (45/45) is satisfiable under the
-    other face, with ~21.7 cm of clearance available there.
+    construction. The measured counts are in
+    ``adr:0051-sign-lane-planner`` (see also
+    ``adr:0064-corridor-by-depth-and-clearance-budget``).
 
     Restricted to ``candidate_corridors`` on purpose. Any section that makes the
     arithmetic positive would satisfy the check -- including one on the far side

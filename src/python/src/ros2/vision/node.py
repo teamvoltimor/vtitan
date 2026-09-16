@@ -77,9 +77,7 @@ class Config(HardwareBaseSettings, HardwareVisionNode):
     # remote debug-toggle can also throttle bandwidth. 0 means uncapped.
     debug_stream_fps: float = 0.0
     # Per-run annotated video (detection boxes + navigation HUD), written next
-    # to that run's mcap bag -- see docs/internal/plans/2026-08-11-run-video-
-    # recording-colocated-with-mcap.md and docs/internal/plans/2026-08-11-
-    # navigation-hud-overlay-and-open-challenge-recording.md. Only ever active
+    # to that run's mcap bag -- see adr:0071-round-recording-mcap. Only ever active
     # in camera_source='direct' mode, gated on RACING (see
     # _maybe_start_recording) -- runs on both challenges, since Obstacles
     # Challenge already carries strictly more load (SignRouter, sign
@@ -142,10 +140,9 @@ class VisionNode(Node):
         # detector factory, instead of each loading its own HailoConfig (which
         # re-reads hailo.toml + env every time).
         hailo_config = self._build_hailo_config(backend)
-        # Take the mapping from the detector rather than restating it: this copy
-        # said (red, green, magenta), which is the dataset's stale order and the
-        # opposite of what the model emits for red and green. It silently
-        # inverts the WRO pass side on every obstacle.
+        # Take the mapping from the detector rather than restating it, so the
+        # class order has a single source; a stale copy silently inverts the
+        # WRO pass side on every obstacle. See ``adr:0072-vision-data-path``.
         config = DetectorConfig.load_with(
             model_path=model_path,
             class_to_color=DEFAULT_CLASS_TO_COLOR,
@@ -514,10 +511,9 @@ class VisionNode(Node):
         ``captured_at`` is the clock reading taken WHEN THE FRAME WAS GRABBED,
         before inference. It is published with the detections because the
         consumer needs the pose the camera actually saw from, not the pose by
-        the time a box comes out the far end of the pipeline. Measured on
-        run_20260906_232408/_232748, that gap is **0.85 s** -- at 0.3 m/s and in
-        a corner it is most of a sign's lateral offset, and it was the whole of
-        the residual bearing error left after the mirror fix.
+        the time a box comes out the far end of the pipeline. See
+        ``adr:0058-sign-discovery-range-and-barrier-belief`` for the measured
+        gap.
         """
         try:
             detections = self.detector.detect(rgb)

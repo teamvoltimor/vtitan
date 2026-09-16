@@ -1,6 +1,6 @@
 // Package widthbelief holds a corridor-width change back until the robot has
 // left the corridor it describes. It ports
-// platform/robot/src/navigation/deferred_width_belief.py.
+// src/python/src/navigation/deferred_width_belief.py.
 //
 // A width belief update rebuilds the planned path, and the path is what
 // crosstrack and the steering target are measured against. When the corridor

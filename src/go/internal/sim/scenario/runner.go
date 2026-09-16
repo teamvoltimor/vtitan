@@ -14,7 +14,7 @@ import (
 // existing Python simulator) can later be swapped for a native Go simulator
 // without touching the orchestrator at all. That swap is gated on profiling
 // the Python sim's hot path first — see the "Simulation" section of
-// docs/internal/plans/go-migration-plan.md — and isn't implemented here.
+// adr:0068-go-parallel-track-single-cutover — and isn't implemented here.
 type Runner interface {
 	Run(ctx context.Context, sc corpus.Scenario) (Result, error)
 }

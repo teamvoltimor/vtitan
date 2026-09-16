@@ -32,7 +32,7 @@ type Config struct {
 
 // Client is the gRPC client half of the backend command channel (see
 // doc.go). The connection is unauthenticated (grpc.WithTransportCredentials
-// (insecure.NewCredentials())) -- matching platform/backend's
+// (insecure.NewCredentials())) -- matching other/apps/backend's
 // RobotCommandServiceServer today, which has no auth/TLS interceptor in
 // its chain (cmd/server/main.go); this client tracks that, it doesn't
 // invent a stronger contract the server doesn't enforce.

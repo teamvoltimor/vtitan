@@ -16,7 +16,7 @@ const degToRadHalf = math.Pi / 180 / 2
 // QuaternionFromEuler derives an orientation quaternion from RVC-mode
 // Euler angles (in degrees), since the BNO08x's UART-RVC mode reports
 // Euler angles directly and never a quaternion. This mirrors
-// platform/robot/src/hardware/imu/bno08x/utils.py's
+// src/python/src/hardware/imu/bno08x/utils.py's
 // calculate_quaternion_from_euler, which calls
 // scipy.spatial.transform.Rotation.from_euler("xyz", [roll, pitch, yaw],
 // degrees=True) — i.e. intrinsic rotations about body X (roll), then body Y

@@ -110,11 +110,9 @@ float32 range_min
 float32 range_max
 float32[] ranges
 float32[] intensities
-================================================================================
 MSG: std_msgs/Header
 builtin_interfaces/Time stamp
 string frame_id
-================================================================================
 MSG: builtin_interfaces/Time
 int32 sec
 uint32 nanosec
@@ -151,21 +149,17 @@ geometry_msgs/Vector3 angular_velocity
 float64[9] angular_velocity_covariance
 geometry_msgs/Vector3 linear_acceleration
 float64[9] linear_acceleration_covariance
-================================================================================
 MSG: std_msgs/Header
 builtin_interfaces/Time stamp
 string frame_id
-================================================================================
 MSG: builtin_interfaces/Time
 int32 sec
 uint32 nanosec
-================================================================================
 MSG: geometry_msgs/Quaternion
 float64 x
 float64 y
 float64 z
 float64 w
-================================================================================
 MSG: geometry_msgs/Vector3
 float64 x
 float64 y
@@ -175,29 +169,23 @@ float64 z
 	// TFMessageType/TFMessageSchema describe tf2_msgs/msg/TFMessage.
 	TFMessageType   = "tf2_msgs/msg/TFMessage"
 	TFMessageSchema = `geometry_msgs/TransformStamped[] transforms
-================================================================================
 MSG: geometry_msgs/TransformStamped
 std_msgs/Header header
 string child_frame_id
 geometry_msgs/Transform transform
-================================================================================
 MSG: std_msgs/Header
 builtin_interfaces/Time stamp
 string frame_id
-================================================================================
 MSG: builtin_interfaces/Time
 int32 sec
 uint32 nanosec
-================================================================================
 MSG: geometry_msgs/Transform
 geometry_msgs/Vector3 translation
 geometry_msgs/Quaternion rotation
-================================================================================
 MSG: geometry_msgs/Vector3
 float64 x
 float64 y
 float64 z
-================================================================================
 MSG: geometry_msgs/Quaternion
 float64 x
 float64 y
@@ -210,15 +198,12 @@ float64 w
 	AckermannType   = "ackermann_msgs/msg/AckermannDriveStamped"
 	AckermannSchema = `std_msgs/Header header
 ackermann_msgs/AckermannDrive drive
-================================================================================
 MSG: std_msgs/Header
 builtin_interfaces/Time stamp
 string frame_id
-================================================================================
 MSG: builtin_interfaces/Time
 int32 sec
 uint32 nanosec
-================================================================================
 MSG: ackermann_msgs/AckermannDrive
 float32 steering_angle
 float32 steering_angle_velocity
@@ -239,28 +224,22 @@ const (
 	PathType   = "nav_msgs/msg/Path"
 	PathSchema = `std_msgs/Header header
 geometry_msgs/PoseStamped[] poses
-================================================================================
 MSG: std_msgs/Header
 builtin_interfaces/Time stamp
 string frame_id
-================================================================================
 MSG: builtin_interfaces/Time
 int32 sec
 uint32 nanosec
-================================================================================
 MSG: geometry_msgs/PoseStamped
 std_msgs/Header header
 geometry_msgs/Pose pose
-================================================================================
 MSG: geometry_msgs/Pose
 geometry_msgs/Point position
 geometry_msgs/Quaternion orientation
-================================================================================
 MSG: geometry_msgs/Point
 float64 x
 float64 y
 float64 z
-================================================================================
 MSG: geometry_msgs/Quaternion
 float64 x
 float64 y

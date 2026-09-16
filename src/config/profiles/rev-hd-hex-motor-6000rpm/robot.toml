@@ -1,61 +1,8 @@
 #:schema ../../../model/robot.schema.json
 # Drive motor: REV HD Hex 6000 rpm (the current build).
-#
-# One profile per PHYSICAL COMPONENT, composed at VTITAN_HARDWARE_PROFILE --
-# e.g. "270deg-hiwonder-35kg,rev-hd-hex-motor-6000rpm". Supersedes the old
-# `fastonly` profile, which described this motor as an experiment arm rather
-# than as a part.
+# Rationale: adr:0076-drivetrain-and-steering-hardware
 
 [drivetrain]
-# BENCH-MEASURED 2026-08-30, robot loaded on the floor, closed loop at the
-# shipped max_duty of 0.5: achieved = 1.042 * commanded + 0.034 m/s, which
-# rails at ~0.58 (commanded 0.56 -> the PID saturates at max_duty and stops
-# regulating). This replaces the 1.0 that stood here from 2026-08-27, which
-# was a feel-based estimate and never a measurement.
-#
-# It is the CLOSED-LOOP ceiling at max_duty = 0.5, not the motor's open-loop
-# maximum (~0.9 m/s at full duty). That is the right number for this field:
-# every consumer treats it as "the fastest the robot can actually be made to
-# go" -- a plausibility bound in the localizer, a clamp in the gateway and the
-# simulator's kinematics -- and none of them ever command full duty. An
-# open-loop figure here would make all three permissive by ~55%.
-#
-# An earlier "~0.45 m/s ceiling" reading is void: it was computed with the
-# wrong encoder counts_per_rev (86, actually 60), so it under-read by the
-# same ratio.
-#
-# INERT for the shipped ladder, deliberately verified rather than assumed:
-# every tier is an ABSOLUTE m/s in motion/speed.toml and the highest of them
-# is open_max at 0.55, so the min() clamps in SpeedControlParams.*_mps() and
-# the simulator's kinematics ceiling do not bind at 0.58 any more than they
-# did at 1.0. The 2026-09-01 Open A/B (639/640) therefore still stands. If a
-# future tier is raised past 0.58 that stops being true, and the clamp will
-# start silently eating the difference.
-#
-# SUPERSEDES the 0.234 estimate that stood above this key until 2026-09-14:
-# the previous motor's 0.156 m/s scaled by the "~50% faster" this one was
-# described as. It was never measured, and the bench above replaced it. Its two
-# standing warnings are both discharged: the speed ladder is absolute m/s (see
-# motion/speed.toml) and localization.max_speed_mps was raised 0.25 -> 0.60, so
-# the plausibility bound no longer sits under the speeds the robot reaches.
 max_speed_mps = 0.58
-
-# Physical acceleration ceiling (m/s^2). NOT MEASURED for this motor -- carried
-# over from the single shared 2.0 that lived in the base robot.toml until
-# 2026-08-29. It is now a rarely-binding ceiling rather than the thing that
-# shapes a speed change: speed_response_tau_s below is what the drivetrain
-# actually obeys, and it binds first at every step this bag contains.
 max_accel_mps2 = 2.0
-# First-order lag between a commanded speed and the achieved one (seconds).
-#
-# MEASURED 0.35 on 2026-08-29 from run_20260829_140424 via
-# `scripts/bag/diag_bag_sim_fidelity.py --speed`: across 15 readable command
-# step-ups the time to 63% of the step held near-constant at ~0.35 s while the
-# achieved acceleration scattered 0.14-0.60 m/s^2 with step size. Constant tau
-# and step-dependent accel is the signature of a lag, not of an accel clamp --
-# which is why this exists as its own term instead of pulling max_accel_mps2
-# down to the 0.23 m/s^2 median and calling the drivetrain slow.
-#
-# Steps in that bag span only 0.027-0.149 m/s, so this is unverified for large
-# speed changes and says nothing about the true acceleration ceiling above them.
 speed_response_tau_s = 0.35

@@ -33,7 +33,7 @@ const inlineOpenMetadata = `{
 }`
 
 // inlineObstaclesMetadata mirrors a real generated Obstacles Challenge
-// metadata file (platform/robot/.corpus/obstacles/scenarios/
+// metadata file (src/python/.corpus/obstacles/scenarios/
 // scenario_0000_metadata.json): 4 red signs down the south/west corridors,
 // a parking lot the native runner now acts on (see NativeRunner's doc
 // comment) once the laps finish, robot starting on the north wall

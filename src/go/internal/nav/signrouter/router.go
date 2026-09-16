@@ -1,5 +1,5 @@
 // router.go ports
-// platform/robot/src/navigation/planning/sign_router/router.py's
+// src/python/src/navigation/planning/sign_router/router.py's
 // SignRouter: the stateful per-tick sign-avoidance router. Discovery mode
 // (SignRouter(discover=True), ObservedSignMap ingestion) is not ported --
 // see doc.go.

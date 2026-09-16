@@ -1,6 +1,6 @@
 // Package driver defines the small, hardware-agnostic contract every
 // sensor/actuator driver in this module implements — see
-// platform/robot/docs/internal/plans/go-migration-plan.md ("Design
+// adr:0068-go-parallel-track-single-cutover ("Design
 // patterns"). It exists as its own package, separate from internal/driver/
 // {imu,lidar,motor}, because the contract is genuinely shared by all three
 // planned implementations today, not a speculative abstraction.

@@ -3,10 +3,9 @@
 A width belief update rebuilds the planned path, and the path is what crosstrack
 and the steering target are measured against. When the corridor whose width
 changed is the one the robot is standing in, that rebuild moves the line the
-robot is *actively tracking* -- measured on hardware 2026-08-30 across six runs
-as a ~0.30 m crosstrack step in a single 50 ms tick, ten times what the chassis
-can physically travel in that time, which threw heading error past
-``heading.crawl`` and pinned the limiter for 82-100% of the ticks that followed.
+robot is *actively tracking* -- a step far larger than the chassis can physically
+travel in one tick, which throws heading error past ``heading.crawl`` and pins
+the limiter.
 
 The same update applied to a corridor the robot is NOT in costs nothing: the
 robot arrives on the new line instead of being displaced onto it.
@@ -14,8 +13,7 @@ robot arrives on the new line instead of being displaced onto it.
 So the step is not inherent to replanning, only to replanning *underneath* the
 chassis. Deferring the change until the robot leaves that section removes it
 rather than shrinking it (``UNCONFIRMED_WIDTH_INNER_BIAS_M``) or spreading it
-over time (``REPLAN_BLEND_TICKS``, refuted twice -- a path that slides under the
-robot for a second measured worse than one that jumps once and settles).
+over time (``REPLAN_BLEND_TICKS``, refuted).
 
 What deferring costs is small and bounded: the current corridor keeps planning
 on the old belief for the remainder of one traverse, so it is centred slightly
@@ -28,6 +26,8 @@ Note the estimator only ever observes the section the robot currently occupies
 (see ``TrackNavigator._update_layout_belief``), so with deferral ON essentially
 every change is pending at the moment it is discovered and lands one corridor
 later. That is the intended behaviour, not an edge case.
+
+Measured rationale: ``adr:0057-blind-corridor-follower-and-width``.
 """
 
 from __future__ import annotations

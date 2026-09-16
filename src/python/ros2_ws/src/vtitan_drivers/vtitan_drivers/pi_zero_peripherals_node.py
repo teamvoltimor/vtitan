@@ -4,7 +4,7 @@ Runs button_node and oled_display_node together in one process/rclpy init,
 same rationale as the old 3-way pi_zero_node merge (fewer DDS participants,
 less RAM). ackermann_motor_node now runs as its own process instead, so it
 gets a dedicated core and isn't sharing executor threads with these two --
-see src/docs/sensor-verification.md's feedback-rate tuning
+see src/python/docs/sensor-verification.md's feedback-rate tuning
 section for why.
 
 Usage:

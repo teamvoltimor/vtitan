@@ -21,14 +21,12 @@ What the robot legitimately knows without a scenario file, and what it does not:
   discovered here.
 
 **Range is the accuracy limit.** Distance comes from the bounding box height
-via the pinhole model, so its error grows with range: at 1.5 m a sign spans
-~42 px and a 1 px error is ~3.6 cm, but by 3 m it spans ~21 px and the same
-1 px error is ~14 cm — wider than the gap between two lanes of the WRO sign
-grid, which would place the sign in the wrong lane and route the robot to the
-wrong side. Observations beyond :data:`_MAX_INGEST_RANGE` are therefore
-ignored, and a track's position is taken from its closest observation rather
-than averaged over all of them, since the error is monotone in range and
-averaging would let distant readings pull a good estimate off.
+via the pinhole model, so its error grows with range and a distant reading can
+place the sign in the wrong WRO sign lane. Observations beyond the configured
+ingest range are therefore ignored, and a track's position is taken from its
+closest observation rather than averaged over all of them, since the error is
+monotone in range and averaging would let distant readings pull a good estimate
+off. See ``adr:0058-sign-discovery-range-and-barrier-belief``.
 
 Layering note: this module sits *below* ``sign_router`` and must not import it.
 It owns the geometric primitives both need — ``SignSpec`` and the pinhole
@@ -107,21 +105,18 @@ def detection_to_observation(
         return None
     tuning = get_tuning(tuning)
     # A pillar is taller than it is wide. Rejecting the rest is what keeps the
-    # magenta parking-lot barrier -- which reads as RED under motion blur -- from
-    # seeding a sign every frame it is in view. Colour and confidence cannot do
-    # it: those boxes carry the RED label at p50 confidence 0.79. See
-    # SignDiscoveryParams.max_pillar_aspect for the measurement.
+    # magenta parking-lot barrier (which reads as RED under motion blur) from
+    # seeding a sign every frame it is in view; colour and confidence cannot do
+    # it (those boxes carry the RED label at p50 confidence 0.79). See
+    # ``adr:0058-sign-discovery-range-and-barrier-belief``.
     #
     # The test is SKIPPED for a box clipped by the frame, because the aspect
     # ratio of a clipped box is not a measurement of the object's shape. A
     # pillar the robot is closing on grows until it runs out of frame: its
     # height then stops increasing while its width keeps going, and the ratio
-    # crosses 1.0 with nothing about the pillar having changed. Traced on
-    # run_20260906_145546 at 23.4-24.6 s -- a red pillar detected at 0.47-0.84
-    # confidence, x_max pinned at the frame edge for every frame, w/h climbing
-    # 0.33 -> 1.27 as it approached, rejected exactly when it was nearest and
-    # mattered most. Across two runs, 304 of the 500 red detections this gate
-    # rejects (61%) are frame-clipped.
+    # crosses 1.0 with nothing about the pillar having changed, rejecting it
+    # exactly when it was nearest and mattered most. See
+    # ``adr:0058-sign-discovery-range-and-barrier-belief``.
     bbox_for_shape = det.as_bbox()
     height_px = bbox_for_shape.y_max - bbox_for_shape.y_min
     width_px = bbox_for_shape.x_max - bbox_for_shape.x_min
@@ -138,11 +133,9 @@ def detection_to_observation(
     # The shape test only makes sense where the thing it is filtering can BE.
     # There is exactly one parking lot and it sits in the corridor the robot
     # started in; a wide red box seen from any other corridor cannot be the
-    # barrier, and rejecting it only throws away a pillar. Measured across
-    # run_20260906_145546 and _145909: wall-shaped reds sit at corridor `None`
-    # 72% of the time -- the start, in and around the bay -- exactly where the
-    # magenta barrier detections sit (67%), while pillar-shaped reds spread
-    # across the driving corridors (south 62-73%, west 11-24%).
+    # barrier, and rejecting it only throws away a pillar. This exemption is the
+    # dominant leak of wall-shaped reds. See
+    # ``adr:0058-sign-discovery-range-and-barrier-belief``.
     if barrier_possible and max_aspect > 0.0 and not clipped and height_px > 0 and width_px / height_px > max_aspect:
         return None
     world = _detection_to_world(
@@ -180,12 +173,11 @@ def legal_sign_positions() -> tuple[tuple[float, float], ...]:
 
     Deliberately returns ALL of them together with no section label. Snapping
     to the nearest of the whole set needs no answer to "which corridor is this
-    sign in", which matters because that label is the known-flaky one --
-    ``current_corridor`` flips 37-39 times in a three-lap run holding twelve
-    real corners. A snap keyed on it would inherit the flapping it exists to
-    cure. The 24 points are far enough apart (0.20 m is the closest pair, the
-    two width lines) that nearest-point is unambiguous well past the estimate
-    error this corrects.
+    sign in", which matters because that label is the known-flaky one (see
+    ``adr:0063-corridor-flip-and-sense-guards``). A snap keyed on it would
+    inherit the flapping it exists to cure. The 24 points are far enough apart
+    (0.20 m is the closest pair, the two width lines) that nearest-point is
+    unambiguous well past the estimate error this corrects.
     """
     depths = (
         TrafficSignSpecs.GRID_DEPTH_NEAR,
@@ -259,23 +251,24 @@ def _clustered_range(
     is at this bearing and what colour it is, and the LIDAR is asked only how
     far away it is -- the one thing it measures directly, where the camera
     infers it from bbox height through a focal that does not agree with the one
-    solved from bearings (1034-1088 px against 545-645).
+    solved from bearings (measured 1034-1088 px against 545-645).
 
     Returns None, leaving the pinhole estimate standing, unless BOTH tests
     pass. Two tests rather than one because each catches a different way the
     unqualified version failed:
 
     * SHAPE AND ISOLATION, via ``find_clusters`` -- a wall segment is
-      contiguous but never steps away at both ends, and the first attempt took
-      a wall on 51% of detections.
+      contiguous but never steps away at both ends, so the unqualified version
+      took the wall instead of the sign.
     * AGREEMENT with the pinhole -- a pillar standing in front of a wall offers
-      two plausible clusters and the further one is the wall, which is why that
-      attempt's range error was p50 -69 cm.
+      two plausible clusters and the further one is the wall (range error p50
+      -69 cm in that attempt).
 
     The nearest cluster in ANGLE wins, not in range. The camera's claim is a
     BEARING, so bearing is what identifies the object it is talking about;
     choosing by range would re-import the very bias that broke the first
-    attempt, since the wall behind a sign is always further away.
+    attempt, since the wall behind a sign is always further away. See
+    ``adr:0058-sign-discovery-range-and-barrier-belief``.
     """
     scan = LidarScan(ranges_m=tuple(lidar_ranges_m), angles_rad=tuple(lidar_angles_rad))
     clusters = find_clusters(scan, ProposerParams())
@@ -285,6 +278,37 @@ def _clustered_range(
     if abs(best.range_m - pinhole_m) > tuning.sign_discovery.lidar_range_fusion_agreement * pinhole_m:
         return None
     return best.range_m
+
+
+def detection_to_world_point(
+    det: Detection,
+    robot_pose: Pose,
+    tuning: NavigationTuning | None = None,
+    lidar_ranges_m: Sequence[float] | None = None,
+    lidar_angles_rad: Sequence[float] | None = None,
+) -> tuple[float, float] | None:
+    """Project ANY detection to world coordinates, whatever its colour.
+
+    :func:`detection_to_observation` drops everything that is not RED or GREEN,
+    which is correct for the sign map but throws away the MAGENTA parking
+    barrier -- the one object whose position the robot most needs to remember
+    (see :mod:`src.navigation.planning.barrier_belief`).
+
+    The pinhole range holds for the barrier without adjustment: ``track.toml``
+    gives the sign and the parking lot the SAME 0.10 m height, which is the
+    only dimension that estimate depends on.
+
+    Returns:
+        World (x, y), or None when the box is too small to place.
+    """
+    return _detection_to_world(
+        det,
+        (robot_pose.x, robot_pose.y),
+        robot_pose.yaw,
+        tuning,
+        lidar_ranges_m,
+        lidar_angles_rad,
+    )
 
 
 def _detection_to_world(
@@ -300,13 +324,12 @@ def _detection_to_world(
     The camera alone gives bearing (accurate -- horizontal position in frame
     doesn't depend on depth) and colour (LIDAR has no notion of colour, so a
     detection is required regardless). Distance from bbox height alone grows
-    less accurate with range -- ~3.6 cm error at 1.5 m, ~14 cm by 3 m, enough
-    to misjudge which WRO sign lane a sign sits in (see
-    docs/sign-avoidance-investigation.md). The LIDAR sees the same signs
-    (confirmed on hardware) and measures range far more precisely at any
-    distance, so when a scan is available this looks up the ray nearest the
-    camera's own bearing and trusts ITS range instead of the pinhole
-    estimate -- falling back to pinhole-only when that ray is not a
+    less accurate with range, enough to misjudge which WRO sign lane a sign
+    sits in (see adr:0058-sign-discovery-range-and-barrier-belief). The LIDAR
+    sees the same signs (confirmed on hardware) and measures range far more
+    precisely at any distance, so when a scan is available this looks up the
+    ray nearest the camera's own bearing and trusts ITS range instead of the
+    pinhole estimate -- falling back to pinhole-only when that ray is not a
     plausible return (dropout, self-detection, or implausibly far to be the
     same object the camera is looking at).
 
@@ -332,50 +355,39 @@ def _detection_to_world(
 
     # Estimate distance using pinhole model: d = (f * real_h) / pixel_h.
     #
-    # RANGE_SCALE ships at 1.0, so this is the raw pinhole -- deliberately,
-    # even though it UNDER-reads by ~2x. Correcting the range with a scalar
-    # DOUBLES the lateral error, because the residual ~12 deg bearing error is
+    # RANGE_SCALE corrects a pinhole that under-reads, but the correction is
+    # only valid paired with the camera time alignment. Correcting the range
+    # alone DOUBLES the lateral error, because the residual bearing error is
     # angular and a longer ray lengthens the lateral miss in proportion. Lateral
-    # is what the router acts on. See RANGE_SCALE's docstring; fix the bearing
-    # error first.
+    # is what the router acts on; fix the bearing error first. See
+    # RANGE_SCALE's docstring and
+    # ``adr:0058-sign-discovery-range-and-barrier-belief``.
     distance = _CAMERA_FOCAL_PX * TrafficSignSpecs.HEIGHT / pixel_height * tuning.sign_discovery.range_scale
 
     # Horizontal angle from image centre, POSITIVE TO THE LEFT to match the
     # robot frame (`LidarScan`: 0 = forward, +pi/2 = left, CCW positive).
     #
-    # This was `(cx / W - 0.5) * HFOV` until 2026-09-06, which is positive for a
-    # box on the RIGHT of the image -- the robot's right, i.e. a NEGATIVE CCW
-    # bearing. Every sign was therefore reflected across the robot's heading
-    # axis, which in a 1 m corridor lands it on the far wall. Nothing in-tree
-    # could catch it: `vision_emulator` reproduces the true geometry directly
-    # and the router's unit tests BUILD `cx` from this same formula, so both
-    # were self-consistent with the error.
-    #
-    # Measured on run_20260906_192424 by predicting the box's centre column from
-    # the true bearing to a LIDAR-located pillar: upright 174 px of error
-    # against 528 px mirrored, reproduced at three robot headings spanning 165
-    # degrees. Sign-position error p50 64 cm -> 48 cm, and the outward bias that
-    # pinned believed signs to the walls falls from +40 cm (77% outward) to
-    # -3 cm (47%).
+    # Sign matters: the earlier `(cx / W - 0.5) * HFOV` was positive for a box
+    # on the RIGHT of the image -- the robot's right, i.e. a NEGATIVE CCW
+    # bearing -- which reflected every sign across the robot's heading axis and
+    # in a 1 m corridor landed it on the far wall. Nothing in-tree could catch
+    # it: `vision_emulator` reproduces the true geometry directly and the
+    # router's unit tests BUILD `cx` from this same formula, so both were
+    # self-consistent with the error. See
+    # ``adr:0058-sign-discovery-range-and-barrier-belief``.
     cx = bbox.center.x
     theta_h = (0.5 - cx / RobotSpecs.CAMERA_WIDTH) * RobotSpecs.CAMERA_HFOV
 
-    # LIDAR range fusion, OFF by default -- it was measured to make the estimate
-    # WORSE. A single ray at the camera's bearing is not the pillar: at that
-    # bearing the return is wall-shaped (implied chord > 30 cm) on 51% of
-    # detections and pillar-shaped on 27%, median implied chord 34 cm against a
-    # 5 cm sign. It fired on 92.5% of detections and cost 5 cm of median
-    # position error with the old bearing and 28 cm with the corrected one,
-    # because a wall behind a sign is always FURTHER -- it was the second half
-    # of the outward bias. Even restricted to pillar-shaped returns the range
-    # error is p50 -69 cm, with only 16% within 10 cm.
-    #
-    # Kept rather than deleted because the idea is sound and the implementation
-    # is what failed: the gate is `0.05 < r < 10.0`, which is no gate at all.
-    # A version that required a small isolated cluster AND agreement with the
-    # calibrated pinhole would be worth measuring -- but the cluster-shape test
-    # alone discriminated pillar from wall at 54%, near chance, so that wants
-    # its own evidence before it ships.
+    # LIDAR range fusion. The ungated nearest-ray version was measured to make
+    # the estimate WORSE: a single ray at the camera's bearing is usually a wall
+    # behind the sign, which is always FURTHER, so it was half the outward bias.
+    # The shipped mechanism requires a free-standing cluster of pillar width
+    # that agrees with the calibrated pinhole, so it can only corroborate a
+    # range rather than override it. The cluster-shape test alone discriminated
+    # pillar from wall at 54%, near chance, so it is only used paired with the
+    # agreement test. Kept rather than deleted because the idea is sound and
+    # only the ungated implementation failed. See
+    # ``adr:0058-sign-discovery-range-and-barrier-belief``.
     # Length, not truthiness: the declared type is Sequence[float], and a
     # numpy array is one -- `and array` raises "truth value is ambiguous"
     # rather than testing emptiness, so a caller handing over the sweep it
@@ -611,12 +623,12 @@ class ObservedSignMap:
         """
         # The debounce advances on EVERY tick, before the empty-frame return.
         # Behind it, ``ROBOT_CORRIDOR_FLIP_TICKS`` counted detection FRAMES
-        # while calling itself ticks: measured 2026-09-11 over 125 bags, only
-        # 11.6% of ticks carry a detection, so the shipped 5 meant roughly 43
-        # ticks of wall time and the settled label was stale by construction at
-        # the exact moment a detection finally arrived -- which is when it is
-        # read. The corridor is a property of where the robot IS, and the robot
-        # keeps moving through the frames the camera has nothing to say about.
+        # while calling itself ticks, and only a minority of ticks carry a
+        # detection, so the settled label was stale by construction at the
+        # exact moment a detection finally arrived -- which is when it is read.
+        # The corridor is a property of where the robot IS, and the robot keeps
+        # moving through the frames the camera has nothing to say about. See
+        # ``adr:0058-sign-discovery-range-and-barrier-belief``.
         robot_corridor = self._settle_robot_corridor(corridor_for_position(robot_pos.x, robot_pos.y))
         if not observations:
             return
@@ -797,13 +809,12 @@ class ObservedSignMap:
         # Keyed on the SIGN'S OWN position, not on ``track.corridor``, which is
         # the ROBOT's corridor at detection time. The rulebook constrains where
         # a pillar may STAND, so counting by the observer's label answers a
-        # different question -- and a wrong one: the robot's corridor flips
-        # 37-39 times in a three-lap run, so one physical section accumulates
-        # several labels and the cap withholds legitimate signs while the
-        # over-full section stays over-full. Measured as exactly that churn on
-        # the 16-scenario sim battery, where the map is EXACT and the cap
-        # should therefore have been a byte-identical no-op: it fixed 7 and
-        # broke 6 instead.
+        # different question -- and a wrong one, because the robot's corridor
+        # label churns (see ``adr:0063-corridor-flip-and-sense-guards``): one
+        # physical section accumulates several labels and the cap withholds
+        # legitimate signs while the over-full section stays over-full. On an
+        # EXACT sim map the cap should have been a byte-identical no-op; it
+        # fixed 7 and broke 6 instead.
         counts: dict[Section, int] = {}
         for track in self._tracks:
             if track.published_index is None:
@@ -819,45 +830,6 @@ class ObservedSignMap:
         The caller is responsible for assigning ``published_index`` once it has
         appended the returned specs to its own sign list.
 
-        Two variants of a cross-corridor, position-proximity dedup were tried
-        here, both targeting the SAME physical sign forking a brand-new track
-        on a later lap (traced on go_obstacles_0003: 18 tracks published for
-        6 physical signs over 3 laps, corrupting sign_lane.py's per-corridor
-        plateau geometry at the collision tick) -- and both measured WORSE on
-        the full 256-scenario blind corpus, so neither is shipped:
-
-        1. Skip publishing a track within a small distance of an already-
-           published one: 209/256 collisions against a 202/256 baseline,
-           laps>=3 45 vs 70, escapes more than doubled. Discarding the duplicate also discarded
-           whatever position/colour refinement IT was accumulating, freezing
-           the original (often less mature, lap-1) estimate forever.
-        2. FOLDING the duplicate into the target instead (hits/votes summed,
-           closest-range position/colour evidence wins) rather than dropping
-           it, specifically to keep that refinement: measured WORSE STILL --
-           231/256 collisions against that same 202/256 baseline, laps>=3
-           24 vs 70, in-time 7 vs 31, i.e. worse than variant 1 it was
-           meant to improve on. Folding can
-           suddenly move an already-published, already-converged sign's
-           position or flip its colour vote mid-run the moment ANY
-           position-proximate track merges in, even one that is not a clean
-           re-detection of the same physical sign (estimate noise, a
-           genuinely different nearby feature) -- yanking a stable, correctly
-           routed sign into a discontinuous change is evidently more
-           disruptive than either leaving it alone or silently dropping the
-           duplicate.
-
-        Both variants share the same underlying issue: from position alone,
-        "same physical sign re-discovered under a different corridor label"
-        and "a different observation that happens to land nearby" cannot
-        always be told apart, and neither variant's failure mode was fixed by
-        changing what happens to the duplicate's DATA -- it's the very act of
-        letting a cross-corridor position match influence the published
-        record at all that costs more than the duplication it targets. Any
-        further attempt at this go_obstacles_0003 mechanism should look
-        upstream of publication (e.g. resolving WHY the robot's settled
-        corridor is unstable at a re-detection, not what to do once it
-        already forked a track) rather than a third downstream dedup variant.
-
         A track also needs a COLOUR before it is published. A LIDAR-proposed
         track accumulates hits with no colour vote, and can cross ``min_hits``
         on geometry alone; publishing it would hand the router a sign with no
@@ -865,21 +837,24 @@ class ObservedSignMap:
         back until the camera votes keeps the router's world exactly as it was
         while still letting the proposal refine the position in the meantime.
 
-        THE CARDINALITY CAP IS DIFFERENT IN KIND from those two, which is why
-        it is tried at all after that warning. Both were position matches --
-        "is this track the same object as that one" -- and both failed on
-        exactly the question position cannot answer. This asks nothing about
-        identity. The rulebook allows at most ``MAX_SIGNS_PER_SECTION`` pillars
-        in a section, so a section holding more is wrong whatever the reason,
-        and the cap needs no opinion about WHICH of them are duplicates.
+        The two cross-corridor, position-proximity dedup variants tried here
+        (skip a nearby already-published track, or fold it into the target)
+        both measured WORSE than doing nothing, because from position alone
+        "the same physical sign under a different corridor label" and "a
+        different observation that happens to land nearby" cannot always be
+        told apart. A third downstream dedup variant is not the answer; the
+        mechanism is upstream, in why the settled corridor is unstable at a
+        re-detection. See ``adr:0058-sign-discovery-range-and-barrier-belief``.
 
-        It is also monotone where those were not: a track is only ever
-        withheld from publication, never unpublished, so a converged sign
-        cannot be yanked out from under the router mid-run -- the disruption
-        that made variant 2 worse than variant 1. The cost is the mirror
-        image: an early phantom that publishes first holds a slot the real
-        pillar then cannot have, which is variant 1's failure mode arriving by
-        a different road. That is the risk this ships OFF to measure.
+        The cardinality cap is different in kind: it asks nothing about
+        identity, only whether a section already holds the rulebook's
+        ``MAX_SIGNS_PER_SECTION`` pillars, so a section holding more is wrong
+        whatever the reason. It is monotone (a track is only ever withheld from
+        publication, never unpublished), so a converged sign cannot be yanked
+        out from under the router. The cost is the mirror image: an early
+        phantom that publishes first holds a slot the real pillar then cannot
+        have. That is the risk this ships OFF to measure. See
+        ``adr:0058-sign-discovery-range-and-barrier-belief``.
         """
         capped = self._section_publication_cap()
         return [

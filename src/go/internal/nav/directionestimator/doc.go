@@ -1,6 +1,6 @@
 // Package directionestimator infers which way round the WRO track loop the
 // robot is traveling, from LIDAR alone -- the Go port of
-// platform/robot/src/navigation/direction_estimator.py.
+// src/python/src/navigation/direction_estimator.py.
 //
 // Every corridor has the outer wall on one side and the inner block on the
 // other. The block is finite and the outer wall is not, so driving toward

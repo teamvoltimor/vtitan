@@ -1,30 +1,8 @@
 #:schema ../../../model/robot.schema.json
 # Drive motor: generic 1500 rpm brushed gearmotor (the original build).
-#
-# One profile per PHYSICAL COMPONENT, composed at VTITAN_HARDWARE_PROFILE --
-# e.g. "270deg-hiwonder-35kg,rev-hd-hex-motor-6000rpm". Replaces the old
-# fastonly/wideonly/fastwide cross-product, which needed one profile per
-# COMBINATION and had to be hand-kept in step with its parents.
-#
-# Declares only what this motor changes. Chassis, ackermann, wheel, lidar, imu
-# and camera all still come from the base robot.toml.
+# Rationale: adr:0076-drivetrain-and-steering-hardware
 
 [drivetrain]
-# Measured under load, not a datasheet figure: this is the real ceiling the
-# gateway clamps to, and it is the number the Open Challenge time budget is
-# decided by (a 26.07 m three-lap path against a 180 s limit demands a
-# 0.145 m/s AVERAGE, and the car sustains ~79% of its ceiling once corners are
-# priced in -- so this motor cannot finish narrow corridors at any control
-# quality).
 max_speed_mps = 0.156
-
-# Physical acceleration ceiling (m/s^2). The single shared value that lived in
-# the base robot.toml until 2026-08-29, restated here unchanged: this motor is
-# retired and was never measured against it.
 max_accel_mps2 = 2.0
-# First-order drivetrain lag (seconds). NEVER MEASURED on this motor -- no bag
-# of it survives with a trustworthy encoder (counts_per_rev was wrong until
-# 2026-08-29, after this motor was retired). 0.0 is not a claim that it
-# responded instantly; it reproduces the pre-2026-08-29 simulator exactly, so
-# results recorded against this profile stay comparable.
 speed_response_tau_s = 0.0

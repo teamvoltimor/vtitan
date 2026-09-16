@@ -33,15 +33,10 @@ ever sees the scan, so by the time a ray reaches this module the distinguishing
 information is already gone -- a finite 12.0m reading is indistinguishable from
 a real 12.0m echo. ``np.isfinite`` alone (this module's historical no-return
 filter) is dead code against a sanitized hardware scan: it only ever excludes
-literal ``inf``, which nothing downstream of the gateway still emits. Measured
-on hardware 2026-08-28 (a 60cm-corridor run with an enlarged centre wall):
-``compute_forward_clearance`` and ``assess_risk`` both read the whole forward
-cone as ~12m ("wide open") at the exact moment the chassis was closest to a
-wall -- every ray in the cone was grazing-incidence no-return, sanitized to the
-fabricated far value, and nothing downstream could tell that apart from a
-genuinely clear corridor. On this track's scale (a few metres), no real echo
-should ever land within a few cm of the sensor's 12m spec ceiling, so treating
-anything in that band as unmeasured is safe."""
+literal ``inf``, which nothing downstream of the gateway still emits. On this
+track's scale (a few metres), no real echo should ever land within a few cm of
+the sensor's 12m spec ceiling, so treating anything in that band as unmeasured
+is safe. See ``adr:0056-raw-and-masked-scan``."""
 
 
 def mask_mapped_obstacles(
@@ -62,10 +57,9 @@ def mask_mapped_obstacles(
     ``lateral_offset`` centre-to-centre -- a gap narrower than ``contact_dist``
     once the sign's own half-width is subtracted. So with the raw scan the escape
     maneuver fires on every single sign pass and reverses the robot out of a gap
-    the planner aimed for on purpose. Measured over the 16 obstacles fixtures,
-    that decides the run before the router's aim can matter at all: every
-    planning-side knob reads flat because the reactive layer overrides it (see
-    ``docs/sign-avoidance-investigation.md``, "The escape layer is the gate").
+    the planner aimed for on purpose: the reactive layer overrides the planner
+    and every planning-side knob reads flat (see
+    ``adr:0056-raw-and-masked-scan``, "The escape layer is the gate").
 
     So the split is by *provenance*, not by distance: a return attributable to a
     mapped, actively-routed sign is withheld from the escape trigger, while walls
@@ -117,13 +111,9 @@ def mask_mapped_obstacles(
     WHY THE SNAP EXISTS. ``radius_m`` was doing two jobs with incompatible
     requirements: covering the MAP'S ERROR (how far the belief can be from the
     thing) and covering the OBSTACLE'S EXTENT (how big the thing is). The first
-    wants a large radius, the second a small one, and on hardware there is no
-    value that satisfies both -- measured 2026-09-11 on the two Obstacles rounds
-    that wedged at the same point, the nearest LIDAR return sat p50 0.248 m and
-    0.154 m from the believed sign position while the shipped radius was 0.12 m,
-    so the mask caught 0/209 and 60/316 of the ticks it existed for. Raising it
-    is not available either: a wall behind a sign can be 0.15 m away, and
-    masking that removes a guard nothing else replaces.
+    wants a large radius, the second a small one, and on hardware no single value
+    satisfies both. Raising it is not available either: a wall behind a sign can
+    be close enough that masking it removes a guard nothing else replaces.
 
     Snapping separates them. ASSOCIATION (belief to cluster) can be generous
     because a wrong association only costs the mask; EXTENT (cluster to ray) can
@@ -131,7 +121,7 @@ def mask_mapped_obstacles(
     is the proposer's own ``find_clusters``, already in production inside the
     gated range fusion and measured at 91% recall -- a free-standing run of
     pillar width, bounded on both sides by a step, which a flat wall cannot
-    satisfy.
+    satisfy. See ``adr:0056-raw-and-masked-scan``.
 
     Returns:
         A copy of ``lidar_ranges`` with attributed rays set to ``inf``. The input
@@ -202,8 +192,9 @@ def robust_min_range(path: np.ndarray, window: int) -> float:
     The bare minimum over a forward cone is an extreme-value statistic, not a
     clearance: the sweep carries Gaussian range noise across ~500 rays, so the
     smallest of the few dozen inside the lane routinely sits two to three sigma
-    below the true nearest surface. Measured on the 256-scenario Obstacles
-    corpus (Go, whose model matches), that phantom was worth 30 runs.
+    below the true nearest surface. On the 256-scenario Obstacles corpus that
+    phantom was worth 30 runs, a count the ADRs do not carry. See
+    ``adr:0056-raw-and-masked-scan``.
 
     A percentile over the whole cone would be the wrong shape -- a 0.05 m sign
     pillar subtends only about four rays at 1 m, and a percentile discards it
