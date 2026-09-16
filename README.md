@@ -302,7 +302,7 @@ Aquí repasamos nuestras temporadas anteriores en Futuros Ingenieros y lo que ap
                 <tr>
                         <td>
                                 <p align="center">
-                                        <img src="v-photos/previous-prototypes/klevor-v1.0/klevor-front-view.webp"
+                                        <img src="v-photos/klevor/klevor-v1.0/klevor-front-view.webp"
 alt="Vista delantera de Klevor" width="600">
                                         <br>
                                         <i>Vista delantera de Klevor</i>
@@ -310,7 +310,7 @@ alt="Vista delantera de Klevor" width="600">
                         </td>
                         <td>
                                 <p align="center">
-                                        <img src="v-photos/previous-prototypes/klevor-v1.0/klevor-back-view.webp"
+                                        <img src="v-photos/klevor/klevor-v1.0/klevor-back-view.webp"
 alt="Vista trasera de Klevor" width="600">
                                         <br>
                                         <i>Vista trasera de Klevor</i>
@@ -320,7 +320,7 @@ alt="Vista trasera de Klevor" width="600">
                 <tr>
                         <td>
                                 <p align="center">
-                                        <img src="v-photos/previous-prototypes/klevor-v1.0/klevor-right-view.webp"
+                                        <img src="v-photos/klevor/klevor-v1.0/klevor-right-view.webp"
 alt="Vista derecha de Klevor" width="600">
                                         <br>
                                         <i>Vista derecha de Klevor</i>
@@ -328,7 +328,7 @@ alt="Vista derecha de Klevor" width="600">
                         </td>
                         <td>
                                 <p align="center">
-                                        <img src="v-photos/previous-prototypes/klevor-v1.0/klevor-left-view.webp"
+                                        <img src="v-photos/klevor/klevor-v1.0/klevor-left-view.webp"
 alt="Vista izquierda de Klevor" width="600">
                                         <br>
                                         <i>Vista izquierda de Klevor</i>
@@ -338,7 +338,7 @@ alt="Vista izquierda de Klevor" width="600">
                 <tr>
                         <td>
                                 <p align="center">
-                                        <img src="v-photos/previous-prototypes/klevor-v1.0/klevor-top-view.webp"
+                                        <img src="v-photos/klevor/klevor-v1.0/klevor-top-view.webp"
 alt="Vista superior de Klevor" width="600">
                                         <br>
                                         <i>Vista superior de Klevor</i>
@@ -346,7 +346,7 @@ alt="Vista superior de Klevor" width="600">
                         </td>
                         <td>
                                 <p align="center">
-                                        <img src="v-photos/previous-prototypes/klevor-v1.0/klevor-bottom-view.webp"
+                                        <img src="v-photos/klevor/klevor-v1.0/klevor-bottom-view.webp"
 alt="Vista inferior de Klevor" width="600">
                                         <br>
                                         <i>Vista inferior de Klevor</i>
@@ -652,6 +652,20 @@ Y el mismo conjunto despiezado, del mismo modelo de SolidWorks del que se export
 	<i>Vista despiezada de vTitan: chasis inferior, tren de transmisión, sistema de dirección y electrónica</i>
 </p>
 
+La misma vista despiezada con cada pieza numerada, y su tabla de elementos (el número de la tabla corresponde al globo de la vista):
+
+<p align="center">
+	<img src="v-photos/vtitan/vtitan-breakdown-enumerated.webp" alt="Vista despiezada de vTitan con cada pieza numerada" width="800">
+	<br>
+	<i>Vista despiezada numerada: cada globo enlaza con la tabla de elementos</i>
+</p>
+
+<p align="center">
+	<img src="v-photos/vtitan/vtitan-breakdown-elements.webp" alt="Tabla de elementos de vTitan: número de elemento, número de pieza en el CAD y cantidad" width="640">
+	<br>
+	<i>Tabla de elementos: número, pieza nombrada en el CAD y cantidad</i>
+</p>
+
 El conjunto se ordena en tres capas: el **chasis inferior** perforado sostiene el motor y el servomotor en sus encajes centrales; sobre él se monta el **tren de transmisión** (correas dentadas hacia los dos ejes, y de cada eje a los engranajes cónicos de cada rueda); y el **monochasis** cierra el conjunto y fija la electrónica. Los ejes usan pernos de transmisión de LEGO, elegidos por su ajuste rígido y porque evitan mecanizar un eje a medida.
 
 #### Las piezas, y cómo mirarlas
@@ -671,6 +685,7 @@ Algunas piezas para empezar, cada enlace abre el visor 3D de GitHub:
 |:---:|---|---|
 | [<img src="models/vtitan/blueprints/rueda-vtitan.webp" width="110">](models/vtitan/stl-files/rueda-vtitan.stl) | [`rueda-vtitan.stl`](models/vtitan/stl-files/rueda-vtitan.stl) | La rueda con corona dentada interna |
 | [<img src="models/vtitan/blueprints/pinon-90-cruceta-10-dientes.webp" width="110">](models/vtitan/stl-files/pinon-90-cruceta-10-dientes.stl) | [`pinon-90-cruceta-10-dientes.stl`](models/vtitan/stl-files/pinon-90-cruceta-10-dientes.stl) | El engranaje cónico que lleva la tracción a la rueda a 90° |
+| [<img src="models/vtitan/blueprints/pinon-33-dientes-correa-dentada.webp" width="110">](models/vtitan/stl-files/pinon-33-dientes-correa-dentada.stl) | [`pinon-33-dientes-correa-dentada.stl`](models/vtitan/stl-files/pinon-33-dientes-correa-dentada.stl) | El piñón de correa de 33 dientes, la entrada de la tracción |
 | [<img src="models/vtitan/blueprints/pinon-40-dientes-servo.webp" width="110">](models/vtitan/stl-files/pinon-40-dientes-servo-cajera.stl) | [`pinon-40-dientes-servo-cajera.stl`](models/vtitan/stl-files/pinon-40-dientes-servo-cajera.stl) | El piñón del eje del servo, la entrada de la dirección |
 | [<img src="models/vtitan/blueprints/brazo-de-tensor-v2.webp" width="110">](models/vtitan/stl-files/brazo-de-tensor-v2.stl) | [`brazo-de-tensor-v2.stl`](models/vtitan/stl-files/brazo-de-tensor-v2.stl) | El tensor que mantiene la correa dentada |
 | (sin plano) | [`monochasis-v3.stl`](models/vtitan/stl-files/monochasis-v3.stl) | La estructura que cierra el conjunto (última iteración) |
@@ -1166,7 +1181,7 @@ flowchart LR
     SM <-->|"estado, modo, vueltas"| NAV
     SM <-->|"estado, botón, jumper"| PER
 
-    classDef externo fill:#eee,stroke:#999,stroke-dasharray: 4 3
+    classDef externo stroke:#6e7781,stroke-dasharray: 4 3
     class LID externo
 ```
 
@@ -1260,7 +1275,7 @@ flowchart LR
     TEL -.->|"/button/event<br/>botón remoto, solo en banco"| SMN
     TEL -.->|"servicio set_parameters"| VISION
 
-    classDef espejo fill:#fff,stroke:#666,stroke-dasharray: 5 4
+    classDef espejo stroke:#6e7781,stroke-dasharray: 5 4
     class SENS,NAVE,SMN,VISION,MOTOR,BTN espejo
 ```
 
@@ -1320,8 +1335,8 @@ flowchart TD
     DEDUP -->|si| I2C(["show_image sobre I2C"])
     DEDUP -->|si| MIRROR(["publica /ui/oled_mirror"])
 
-    classDef pagina fill:#eef,stroke:#446
-    classDef fallo fill:#fee,stroke:#a44
+classDef pagina stroke:#0969da
+classDef fallo stroke:#cf222e
     class PHOLD,PBOOT,PDETECT,PREADY,PRACING,PFIN,PBLANK pagina
     class PFAULT fallo
 ```
@@ -1380,7 +1395,7 @@ flowchart LR
     RM --> F1
     RM -->|"vueltas contra el objetivo<br/>del propio /race_metrics"| F2
 
-    classDef topico fill:#eef,stroke:#446
+    classDef topico stroke:#0969da
     class SS,RM,UIS,MDS,MSP,BH,RS topico
 ```
 

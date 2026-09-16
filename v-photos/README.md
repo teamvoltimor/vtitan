@@ -6,7 +6,7 @@ robot está en el [README principal](../README.md)**; aquí solo está el índic
 ```text
 v-photos/
 ├── vtitan/                  vTitan (WRO 2026)
-└── previous-prototypes/     Klevor (WRO 2025), cuatro iteraciones
+└── klevor/                  Klevor (WRO 2025), cuatro iteraciones
 ```
 
 ## vTitan
@@ -16,14 +16,16 @@ v-photos/
 | `vtitan-front-view.webp`, `vtitan-rear-view.webp`, `vtitan-left-view.webp`, `vtitan-right-view.webp`, `vtitan-top-view.webp`, `vtitan-bottom-view.webp` | Las seis vistas que pide la categoría |
 | `vtitan-full.webp` | Render del conjunto ensamblado desde el CAD |
 | `vtitan-breakdown.webp` | Vista despiezada, usada en [Montaje](../README.md#montaje) |
+| `vtitan-breakdown-enumerated.webp` | La misma vista despiezada, con cada pieza numerada |
+| `vtitan-breakdown-elements.webp` | Tabla de elementos: número, pieza nombrada en el CAD y cantidad |
 
-Los dos últimos salen del mismo modelo de SolidWorks del que se exportan
-[`models/vtitan/`](../models/README.md), así que lo que se ve en el
-render es exactamente lo que hay en los `.step` y los `.stl`.
+Los renders del conjunto y las tres vistas despiezadas salen del mismo modelo de
+SolidWorks del que se exportan [`models/vtitan/`](../models/README.md), así que lo
+que se ve en el render es exactamente lo que hay en los `.step` y los `.stl`.
 
 ## Prototipos anteriores
 
-`previous-prototypes/` guarda las cuatro iteraciones de Klevor, el robot de la
+`klevor/` guarda las cuatro iteraciones de Klevor, el robot de la
 temporada 2025, con sus vistas y (en `klevor-v0.1/`) las tres capas por
 separado. Cada iteración tiene su documento con qué cambió y por qué:
 

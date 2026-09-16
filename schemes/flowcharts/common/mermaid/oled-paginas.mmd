@@ -55,7 +55,7 @@ flowchart TD
     DEDUP -->|si| I2C(["show_image sobre I2C"])
     DEDUP -->|si| MIRROR(["publica /ui/oled_mirror"])
 
-    classDef pagina fill:#eef,stroke:#446
-    classDef fallo fill:#fee,stroke:#a44
+classDef pagina stroke:#0969da
+classDef fallo stroke:#cf222e
     class PHOLD,PBOOT,PDETECT,PREADY,PRACING,PFIN,PBLANK pagina
     class PFAULT fallo
