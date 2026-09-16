@@ -64,7 +64,27 @@ deg approach.
   of something). `min_turn_radius_reverse_cap_m = 0.20` is the fit at escape speed:
   simulated escape yaw rate p50 24-26 -> 35-41 deg/s against 26-53 on hardware,
   and corpus 13 -> 25, all four new failures a collision in the reverse leg of the
-  first k_turn -- the manoeuvre in which the hardware pushes pillars and carries on.
+  first k_turn.
+- CORRECTION to the line above and to `dfdb23dc`'s commit message, which claim the
+  hardware "pushes pillars and carries on" and that the corpus therefore punishes
+  what the referee forgives. That is WRONG. The operator's rule is that moving an
+  obstacle about 5 cm ends the round, because past that it leaves its circle, and
+  `scoring.py` already encodes exactly that: accumulated push against
+  `TrafficSignSpecs.MAX_LEGAL_DISPLACEMENT_M`, which is derived (not assumed) as
+  59.4 mm from the 85 mm placement circle and the 50 mm pillar. That comparison
+  runs whatever `obstacles_are_pushed` is set to -- the flag only decides whether
+  the pillar also MOVES in the world (`scoring.py:296`). So the corpus was scoring
+  the real rule all along, and the four new failures are real round-enders, not
+  artefacts of an unforgiving simulator. 25 is close to honest.
+- What `obstacles_are_pushed = true` would fix is the PHYSICS, not the scoring:
+  with it off the pillar never slides clear, so contact persists longer than it
+  does on the mat. Measured with `diag_bag_toppled_objects.py` over the four
+  multi-lap rounds of 2026-09-15, every one displaces obstacles past the legal
+  limit -- 2 / 7 / 7 / 4 objects at or over 5 cm, peaks 8.4-19.4 cm, against a
+  same-round control of 1.9-3.2 cm median for everything else, and 4 objects
+  toppled outright. Those rounds continued only because the operator kept them
+  running to collect data. Calls in the 5.0-5.3 cm band are NOT safe: they sit too
+  close to that control floor.
 - `min_turn_radius_cap_m` is not measured, and terminal-surface contact still ends
   the run on the first tick.
 
