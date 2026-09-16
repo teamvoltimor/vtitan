@@ -46,14 +46,25 @@ under 3 laps::
     thaw=3.0             5   fixes 0000 0013, breaks nothing
     thaw=1.5,margin=0.5  6   fixes 0013, breaks nothing
 
-CAVEAT, and it is why those numbers are quoted as history rather than as a
-recommendation: every one of them was measured while the simulator's LIDAR
-occlusion band sat 180 degrees from where the chassis puts it, against a corpus
-baseline of 28 failing tests. The band was corrected the following day and the
-baseline moved to 22 -- and two of the three scenarios ``thaw`` fixed (0000,
-0013) are among the ones the band correction fixed by another route. Re-run
-before believing the table: the arm may now be redundant, or it may be attacking
-what is left.
+Those numbers are HISTORY. Every one of them was measured while the simulator's
+LIDAR occlusion band sat 180 degrees from where the chassis puts it.
+
+RE-MEASURED 2026-09-16 on the corrected band (commit c8b1ae79), same 16
+fixtures, same fail rule::
+
+    base          5   0003 0004 0005 0009 0014
+    ctl          16   control fails everywhere, as it must
+    thaw=3.0      6   fixes nothing, BREAKS 0008
+    margin=0.5    6   fixes nothing, BREAKS 0008
+
+So the arm is REFUTED, and the way it died is worth keeping. Its entire 7 -> 5
+was 0000 and 0013, and the band correction fixes both by another route -- they
+pass at base now. What is left of the colour mechanism is 0008, which no arm
+ever fixed (the robot is on top of the first pillar at 5 s with a single view),
+and both arms now turn it from a pass into a failure. A knob measured against a
+broken baseline was not merely overstated here; its sign flipped.
+
+Do not ship ``slot_colour_thaw_evidence`` on the strength of the old table.
 
 Comparison is by SET, not by count. Two arms that both fail seven scenarios are
 not the same arm, and a table of counts cannot say so.
