@@ -18,8 +18,7 @@ because they are conventions rather than a config value with an `x-journal`.
 
 Commit messages are in English and imperative. The body is structured as cause,
 key changes, and verification, so each commit states why it was made and how it
-was checked. No `Co-Authored-By:` trailers are added (some older commits predate
-this and carry them).
+was checked.
 
 Shared constants are imported under their real name at every call site. There is
 no local alias (`X = SHARED_X`) and no `as` re-export. A reader searching for the

@@ -6,7 +6,7 @@ family, which are all interactive investigation tools that print
 human-formatted text and hardcode which corpus they load. Built specifically
 as the subprocess contract for ``src/go``'s
 ``internal/sim/scenario`` orchestrator (see
-``docs/internal/plans/go-migration-plan.md``'s "Simulation" section): the Go
+``src/go/docs/go-migration-plan.md``'s "Simulation" section): the Go
 orchestrator shells out to this script once per scenario rather than
 reimplementing the kinematics/collision math in Go, which stays Python until
 profiling shows the interpreter loop -- not the already-vectorized numpy

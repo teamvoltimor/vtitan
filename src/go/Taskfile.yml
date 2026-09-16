@@ -24,8 +24,7 @@ tasks:
   #     node/pi5 behind the `cgo` build tag. On Linux it builds natively with a
   #     Linux/arm64 C cross-toolchain + OpenCV sysroot; on Windows it delegates
   #     the CGo cross-build into WSL2 (which holds the toolchain), so the dev
-  #     never leaves Windows. See docs/internal/plans/2026-08-30-shared-runs-
-  #     folder-and-go-run-recorder.md.
+  #     never leaves Windows. See adr:0068-go-parallel-track-single-cutover.
 
   go:build:static:
     desc: "Cross-compile all Go robot binaries as pure-static (CGO_ENABLED=0). Safe on any dev machine."
@@ -79,7 +78,7 @@ tasks:
           ===========================================================================
           Stage 6 (nav stack) is otherwise essentially ported and tested; these are
           the real gaps left, verified against the tree (not the stale plan doc's
-          checkboxes, see docs/internal/plans/go-migration-plan.md).
+          checkboxes, see src/go/docs/go-migration-plan.md).
 
           1. cmd/pi5 only supervises "capture" (camera). IMU/LIDAR/vision/nav/
              state-machine each still run as their OWN separate binaries

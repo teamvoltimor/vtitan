@@ -4,7 +4,7 @@ Description=vTitan — NATS broker (hub both boards connect to)
 # (motors/button/OLED) and every Pi 5 subsystem (IMU/LiDAR/vision/nav/
 # telemetry/state-machine) are nats.go clients that connect to it. It is a
 # single point of failure by design (hub-and-spoke, not brokerless mesh) --
-# see src/python/docs/internal/plans/go-migration-plan.md "Transport
+# see src/go/docs/go-migration-plan.md "Transport
 # decision" -- so it MUST come back on its own: Restart=always, not
 # on-failure, because a clean exit would otherwise leave every client
 # reconnecting to nothing.

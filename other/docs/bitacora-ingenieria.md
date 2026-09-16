@@ -6,10 +6,11 @@ construida sobre el historial real del proyecto, los commits y las notas que fui
 mientras desarrollábamos, en vez de reconstruida de memoria al final.
 
 Cada entrada sigue la misma plantilla: contexto o restricción, opciones consideradas, qué
-hicimos, por qué, resultado medido y la referencia al commit o a la nota donde vive el
-detalle. Varias entradas registran hallazgos incómodos -mediciones que refutaron una
-hipótesis nuestra, o riesgos que siguen abiertos- porque son parte del proceso tanto como los
-aciertos.
+hicimos, el motivo, resultado medido y la referencia al commit o a la nota donde vive el
+detalle. Cuando el motivo ya está registrado como decisión, la entrada enlaza con el ADR
+correspondiente en `other/docs/adr/` en lugar de repetir el razonamiento. Varias entradas
+registran hallazgos incómodos -mediciones que refutaron una hipótesis nuestra, o riesgos que
+siguen abiertos- porque son parte del proceso tanto como los aciertos.
 
 Las cinco secciones siguen los criterios de evaluación del reglamento. Como muchas decisiones
 son transversales, cada entrada lleva además una línea **Categorías**, y el índice siguiente
@@ -58,9 +59,7 @@ valor físico.
 **Qué hicimos:** medimos el ángulo de giro máximo real del chasis y lo usamos como límite
 duro tanto en simulación como en el controlador.
 
-**Por qué:** cualquier controlador tuneado contra un límite de dirección irreal producirá
-comportamiento que no es reproducible en el robot físico - el criterio de "reproducibilidad"
-exige que las decisiones de ajuste tengan base física, no solo numérica.
+**Motivo (ADR):** `adr:0076-drivetrain-and-steering-hardware`.
 
 **Resultado medido:** el límite de dirección pasó a estar acotado por la medición física del
 chasis, no por el valor por defecto del simulador.
@@ -84,9 +83,7 @@ en simulación esté ajustado a un actuador más rápido de lo real) vs. medirlo
 servo real ronda ~5 rad/s; quedó marcado como pendiente de banco de pruebas antes de seguir
 tuneando el comportamiento de zigzag ("weave") con ese parámetro.
 
-**Por qué:** el mismo parámetro alimenta dos sistemas (limitador real y física de
-simulación); si el valor es incorrecto, cualquier conclusión sobre causas del "weave" en
-simulación queda contaminada.
+**Motivo (ADR):** `adr:0076-drivetrain-and-steering-hardware`.
 
 **Resultado medido:** N/A todavía - pendiente de medición en banco. Se documenta como riesgo
 abierto, no como hallazgo cerrado (ver también sección 4, pensamiento sistémico).
@@ -108,8 +105,7 @@ directamente en el robot físico.
 
 **Qué hicimos:** medimos en vivo y confirmamos 60 cuentas/rev.
 
-**Por qué:** un valor de encoder incorrecto sesga toda la cadena de control de velocidad -
-mejor corregirlo en la fuente que compensarlo aguas abajo con ganancias ad-hoc.
+**Motivo (ADR):** `adr:0076-drivetrain-and-steering-hardware` (la calibración no se hereda).
 
 **Resultado medido:** corrección propagada a feedforward (`drive_feedforward_is_affine`) y al
 tope de velocidad real del chasis (ver siguiente entrada).
@@ -130,8 +126,7 @@ vieja, no como un límite físico real del chasis.
 recalculamos el techo real: ~0.58 m/s a `max_duty=0.5`, hasta ~0.9 m/s en lazo abierto a
 máximo duty.
 
-**Por qué:** usar un techo subestimado deja rendimiento sobre la mesa (velocidad de crucero
-más baja de la necesaria) y puede sesgar el ajuste del controlador de velocidad.
+**Motivo (ADR):** `adr:0085-speed-envelope`.
 
 **Resultado medido:** techo actualizado a 0.58 m/s; también se corrigió un límite de
 velocidad del localizador (`max_speed_mps`) que congelaba silenciosamente la pose por encima
@@ -174,11 +169,8 @@ Bajar `counts_per_rev` vuelve la lectura de RPM mucho más sensible por unidad d
 real de la rueda, y las ganancias viejas, dimensionadas para la escala menos sensible,
 producían una oscilación visible en cuanto se aplicaba la corrección.
 
-**Por qué:** un cambio de motor no es un ajuste de parámetro - invalida silenciosamente cada
-constante que dependía de las características físicas del motor anterior (relación
-encoder/vuelta, RPM máximo, ganancias de control). Tratar el tope de ciclo de trabajo como medida de
-contención *antes* de recalibrar, en vez de recalibrar bajo presión con el robot ya
-acelerando fuera de rango, fue la decisión de seguridad correcta.
+**Motivo (ADR):** `adr:0076-drivetrain-and-steering-hardware` (calibración nunca heredada; el
+tope de duty como contención previa).
 
 **Resultado medido:** la nueva caracterización quedó marcada explícitamente como
 **provisional** (derivada de temporización, no de conteos crudos) hasta reverificarla con
@@ -230,6 +222,7 @@ corrección cosmética - el mismo ángulo comandado ahora mapea a un swing de an
 distinto (ej. 67.5° pasa de 2250 µs a 2000 µs), así que la dirección se siente **menos
 agresiva por grado** en ángulos intermedios que antes. Se documentó explícitamente como algo
 que requiere reverificación en hardware, no solo confiar en la corrección de código.
+`adr:0070-hardware-profiles-and-challenge-overlays`.
 
 **Resultado medido:** corrección de nombre de carpeta aplicada; además se corrigieron
 referencias obsoletas a "servo270" en docs, Taskfile y texto de ayuda del generador Go, y un
@@ -268,9 +261,7 @@ un simulador.
 indicador global, y documentamos que un perfil sin activar no tiene efecto aunque el archivo esté
 editado.
 
-**Por qué:** un indicador global obliga a que todo el sistema esté en modo simulación o todo en modo
-hardware; en la práctica necesitamos combinaciones (ej. LIDAR real + resto simulado) durante
-la puesta a punto.
+**Motivo (ADR):** `adr:0070-hardware-profiles-and-challenge-overlays`.
 
 **Resultado medido:** N/A (decisión de arquitectura); efecto colateral documentado: si el
 perfil no está seteado, el import falla en vez de fallar en silencio con comportamiento
@@ -292,8 +283,7 @@ coincidían con el espacio real disponible para el chasis.
 **Qué hicimos:** recalibramos las distancias de holgura de giro teniendo en cuenta el desplazamiento
 físico del sensor respecto al centro del chasis.
 
-**Por qué:** ignorar ese desplazamiento produce un sesgo sistemático - el robot "cree" tener más o
-menos espacio del que realmente tiene, según el punto del giro.
+**Motivo (ADR):** `adr:0080-lidar-mount-and-scan-plane`.
 
 **Resultado medido:** constante `TURN_CLEARANCE_M` anterior quedó invalidada por el cambio de
 calibración.
@@ -316,10 +306,7 @@ angular (espejo).
 decodificado, no rotarlo, y corregimos el controlador en la migración a Go
 (`2ebe7d7d fix(lidar): mirror decoded angles for an inverted mount, not rotate`).
 
-**Por qué:** rotar 180° preserva la orientación (quiralidad) del barrido, mientras que un
-montaje invertido físicamente invierte esa quiralidad - son transformaciones distintas y una
-sustituye mal a la otra. Usar la incorrecta produce lecturas de ángulo consistentemente mal
-mapeadas, especialmente notorio en los sectores laterales/traseros.
+**Motivo (ADR):** `adr:0080-lidar-mount-and-scan-plane`.
 
 **Resultado medido:** corregido en la implementación Go (`robot-go`); la implementación
 Python (`LidarYawOffsetRad()` / `sector.go` / `_LIDAR_YAW_OFFSET_RAD`) quedó identificada como
@@ -340,9 +327,7 @@ contrario de lo que su nombre sugiere.
 **Qué hicimos:** documentamos explícitamente el comportamiento real del indicador para evitar que
 futuras pruebas lo usaran con la semántica intuitiva incorrecta.
 
-**Por qué:** un indicador con semántica invertida y sin documentar es una fuente silenciosa de
-errores de experimento - cualquier A/B hecho asumiendo la semántica "obvia" mide lo contrario
-de lo que cree medir.
+**Motivo (ADR):** `adr:0084-localizer-divergence-and-relocalization`.
 
 **Referencia:** `use_lidar_localization_reads_backwards_2026_08_22`.
 
@@ -441,11 +426,8 @@ controlador.
 
 **Qué hicimos:** activamos `camera_inverted` por defecto.
 
-**Por qué:** este no era solo un problema estético de imagen volteada - el frame sin rotar
-estaba **espejando silenciosamente izquierda/derecha**, lo cual afectaba directamente la
-detección del lado de paso de señales (pass-side), uno de los fallos más caros del desafío
-(ver Criterio 3 y 4). Es un buen ejemplo de cómo un defecto de montaje mecánico/óptico se
-manifiesta como un fallo de "lógica" aguas abajo si no se corrige en la fuente.
+**Motivo (ADR):** `adr:0078-camera-mount-and-focus`. Nota operativa: el frame sin rotar espejaba
+silenciosamente izquierda/derecha, lo que afectaba la detección de pass-side (ver Criterio 3 y 4).
 
 **Resultado medido:** corrección directa del defecto de imagen espejada; efecto colateral
 positivo documentado explícitamente en la detección de pass-side.
@@ -502,16 +484,9 @@ contacto que desliza.
 
 **Qué hicimos:** enviamos `ae15ee3e` (modelo *slide*) como comportamiento por defecto.
 
-**Por qué:** dos hallazgos independientes se juntaron aquí. Por un lado determinamos que el
-simulador **nunca desliza** contra una pared, una limitación de fidelidad conocida: a 20° de
-incidencia el progreso es 56 veces menor que con deslizamiento real. Por otro, el reglamento
-WRO 2026 establece que **tocar los límites del cajón de estacionamiento anula todos los puntos
-de parking**.
-
-Juntos implican que cualquier maniobra que necesite contacto sostenido con la pared para
-"funcionar" en simulación está modelando una infracción, no una estrategia. Por eso
-descartamos el modelo `--solid-walls`, que premia el contacto: haría que el simulador puntuara
-como éxito algo que en la pista real es una descalificación.
+**Motivo (ADR):** `adr:0062-sim-contact-model-and-parking`. Se descartó el modelo
+`--solid-walls` (premia el contacto) porque tocar los límites del cajón anula todos los puntos de
+parking y el simulador nunca desliza contra paredes.
 
 **Resultado medido:** ambas maniobras llegan a 254/256 en simulación bajo su modelo
 respectivo; la decisión de cuál enviar no se tomó por la métrica de simulación (empatada)
@@ -540,9 +515,7 @@ erróneamente como "espacio libre" en lugar de "sensor degradado".
 de "cono con retorno indicando espacio libre", y bloqueamos el escape hacia adelante en el
 primer caso.
 
-**Por qué:** tratar la ausencia de datos como "vía libre" es la peor interpretación posible
-del silencio de un sensor - es exactamente la condición donde más probable es que haya un
-obstáculo demasiado cerca o en un ángulo ciego.
+**Motivo (ADR):** `adr:0055-escape-maneuver-selection` (falla en cerrado ante un rear no leído).
 
 **Resultado medido:** la corrección llevó la maniobra de 0 a 2 vueltas completadas en la
 prueba de referencia usada en ese momento.
@@ -570,9 +543,7 @@ decisión con suficiente margen.
 **Qué hicimos:** medimos: el plan de ruta acertaba el lado correcto en 642 de 642 casos, con
 un margen de diseño de 5.6 cm - es decir, el enrutador **no** era el problema.
 
-**Por qué:** esto redirigió todo el esfuerzo de esta rama de trabajo desde "corregir el
-enrutador" (que ya estaba bien) hacia "reducir el error de seguimiento" que consumía el
-margen de 5.6 cm en la ejecución real.
+**Motivo (ADR):** `adr:0059-pass-side-travel-relative-and-scorer-independence`.
 
 **Resultado medido:** confirmó y superó una hipótesis anterior ("fallo de enrutado") y otra más
 antigua ("puntuado sobre creencia, no verdad de terreno") que ya habían sido corregidas por
@@ -599,8 +570,8 @@ activar el escape a tiempo.
 de 256 casos: vueltas completadas subieron de 68 a 434 (agregado), vueltas-por-run ≥3 subieron
 de 11 a 82, y los timeouts bajaron de 126 a 48.
 
-**Por qué:** un umbral más sensible detecta contacto inminente antes, dando más tiempo a la
-maniobra de escape para ejecutarse con margen.
+**Motivo (ADR):** `adr:0061-contact-zone-per-challenge` (que documenta también la subida
+posterior a 0.07).
 
 **Resultado medido:** mejora neta clara en finalización de vueltas y reducción de timeouts,
 **pero** con una regresión aceptada conscientemente: los casos de "pass-side" (el fallo más
@@ -625,10 +596,8 @@ degenera - no existe ningún rumbo que el corredor pueda excluir sin también ex
 necesarios para escapar del obstáculo inmediato. El 82% de los escapes están impulsados por
 esta "puerta" geométrica, y el 92% son de tipo lateral.
 
-**Por qué:** esto **refutó** una hipótesis previa de que la capa reactiva de escape podía
-usarse para reducir directamente los casos de "pass-side" - la geometría a esa distancia no
-lo permite. Se documentó explícitamente como descripción, no como prescripción: la solución
-tiene que venir de la capa de seguimiento (ver la entrada anterior), no de la capa reactiva.
+**Motivo (ADR):** `adr:0055-escape-maneuver-selection`. La solución al pass-side debe venir de la
+capa de seguimiento (ver la entrada anterior), no de la capa reactiva.
 
 **Referencia:** `escape_gate_corridor_degenerates_at_contact_range_2026_09_02`,
 `lateral_escape_is_load_bearing_2026_09_02` (que además refutó la opción de simplemente
@@ -648,9 +617,7 @@ pudiera subir sin introducir colisiones.
 **Qué hicimos:** elevamos la escalera a 0.26/0.38/0.50 m/s y verificamos 639/640 corridas sin
 colisión en el corpus de referencia. Se probó también 0.60 m/s como siguiente escalón.
 
-**Por qué:** 0.60 m/s resultó ser un **acantilado de colisión** (salto brusco en tasa de
-fallos, no degradación gradual) - se documentó explícitamente para que nadie vuelva a subir
-la escalera a ese valor asumiendo que la mejora escala linealmente con velocidad.
+**Motivo (ADR):** `adr:0085-speed-envelope` (0.60 m/s es un acantilado de colisión).
 
 **Resultado medido:** 639/640 sin colisión con la escalera actual; 0.60 m/s descartado por el
 comportamiento de acantilado.
@@ -700,10 +667,7 @@ contacto sostenido con la pared para funcionar en simulación (incluyendo una qu
 métrica de simulación fuera excelente. Se fijó el modelo de contacto **por defecto** (no el
 de paredes sólidas) como el que se debe usar para cualquier evaluación futura.
 
-**Por qué:** optimizar contra una métrica de simulación que no captura una regla de
-descalificación del reglamento real produce un robot que "gana" en simulación y pierde todos
-los puntos de parking en la pista real. Es el ejemplo más claro del proyecto de por qué la
-simulación **no sustituye** la lectura del reglamento.
+**Motivo (ADR):** `adr:0062-sim-contact-model-and-parking`.
 
 **Resultado medido:** N/A (es una decisión de política de ingeniería, no un experimento) -
 pero desbloqueó la decisión correcta entre las dos maniobras de bay-exit empatadas en score
@@ -730,10 +694,8 @@ criterio humano antes de modificar el enrutador o el evaluador de puntaje, preci
 incorrecto aquí podría "arreglar" una convención que en realidad estaba bien, y esconder el
 problema real.
 
-**Por qué:** dado que un fallo de pass-side termina la ronda completa, el costo de cambiar la
-convención incorrectamente es mucho mayor que el costo de dejarlo documentado y pendiente.
-Es una decisión consciente de **no actuar todavía** ante incertidumbre de alto impacto, en
-vez de "arreglar" algo sin estar seguros de qué lado del problema se está viendo.
+**Motivo (ADR):** `adr:0059-pass-side-travel-relative-and-scorer-independence` (no cambiar la
+convención unilateralmente; pendiente de criterio humano).
 
 **Resultado medido:** riesgo identificado, con nota explícita de "preguntar antes de
 cambiar" - ejemplo directo de identificación de riesgo + mitigación por precaución, en vez
@@ -756,9 +718,7 @@ contaminando la comparación. Se estableció como regla de proceso: los resultad
 sólo son comparables **dentro de una misma invocación**, nunca entre corridas separadas en el
 tiempo si hubo cambios concurrentes en el repositorio.
 
-**Por qué:** sin esta regla, cualquier mejora o regresión aparente podría ser ruido de
-concurrencia, no una señal real del cambio bajo prueba - un riesgo serio para la validez de
-todas las conclusiones de ajuste del proyecto.
+**Motivo (ADR):** `adr:0087-test-methodology`.
 
 **Resultado medido:** se adoptó `--strip-parking` como forma de aislar resultados de
 obstáculos del ruido introducido por trabajo paralelo en parking.
@@ -792,17 +752,10 @@ commits tocan el árbol `robot-go`, cubriendo transporte, controladores de todos
 actuadores, un supervisor de reinicio con notificación a systemd, y agregación de
 telemetría.
 
-**Por qué:** las razones completas para elegir Go en lugar de seguir invirtiendo en
-Python/ROS2 no están consolidadas en un solo documento, y eso sigue pendiente (ver el cierre
-de esta entrada). Pero la ejecución en sí ya contiene dos decisiones de sistema explícitas.
-
-La primera es migrar **incrementalmente por componente**, no todo de una vez, para poder
-validar cada pieza contra hardware real de forma aislada.
-
-La segunda es **no perder por el camino las invariantes de seguridad ya ganadas**. El ejemplo
-más claro es la corrección de secuenciación de habilitación del puente H: se halló y se
-corrigió en Python, y al portarla a Go la acompañamos de pruebas explícitas que codifican esa
-invariante, en vez de confiar en que el código nuevo no repetiría el fallo.
+**Motivo (ADR):** `adr:0068-go-parallel-track-single-cutover`. Migración incremental por
+componente y preservación explícita de las invariantes de seguridad ya ganadas (pruebas dedicadas
+al portar el puente H). Sigue pendiente consolidar en un solo documento por qué Go y no
+Python/ROS2 (ver el cierre de esta entrada).
 
 **Resultado medido:** migración en curso, no completa (fases documentadas por separado,
 casillas de progreso ya desactualizadas respecto al código real - hay que verificar contra

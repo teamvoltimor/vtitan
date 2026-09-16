@@ -36,7 +36,9 @@ y las carga con viper desde `--config-root`.
 **Advertencia principal:** si una clave está declarada en el TOML base, modificar el valor por
 defecto de Pydantic **no surte efecto alguno**. El TOML prevalece siempre sobre el modelo. La única
 forma de que un valor por defecto del modelo llegue al robot es que la clave **no exista** en el
-TOML (es el caso de `simulation.MIN_TURN_RADIUS_M = 0.29`, ausente en `simulation.toml`).
+TOML. `min_turn_radius_m` no es una excepción: no vive en `simulation.toml`, pero sí figura como
+`[drivetrain] min_turn_radius_m = 0.29` en `robot.toml` (ver 2.11 y 2.12). Gobernanza de config:
+`adr:0069-config-governance`.
 
 **No existe sobrescritura por variable de entorno para el ajuste de navegación.**
 `VTITAN_HARDWARE_PROFILE` selecciona perfiles, no valores. Para modificar un número es necesario
@@ -58,7 +60,7 @@ Cada TOML de `src/config` abre con una directiva `#:schema` que apunta a un JSON
 `#:schema ../../../model/navigation/motion/clearance.schema.json`). El esquema es la **fuente
 única de las descripciones**: cada hoja del TOML tiene su `description`, y la justificación de un
 valor se enlaza mediante `x-journal` con una entrada de `other/docs/adr/` (por ejemplo
-`"adr:0020-config-loaded-at-runtime"`) o, para referencias que no son ADR, con una ruta resuelta
+`"adr:0069-config-governance"`) o, para referencias que no son ADR, con una ruta resuelta
 relativa a `other/`. La razón de que el árbol `other/` aparezca aquí es la reorganización del
 repositorio: el material de competencia vive en `src/` y todo lo que no lo es (documentación,
 aplicaciones, ML, despliegue) se movió bajo `other/`.
@@ -87,7 +89,7 @@ regenera. Los TOML, en cambio, siguen siendo la fuente de los valores numéricos
 
 El fichero base es conservador; **la escalera efectiva se define en el perfil del motor**
 (`profiles/rev-hd-hex-motor-6000rpm/motion/speed.toml`), porque el reparto entre escalones depende
-de lo que ese tren motriz es capaz de entregar.
+de lo que ese tren motriz es capaz de entregar. Motivo: `adr:0085-speed-envelope`.
 
 | Clave | Base | Perfil 6000 rpm | Función |
 |---|---|---|---|
@@ -113,13 +115,15 @@ Observaciones que previenen errores costosos:
 | Clave | Valor | Función |
 |---|---|---|
 | `contact_dist` | 0.10 | Peligro inmediato: la velocidad desciende a `creep`. |
-| `obstacles_contact_dist` | 0.05 | El mismo umbral, aplicado solo en Obstacles (los pilares obligan a una aproximación mayor). |
+| `obstacles_contact_dist` | 0.07 | El mismo umbral, aplicado solo en Obstacles; sustituye a `contact_dist` cuando hay enrutador de señales. `adr:0061-contact-zone-per-challenge`. |
 | `slow_dist` / `medium_dist` / `fast_dist` | 0.25 / 0.50 / 1.00 | Fronteras de la escalera de velocidad. |
 | `path_margin` | 0.10 | Margen adicional sobre la semianchura del chasis que sigue considerándose "en la trayectoria". |
-| `forward_path_ahead_of_bumper` | false | Medir la holgura frontal desde el parachoques en lugar de desde el LIDAR. |
+| `forward_path_ahead_of_bumper` | true | Medir la holgura frontal desde el parachoques en lugar de desde el LIDAR. `adr:0056-raw-and-masked-scan`. |
 | `forward_no_data_is_degraded` | true | Un cono frontal sin retornos se interpreta como degradado, no como despejado. |
 
 ### 2.3 `motion/pursuit.toml` - *pure pursuit* (el controlador de trayectoria)
+
+Motivo: `adr:0052-pursuit-target-selection`.
 
 | Clave | Valor | Función |
 |---|---|---|
@@ -128,7 +132,7 @@ Observaciones que previenen errores costosos:
 | `lookahead_transition` + `lookahead_blend_start` | 0.30 / 0.70 | Error lateral en el que se conmuta de anticipación larga a corta, mediante rampa en lugar de escalón. |
 | `corner_preview_distance_m` / `corner_turn_threshold_rad` | 0.80 / 0.35 | Activan la anticipación corta **antes** de la curva, dado que el error lateral se manifiesta con retraso. |
 | `steer_kp` | 1.2 | Ganancia proporcional de dirección. |
-| `max_steering_rate` | 1.2 rad/s | Límite de velocidad angular del servo. **Sin medición**: un servo real de 35 kg se aproxima a 5. |
+| `max_steering_rate` | 1.2 rad/s | Límite de política de la velocidad angular de dirección; distinto de `servo_slew_rate_rad_s = 2.4`, que modela el servo. `adr:0076-drivetrain-and-steering-hardware`. |
 | `yaw_gain_compensation` | 1.0 | Fracción del giro previsto que el chasis entrega realmente, dividida fuera de la demanda. 1.0 equivale a desactivado (Open). |
 | `obstacles_yaw_gain_compensation` | 0.55 | Compensación completa, únicamente en Obstacles. |
 | `wall_margin_safety_m` / `min_lookahead_transition_m` | 0.03 / 0.10 | El umbral efectivo es el menor entre `lookahead_transition` y el que permite la distancia real al muro exterior. |
@@ -136,8 +140,8 @@ Observaciones que previenen errores costosos:
 ### 2.4 `motion/heading.toml` y `motion/control.toml`
 
 - `crawl = 1.0` rad (~57°): error de rumbo por encima del cual la velocidad desciende al límite
-  inferior de `creep`. Se trata de un **único umbral binario**, no de una escalera: los escalones
-  intermedios se eliminaron tras comprobar que suponían un 33% del tiempo de vuelta.
+  inferior de `creep`. Es un **único umbral binario**, no una escalera; el motivo y las mediciones
+  están en `adr:0085-speed-envelope`.
 - `control_hz = 20.0`: frecuencia del bucle de control, tanto en el robot como en simulación. La
   práctica totalidad de los parámetros expresados en "ticks" se convierte contra este valor.
 
@@ -150,16 +154,18 @@ Observaciones que previenen errores costosos:
 | `wide_center_bias_m` / `wide_center_bias_side` | 0.10 / `inner` | Desplazamiento de la línea central en pasillo ancho, hacia el interior. |
 | `narrow_center_bias_m` / `narrow_center_bias_side` | 0.0 / `inner` | Equivalente para pasillo estrecho (actualmente sin sesgo). |
 | `unconfirmed_width_inner_bias_m` | 0.05 | Sesgo aplicado mientras la anchura sigue siendo una estimación a priori y no una medición. |
-| `defer_current_corridor_replan` | true | Retener un cambio de anchura hasta abandonar el pasillo que describe. Esta medida resolvió la oscilación del primer giro (596 -> 638/640). |
+| `defer_current_corridor_replan` | true | Retener un cambio de anchura hasta abandonar el pasillo que describe. `adr:0057-blind-corridor-follower-and-width`. |
 | `obstacles_center_bias_m` | 0.15 | Sesgo de la trayectoria hacia el interior en Obstacles. |
 | `finish_approach_m` | 0.40 | Distancia previa a la meta en la que se reduce a `slow_mps` durante la última vuelta. |
 | `first_lap_corner_caution` | true | Reducir la velocidad de aproximación a curva en la primera vuelta. |
-| `replan_blend_ticks` | 0 | Mezcla entre la trayectoria anterior y la nueva. **Refutado en dos ocasiones**; permanece en 0. |
+| `replan_blend_ticks` | 0 | Mezcla entre la trayectoria anterior y la nueva. Refutado; permanece en 0. `adr:0088-refuted-config-knobs`. |
 
 ### 2.6 `blind_nav/` - navegación previa al conocimiento de la pista
 
 `corridor_follower.toml` es el fichero de mayor tamaño y el que determina el arranque y las esquinas
-a ciegas:
+a ciegas. Motivos: `adr:0057-blind-corridor-follower-and-width` (corredor y anchura),
+`adr:0053-direction-inference-and-start-pose` (`direction_estimator`) y
+`adr:0084-localizer-divergence-and-relocalization` (`localization`).
 
 | Clave | Valor | Función |
 |---|---|---|
@@ -167,11 +173,11 @@ a ciegas:
 | `narrow_turn_clearance_m` | 0.40 | Equivalente cuando el pasillo actual se interpreta como estrecho. |
 | `heading_gain` | 0.767945 | Grados de rueda por unidad de error de rumbo respecto al eje del pasillo. |
 | `max_centering_steer_deg` / `max_corner_steer_deg` | 13.75 / 21.25 | Límites de dirección en centrado y en esquina. |
-| `steer_cap_from_commit_distance` | true | Escalar dicho límite según la distancia a la que se compromete cada rama (redujo las colisiones de 18 a 3). |
+| `steer_cap_from_commit_distance` | true | Escalar dicho límite según la distancia a la que se compromete cada rama. `adr:0049-corner-arcs-per-corridor-and-commit-distance`. |
 | `corner_speed_scale` / `reverse_speed_scale` | 0.6 / 0.6 | Fracción de `creep` al girar y al retroceder. |
 | `min_forward_clearance_m` / `min_reverse_clearance_m` | 0.30 / 0.30 | Condición para retroceder y espacio requerido en la parte posterior. |
-| `assume_bay_start` | true | Iniciar una ronda de Obstacles asumiendo que el robot se encuentra dentro de la bahía. |
-| `bay_exit_clearance_guard` + `bay_exit_clearance_margin_m` | true / 0.001 | Delimitar cada tramo de salida por holgura **prevista** y no por contacto: un contacto constituye la infracción 9.24.7. |
+| `assume_bay_start` | true | Iniciar una ronda de Obstacles asumiendo que el robot se encuentra dentro de la bahía. `adr:0062-sim-contact-model-and-parking`. |
+| `bay_exit_clearance_guard` + `bay_exit_clearance_margin_m` | true / 0.001 | Delimitar cada tramo de salida por holgura prevista y no por contacto. `adr:0060-bay-exit-clearance-guard`. |
 | `bay_exit_target_yaw_deg` | 70.0 | Rotación respecto a la pose de colocación con la que se da por concluida la salida. |
 | `bay_exit_latch_direction` + `bay_exit_open_side_votes` | true / 5 | Determinar el lado abierto una sola vez, mediante votación por sector, en lugar de en cada ciclo. |
 
@@ -193,17 +199,22 @@ es capaz de recuperarse de una pose corrupta.
 
 ### 2.7 `sensors/lidar_sectors.toml`
 
+Motivos: `adr:0056-raw-and-masked-scan` y `adr:0080-lidar-mount-and-scan-plane`.
+
 | Clave | Valor | Función |
 |---|---|---|
 | `front_half_fov_deg` | 30.0 | Cono con el que se calcula la holgura frontal. |
 | `threat_half_fov_deg` | 45.0 | Sectores de detección de amenaza lateral. |
-| `min_valid_range_m` | 0.05 | Umbral inferior de lectura válida. **Debe situarse por debajo del mínimo real del sensor** (0.045 en el C1): en caso contrario, un robot encajado registra riesgo crítico de forma incondicional. |
+| `min_valid_range_m` | 0.044 | Umbral inferior de lectura válida. Debe quedar estrictamente por debajo del mínimo real del sensor (0.045 en el C1); si no, un robot encajado descarta su cono frontal entero como inválido. `adr:0056-raw-and-masked-scan`. |
 | `self_detection_threshold_m` | 0.08 | Reflexiones del propio chasis y del cableado. |
 | `rear_self_detection_from_chassis` | true | Filtrar el sector posterior por geometría del chasis y no mediante un umbral constante. |
-| `blind_wedge_*` | ±120..160 | Cuñas ocluidas por la propia estructura. |
+| `blind_wedge_*` | -155..-120 y 120..160 | Cuñas ocluidas por la propia estructura. `adr:0056-raw-and-masked-scan`. |
 | `direction_arc_half_fov_deg` | 8.0 | Cono estrecho de detección de fin de pasillo (distinto del frontal). |
 
 ### 2.8 `signs/` - Obstacle Challenge
+
+Motivos: `adr:0058-sign-discovery-range-and-barrier-belief` (descubrimiento) y
+`adr:0051-sign-lane-planner` (enrutado por carril).
 
 `sign_discovery.toml` (percepción de pilares):
 
@@ -215,7 +226,7 @@ es capaz de recuperarse de una pose corrupta.
 | `range_scale` | 1.95 | Corrección empírica sobre el rango del modelo estenopeico. Solo resulta eficaz acompañada de `vision_latency_s`. |
 | `vision_latency_s` | 0.85 | Latencia cámara -> pose, aplicada cuando la detección no incorpora marca temporal de captura. |
 | `max_pillar_aspect` | 1.0 | Toda caja delimitadora más ancha que alta se descarta como pilar. |
-| `lidar_range_fusion` | false | Tomar el rango del rayo LIDAR en la latencia de la cámara. |
+| `lidar_range_fusion` | true | Tomar el rango del rayo LIDAR en la latencia de la cámara; va emparejado con `lidar_range_fusion_cluster = true` y `lidar_range_fusion_agreement = 0.5`. `adr:0058-sign-discovery-range-and-barrier-belief`. |
 
 `sign_router.toml` (evitación):
 
@@ -232,37 +243,41 @@ es capaz de recuperarse de una pose corrupta.
 | `escape_mask_radius_m` | 0.12 | Los retornos LIDAR próximos a un pilar en curso no activan el escape reactivo. |
 | `min_confidence` | 0.25 | Confianza mínima para aceptar el color procedente de la cámara (el color determina el lado de paso). |
 
-Este fichero contiene además un bloque de experimentos **refutados y desactivados** que no conviene
-reactivar sin repetir la medición: `retrace_escape`, `sign_contact_evade`, `sign_lidar_align`,
-`stale_target_rescue`.
+Este fichero contiene además un bloque de experimentos refutados y desactivados: `retrace_escape`,
+`sign_contact_evade`, `sign_lidar_align`, `stale_target_rescue`. No conviene reactivarlos sin
+repetir la medición (`adr:0088-refuted-config-knobs`).
 
 ### 2.9 `escape/escape.toml` - maniobras de desatasco
 
+Motivos: `adr:0055-escape-maneuver-selection` y
+`adr:0050-escape-steering-degrees-and-committed-side`.
+
 `k_turn_min_s` 0.54 / `k_turn_max_s` 1.08 y `max_escape_s` 1.8 son **límites superiores**, no
-duraciones: la rotación real medida por episodio se sitúa en torno a los 19°. `rev_speed` -0.20 y
-`rev_steer_deg` 44.0 definen el retroceso; `stuck_timeout_s` 2.0 y `stuck_move_threshold` 0.03
-definen qué se considera un atasco; `escalate_after_attempts` 3 y `escape_side_commit_attempts` 2
-impiden que el escalado se cancele a sí mismo alternando de lado en cada intento.
+duraciones. `rev_speed` -0.20 y `rev_steer_deg` 44.0 definen el retroceso; `stuck_timeout_s` 2.0 y
+`stuck_move_threshold` 0.03 definen qué se considera un atasco; `escalate_after_attempts` 3 y
+`escape_side_commit_attempts` 2 impiden que el escalado se cancele a sí mismo alternando de lado en
+cada intento.
 
 ### 2.10 `parking/parking.toml`
 
-`attempt_after_final_lap = false` es la variable de mayor impacto del fichero: determina si, tras la
-última vuelta, se persigue la bahía o se detiene el robot en la sección de meta. Perseguirla
-constituía el coste dominante del Obstacle Challenge (in-time 62 -> 158, colisiones 51 -> 4 al
-desactivarla). El resto del fichero define la maniobra: `speed` 0.12, `wall_standoff_m` 0.05,
-`marker_standoff_m` 0.01, `parallel_tolerance_m` 0.02 (regla WRO), `default_max_frames` 400 (20 s a
-20 Hz).
+`attempt_after_final_lap = false` determina si, tras la última vuelta, se persigue la bahía o se
+detiene el robot en la sección de meta (`adr:0062-sim-contact-model-and-parking`). El resto del
+fichero define la maniobra: `speed` 0.12, `wall_standoff_m` 0.05, `marker_standoff_m` 0.01,
+`parallel_tolerance_m` 0.02 (regla WRO), `default_max_frames` 400 (20 s a 20 Hz).
 
 ### 2.11 `simulation/simulation.toml` - exclusivo del simulador
 
 Define la fidelidad del banco de pruebas, no el robot: `no_progress_window_s` 30.0 y
-`no_progress_displacement_m` 0.08 (abandono por ausencia de progreso), `lidar_invalid_ray_rate` 0.01,
-`start_collision_window_s` / `grace_s`, y `vision_through_pinhole` (emular las cajas delimitadoras de
-la cámara y decodificarlas con el código real, en lugar de proporcionar coordenadas verdaderas).
+`no_progress_displacement_m` 0.08 (abandono por ausencia de progreso), `lidar_invalid_ray_rate`
+0.095, `start_collision_window_s` / `grace_s`, y `vision_through_pinhole` (emular las cajas
+delimitadoras de la cámara y decodificarlas con el código real, en lugar de proporcionar
+coordenadas verdaderas). `adr:0086-simulator-realism`.
 
-`MIN_TURN_RADIUS_M = 0.29` **no figura en el TOML**: existe únicamente como valor por defecto del
-modelo. Corresponde al radio mínimo de giro medido del chasis; el modelo cinemático que prescindía de
-él predecía 1.5 cm y sobregiraba en un factor de 12.7.
+El radio mínimo de giro **no es un valor exclusivo del modelo**: está en `robot.toml` como
+`[drivetrain] min_turn_radius_m = 0.29` (junto a `min_turn_radius_intercept_m = 0.053`,
+`min_turn_radius_slope_s = 1.86` y `min_turn_radius_cap_m = 0.35`). `simulation.toml` solo decide
+si el simulador usa esa constante o la curva dependiente de la velocidad
+(`min_turn_radius_tracks_speed = true`). `adr:0086-simulator-realism`.
 
 ### 2.12 Hechos, no ajuste: `robot.toml`, `track.toml`, `competition_specs.toml`
 
@@ -279,9 +294,9 @@ modelo. Corresponde al radio mínimo de giro medido del chasis; el modelo cinem�
 
 - `src/config/hardware/state_machine/state_machine_node.toml`:
   `challenge_mode_timeout_sec = 180.0` y `challenge_mode_samples_required = 3`. Determinan el tiempo
-  de espera del puente físico que selecciona el reto. Con un tiempo de espera reducido, una ronda de
-  Obstacles llegó a ejecutarse como Open.
+  de espera del puente físico que selecciona el reto. `adr:0073-challenge-mode-jumper-and-runtime`.
 - `src/config/hardware/vision/detector.toml`: `min_confidence = 0.45` del detector.
+  `adr:0072-vision-data-path`.
 - `src/python/config/launch/race.toml`: retención de registros (`bag_max_runs`,
   `bag_max_total_gb`).
 
@@ -293,16 +308,17 @@ Python (`NavigationTuning.load_default(challenge=...)`) carga **los 19 grupos** 
 aplica la capa por reto.
 
 Go carga cada fichero de forma independiente y **recurre a sus literales** si un fichero falta o su
-lectura falla (`ConfigFor(logger, configRoot, profiles)`). Lee: `clearance`, `speed`, `heading`,
-`pursuit`, `waypoints`, `control`, `lidar_sectors`, `escape`, `sign_router`, `corridor_estimator`,
+lectura falla. Lee: `clearance`, `speed`, `heading`, `pursuit`, `waypoints`, `control`,
+`lidar_sectors`, `escape`, `sign_discovery`, `sign_router`, `corridor_estimator`,
 `corridor_follower`, `direction_estimator`, `localization`, `parking`, `wall_heading`,
 `start_measurement`, `simulation`, `robot`, `track`.
 
 Divergencias reales que conviene tener presentes:
 
-1. **`sign_discovery.toml` no se lee en Go.** `signrouter.DefaultDiscoveryConfig()` está codificada
-   en el propio código y su `MaxIngestRangeM` vale 2.0 frente al 1.5 del TOML. Modificar el TOML no
-   altera el comportamiento de la implementación Go.
+1. **`sign_discovery.toml` sí se lee en Go**, vía `signrouter.DiscoveryConfigFor`, que superpone el
+   TOML a los literales de `DefaultDiscoveryConfig()`. El literal `DefaultMaxIngestRangeM` es 2.0,
+   pero con `--config-root` se sobrescribe con `sign_discovery.max_ingest_range_m = 1.5`; editar el
+   TOML sí altera el comportamiento de Go.
 2. **`sensor.toml` y `state_estimator.toml` carecen de equivalente en Go.**
 3. **Go no admite `navigation-challenges/`**: no dispone de capa por reto.
 4. `speed.toml` y `heading.toml` se cargan fuera de `internal/config/profile`, en
