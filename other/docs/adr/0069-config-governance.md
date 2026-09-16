@@ -2,7 +2,7 @@
 
 - Status: accepted
 - Date: 2026-09-15
-- Supersedes: 0003, 0004, 0016, 0017, 0018, 0020
+- Supersedes: 0003, 0004, 0008, 0016, 0017, 0018, 0020
 
 ## Context
 
@@ -38,7 +38,7 @@ The specific consolidated facts this carries: track constants in `track.toml` (o
 source, runtime-read); corridor division lines `[0.40, 0.60]` defined once with
 the starting-square bands and sign-grid width derived; robot constants in
 `robot.toml` read at runtime (no `robot_constants.gen.go`; the xacro is a
-hand-synced checked-in copy, see 0089); sensor specs consolidated
+hand-synced checked-in copy); sensor specs consolidated
 into `robot.toml` (`lidar.min_range`, `lidar.max_range`, `imu.mount_z_offset`);
 ROS topic names centralized in `ros_topics.toml`; competition rules in
 `competition_specs.toml` (`round_time_limit_s = 180.0`, `open_challenge_laps = 3`,
@@ -51,6 +51,30 @@ There is no environment variable override for navigation tuning. The only variab
 read is `VTITAN_HARDWARE_PROFILE`, and it selects profiles, not values. A key
 declared in the base TOML wins over any Pydantic default; the only way a model
 default reaches the robot is if the key is absent from the TOML.
+
+## Robot constants and the xacro copy
+
+Robot constants were once hand-duplicated across Python, Go and the xacro, and
+had already drifted: the chassis length and width were corrected in Python
+(0.28 x 0.15 to 0.30 x 0.20) but never updated in the Go Gazebo generator or the
+xacro, which silently kept the old numbers for months. A generator that emitted
+the Go and xacro consumers existed, but it was unused and emitted malformed Go
+source.
+
+`src/config/robot.toml` is the single source of the physical constants. Go loads
+it at runtime through `LoadRobotConfig` (with overlays); Python reads it at
+runtime through `RobotConstants` (with overlays). There is no
+`robot_constants.gen.go`; it was deleted. The xacro at
+`other/apps/gazebo/runtime/robot_description/robot_properties.gen.xacro` remains
+a checked-in copy that must be kept in step BY HAND when a chassis or sensor
+value changes; its `.gen.` name and `DO NOT EDIT` header are stale.
+
+Units are metres, kilograms and radians unless a field is explicitly named
+`_deg`. The concrete consumers are `shared.config.robot_constants` (Python), the
+`simconfig` package (Go) and the URDF xacro.
+
+This section absorbs 0089, which superseded 0008; the drift and the residual
+hand-synced xacro are the accepted cost of reading TOML at runtime.
 
 ## Consequences
 
@@ -71,7 +95,13 @@ default reaches the robot is if the key is absent from the TOML.
   about 19 stale Go path constants.
 - 3b6456d5 2026-09-13: single-source config schemas with generated Python and Go
   DTOs; create the 52 schemas and `configgen.py`; delete
-  `track_constants.gen.go` and `robot_constants.gen.go`.
+   `track_constants.gen.go` and `robot_constants.gen.go`.
+- b3280218 2026-07-11: centralize into `robot.toml` and add the Go generator.
+- 31fc8eb2 2026-08-08: load the constants at runtime; delete the generated Python
+  file.
+- 3f6696c1 and 24cb052f 2026-09-03: move simgen, then remove
+  `generate-robot-constants` (unused, malformed Go output); the xacro becomes a
+  hand-maintained copy.
 - b982e109 2026-09-13: move value rationale into ADRs and link schemas; 62 keys
   linked via `x-journal`.
 - 1d0cf606 2026-09-13: consume generated DTOs directly in Go and Python; field
@@ -85,7 +115,9 @@ default reaches the robot is if the key is absent from the TOML.
 
 - 0003, 0004, 0016, 0017, 0018 and 0020 are superseded; their decisions are
   carried above.
-- 0008 is superseded by 0089 (runtime constants and the xacro copy).
+- 0008 was superseded by 0089, and 0089 is now merged into this ADR; edit this
+  one, not that.
+- 0076 owns the drivetrain constants that are also read at runtime.
 - 0019 (simulation robot-model topic split) and 0046 (repo layout) stay separate.
 - 0070 owns the profile overlay mechanism this precedence order names.
 - 0074 owns `control_hz`, the loop rate these consumers read.

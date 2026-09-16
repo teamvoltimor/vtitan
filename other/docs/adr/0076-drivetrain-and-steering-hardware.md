@@ -68,6 +68,34 @@ Reverse is about 40 percent slower than forward at identical duty (336.6 against
 193.7 deg/s), attributed to brushed-motor timing advance, so escape reverse bursts
 travel less than a symmetric model predicts.
 
+## Counter-phase four-wheel steering
+
+The chassis must approach a 90 degree per-wheel turn to make the parking-bay exit
+viable and to take the tight Obstacles corners; a car-like Ackermann linkage was
+the alternative. Steering a four-wheel-drive chassis also loads the servo far
+more than a two-wheel front steer, which is why the steering servo was upgraded
+from 14 kg-cm to 35 kg-cm.
+
+Both axles steer in opposite directions by the same 1:1 angle
+(`rear_steer_ratio = 1.0`). The effective wheelbase for the kinematic model
+becomes `wheelbase / (1 + rear_steer_ratio) = wheelbase / 2`, because the vehicle
+yaws about twice as fast as a front-steer car at the same steering angle. The
+chassis delivers about 0.55 of the yaw a bicycle model predicts, compensated
+separately (`obstacles_yaw_gain_compensation = 0.55`). Measured minimum turn
+radius is 0.29 m. The 270 degree servo (Hiwonder HPS-3527SG) replaced the 180
+degree Injora because counter-phase steering needs the extended travel to
+approach the 90 degree per-wheel turn.
+
+The turning radius is roughly halved and the bay exit becomes feasible. Any gain
+fitted against a front-steer model is too hot for the real chassis, so the
+simulator had to be corrected to counter-phase before its numbers meant anything
+(pre-4WS: old sim minimum turn 0.329 m against the actual 0.165 m, collisions
+7/16 to 16/16, timeouts 9/16 to 0/16). The explicit quantitative
+Ackermann-versus-counter-phase comparison is still missing from the shipped docs.
+
+This section absorbs 0075; the steering geometry and the drivetrain it sits on
+are one story.
+
 ## Consequences
 
 - The H-bridge operates within spec and the boot spin is removed.
@@ -120,6 +148,19 @@ travel less than a symmetric model predicts.
   `max_steering_rate` at hard corners (0.6 rad = rate x 0.3 s window). Past sim
   sweeps only tested RAISING it (1.5x and 3.0x, both worse, 107 against 114); the
   lowered exact value is untested.
+- 8eb3c38e 2026-07-25: model the chassis as counter-phase four-wheel steer, not
+  front only. Moves the ICR to the chassis centre; 20 deg steer gives 0.261 m
+  radius against the old 0.522 m.
+- 77962720 2026-07-25: flag the sign-avoidance log as stale after the model change.
+- d7579db7 2026-08-15: pin the counter-phase geometry; 6 tests, reverting
+  `_turn_reference_len` fails 2 of 6.
+- 6a89c45f 2026-08-22: make the Gazebo URDF a counter-phase 4WS car (rear links
+  mimic `x-1.0` of front).
+- 7a96dd6a 2026-09-05: compensate pure pursuit for the delivered yaw; Go had no
+  compensation and turned about 1.8x too wide. Obstacles sighted laps>=3 60 to 111.
+- 72e7172b 2026-09-07: ship the measured turn radius 0.29 m.
+- 3b330a1c and 878b8485 2026-09-14: document the trade-offs and catalogue the
+  rejected Ackermann diagram.
 
 ## Cross-references
 
@@ -127,3 +168,5 @@ travel less than a symmetric model predicts.
 - 0050 owns the escape steering angle policy in physical units.
 - 0070 owns the profile overlays that hold per-motor calibration.
 - 0060 owns the bay exit that rides on the servo slew rate.
+- 0075 is deprecated and merged into this ADR; 0052 owns the pursuit law that
+  consumes the effective wheelbase, and 0054 owns the yaw model.

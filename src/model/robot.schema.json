@@ -15,10 +15,10 @@
           "description": "Chassis length (m).",
           "type": "number",
           "x-unit": "m",
-          "x-journal": "adr:0089-robot-constants-runtime-and-xacro"
+          "x-journal": "adr:0069-config-governance"
         },
-        "width": { "description": "Chassis width (m).", "type": "number", "x-unit": "m", "x-journal": "adr:0089-robot-constants-runtime-and-xacro" },
-        "height": { "description": "Chassis height (m).", "type": "number", "x-unit": "m", "x-journal": "adr:0089-robot-constants-runtime-and-xacro" },
+        "width": { "description": "Chassis width (m).", "type": "number", "x-unit": "m", "x-journal": "adr:0069-config-governance" },
+        "height": { "description": "Chassis height (m).", "type": "number", "x-unit": "m", "x-journal": "adr:0069-config-governance" },
         "mass": {
           "description": "Chassis body mass (kg), excluding the four wheels; the URDF and Gazebo model add the wheel masses.",
           "type": "number",

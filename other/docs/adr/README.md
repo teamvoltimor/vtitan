@@ -51,7 +51,7 @@ story in its `## History` section rather than spawning a micro-ADR per attempt.
 | [0005](0005-pillar-displacement-tolerance.md) | Pillars are displaced, not scored as first contact | superseded by 0062 |
 | [0006](0006-parking-bay-scales-by-robot-length.md) | Parking bay length scales by the robot's length | superseded by 0062 |
 | [0007](0007-starting-zone-spawn-alignment.md) | Spawn hugs one band edge, never centred | accepted |
-| [0008](0008-robot-constants-single-source.md) | Robot constants live in one source and are read at runtime | superseded by 0089 |
+| [0008](0008-robot-constants-single-source.md) | Robot constants live in one source and are read at runtime | superseded by 0069 |
 | [0009](0009-chassis-mass-battery-middle-value.md) | Chassis mass is the middle of the battery configurations | superseded by 0077 |
 | [0010](0010-wheel-angle-derived-from-steering.md) | Road-wheel angle is derived from the steering hardware | superseded by 0076 |
 | [0011](0011-hardware-profile-fields-required.md) | Swappable servo and motor limits live in the hardware profile | superseded by 0070 |
@@ -118,7 +118,7 @@ story in its `## History` section rather than spawning a micro-ADR per attempt.
 | [0072](0072-vision-data-path.md) | The camera feeds the NPU in-process and vision owns identity, not distance | accepted |
 | [0073](0073-challenge-mode-jumper-and-runtime.md) | The challenge is read from a boot jumper and resolved at runtime | accepted |
 | [0074](0074-control-loop-rate-single-source.md) | The control loop rate has a single source | accepted |
-| [0075](0075-counter-phase-four-wheel-steering.md) | Four-wheel counter-phase steering replaces Ackermann | accepted |
+| [0075](0075-counter-phase-four-wheel-steering.md) | Four-wheel counter-phase steering replaces Ackermann | deprecated (merged into 0076) |
 | [0076](0076-drivetrain-and-steering-hardware.md) | The drivetrain is sized on measured current, and calibration is never inherited | accepted |
 | [0077](0077-power-rails-and-chassis-mass.md) | Power rails are sized to measured load and the chassis mass is the battery midpoint | accepted |
 | [0078](0078-camera-mount-and-focus.md) | The camera is mounted above the LIDAR and its lens is parked on the decision range | accepted |
@@ -132,7 +132,7 @@ story in its `## History` section rather than spawning a micro-ADR per attempt.
 | [0086](0086-simulator-realism.md) | The simulator runs on a measured error budget, not a perfect world | accepted |
 | [0087](0087-test-methodology.md) | Testing uses a four-level ladder and a fixed A/B protocol | accepted |
 | [0088](0088-refuted-config-knobs.md) | Refuted config knobs ship off and stay documented | accepted |
-| [0089](0089-robot-constants-runtime-and-xacro.md) | Robot constants are read at runtime and the xacro is the one hand-synced copy | accepted |
+| [0089](0089-robot-constants-runtime-and-xacro.md) | Robot constants are read at runtime and the xacro is the one hand-synced copy | deprecated (merged into 0069) |
 | [0090](0090-commit-and-constant-conventions.md) | Commit messages and constant access follow fixed conventions | accepted |
 | [0091](0091-dataset-frame-capture.md) | Dataset frames are captured periodically beside the run artifacts | accepted |
 | [0092](0092-escape-does-not-retire-committed-sign.md) | An escape does not retire the committed sign, and ships off | accepted |

@@ -1,7 +1,7 @@
 # 0008. Robot constants live in one source and are read at runtime
 
-- Status: superseded by 0089
-- Superseded by: 0089
+- Status: superseded by 0069
+- Superseded by: 0069
 - Date: 2026-09-03
 - Commit: 24cb052f
 
@@ -47,9 +47,9 @@ runtime-load decision is ADR 0020.
 - The xacro can still drift if an edit forgets it; the TOML header names it so an
   editor sees it in place.
 
-## Superseded by 0089
+## Superseded by 0069
 
-This decision was replaced by [0089](0089-robot-constants-runtime-and-xacro.md). Its content is reproduced below so this file stays self-contained; edit only the successor.
+This decision was replaced by [0089](0089-robot-constants-runtime-and-xacro.md), which is now merged into [0069](0069-config-governance.md). Its content is reproduced below so this file stays self-contained; edit only the successor.
 
 ### Context
 

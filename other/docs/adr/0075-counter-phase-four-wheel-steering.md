@@ -1,7 +1,12 @@
 # 0075. Four-wheel counter-phase steering replaces Ackermann
 
-- Status: accepted
+- Status: deprecated
 - Date: 2026-09-15
+- Merged into: 0076
+
+> Merged into [0076](0076-drivetrain-and-steering-hardware.md) on 2026-09-16. Its
+> content is carried there; edit only 0076. This file is kept so old references
+> resolve.
 
 ## Context
 

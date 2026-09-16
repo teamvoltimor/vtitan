@@ -133,5 +133,5 @@ move the outcome it was meant to fix.
 
 - 0011 and 0021 are superseded; their decisions are carried above.
 - 0069 owns the governance and precedence order; 0073 owns the challenge resolved
-  at runtime; 0075 owns the speed units.
+  at runtime; 0085 owns the speed units.
 

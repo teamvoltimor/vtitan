@@ -1,8 +1,12 @@
 # 0089. Robot constants are read at runtime and the xacro is the one hand-synced copy
 
-- Status: accepted
+- Status: deprecated
 - Date: 2026-09-15
 - Supersedes: 0008
+- Merged into: 0069
+
+> Merged into [0069](0069-config-governance.md) on 2026-09-16. Its content is
+> carried there; edit only 0069. This file is kept so old references resolve.
 
 ## Context
 

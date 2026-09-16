@@ -4,8 +4,8 @@ Source of truth: `src/config/robot.toml` (schema `src/model/robot.schema.json`),
 at runtime by both the Python and Go stacks. Units are metres, kilograms and radians
 unless a field is named `_deg`.
 
-Rationale lives in the ADRs: `adr:0089-robot-constants-runtime-and-xacro` (runtime
-reads and the hand-synced xacro), `adr:0076-drivetrain-and-steering-hardware`
+Rationale lives in the ADRs: `adr:0069-config-governance` (runtime reads and the
+hand-synced xacro), `adr:0076-drivetrain-and-steering-hardware`
 (drivetrain), `adr:0080-lidar-mount-and-scan-plane` (LIDAR mount and scan plane),
 `adr:0078-camera-mount-and-focus` (camera mount and focus).
 

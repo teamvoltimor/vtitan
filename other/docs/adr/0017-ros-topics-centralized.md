@@ -68,7 +68,7 @@ The specific consolidated facts this carries: track constants in `track.toml` (o
 source, runtime-read); corridor division lines `[0.40, 0.60]` defined once with
 the starting-square bands and sign-grid width derived; robot constants in
 `robot.toml` read at runtime (no `robot_constants.gen.go`; the xacro is a
-hand-synced checked-in copy, see 0089); sensor specs consolidated
+hand-synced checked-in copy, see 0069); sensor specs consolidated
 into `robot.toml` (`lidar.min_range`, `lidar.max_range`, `imu.mount_z_offset`);
 ROS topic names centralized in `ros_topics.toml`; competition rules in
 `competition_specs.toml` (`round_time_limit_s = 180.0`, `open_challenge_laps = 3`,
@@ -112,7 +112,7 @@ default reaches the robot is if the key is absent from the TOML.
 
 - 0003, 0004, 0016, 0017, 0018 and 0020 are superseded; their decisions are
   carried above.
-- 0008 is superseded by 0089 (runtime constants and the xacro copy).
+- 0008 is superseded by 0069 (runtime constants and the xacro copy).
 - 0019 (simulation robot-model topic split) and 0046 (repo layout) stay separate.
 - 0070 owns the profile overlay mechanism this precedence order names.
 - 0074 owns `control_hz`, the loop rate these consumers read.
