@@ -25,7 +25,15 @@ side_correction_steer_deg = 16.5
 side_correction_speed = 0.1
 side_correction_s = 0.20
 side_correction_blends = false
-tick_router_during_maneuver = false
+# ON since 2026-09-17. Measured, not assumed: over 105 escape episodes on five hardware rounds
+# the escape gains a median 9.8 cm and 97% are handed back the SAME target (median movement 0 cm),
+# 62% re-firing within 2 s; 183 manoeuvre episodes cover 22.3% of ticks with the plan frozen for
+# up to 44 ticks. A PAIRED A/B over 256 sighted corpus cases is flat to slightly positive on every
+# metric (in-time 214 -> 217, 9 fixed against 6 broken, p=0.61; laps>=3 226 -> 227; collisions
+# 10 -> 8; pass-side 2 -> 2), and the 16-fixture suite's 13 -> 14 sits inside that noise -- it
+# fixes 0014, which the tail gate broke, and breaks 0006. It replays the INGEST half only and
+# drops the deformed waypoint, so it cannot move the wheel. Inert in Open, which has no router.
+tick_router_during_maneuver = true
 escalate_after_attempts = 3
 escalate_doubles_duration = true
 # Measured 2026-09-16 and left ON: turning the doubling off is INERT on the corpus (13 failures,

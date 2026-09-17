@@ -191,3 +191,15 @@ measured against a broken baseline did not merely overstate.
   BELIEVED pose comfortably clear and the belief wandering 7-15 cm - the size of the
   effect being measured. Ships off; turning it on needs a pose the arbitration can
   trust, or a simulated lane that hugs the lot the way the car does.
+
+`sign_lane_deform_fallback_m` is REFUTED as of 2026-09-17, and so is the reason
+it went unmeasured. The bag case was real: over 129 bags the deform's target sat
+on the legal side of a FAILED crossing 47.3 percent of the time against the
+lane's 37.4 (chi2 17.0, p = 4e-5). The stated reason for not measuring it was
+that the simulator's sign map is exact, so the lane always materialises and the
+fallback branch "barely fires" - a flat A/B would measure the sim. It does fire:
+on the 16 Obstacles fixtures it costs 13 -> 17 at 0.13 m and 13 -> 31 at 0.28 m,
+monotone in the magnitude, and 13 -> 24 combined with
+`tick_router_during_maneuver`, which is worse than either arm alone. A knob whose
+alibi is "the ruler cannot see it" must be run against that ruler before the
+alibi is believed.

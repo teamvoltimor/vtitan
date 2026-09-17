@@ -282,3 +282,17 @@ in-time / 28 laps>=3 / 9 timed out; 1.8 gave 29 / 34 / 0; 2.3 gave 31 / 33 / 0;
   five rounds whose longest stay in a 0.30 m circle is under 25 s and firing 2-7
   times in every round with a 35-170 s stall. The 09-15 afternoon rounds that
   looped beside a pillar and beside the lot are the target.
+- `tick_router_during_maneuver` turned ON, 2026-09-17, after being off and
+  unvalidated since 2026-09-12. The bag case is the loop this ADR documents:
+  the escape gains a median 9.8 cm and 97 percent of episodes are handed back the
+  SAME target, 62 percent re-firing within two seconds, with manoeuvre episodes
+  covering 22.3 percent of ticks and holding one steering value for up to 44.
+  The committed 16-fixture suite reads 13 -> 14 (fixes 0014 entire - the one
+  scenario the tail gate broke - and three blind runs, breaks 0006 entire and
+  three others), which is why it was measured again on a bigger, PAIRED ruler:
+  256 sighted corpus cases run in both arms give in-time 214 -> 217 (9 fixed
+  against 6 broken, McNemar p = 0.61), laps>=3 226 -> 227, collisions 10 -> 8,
+  pass-side violations 2 -> 2 and one extra timeout. Flat to slightly positive on
+  every metric, so the fixture suite's single failure is inside the noise the
+  paired test measures directly. It cannot move the wheel by construction: the
+  deformed waypoint is dropped and only the ingest is replayed.

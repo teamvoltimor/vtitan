@@ -48,6 +48,11 @@ sign_lane_gap_centre_frac = 1.0
 sign_lane_commit_ahead_m = 0.0
 sign_lane_corner_entry_m = 0.5
 sign_lane_suppress_deform = true
+# REFUTED 2026-09-17, stays OFF -- and its ALIBI is refuted too. Over 129 bags the deform's target
+# was on the legal side of a failed crossing 47.3% of the time against the lane's 37.4% (chi2 17.0,
+# p=4e-5), and the stated reason for never measuring it was that the sim's sign map is exact, so
+# the branch "barely fires". It fires: corpus 13 -> 17 at 0.13 and 13 -> 31 at 0.28, monotone in
+# the magnitude, and 13 -> 24 combined with tick_router_during_maneuver (worse than either alone).
 sign_lane_deform_fallback_m = 0.0
 sign_deform_sense_guard = false
 sign_lane_relabel_unsatisfiable = true
