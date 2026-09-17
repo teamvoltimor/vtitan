@@ -36,6 +36,7 @@ from src.navigation.deferred_width_belief import DeferredWidthBelief
 from src.navigation.direction_estimator import DirectionEstimator, direction_from_parking_bay
 from src.navigation.maneuvers.bay_exit import BayExit
 from src.navigation.maneuvers.parking import ParkController, park_controller_from_metadata
+from src.navigation.maneuvers.parking.zone import ParkZone, build_zone
 from src.navigation.planning.sign_router import (
     SignRouter,
     SignRouterConfig,
@@ -570,6 +571,10 @@ class ScenarioSimulator(PassSideScorer):
             sign_router=sign_router,
             lap_detector=lap_detector,
             park_controller=self._park_controller,
+            # The lot is on the mat whether or not the manoeuvre is attempted,
+            # and `park` is off for the corpus, so the keep-out would be dead
+            # exactly where it is measured if it read the controller.
+            lot_zone=self._lot_zone(believed_start),
             direction=self._direction,
         )
 
@@ -636,6 +641,20 @@ class ScenarioSimulator(PassSideScorer):
             self._blind_follow_speed,
             self._tuning,
             yaw_rad=self._gateway.state.yaw,
+        )
+
+    def _lot_zone(self, believed_start) -> ParkZone | None:  # noqa: ANN001
+        """The parking lot as an obstacle rectangle, independent of parking.
+
+        Built from the same metadata `park_controller_from_metadata` reads, in
+        the BELIEVED start's section and direction, so a scenario that never
+        attempts the manoeuvre still knows where the fins stand.
+        """
+        lot = self._parking_lot
+        if lot is None:
+            return None
+        return build_zone(
+            lot.block1_position, lot.block2_position, believed_start.section, believed_start.direction
         )
 
     def _barrier_blocks(self) -> list[SignSpec]:

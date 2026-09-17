@@ -602,6 +602,7 @@ class TrackNavigator(Node, ResettableNode):
             sign_router=sign_router,
             lap_detector=lap_detector,
             park_controller=park_controller,
+            lot_zone=park_controller.zone if park_controller is not None else None,
             direction=start_direction,
         )
 

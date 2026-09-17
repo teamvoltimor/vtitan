@@ -46,3 +46,8 @@ class NavigationParkingParking(StrictModel):
         ...,
         description='Build the parking lot from the start pose when the metadata has none. On, so parking is reachable on hardware.',
     )
+    lot_keep_out_m: float = Field(
+        ...,
+        ge=0.0,
+        description="Extra metres, beyond the fins' own depth and the chassis half-width, the pursuit target is held off the parking lot while driving PAST it. Acts only inside the lot's along-wall span, only in the lot's own corridor, never once the park manoeuvre has engaged, and never when it would move the target toward the illegal side of a committed sign. 0.0 disables it.",
+    )

@@ -36,7 +36,11 @@ import math
 from collections import Counter
 
 import numpy as np
-from shared.config.constants import RobotSpecs
+from shared.config.constants import ParkingLotSpecs, RobotSpecs
+from shared.domain.enums import Section
+from shared.domain.models import BlockPosition
+
+from src.navigation.maneuvers.parking.zone import build_zone
 
 from scripts.common.bag_io import (
     LIDAR_YAW_OFFSET_RAD,
@@ -128,6 +132,66 @@ def nearest(series, ts):
     return min(series, key=lambda tv: abs(tv[0] - ts))[1]
 
 
+def _keep_out_counterfactual(rows, scans, events, keep_out_m: float) -> None:
+    """What `lot_keep_out_m` would have asked for, on the poses the run actually drove.
+
+    The lot is the START POSE on an Obstacles round: the robot begins inside it,
+    which is what `parking_lot_from_in_bay_start` already relies on. So the zone
+    needs no sensing, only the first believed pose and the settled direction. The
+    depth the keep-out wants is the fins' own depth plus the chassis half-width
+    plus ``keep_out_m``; how far the chassis actually ran from that says whether
+    the rule would have moved this round at all.
+    """
+    first = next(((s.pose_x, s.pose_y) for _ts, s in rows if s.pose_x is not None), None)
+    direction = next((s.direction for _ts, s in rows if s.direction), None)
+    section = next((s.current_corridor for _ts, s in rows if s.current_corridor), None)
+    if first is None or direction is None or section is None:
+        print("  keep-out counterfactual: no start pose, direction or corridor in this bag")
+        return
+    half_span = ParkingLotSpecs.BLOCK_SPACING_FACTOR * RobotSpecs.LENGTH / 2.0
+    along_x = section in (Section.SOUTH, Section.NORTH)
+    b1 = BlockPosition(x=first[0] - (half_span if along_x else 0.0), y=first[1] - (0.0 if along_x else half_span))
+    b2 = BlockPosition(x=first[0] + (half_span if along_x else 0.0), y=first[1] + (0.0 if along_x else half_span))
+    zone = build_zone(b1, b2, section, direction)
+    clear = ParkingLotSpecs.LENGTH + RobotSpecs.WIDTH / 2 + keep_out_m
+    inward = 1.0 if zone.wall_coord < 1.5 else -1.0
+    low, high = zone.bounds_along()
+    reach = RobotSpecs.LENGTH / 2
+    in_span, deficits = 0, []
+    for _ts, snap in rows:
+        if snap.pose_x is None or snap.pose_y is None:
+            continue
+        # The lot's own corridor only, and never the bay exit: the robot STARTS
+        # inside the lot, so the opening seconds are structurally "too close"
+        # and would swamp the pass-by ticks the rule is actually about.
+        if snap.current_corridor != section or "bay" in str(getattr(snap, "phase", "")).lower():
+            continue
+        along, depth = zone.project(snap.pose_x, snap.pose_y)
+        if not low - reach <= along <= high + reach:
+            continue
+        in_span += 1
+        deficit = (clear - (depth - zone.wall_coord) * inward)
+        if deficit > 0.0:
+            deficits.append(deficit)
+    contact_in_band = sum(1 for e in events if _in_band(rows, e[0], zone, low - reach, high + reach))
+    share = 100.0 * len(deficits) / in_span if in_span else 0.0
+    median = sorted(deficits)[len(deficits) // 2] if deficits else 0.0
+    print(
+        f"  keep-out {keep_out_m:.2f} m: ticks in the lot span {in_span}, of them short of the clear depth"
+        f" {len(deficits)} ({share:.0f}%), median deficit {median * 100:.1f} cm; contact ticks in the span"
+        f" {contact_in_band}"
+    )
+
+
+def _in_band(rows, ts: float, zone, low: float, high: float) -> bool:
+    """Was the believed pose at ``ts`` inside the lot's along-wall band?"""
+    snap = min(rows, key=lambda r: abs(r[0] - ts))[1]
+    if snap.pose_x is None or snap.pose_y is None:
+        return False
+    along, _depth = zone.project(snap.pose_x, snap.pose_y)
+    return low <= along <= high
+
+
 def main() -> int:
     parser = create_bags_parser(__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--contact-m", type=float, default=0.03, help="Footprint gap under which a tick counts as contact.")
@@ -136,6 +200,7 @@ def main() -> int:
     parser.add_argument("--bins", type=int, default=72, help="Angle bins for the self-return mask.")
     parser.add_argument("--fixture-m", type=float, default=0.35, help="Range under which a bin's return counts as short, for the mask.")
     parser.add_argument("--fixture-share", type=float, default=0.80, help="Share of ticks a bin must be short in to be masked as a chassis fixture.")
+    parser.add_argument("--keep-out-m", type=float, default=0.0, help="Counterfactual: extra metres beyond the fins and the chassis half-width the keep-out would hold, 0 to skip.")
     args = parser.parse_args()
 
     for bag_dir in args.bag_dirs:
@@ -196,6 +261,8 @@ def main() -> int:
             if px is None or py is None:
                 continue
             cells[(round(px * 2) / 2, round(py * 2) / 2)] += 1
+        if args.keep_out_m > 0.0:
+            _keep_out_counterfactual(rows, scans, events, args.keep_out_m)
         print("  believed cells: " + ", ".join(f"({x:.1f},{y:.1f}) {n}" for (x, y), n in cells.most_common(6)))
         # The tightest handful, with their believed pose, so the lot can be
         # recognised by position without trusting that position to find them.

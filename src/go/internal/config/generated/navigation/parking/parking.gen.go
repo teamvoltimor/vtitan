@@ -14,6 +14,11 @@ type NavigationParkingParking struct {
 	// parking is reachable on hardware.
 	DeriveLotFromInBayStart bool `json:"derive_lot_from_in_bay_start" yaml:"derive_lot_from_in_bay_start" mapstructure:"derive_lot_from_in_bay_start"`
 
+	// Extra metres, beyond the fins' own depth and the chassis half-width, the
+	// pursuit target is held off the parking lot while driving past it. 0.0 disables
+	// it.
+	LotKeepOutM float64 `json:"lot_keep_out_m" yaml:"lot_keep_out_m" mapstructure:"lot_keep_out_m"`
+
 	// closest approach to a parking-bay marker fin
 	MarkerStandoffM float64 `json:"marker_standoff_m" yaml:"marker_standoff_m" mapstructure:"marker_standoff_m"`
 

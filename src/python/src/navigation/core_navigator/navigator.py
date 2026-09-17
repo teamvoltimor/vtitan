@@ -16,6 +16,7 @@ from typing import TYPE_CHECKING
 from shared.config.constants import (
     CompetitionSpecs,
     CorridorDimensions,
+    ParkingLotSpecs,
     RobotSpecs,
     TrackDimensions,
     TrafficSignSpecs,
@@ -60,6 +61,7 @@ if TYPE_CHECKING:
     from shared.domain.enums import Section
 
     from src.navigation.maneuvers.parking import ParkController
+    from src.navigation.maneuvers.parking.zone import ParkZone
     from src.navigation.planning.sign_router import SignRouter
     from src.navigation.ports import HardwareGateway
     from src.navigation.race_tracker import LapDetector
@@ -115,6 +117,7 @@ class CoreNavigator(EscapeRecovery):
         sign_router: SignRouter | None = None,
         lap_detector: LapDetector | None = None,
         park_controller: ParkController | None = None,
+        lot_zone: ParkZone | None = None,
         direction: Direction | None = None,
     ) -> None:
         self._gateway = gateway
@@ -166,6 +169,11 @@ class CoreNavigator(EscapeRecovery):
         self._waypoint_threshold = self._tuning.waypoints.main_loop_reached_distance_m
         self._current_corridor: Section | None = None
         self._park_controller = park_controller
+        # The lot as an OBSTACLE, which is a different question from parking in
+        # it: the manoeuvre is not attempted on most runs (and never has been on
+        # hardware, 0 of 227 bags) while the fins are on the mat every time. Kept
+        # separately so `lot_keep_out_m` survives a run with no park controller.
+        self._lot_zone = lot_zone if lot_zone is not None else (park_controller.zone if park_controller else None)
         self._parking_engaged = False
         # Must clear the chassis's minimum turning radius with real margin: engaging any
         # closer than that hands ParkController a staging target already inside its own
@@ -681,6 +689,64 @@ class CoreNavigator(EscapeRecovery):
             return None
         return arc_fit_speed_mps(along - RobotSpecs.LENGTH / 2, need)
 
+    def _lot_keep_out_target(
+        self, target: tuple[float, float], robot_x: float, robot_y: float
+    ) -> tuple[float, float]:
+        """Hold the pursuit target off the parking lot while driving PAST it.
+
+        Measured on the 2026-09-15 rounds with ``diag_bag_lot_contact.py``: the
+        rounds the operator saw brush the lot spend 210-242 ticks inside its
+        believed band with under 3 cm of footprint clearance, against 0-6 in a
+        clean round, and the touching sector is the FLANK (185 left against 15
+        right in one round, 144 right in another) with the nose almost never
+        involved. The car is scraping past the fins, which stand
+        ``ParkingLotSpecs.LENGTH`` out from the wall, not driving into them.
+
+        So the target's depth from the lot's wall is raised to the fins' depth
+        plus the chassis half-width plus ``lot_keep_out_m``. Deliberately narrow,
+        because the general keep-out is already refuted at corpus 12 -> 30
+        (``adr:0051``): it acts only in the lot's own corridor, only inside the
+        lot's along-wall span widened by half a chassis length, never once the
+        park manoeuvre has engaged, and never when the push would move the target
+        toward the ILLEGAL side of a committed sign. A wrong-side pass ends the
+        round; a scrape does not.
+        """
+        room = self._tuning.parking.lot_keep_out_m
+        zone = self._lot_zone
+        if room <= 0.0 or zone is None or self._parking_engaged:
+            return target
+        section = corridor_for_position(zone.gap_cx, zone.gap_cy)
+        if self._current_corridor is not None and self._current_corridor != section:
+            return target
+        along_robot, _ = zone.project(robot_x, robot_y)
+        low, high = zone.bounds_along()
+        reach = RobotSpecs.LENGTH / 2
+        if not low - reach <= along_robot <= high + reach:
+            return target
+        inward = 1.0 if zone.wall_coord < (TrackDimensions.MIN_COORD + TrackDimensions.MAX_COORD) / 2 else -1.0
+        wanted = zone.wall_coord + inward * (ParkingLotSpecs.LENGTH + RobotSpecs.WIDTH / 2 + room)
+        along_target, depth_target = zone.project(*target)
+        _, depth_robot = zone.project(robot_x, robot_y)
+        # The CHASSIS is what scrapes, and pure pursuit only turns when the
+        # target sits off the current line: a target already clear of the fins
+        # commands nothing while the chassis is inside them. So the deficit the
+        # chassis carries is mirrored past the clear depth, the standard way to
+        # ask a pursuit controller for a correction rather than a hold.
+        deficit = max(0.0, (wanted - depth_robot) * inward)
+        wanted_target = wanted + inward * deficit
+        held = max(depth_target, wanted_target) if inward > 0 else min(depth_target, wanted_target)
+        if held == depth_target:
+            return target
+        # ``project`` returns (along, depth), which is (y, x) on an east/west
+        # wall and (x, y) on a north/south one; invert it the same way round.
+        pushed = (held, along_target) if zone.wall_is_x else (along_target, held)
+        if self._sign_router is not None:
+            was = self._sign_router.committed_pass_side_offset(target)
+            now = self._sign_router.committed_pass_side_offset(pushed)
+            if was is not None and now is not None and now < was:
+                return target
+        return pushed
+
     def _crossing_run_up_shortfall(self, robot_x: float, robot_y: float, robot_yaw: float) -> float | None:
         """Metres of run-up the committed crossing is short of, or ``None`` when nothing applies.
 
@@ -968,6 +1034,8 @@ class CoreNavigator(EscapeRecovery):
         section/direction/metadata it used the first time and hands it here.
         """
         self._park_controller = park_controller
+        if park_controller is not None:
+            self._lot_zone = park_controller.zone
         self._parking_engaged = False
 
     def reset(self) -> None:
@@ -1625,6 +1693,11 @@ class CoreNavigator(EscapeRecovery):
                 # ``adr:0063-corridor-flip-and-sense-guards``.
                 steer_target = raw_target
                 self._deform_sense_rejects += 1
+
+        # Last on the target, after the sign lane has had its say: the lot is a
+        # fixed obstacle the lane does not model, and the push declines itself
+        # when it would fight a committed pass. See _lot_keep_out_target.
+        steer_target = self._lot_keep_out_target(steer_target, robot_x, robot_y)
 
         # Get steering from waypoint controller
         steering_normalized, _, angle_error = self._waypoint_controller.compute_steering(
