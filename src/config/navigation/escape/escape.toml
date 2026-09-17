@@ -47,6 +47,13 @@ setup_reverse_room_m = 0.0
 # missing piece; the re-approach target is. See adr:0055.
 obstacles_setup_reverse_room_m = 0.0
 setup_reverse_legs = 2
+post_escape_creep_s = 0.0
+# REFUTED 2026-09-16, ships OFF. The arithmetic held (at creep the lateral reach in 0.2 m of
+# depth nearly doubles, 0.06 -> 0.11 m) and the corpus did not: 3 s of creep after a
+# front-threat escape gives 13 -> 21 failures (breaks 0004, 0006 and four blind-discovery
+# runs); 2 s and 5 s are no better on the moving scenarios. Slower re-approach means more
+# ticks beside the pillar, not a cleaner pass. See adr:0055.
+obstacles_post_escape_creep_s = 0.0
 escape_dwell_seconds = 0.0
 escape_dwell_radius_m = 0.30
 escape_dwell_cooldown_s = 10.0

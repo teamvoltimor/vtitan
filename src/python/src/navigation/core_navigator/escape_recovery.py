@@ -461,6 +461,19 @@ class EscapeRecovery:
             # rather than during it. See ``adr:0055-escape-maneuver-selection``.
             if self._escape_sequence_start_xy is not None:
                 self._escape_sequence_start_xy = (robot_x, robot_y)
+            if (
+                maneuver.maneuver_type is ManeuverType.K_TURN
+                and maneuver.speed < 0.0
+                and self._escape.post_escape_creep_s > 0.0
+            ):
+                # Arm the post-escape creep (see the navigator's speed cap).
+                # Measured at re-approach: the lane target sits 0.17-0.25 m
+                # ahead with 0.06-0.18 m of lateral offset; at the 0.35 m
+                # capped radius the chassis shifts 0.06 m in that depth, at
+                # creep (R = 0.24 m) 0.11 m. Speed is the alignment authority.
+                self._post_escape_creep_ticks = self._escape.frames(
+                    self._escape.post_escape_creep_s, self._tuning.control.control_hz
+                )
         # A retrace is re-aimed every tick, unlike a latched arc: the whole
         # point is to follow a path, and a single steering value fixed at
         # trigger time would describe an arc again after the first few

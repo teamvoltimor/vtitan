@@ -209,6 +209,7 @@ class CoreNavigator(EscapeRecovery):
         self._dwell_place_fires = 0
         self._retracing = False
         self._setup_legs_left = 0
+        self._post_escape_creep_ticks = 0
 
         self._build_challenge_controllers(sign_router)
 
@@ -1781,6 +1782,13 @@ class CoreNavigator(EscapeRecovery):
             if evade is not None:
                 steering_normalized = max(-1.0, min(1.0, steering_normalized + evade))
                 speed = min(speed, self._speed.sign_evade_mps())
+
+        # Creep for a while after a front-threat escape: the re-approach needs a
+        # lateral shift the capped turn radius cannot deliver in the depth left,
+        # and on this chassis the radius is a speed curve. See _post_escape_creep.
+        if self._post_escape_creep_ticks > 0:
+            self._post_escape_creep_ticks -= 1
+            speed = min(speed, self._speed.creep_mps)
 
         # Escape maneuvers if critical — judged on the masked scan, so a mapped
         # sign cannot trigger one, and steered by the masked scan too: the

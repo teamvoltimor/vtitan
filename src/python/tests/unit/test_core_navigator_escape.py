@@ -16,7 +16,7 @@ import numpy as np
 import pytest
 from shared.config.constants import RobotSpecs, TrafficSignSpecs
 from shared.config.navigation_tuning import NavigationTuning
-from shared.domain.enums import Section
+from shared.domain.enums import NavigatorPhase, Section
 from shared.domain.models import Detection, IMUReading, Pose, SignColor, Waypoint
 
 from src.config.tuning_helpers import tuning_with_overrides
@@ -1135,3 +1135,61 @@ class TestSetupReverseBuysRoomBeforeReapproach:
         nav = self._navigator(waypoints, tuning, scan, obstacles=False)
         nav._setup_legs_left = 3
         assert nav._setup_reverse_leg(scan, forward_clearance=0.05) is None
+
+
+class TestPostEscapeCreep:
+    """A front-threat reverse escape arms a creep-speed cap for the re-approach.
+
+    Measured on the corpus at re-approach: the lane target sits 0.17-0.25 m
+    ahead with 0.06-0.18 m of lateral offset. At the 0.35 m capped turn radius
+    the chassis can shift 0.06 m in that depth; at creep (R = 0.24 m) 0.11 m.
+    The arithmetic held and the corpus refuted it (13 to 21), so it ships OFF;
+    these tests pin the mechanism for the knob, enabled explicitly. See
+    adr:0055-escape-maneuver-selection.
+    """
+
+    @staticmethod
+    def _navigator(waypoints, tuning, *, obstacles: bool) -> CoreNavigator:
+        scan = LidarScan(ranges_m=tuple(create_scan_with_sectors(front=3.0, back=3.0)), angles_rad=tuple(ANGLES))
+        gateway = FakeGateway(Pose(x=1.5, y=0.5, yaw=0.0), scan)
+        router = (
+            SignRouter(
+                [SignSpec(x=50.0, y=50.0, color=SignColor.RED)],
+                config=SignRouterConfig.from_tuning(tuning.sign_router),
+            )
+            if obstacles
+            else None
+        )
+        return CoreNavigator(
+            gateway=gateway, waypoints=waypoints, num_laps=1, tuning=tuning, sign_router=router
+        )
+
+    def _run_out(self, nav: CoreNavigator, maneuver: EscapeManeuver) -> None:
+        nav._begin_maneuver(maneuver)
+        for _ in range(maneuver.duration_frames):
+            nav._drive_active_maneuver(1.5, 0.5, 0.0, phase=NavigatorPhase.ACTIVE_MANEUVER)
+        assert nav._active_maneuver is None
+
+    def test_a_reverse_k_turn_arms_the_creep_on_obstacles(self, waypoints, tuning):
+        nav = self._navigator(waypoints, tuning, obstacles=True)
+        assert nav._escape.post_escape_creep_s == 0.0, "refuted on the corpus (13 -> 21), ships off"
+        seconds = 3.0
+        nav._escape = nav._escape.model_copy(update={"post_escape_creep_s": seconds})
+
+        self._run_out(nav, EscapeManeuver(ManeuverType.K_TURN, steering=0.4, speed=-0.2, duration_frames=4))
+
+        assert nav._post_escape_creep_ticks == nav._escape.frames(seconds, tuning.control.control_hz)
+
+    def test_a_forward_side_correction_does_not_arm_it(self, waypoints, tuning):
+        nav = self._navigator(waypoints, tuning, obstacles=True)
+
+        self._run_out(nav, EscapeManeuver(ManeuverType.SIDE_CORRECTION, steering=0.2, speed=0.1, duration_frames=4))
+
+        assert nav._post_escape_creep_ticks == 0
+
+    def test_open_challenge_stays_off(self, waypoints, tuning):
+        nav = self._navigator(waypoints, tuning, obstacles=False)
+
+        self._run_out(nav, EscapeManeuver(ManeuverType.K_TURN, steering=0.4, speed=-0.2, duration_frames=4))
+
+        assert nav._post_escape_creep_ticks == 0

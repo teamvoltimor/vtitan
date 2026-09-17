@@ -195,6 +195,16 @@
       "description": "Maximum straight setup reverses chained after one K-turn before the chassis re-approaches regardless.",
       "x-journal": "adr:0055-escape-maneuver-selection"
     },
+    "post_escape_creep_s": {
+      "type": "number",
+      "description": "Seconds of creep-speed cap after a FRONT-threat reverse escape ends. Measured 2026-09-16 on the corpus: at re-approach the lane target sits 0.17-0.25 m ahead with 0.06-0.18 m of lateral offset, and at the 0.35 m capped turn radius the chassis can shift only 0.06 m in that depth; at creep the radius is 0.24 m and the reach 0.11 m. Speed IS the alignment authority on this chassis. 0 disables.",
+      "x-journal": "adr:0055-escape-maneuver-selection"
+    },
+    "obstacles_post_escape_creep_s": {
+      "type": "number",
+      "description": "Obstacles-only override of post_escape_creep_s.",
+      "x-journal": "adr:0055-escape-maneuver-selection"
+    },
     "escape_dwell_seconds": {
       "type": "number",
       "description": "Seconds the chassis must have stayed inside escape_dwell_radius_m before an escape is allowed to switch its committed side. 0.0 disables the gate, which is how it ships. It exists because the attempt COUNTER is anti-correlated with the failure it was built for: measured over the 786 escape latches of the 2026-09-15 session, escalate_after_attempts fired on 24% of latches in a clean 3-lap round whose longest stay in a 0.30 m circle was 8 s, and on 0% in the round that spent 98 of its 183 s pinned inside one. The wedged robot does not sit still: it covers 22.3 m of path for 0.14 m of net displacement, and every thrash clears the 3 cm reset that the counter and the stuck detector both watch. Dwell measures the thing that actually distinguishes them. At 12 s the separation is perfect on that session: silent in all five rounds whose longest stay is under 25 s, including the only scoreable one (worst case 8.9 s), and firing 2-7 times in every round with a 35-170 s stall.",
@@ -256,6 +266,8 @@
     "setup_reverse_room_m",
     "obstacles_setup_reverse_room_m",
     "setup_reverse_legs",
+    "post_escape_creep_s",
+    "obstacles_post_escape_creep_s",
     "escape_dwell_seconds",
     "escape_dwell_radius_m",
     "escape_dwell_cooldown_s",

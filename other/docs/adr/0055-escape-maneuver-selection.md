@@ -151,6 +151,16 @@ in-time / 28 laps>=3 / 9 timed out; 1.8 gave 29 / 34 / 0; 2.3 gave 31 / 33 / 0;
   corpus 13 to 15 at 0.35 m x 2 legs, and every other arm (0.30, 0.40 x 3)
   broke more. The escape does not lack room after all; it lacks a re-approach
   target that is not the one it just escaped from.
+- 2026-09-16: `post_escape_creep_s` added and REFUTED, shipped off. Measured
+  in the believed frame at every post-escape re-approach: the lane target sits
+  0.17-0.25 m ahead with 0.06-0.18 m of lateral offset, and at the 0.35 m
+  capped radius the chassis shifts 0.06 m in that depth, so about three of
+  four re-approaches are geometrically unreachable. Creeping (R = 0.24 m,
+  reach 0.11 m) for 3 s after the escape gave 13 to 21 on the corpus (0004,
+  0006 and four blind-discovery runs broke); 2 s and 5 s no better. The
+  re-approach is not short of radius either; the chassis is already inside
+  the pillar's zone when the escape ends, and the remaining lever is upstream
+  of the escape: commit and slow BEFORE the pillar, not after it.
 
 ## Cross-references
 
