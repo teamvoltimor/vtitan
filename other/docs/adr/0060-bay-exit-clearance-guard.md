@@ -267,3 +267,45 @@ infraction. The exit must be evaluated against the default contact model.
   inertia/coast) were each refuted by A/B.
 - On three on-track runs the commanded-zero bay pauses measured p50 2.551 / 2.556 /
   2.552 s, matching the 2.50 s the shipped 1.2 rad/s predicts.
+
+## The simulated in-bay start, measured 2026-09-17
+
+`obstacles_start_in_bay` ships off because every fixture dies there, and that is
+the gate for measuring anything about the parking lot (see 0086). Traced tick by
+tick, with `scripts/sim/diag_bay_exit_start.py` scoring the configuration the
+corpus cannot see:
+
+- the bay IS recognised -- `direction_from_parking_bay` answers on the first
+  scan and the exit manoeuvre runs -- so the old "the in-bay robot never moves"
+  diagnosis no longer applies;
+- the opening leg drives while the servo is still slewing. The wheel needs
+  0.62 s to reach lock at `servo_slew_rate_rad_s` = 2.4 rad/s; the chassis
+  covers the pocket's 6.5 cm of along-wall slack in about that time, so the exit
+  turns 1.3 degrees where its radius allows 8 and reaches the fin ahead with the
+  wheel still on its way. `_begin_leg` budgets this standstill at every leg
+  CHANGE and never for the first leg, which is the one with the least room;
+- the clearance guard then refuses BOTH legs and returns speed 0.0 on every
+  tick while the chassis coasts the last 3.4 cm into the fin. Its own frame is
+  6 cm pessimistic (`guard_gap` frozen at -2.57 cm against a true 3.41 cm), and
+  `bay_exit_guard_overlap_recovery` cannot fire because a frozen gap never
+  improves. Guard OFF is not a fix either: 0/16, the chassis simply drives into
+  the fin unguarded.
+
+`bay_exit_prime_steer` pays the opening swing at a standstill. With it the run
+survives 383 ticks instead of 34 and ratchets 16.5 degrees and 3.7 cm out of the
+pocket, which is the mechanism working rather than failing. It is still 0/16.
+
+The three reverse policies are now each refuted, for three different reasons:
+
+| reverse leg | collisions | escapes | why |
+| --- | --- | --- | --- |
+| mirrored (ships) | 16/16 | 0/16 | buys rotation, pays a 1.23 s lock-to-lock swing per cycle against 0.3 s legs |
+| held (`bay_exit_guard_mirrors_reverse=false`) | 1/16 | 0/16 | free, accumulates nothing: 1-3 cm net in 600 ticks, `stuck` |
+| straight (`bay_exit_guard_reverse_straight`) | 16/16 | 0/16 | keeps the heading, sweeps the tail into a fin |
+
+Holding is the only policy that stops touching fins, and it provably cannot
+accumulate: at constant steering magnitude the lateral displacement is a state
+function of heading, so a closed cycle returns both. The open problem is now
+exact: the pocket needs an exit that GAINS heading without paying a lock-to-lock
+swing and without sweeping the tail across a fin. Both knobs ship off with these
+measurements.

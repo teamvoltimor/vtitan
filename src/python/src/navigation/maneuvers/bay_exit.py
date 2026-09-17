@@ -290,6 +290,15 @@ class BayExit:
         # Starts at 0: the first arc begins from wherever the wheels already
         # are, and the settle is budgeted at each leg CHANGE.
         self._settle_ticks = 0
+        # Whether the servo has been given its opening swing at a standstill.
+        # The settle above is budgeted at each leg CHANGE, so the FIRST leg has
+        # always started from centred wheels and driven while the servo slewed.
+        # Measured in the pocket: the wheel needs 0.62 s to reach lock at
+        # SERVO_SLEW_RATE_RAD_S, the chassis covers the pocket's 6.5 cm of slack
+        # in about that time, and the exit turns 1.3 degrees instead of the 8
+        # the radius allows -- so it drives into the fin ahead with the wheel
+        # still on its way. See ``adr:0060-bay-exit-clearance-guard``.
+        self._primed = False
         # Ticks the manoeuvre has run, and whether the fallback has fired.
         self._ticks = 0
         self._switched = False
@@ -662,8 +671,24 @@ class BayExit:
         # servo pause automatically, which is exactly why that budget was left
         # computed rather than tuned.
         def leg_norm(is_reverse: bool) -> float:
-            """Lock for a leg, mirrored on the reverse when asked."""
-            return -arc if (follower.bay_exit_guard_mirrors_reverse and is_reverse) else arc
+            """Lock for a leg: mirrored, held, or STRAIGHT on the reverse.
+
+            The three are not interchangeable and the pocket separates them.
+            Mirroring buys rotation and pays a full lock-to-lock swing for it
+            (1.23 s at the measured slew, against legs of ~0.3 s). Holding is
+            free and accumulates NOTHING: at constant steering magnitude
+            ``dy/dtheta`` is a state function of theta, so a cycle that returns
+            theta to its start returns y with it -- measured as a shuffle that
+            leaves 1-3 cm of net travel in 600 ticks. Straight is the honest
+            asymmetry the cycle manoeuvre is built on: the arc wins theta, the
+            reverse keeps it while buying back the room, and the swing is half a
+            mirror's. See ``adr:0060-bay-exit-clearance-guard``.
+            """
+            if not is_reverse:
+                return arc
+            if follower.bay_exit_guard_reverse_straight:
+                return 0.0
+            return -arc if follower.bay_exit_guard_mirrors_reverse else arc
 
         wheel_norm = leg_norm(self._leg_is_reverse)
         next_norm = leg_norm(not self._leg_is_reverse)
@@ -1182,6 +1207,28 @@ class BayExit:
         # touch a fin, which ends the round under 9.24.7, but a manoeuvre that
         # never leaves the pocket has already lost the round and the 7 points
         # the in-bay start was worth.
+        # Pay the opening servo swing before anything moves, once per exit.
+        # Every leg AFTER the first already gets this from `_begin_leg`; the
+        # first one never did, and it is the leg with the least room to waste.
+        if follower.bay_exit_prime_steer and not self._primed:
+            self._primed = True
+            opening = clamp(
+                follower.bay_exit_cycle_reverse_steer_norm
+                if (follower.bay_exit_cycle and self._leg_is_reverse)
+                else follower.bay_exit_arc_steer_norm
+                if follower.bay_exit_cycle
+                else follower.bay_exit_steer_norm,
+                0.0,
+                1.0,
+            )
+            self._begin_leg(
+                is_reverse=self._leg_is_reverse,
+                travelled_m=travelled_m,
+                tuning=tuning,
+                from_norm=0.0,
+                to_norm=opening,
+            )
+
         guard_trapped = (
             follower.bay_exit_guard_block_ticks > 0 and self._guard_block_ticks >= follower.bay_exit_guard_block_ticks
         )

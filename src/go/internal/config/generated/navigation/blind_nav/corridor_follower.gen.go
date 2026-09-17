@@ -46,6 +46,16 @@ type NavigationBlindNavCorridorFollower struct {
 	// implies; refuted, ships false.
 	BayExitDrUsesMeasuredYaw bool `json:"bay_exit_dr_uses_measured_yaw" yaml:"bay_exit_dr_uses_measured_yaw" mapstructure:"bay_exit_dr_uses_measured_yaw"`
 
+	// Hold the chassis still until the servo has swung to the FIRST leg's angle, the
+	// way every leg after the first is already budgeted. The opening leg has always
+	// started from centred wheels and driven while the servo slewed.
+	BayExitPrimeSteer bool `json:"bay_exit_prime_steer" yaml:"bay_exit_prime_steer" mapstructure:"bay_exit_prime_steer"`
+
+	// Back straight on the guarded ratchet's reverse leg, rather than mirroring the
+	// lock (a full lock-to-lock servo swing per cycle) or holding it (which
+	// accumulates nothing).
+	BayExitGuardReverseStraight bool `json:"bay_exit_guard_reverse_straight" yaml:"bay_exit_guard_reverse_straight" mapstructure:"bay_exit_guard_reverse_straight"`
+
 	// Ticks before switching to the other legacy exit / handing over; 0 = never.
 	BayExitFallbackFrames int `json:"bay_exit_fallback_frames" yaml:"bay_exit_fallback_frames" mapstructure:"bay_exit_fallback_frames"`
 

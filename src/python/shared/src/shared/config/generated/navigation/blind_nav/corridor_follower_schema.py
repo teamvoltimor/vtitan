@@ -189,6 +189,14 @@ class NavigationBlindNavCorridorFollower(StrictModel):
         ...,
         description='Steer the opposite way on the reverse leg so the two arcs curve opposite ways and yaw accumulates instead of cancelling.',
     )
+    bay_exit_guard_reverse_straight: bool = Field(
+        ...,
+        description="Back STRAIGHT on the guarded ratchet's reverse leg, rather than mirroring the lock (a full lock-to-lock servo swing per cycle) or holding it (which accumulates nothing, the lateral displacement being a state function of heading).",
+    )
+    bay_exit_prime_steer: bool = Field(
+        ...,
+        description="Hold the chassis still until the servo has swung to the FIRST leg's angle, the way every leg after the first is already budgeted by _begin_leg. The opening leg has always started from centred wheels and driven while the servo slewed: measured inside the pocket the wheel needs 0.62 s to reach lock, the chassis covers the pocket's 6.5 cm of along-wall slack in about that time, and the exit turns 1.3 degrees instead of the 8 its turn radius allows.",
+    )
     bay_exit_dr_uses_measured_yaw: bool = Field(
         ...,
         description='Dead reckon each bay-exit leg with measured yaw instead of the yaw its steering implies; refuted, ships false.',
