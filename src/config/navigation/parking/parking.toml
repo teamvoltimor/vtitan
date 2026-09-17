@@ -13,7 +13,13 @@ wall_standoff_m = 0.05
 marker_standoff_m = 0.01
 attempt_after_final_lap = false
 derive_lot_from_in_bay_start = true
-# OFF, under measurement 2026-09-17: the 09-15 rounds that brushed the lot did it with the
-# FLANK (185 left against 15 right in one round), 210-242 contact ticks inside the lot band
-# against 0-6 in a clean round, so the lane drives past the fins with no room to spare.
+# OFF, measured 2026-09-17: the 09-15 rounds that brushed the lot did it with the FLANK (185
+# left against 15 right in one round), 210-242 contact ticks inside the lot band against 0-6 in
+# a clean round, so the lane drives past the fins with no room to spare. The corpus CANNOT score
+# it: 0.02 / 0.05 / 0.10 all return the baseline's 13 failures with an IDENTICAL set (fixed=0,
+# broke=0), because the simulated lane passes the lot at 0.64 m of depth while the car passes at
+# 0.28-0.34 m, so the knob never fires there. On the bags the counterfactual acts in ONE round of
+# four, and the two rounds with the most contact ticks (151026, 145954) show the believed pose
+# comfortably clear while the belief itself wanders 7-15 cm -- the size of the effect. Turning it
+# on needs a pose the arbitration can trust, or a sim lane that hugs the lot like the car does.
 lot_keep_out_m = 0.0

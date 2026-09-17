@@ -180,3 +180,14 @@ measured against a broken baseline did not merely overstate.
 - The budget put 62 percent of the missing 1.4 m of anticipation in perception
   already (2026-09-11 `ev=X` rationale); 0051 records the 1.4 m decay, not this
   split.
+- `lot_keep_out_m`, 2026-09-17: the corpus cannot score it. 0.02 / 0.05 / 0.10 all
+  return the baseline's 13 failures with an IDENTICAL failure set (fixed=0, broke=0),
+  because the simulated lane passes the parking lot at 0.64 m of depth while the car
+  passes at 0.28-0.34 m, so the gate never fires in the sim at all. That is a VOID
+  A/B, not a refutation: the corpus here is a damage ruler only, and it reads zero
+  damage. On the bags the counterfactual acts in ONE round of four (534 of 659 pass-by
+  ticks short of the clear depth in 150722, 23 of 668 in 151026, 0 in the other two),
+  while 151026 and 145954 carry 278 and 104 contact ticks in the lot band with the
+  BELIEVED pose comfortably clear and the belief wandering 7-15 cm - the size of the
+  effect being measured. Ships off; turning it on needs a pose the arbitration can
+  trust, or a simulated lane that hugs the lot the way the car does.
