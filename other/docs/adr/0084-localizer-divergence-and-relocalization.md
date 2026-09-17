@@ -167,3 +167,32 @@ the slowest feed's scan period (LIDAR at 10 Hz).
   a wedge as the parking lot's west fin, and found a pillar 0.38 m from the wall in
   one round and 0.53 m in its siblings: 15 cm of same-layout disagreement, an
   object that moved or a pose bias that no clearance metric surfaces.
+- The width-spread gate is necessary, not sufficient. `run_20260915_160804` ran
+  commit `98fd5a37` with a clean tree, so `relocalize_min_width_spread_m` was
+  already shipped, and the round still lost its pose: the believed widths were
+  0.63 / 0.955 / 0.958, a spread of 0.325 that passes the gate because ONE pair of
+  opposite corridors differs, while the OTHER pair is equal to within 3 mm and
+  leaves a mirror that explains the scan as well as the truth. The search ran, the
+  estimate teleported 2.06 m in 1.26 s (1.64 m/s against 0.26 m/s commanded), the
+  cost fell 0.0316 to 0.0100 so `relocalize_accept_ratio` was satisfied, and the
+  corridor label flipped east to west. The planner then replanned the waypoint
+  index 35 -> 9, drove `angle_error_rad` to 2.96 (170 deg, target directly behind),
+  and swept yaw -68 -> +145 deg -- 213 deg in 4.8 s -- while the pose stayed inside
+  an 8 x 26 cm box. That is the U-turn the operator saw on the round scored 6.
+- The event is also the only tick stall over 0.5 s in the whole afternoon: the
+  control loop blocked 1.26 s across the relocalization, one `no_pose` snapshot.
+- `relocalize_confirm_dist_m` answers it by REUSING the local speed guard's
+  discriminator rather than the reverted cost/margin one: a winner further than
+  the knob is held and taken only when a later global search reconverges within
+  `jump_confirm_tolerance_m`. A real correction reconverges from an independent
+  scan; an ambiguous tie does not, and the 140358 event measured exactly that --
+  a coarse-to-fine grid picked a different winner on 6 of 38 scans and refining
+  the lattice did not reduce it. The price is latency, not refusal: a genuine long
+  rescue is delayed by `relocalize_after_scans` (~1.5 s), which is asserted in the
+  two rescue tests rather than hidden in a generous tick count.
+- The corpus cannot score the benefit. Obstacles fixes all four corridors at
+  1000 mm, so the spread gate refuses the search there and this guard sits
+  downstream of it; the corpus is a damage ruler only.
+- GO PARITY GAP, recorded rather than silently carried: `src/go/internal/nav/
+  localization` has neither this guard nor `relocalize_min_width_spread_m`. The
+  Go localizer is two guards behind the Python one.

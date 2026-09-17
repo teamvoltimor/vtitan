@@ -66,6 +66,7 @@ import time
 from typing import TYPE_CHECKING, Any
 
 import numpy as np
+from shared.config.constants import CorridorDimensions
 from shared.config.constants.robot import RobotSpecs
 
 from scripts.common.fidelity_axes import (
@@ -73,8 +74,10 @@ from scripts.common.fidelity_axes import (
     SectorCensus,
     VisionFreshness,
     contiguous_episodes,
+    flank_gaps,
     format_committed,
     format_escapes,
+    format_flank,
     format_steering,
     format_vision_freshness,
 )
@@ -108,6 +111,8 @@ class _Trace:
         self.yaw: list[float] = []
         self.speed: list[float] = []
         self.census = SectorCensus()
+        self.flank_left: list[float | None] = []
+        self.flank_right: list[float | None] = []
 
     def __len__(self) -> int:
         return len(self.yaw)
@@ -149,6 +154,9 @@ def _run(scenario: NamedScenario, *, emit_vision: bool) -> None:
             bearings = np.degrees(np.asarray(scan.angles_rad))
             returned = ranges < RobotSpecs.LIDAR_MAX_RANGE - 1e-6
             trace.census.add(bearings, ranges, finite=returned)
+            left, right = flank_gaps(bearings, ranges, max_range_m=RobotSpecs.LIDAR_MAX_RANGE)
+            trace.flank_left.append(left)
+            trace.flank_right.append(right)
 
     started = time.time()
     result = sim.run(max_steps=_MAX_STEPS, on_step=on_step)
@@ -201,6 +209,11 @@ def _run(scenario: NamedScenario, *, emit_vision: bool) -> None:
 
     steer = [trace.steer[i] for i in range(ticks) if trace.steer[i] is not None and trace.maneuver[i] is None]
     for line in format_steering(steer, duration):
+        print(line)
+
+    for line in format_flank(
+        trace.flank_left, trace.flank_right, corridor_width_m=CorridorDimensions.OBSTACLES_WIDTH
+    ):
         print(line)
 
     for line in format_vision_freshness(

@@ -206,3 +206,40 @@ deg approach.
   so a run beginning elsewhere carries a rigid belief offset (p50 1.58 m over the
   corpus) for its whole length; `known_start` seeds from ground truth to isolate
   it.
+
+## Lane placement, measured 2026-09-17 (axis 7)
+
+`flank_gaps` / `format_flank` add a POSE-FREE lane-placement axis to the paired
+fidelity scripts: the closest left and right returns abeam (+-15 degrees),
+measured from the chassis side rather than the sensor origin. Pose-free because
+the believed frame wanders 7-15 cm inside one round, which is the size of the
+differences this axis exists to resolve.
+
+It RETRACTS a claim made earlier the same day. From a single scenario it looked
+as though the simulated car drives the corridors further from the walls than the
+real one (0.64 m against 0.28-0.34 m beside the parking lot), which would have
+made every margin knob unmeasurable in the simulator. The axis says otherwise:
+
+| ruler | nearer flank p50 | ticks under 0.10 m |
+| --- | --- | --- |
+| sim `go_obstacles_0000` | 0.18 m | 32.1% |
+| `run_20260915_150722` | 0.16 m | 41.5% |
+| `run_20260915_151026` | 0.17 m | 33.8% |
+| `run_20260915_153348` | 0.21 m | 16.3% |
+
+The simulated car hugs walls as hard as the real one. What is specific to the
+LOT: across all 16 fixtures the simulated chassis never comes within 0.42 m of
+the lot's wall while inside the lot's along-wall span, against the 0.28-0.34 m
+the hardware runs at. The cause is the START, not the lane -- the hardware
+begins INSIDE the lot and leaves and re-enters that band every lap, while the
+simulator starts mid-corridor with `obstacles_start_in_bay` off.
+
+Turning that flag on does not buy the measurement: all six fixtures tried die at
+the bay exit with 0 laps and a collision, which is what the flag's own entry
+already says. So the bay exit is the GATE for measuring anything about the lot,
+including `lot_keep_out_m`, which is why that knob ships off and inert (0.02,
+0.05 and 0.10 all return the baseline's 13 failures with an identical set).
+
+One caveat on the hardware number: the lot is derived from the start pose, and
+the measured start pose sits 3-9 cm inside the wall, so part of the 0.28-0.34 m
+is that bias rather than the chassis.
