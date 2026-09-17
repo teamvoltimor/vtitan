@@ -309,3 +309,33 @@ function of heading, so a closed cycle returns both. The open problem is now
 exact: the pocket needs an exit that GAINS heading without paying a lock-to-lock
 swing and without sweeping the tail across a fin. Both knobs ship off with these
 measurements.
+
+## What the HARDWARE exit does, measured 2026-09-17
+
+The operator's account corrects the simulator's: the real car DOES leave the
+pocket, nose first toward the open side, and what goes wrong is that it
+sometimes leaves running the other way round the track and then turns back.
+`diag_bag_bay_exit_heading.py` measures that from the IMU against the placement
+heading, since the exit is where the localizer is worst.
+
+Over the 2026-09-15 session, 12 rounds with an in-bay start:
+
+- the pocket costs 8.6-14.6 s before the round's travel direction even appears
+  in `/nav_debug`, against under 3 s for a start outside it, and 172-469 ticks
+  of manoeuvre. Rounds that never ran the exit are a full lap in (net heading
+  270-372 degrees) while a bay start is still deciding which way it faces;
+- 2 of the 12 leave in the OPPOSITE sense (net heading -156 and +171 degrees
+  30 s in, against +32 to +78 for the ones that resumed their placement
+  heading). Both are rounds the operator called out: `145330`, which pushed two
+  reds and looped, and `145954`, which passed the first red on the wrong side
+  and stuck beside the lot;
+- the committed direction itself never flips: each round settles one value and
+  keeps it. So a chassis that leaves pointing the other way is not corrected by
+  a belief change -- it drives on that heading until something physically turns
+  it, which is the turn-back the operator sees.
+
+That reframes the simulator work above. The sim's exit dies in the pocket while
+the hardware's gets out, so the simulator is the thing that is wrong there (the
+contact model does not slide, and a graze the real car survives is terminal),
+and the in-bay start cannot yet serve as a bench. The hardware defect worth
+fixing is not the escape from the pocket but the heading it is left in.
