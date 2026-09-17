@@ -12,6 +12,16 @@ relocalize_cost_threshold = 0.03
 relocalize_after_scans = 15
 relocalize_grid_step_m = 0.03
 relocalize_accept_ratio = 0.5
+# 1.00 m, under measurement 2026-09-17: the width-spread gate below refuses the search only
+# when the believed free space is EXACTLY symmetric, and run_20260915_160804 had widths
+# 0.63/0.955/0.958, so it ran and picked very nearly the mirror of the pose it left -- 2.06 m
+# in 1.26 s, 1.64 m/s against 0.26 m/s commanded, cost 0.0316 -> 0.0100 so the accept ratio
+# was satisfied, corridor label east -> west, and then 26 waypoints of backwards replan and
+# 213 deg of yaw in 4.8 s inside an 8 x 26 cm box: the U-turn that round scored 6 for. Beyond
+# this distance the winner is HELD and taken only when a later search reconverges to it. Under
+# 1 m the local search's own window already covers the correction, and a mirrored twin on a
+# 3 m mat is never that close. 0.0 restores the unconditional behaviour.
+relocalize_confirm_dist_m = 1.00
 # 0.05 m, not 0: the widths are ESTIMATED, so four nominally equal corridors are
 # never bitwise equal. Obstacles fixes all four at 1000 mm (spread 0.000 measured
 # over 6450 ticks of two rounds) and Open separates them by 0.400, so anything

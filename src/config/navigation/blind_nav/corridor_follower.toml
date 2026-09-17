@@ -48,3 +48,10 @@ bay_exit_guard_measured_coast = true
 bay_exit_clearance_tolerance_m = 0.0
 bay_exit_guard_mirrors_reverse = true
 bay_exit_dr_uses_measured_yaw = false
+# OFF, under measurement 2026-09-17: pay the opening servo swing at a standstill, as every leg
+# after the first already does. Measured in the pocket: the wheel needs 0.62 s to reach lock and
+# the chassis spends the pocket's 6.5 cm of slack in about that time, turning 1.3 deg instead of 8.
+bay_exit_prime_steer = false
+# OFF, under measurement 2026-09-17: back STRAIGHT on the guarded ratchet's reverse leg instead of
+# mirroring the lock (a 1.23 s servo swing per cycle) or holding it (which un-turns what the arc won).
+bay_exit_guard_reverse_straight = false
