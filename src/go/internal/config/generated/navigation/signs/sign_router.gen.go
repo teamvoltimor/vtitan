@@ -211,6 +211,13 @@ type NavigationSignsSignRouter struct {
 	// sign slot.
 	SlotRepointMargin float64 `json:"slot_repoint_margin" yaml:"slot_repoint_margin" mapstructure:"slot_repoint_margin"`
 
+	// A section may not hold beliefs at ADJACENT depth lines (0.5 m apart): the WRO
+	// table never pairs depth 1.5 with 1.0 or 2.0, so such a pair is one pillar whose
+	// reading straddles the midpoint between two rows. The adjacent cell is treated
+	// like the other lateral of the same depth: heaviest wins, re-pointed without the
+	// hysteresis margin. Depths 1.0 and 2.0 stay two pillars.
+	SlotExclusiveAdjacentDepths bool `json:"slot_exclusive_adjacent_depths" yaml:"slot_exclusive_adjacent_depths" mapstructure:"slot_exclusive_adjacent_depths"`
+
 	// Assign sign evidence to the rulebook's 24 legal grid cells instead of
 	// clustering camera reports freely. ON; the simulator cannot screen it.
 	SlotSignMap bool `json:"slot_sign_map" yaml:"slot_sign_map" mapstructure:"slot_sign_map"`

@@ -126,6 +126,18 @@ cannot score it because it never emits a magenta detection.
   validation round. Fins at x=0.94 and 1.42 (0.48 m span, centre 1.18) against a
   belief centroid of 1.30. Suppression 1/14 to 10/14, 2/19 to 13/19; cost real
   pillars refused 25.5 to 26.4, 2.7 to 4.9, 8.8 to 12.7 percent.
+- 2026-09-16: `slot_exclusive_adjacent_depths`, measured and shipped OFF. The
+  table never pairs depth 1.5 with 1.0 or 2.0, yet on the 09-14/15 rounds 27% of
+  commits (96/352) had beliefs at adjacent depths in the window ahead
+  (`diag_bag_commit_belief_vs_lidar.py`), and the crossing passes whose previous
+  claim was an opposite colour 0.5 m behind failed 62% (8/13) against 15-17%
+  otherwise (`diag_bag_pass_side_speed.py`). Treating the adjacent row as a twin
+  of the same pillar (heaviest wins, re-pointed without the margin) scores the
+  corpus 13 -> 12 (fixes 0005 only) and leaves the replayed pass verdicts flat
+  (execution 28/180 against 23/163), with 11 of the 13 near-opposite pairs
+  surviving: they are re-pointed slots and cross-corner pairs, not only
+  adjacent-cell twins. The along-track error of the committed belief against
+  the nearest pillar-sized LIDAR cluster is |err| p50 0.18 m, over 0.25 m on 37%.
 
 ## Cross-references
 

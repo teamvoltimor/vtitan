@@ -14,6 +14,13 @@ slot_sign_map = true
 slot_accept_radius_m = 0.30
 slot_min_evidence = 0.75
 slot_repoint_margin = 1.5
+# OFF, measured 2026-09-16: the WRO table never pairs depth 1.5 with 1.0 or 2.0, yet on the
+# 09-14/15 rounds 27% of commits happened with beliefs at adjacent depths in the window ahead,
+# and the crossing passes made against such a pair failed 62%. Treating the adjacent row as the
+# same pillar (heaviest wins, no margin) scores corpus 13 -> 12 (fixes the knife-edge 0005) but
+# does not move the replayed pass verdicts on the 19 bags (execution 28/180 against 23/163) and
+# 11 of the 13 near-opposite pairs survive it, so the pairs are not adjacent-cell twins alone.
+slot_exclusive_adjacent_depths = false
 escape_mask_radius_m = 0.12
 escape_mask_cluster_assoc_m = 0.35
 escape_mask_chassis_margin_m = 0.01

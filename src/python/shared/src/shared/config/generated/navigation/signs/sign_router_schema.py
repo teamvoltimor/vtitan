@@ -54,6 +54,10 @@ class NavigationSignsSignRouter(StrictModel):
         ...,
         description='Factor by which a challenger cell must out-weigh the incumbent cell to take its sign slot.',
     )
+    slot_exclusive_adjacent_depths: bool = Field(
+        ...,
+        description='A section may not hold beliefs at ADJACENT depth lines (0.5 m apart): the WRO table never pairs depth 1.5 with 1.0 or 2.0, so such a pair is one pillar whose reading straddles the midpoint between two rows. The adjacent cell is treated like the other lateral of the same depth: heaviest wins, re-pointed without the hysteresis margin. Depths 1.0 and 2.0 stay two pillars.',
+    )
     escape_mask_radius_m: float = Field(
         ...,
         description='How close (m) a LIDAR return must land to a routed sign to be attributed to it and withheld from the reactive escape trigger; 0 disables the mask.',

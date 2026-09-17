@@ -68,6 +68,11 @@
       "description": "Factor by which a challenger cell must out-weigh the incumbent cell to take its sign slot.",
       "x-journal": "adr:0058-sign-discovery-range-and-barrier-belief"
     },
+    "slot_exclusive_adjacent_depths": {
+      "type": "boolean",
+      "description": "A section may not hold beliefs at ADJACENT depth lines (0.5 m apart): the WRO table never pairs depth 1.5 with 1.0 or 2.0, so such a pair is one pillar whose reading straddles the midpoint between two rows. The adjacent cell is treated like the other lateral of the same depth: heaviest wins, re-pointed without the hysteresis margin. Depths 1.0 and 2.0 stay two pillars.",
+      "x-journal": "adr:0058-sign-discovery-range-and-barrier-belief"
+    },
     "escape_mask_radius_m": {
       "type": "number",
       "description": "How close (m) a LIDAR return must land to a routed sign to be attributed to it and withheld from the reactive escape trigger; 0 disables the mask.",
@@ -323,6 +328,7 @@
     "slot_accept_radius_m",
     "slot_min_evidence",
     "slot_repoint_margin",
+    "slot_exclusive_adjacent_depths",
     "escape_mask_radius_m",
     "escape_mask_cluster_assoc_m",
     "escape_mask_chassis_margin_m",

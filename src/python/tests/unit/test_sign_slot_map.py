@@ -10,6 +10,8 @@ adr:0058-sign-discovery-range-and-barrier-belief.
 
 from __future__ import annotations
 
+from dataclasses import replace
+
 import pytest
 from shared.config.navigation_tuning import NavigationTuning
 from shared.domain.models import SignColor, TrafficSignObservation, Waypoint
@@ -27,6 +29,11 @@ def _obs(x: float, y: float, colour: SignColor, confidence: float = 0.8) -> Traf
 
 def _map() -> SlotSignMap:
     return SlotSignMap(0.25, tuning=NavigationTuning.load_default())
+
+
+def _map_with(**sign_router: object) -> SlotSignMap:
+    base = NavigationTuning.load_default()
+    return SlotSignMap(0.25, tuning=replace(base, sign_router=base.sign_router.model_copy(update=sign_router)))
 
 
 def _cells_of(section) -> list[tuple[float, float]]:  # noqa: ANN001
@@ -130,11 +137,13 @@ class TestRepointing:
         adr:0058-sign-discovery-range-and-barrier-belief."""
         sign_map = _map()
         cells = _cells_of(corridor_for_position(*legal_sign_positions()[0]))
-        # Three cells on three DIFFERENT depth lines: two laterals of one depth
-        # are the same pillar under the one-per-depth rule and would be merged
-        # before this test's question is even asked.
-        first, second, third = cells[0], cells[2], cells[4]
-        assert len({c[0] for c in (first, second, third)} | {c[1] for c in (first, second, third)}) >= 4
+        # A LEGAL pair (depths 1.0 and 2.0) that gets retired, then a pillar on
+        # the middle row. Two laterals of one depth, or adjacent depths, are the
+        # same pillar under the slot rules and would be merged before this
+        # test's question is even asked; retired slots are not live incumbents,
+        # so the third cell must get a slot of its own rather than re-point one.
+        first, second, third = cells[0], cells[4], cells[2]
+        assert abs(first[1] - second[1]) > 0.9 or abs(first[0] - second[0]) > 0.9, (first, second)
         _feed(sign_map, first, SignColor.RED, times=1)
         _feed(sign_map, second, SignColor.RED, times=1)
         for i, slot in enumerate(sign_map.newly_confirmed()):
@@ -282,6 +291,38 @@ class TestOnePillarPerDepthLine:
 
         assert (2.4, 2.0) in cells, cells
         assert sum(1 for c in cells if c[1] == 1.0) == 1, cells
+
+    def test_adjacent_depths_publish_one_pillar(self) -> None:
+        """Depth 1.5 never pairs with 1.0 or 2.0 in the rulebook: a section believing
+        both is one pillar read across the midpoint between two rows."""
+        sign_map = _map_with(slot_exclusive_adjacent_depths=True)
+        _feed(sign_map, (2.4, 1.5), SignColor.GREEN, times=4)
+        _feed(sign_map, (2.4, 2.0), SignColor.RED, times=3)
+
+        published = {s.cell for s in sign_map.newly_confirmed()}
+
+        assert published == {(2.4, 1.5)}, published
+
+    def test_an_adjacent_incumbent_is_displaced_without_the_margin(self) -> None:
+        sign_map = _map_with(slot_exclusive_adjacent_depths=True)
+        _feed(sign_map, (2.4, 1.5), SignColor.GREEN, times=5)
+        for i, slot in enumerate(sign_map.newly_confirmed()):
+            slot.published_index = i
+        # 6 against 5 is under the 1.5x hysteresis margin; a twin needs none.
+        _feed(sign_map, (2.4, 2.0), SignColor.RED, times=6)
+
+        held = [s.cell for s in sign_map._slots + sign_map._unpublished]  # noqa: SLF001
+
+        assert held == [(2.4, 2.0)], held
+
+    def test_adjacent_depths_are_two_pillars_with_the_rule_off(self) -> None:
+        sign_map = _map_with(slot_exclusive_adjacent_depths=False)
+        _feed(sign_map, (2.4, 1.5), SignColor.GREEN, times=4)
+        _feed(sign_map, (2.4, 2.0), SignColor.RED, times=3)
+
+        published = {s.cell for s in sign_map.newly_confirmed()}
+
+        assert published == {(2.4, 1.5), (2.4, 2.0)}, published
 
     def test_two_pillars_at_different_depths_are_untouched(self) -> None:
         sign_map = _map()

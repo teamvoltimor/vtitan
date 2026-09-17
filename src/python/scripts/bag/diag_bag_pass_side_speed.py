@@ -39,15 +39,20 @@ import sys
 from collections import Counter
 from pathlib import Path
 
+import numpy as np
+
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
-import shared.domain.enums  # noqa: F401,E402
+import shared.domain.enums  # noqa: F401
+from rclpy.serialization import deserialize_message
+from sensor_msgs.msg import LaserScan
 
-from scripts.common import pass_side  # noqa: E402
-from scripts.common.bag_io import create_bags_parser, read_vision_rows_and_scans  # noqa: E402
+from scripts.common import pass_side
+from scripts.common.bag_io import create_bags_parser, read_vision_rows_and_scans, scan_to_ranges_angles
+from scripts.common.stats import nearest_by_time
 from scripts.common.tables import print_table
-from src.config.tuning_helpers import get_tuning  # noqa: E402
-from src.navigation.planning.sign_router import SignRouter  # noqa: E402
+from src.config.tuning_helpers import get_tuning
+from src.navigation.planning.sign_router import SignRouter
 
 TURN_R_INTERCEPT = 0.053
 TURN_R_SLOPE = 1.86
@@ -67,15 +72,53 @@ class _TapRouter(SignRouter):
     it would have seen, and the verdicts are the shipped ones.
     """
 
-    def deform_waypoint(self, *args, **kwargs):  # noqa: ANN002,ANN003,ANN201
+    def deform_waypoint(self, *args, **kwargs):  # noqa: ANN002, ANN003
         out = super().deform_waypoint(*args, **kwargs)
         pose_xy = args[1] if len(args) > 1 else kwargs["robot_pos"]
         yaw = args[2] if len(args) > 2 else kwargs["robot_yaw"]
         c = self.committed_sign_position
+        col = None if self._committed is None else str(self._signs[self._committed].color)
         _TAP.append(
-            (pose_xy[0], pose_xy[1], yaw, None if c is None else (round(c.x, 1), round(c.y, 1)))
+            (
+                pose_xy[0],
+                pose_xy[1],
+                yaw,
+                None if c is None else (round(c.x, 1), round(c.y, 1)),
+                col,
+                tuple((sg.x, sg.y, str(sg.color)) for sg in self.signs),
+            )
         )
         return out
+
+
+def _pillar_clusters(rr: np.ndarray, aa: np.ndarray) -> list[tuple[float, float]]:
+    """Pillar-sized LIDAR clusters ahead, in the ROBOT frame: (along, lateral).
+
+    Pose-free on purpose: the believed map carries 7-15 cm of world error, so
+    counting returns around a believed position judges the map with the map.
+    A pillar is a short run of rays (chord under 0.16 m) bounded on both sides
+    by range jumps of at least 0.15 m, inside the corridor ahead.
+    """
+    order = np.argsort(aa)
+    rr, aa = rr[order], aa[order]
+    x = rr * np.cos(aa)
+    y = rr * np.sin(aa)
+    n = len(rr)
+    out: list[tuple[float, float]] = []
+    i = 0
+    while i < n:
+        if not (0.15 < x[i] < 1.3 and abs(y[i]) < 0.42 and rr[i] < 1.5):
+            i += 1
+            continue
+        j = i
+        while j + 1 < n and abs(rr[j + 1] - rr[j]) < 0.05 and math.hypot(x[j + 1] - x[i], y[j + 1] - y[i]) < 0.16:
+            j += 1
+        before = rr[i - 1] - rr[i] if i > 0 else 1.0
+        after = rr[j + 1] - rr[j] if j + 1 < n else 1.0
+        if j - i >= 1 and before > 0.15 and after > 0.15:
+            out.append((float(np.mean(x[i : j + 1])), float(np.mean(y[i : j + 1]))))
+        i = j + 1
+    return out
 
 
 def _chi2_p(table: list[list[int]]) -> tuple[float, float, int]:
@@ -167,10 +210,7 @@ def _rate_table(records, key_fn, labels, title) -> None:  # noqa: ANN001
             continue
         table[0].append(b["execution"])
         table[1].append(b["ok"])
-        print(
-            f"    {labels(i):>18} {n:5d} {b['execution']:6d} {b['ok']:6d}"
-            f" {100 * b['execution'] / n:9.1f}%"
-        )
+        print(f"    {labels(i):>18} {n:5d} {b['execution']:6d} {b['ok']:6d} {100 * b['execution'] / n:9.1f}%")
     if len(table[0]) > 1:
         chi2, p, dof = _chi2_p(table)
         print(f"    chi2={chi2:.2f} dof={dof} p={p:.4f}")
@@ -210,14 +250,19 @@ def main() -> int:
 
         # pose -> the snapshot that produced it, for the commit-tick context
         by_pose: dict[tuple[float, float, float], object] = {}
+        rel_of_pose: dict[tuple[float, float, float], float] = {}
         for _rel, d in rows:
             if d.pose_x is None or d.pose_y is None or d.pose_yaw is None:
                 continue
             by_pose.setdefault((d.pose_x, d.pose_y, d.pose_yaw), d)
+            rel_of_pose.setdefault((d.pose_x, d.pose_y, d.pose_yaw), _rel)
+        scan_times = [t for t, _ in scans]
         first_tap: dict[tuple[float, float], tuple] = {}
-        for px, py, yaw, key in _TAP:
+        first_idx: dict[tuple[float, float], int] = {}
+        for i, (px, py, yaw, key, _col, _signs) in enumerate(_TAP):
             if key is not None and key not in first_tap:
                 first_tap[key] = (px, py, yaw)
+                first_idx[key] = i
 
         for p in passes:
             key = (round(p.sign_x, 1), round(p.sign_y, 1))
@@ -233,6 +278,54 @@ def main() -> int:
                 tap_mismatch += 1
             v = p.commit_speed_mps
             radius = TURN_R_INTERCEPT + TURN_R_SLOPE * v
+            # The PREVIOUS claim: which sign held the router before this one,
+            # how far apart the two pillars sit, where the previous one was
+            # relative to the chassis at this commit, and whether it wanted
+            # the OPPOSITE side (a different colour in the same travel sense).
+            prev_key = prev_col = None
+            prev_spacing = prev_along = None
+            i0 = first_idx[key]
+            for j in range(i0 - 1, -1, -1):
+                k = _TAP[j][3]
+                if k is not None and k != key:
+                    prev_key, prev_col = k, _TAP[j][4]
+                    break
+            believed = []
+            seen_pillars: list[list[tuple[float, float]]] = []
+            if prev_key is not None:
+                px, py, yaw = first_tap[key]
+                # What the map believed in this stretch at the commit tick, and
+                # whether the LIDAR saw anything pillar-sized at each belief.
+                hits_at = None
+                if scan_times:
+                    t0 = rel_of_pose[tap]
+                    scan = nearest_by_time(scans, scan_times, t0)
+                    if scan is not None:
+                        rr, aa = scan_to_ranges_angles(deserialize_message(scan, LaserScan))
+                        wx = px + rr * np.cos(yaw + aa)
+                        wy = py + rr * np.sin(yaw + aa)
+                        hits_at = lambda x, y: int(np.sum(np.hypot(wx - x, wy - y) < 0.12))  # noqa: E731
+                    # Pillar count in the robot frame over a short window around the commit.
+                    for dt_ in (-0.4, -0.2, 0.0, 0.2, 0.4):
+                        sc = nearest_by_time(scans, scan_times, t0 + dt_)
+                        if sc is None:
+                            continue
+                        r2, a2 = scan_to_ranges_angles(deserialize_message(sc, LaserScan))
+                        seen_pillars.append(_pillar_clusters(np.asarray(r2), np.asarray(a2)))
+                for sx, sy, scol in _TAP[i0][5]:
+                    along = (sx - px) * math.cos(yaw) + (sy - py) * math.sin(yaw)
+                    if -0.6 <= along <= 1.2 and math.hypot(sx - px, sy - py) < 1.3:
+                        believed.append(
+                            (
+                                round(along, 2),
+                                round(sx, 2),
+                                round(sy, 2),
+                                scol,
+                                None if hits_at is None else hits_at(sx, sy),
+                            )
+                        )
+                prev_spacing = math.hypot(prev_key[0] - key[0], prev_key[1] - key[1])
+                prev_along = (prev_key[0] - px) * math.cos(yaw) + (prev_key[1] - py) * math.sin(yaw)
             records.append(
                 {
                     "run": run,
@@ -252,15 +345,23 @@ def main() -> int:
                     "maneuver": p.maneuver_during_pass,
                     "colour": str(p.colour),
                     "corridor": p.corridor,
+                    "prev_spacing": prev_spacing,
+                    "prev_along": prev_along,
+                    "prev_opposite": None if prev_col is None else prev_col != str(p.colour),
+                    "believed": sorted(believed),
+                    "seen_pillars": seen_pillars,
                 }
             )
 
-    print(f"== CORPUS: {len(args.bag_dirs)} bag(s) given, {len(skipped)} unreadable, "
-          f"{bags_with_passes} with sign passes")
+    print(
+        f"== CORPUS: {len(args.bag_dirs)} bag(s) given, {len(skipped)} unreadable, {bags_with_passes} with sign passes"
+    )
     if skipped:
         print("   skipped: " + ", ".join(skipped[:10]) + (" ..." if len(skipped) > 10 else ""))
-    print(f"   peak believed signs > 8 (physical max) in {sum(1 for p in peaks if p > 8)}/{len(peaks)} runs;"
-          f" worst={max(peaks, default=0)} -- NO pass is dropped for this, the shipped rule keeps them")
+    print(
+        f"   peak believed signs > 8 (physical max) in {sum(1 for p in peaks if p > 8)}/{len(peaks)} runs;"
+        f" worst={max(peaks, default=0)} -- NO pass is dropped for this, the shipped rule keeps them"
+    )
     print(f"   passes dropped for missing commit context/speed: {unmatched_ctx}")
     print()
 
@@ -270,32 +371,41 @@ def main() -> int:
     print(f"   routing   {tally['routing']:5d}")
     print(f"   execution {tally['execution']:5d}")
     print(f"   ok        {tally['ok']:5d}")
-    print(f"   n={total};  execution share of correctly-commanded passes: "
-          f"{100 * tally['execution'] / max(1, tally['execution'] + tally['ok']):.1f}%")
+    print(
+        f"   n={total};  execution share of correctly-commanded passes: "
+        f"{100 * tally['execution'] / max(1, tally['execution'] + tally['ok']):.1f}%"
+    )
     print(f"   tap/collect_passes speed disagreements: {tap_mismatch} (MUST be 0)")
     print()
 
     cc = [r for r in records if r["verdict"] in ("execution", "ok")]
 
     print("== CONTROL 2 (known-present positive): crossing vs holding at commit")
-    _rate_table(cc, lambda r: 1 if r["crossing"] else 0,
-                lambda i: "already legal" if i == 0 else "must CROSS",
-                "legal-at-commit -> outcome")
+    _rate_table(
+        cc,
+        lambda r: 1 if r["crossing"] else 0,
+        lambda i: "already legal" if i == 0 else "must CROSS",
+        "legal-at-commit -> outcome",
+    )
 
     print("== HYPOTHESIS: commit speed")
-    _rate_table(cc, lambda r: _band(r["speed"], SPEED_BANDS),
-                lambda i: f"{SPEED_BANDS[i][0]:.2f}-{min(SPEED_BANDS[i][1], 1.0):.2f}",
-                "commanded speed at commit (m/s)")
+    _rate_table(
+        cc,
+        lambda r: _band(r["speed"], SPEED_BANDS),
+        lambda i: f"{SPEED_BANDS[i][0]:.2f}-{min(SPEED_BANDS[i][1], 1.0):.2f}",
+        "commanded speed at commit (m/s)",
+    )
     speeds = sorted(r["speed"] for r in cc)
     if speeds:
-        print(f"   commit speed p10/p50/p90 = {speeds[len(speeds)//10]:.3f} /"
-              f" {speeds[len(speeds)//2]:.3f} / {speeds[9*len(speeds)//10]:.3f}")
-        print(f"   share of commitments at >= 0.24 m/s: "
-              f"{100 * sum(1 for s in speeds if s >= 0.24) / len(speeds):.1f}%")
+        print(
+            f"   commit speed p10/p50/p90 = {speeds[len(speeds) // 10]:.3f} /"
+            f" {speeds[len(speeds) // 2]:.3f} / {speeds[9 * len(speeds) // 10]:.3f}"
+        )
+        print(f"   share of commitments at >= 0.24 m/s: {100 * sum(1 for s in speeds if s >= 0.24) / len(speeds):.1f}%")
     for v in ("execution", "ok"):
         s = sorted(r["speed"] for r in cc if r["verdict"] == v)
         if s:
-            print(f"   {v:>9}: mean {sum(s)/len(s):.3f}  p50 {s[len(s)//2]:.3f}  n={len(s)}")
+            print(f"   {v:>9}: mean {sum(s) / len(s):.3f}  p50 {s[len(s) // 2]:.3f}  n={len(s)}")
     print()
 
     print("== CONFOUND: is a slow commit just a CORNER commit?")
@@ -303,20 +413,29 @@ def main() -> int:
     if have_turn:
         med_turn = sorted(r["turn_ahead"] for r in have_turn)[len(have_turn) // 2]
         print(f"   path_turn_ahead median = {med_turn:.3f} rad; stratifying on it")
-        for lab, sel in (("STRAIGHT-ish", lambda r: r["turn_ahead"] < med_turn),
-                         ("CORNER-ish", lambda r: r["turn_ahead"] >= med_turn)):
+        for lab, sel in (
+            ("STRAIGHT-ish", lambda r: r["turn_ahead"] < med_turn),
+            ("CORNER-ish", lambda r: r["turn_ahead"] >= med_turn),
+        ):
             sub = [r for r in have_turn if sel(r)]
-            _rate_table(sub, lambda r: _band(r["speed"], SPEED_BANDS),
-                        lambda i: f"{SPEED_BANDS[i][0]:.2f}-{min(SPEED_BANDS[i][1], 1.0):.2f}",
-                        f"speed within {lab} (n={len(sub)})")
+            _rate_table(
+                sub,
+                lambda r: _band(r["speed"], SPEED_BANDS),
+                lambda i: f"{SPEED_BANDS[i][0]:.2f}-{min(SPEED_BANDS[i][1], 1.0):.2f}",
+                f"speed within {lab} (n={len(sub)})",
+            )
         slow = [r for r in have_turn if r["speed"] < 0.24]
         fast = [r for r in have_turn if r["speed"] >= 0.24]
         for lab, sub in (("slow commits", slow), ("fast commits", fast)):
             if sub:
                 t = sorted(r["turn_ahead"] for r in sub)
-                print(f"   {lab:>14}: turn_ahead p50 {t[len(t)//2]:.3f} rad, n={len(t)}")
-    _rate_table([r for r in cc if r["risk"] != "none"], lambda r: 0 if r["risk"] == "RiskLevel.SAFE" or r["risk"] == "safe" else 1,
-                lambda i: "risk SAFE" if i == 0 else "risk not-safe", "risk level at commit")
+                print(f"   {lab:>14}: turn_ahead p50 {t[len(t) // 2]:.3f} rad, n={len(t)}")
+    _rate_table(
+        [r for r in cc if r["risk"] != "none"],
+        lambda r: 0 if r["risk"] == "RiskLevel.SAFE" or r["risk"] == "safe" else 1,
+        lambda i: "risk SAFE" if i == 0 else "risk not-safe",
+        "risk level at commit",
+    )
     print("   which limiter was binding at commit (heading crawl vs clearance):")
     binder = Counter()
     for r in cc:
@@ -335,29 +454,96 @@ def main() -> int:
     print()
 
     print("== CROSSING-ONLY: within passes that must cross, does speed still matter?")
-    _rate_table([r for r in cc if r["crossing"]], lambda r: _band(r["speed"], SPEED_BANDS),
-                lambda i: f"{SPEED_BANDS[i][0]:.2f}-{min(SPEED_BANDS[i][1], 1.0):.2f}",
-                "commit speed | must cross")
+    _rate_table(
+        [r for r in cc if r["crossing"]],
+        lambda r: _band(r["speed"], SPEED_BANDS),
+        lambda i: f"{SPEED_BANDS[i][0]:.2f}-{min(SPEED_BANDS[i][1], 1.0):.2f}",
+        "commit speed | must cross",
+    )
 
     print("== ADJACENT: commit RANGE (the same arc formula is quadratic in it)")
-    _rate_table(cc, lambda r: _band(r["range"], RANGE_BANDS),
-                lambda i: f"{RANGE_BANDS[i][0]:.2f}-{min(RANGE_BANDS[i][1], 9.0):.2f} m",
-                "commit range (m)")
+    _rate_table(
+        cc,
+        lambda r: _band(r["range"], RANGE_BANDS),
+        lambda i: f"{RANGE_BANDS[i][0]:.2f}-{min(RANGE_BANDS[i][1], 9.0):.2f} m",
+        "commit range (m)",
+    )
     rngs = sorted(r["range"] for r in cc)
     if rngs:
-        print(f"   commit range p10/p50/p90 = {rngs[len(rngs)//10]:.3f} /"
-              f" {rngs[len(rngs)//2]:.3f} / {rngs[9*len(rngs)//10]:.3f}")
+        print(
+            f"   commit range p10/p50/p90 = {rngs[len(rngs) // 10]:.3f} /"
+            f" {rngs[len(rngs) // 2]:.3f} / {rngs[9 * len(rngs) // 10]:.3f}"
+        )
     print()
 
     print("== MECHANISM: geometric margin  s^2/(2R) - cross needed,  R = 0.053 + 1.86 v")
     cross = [r for r in cc if r["crossing"]]
-    _rate_table(cross, lambda r: 0 if r["margin"] < 0 else (1 if r["margin"] < 0.10 else 2),
-                lambda i: ("margin < 0", "0 - 0.10 m", ">= 0.10 m")[i],
-                "predicted lateral margin | must cross")
+    _rate_table(
+        cross,
+        lambda r: 0 if r["margin"] < 0 else (1 if r["margin"] < 0.10 else 2),
+        lambda i: ("margin < 0", "0 - 0.10 m", ">= 0.10 m")[i],
+        "predicted lateral margin | must cross",
+    )
     for v in ("execution", "ok"):
         m = sorted(r["margin"] for r in cross if r["verdict"] == v)
         if m:
-            print(f"   {v:>9}: margin mean {sum(m)/len(m):+.3f}  p50 {m[len(m)//2]:+.3f}  n={len(m)}")
+            print(f"   {v:>9}: margin mean {sum(m) / len(m):+.3f}  p50 {m[len(m) // 2]:+.3f}  n={len(m)}")
+    print()
+
+    print("== THE PREVIOUS CLAIM: is a late commit just the pillar BEFORE it holding the router?")
+    print("   crossing population; 'near' = previous pillar within 0.75 m (the lattice puts rows 0.50 m apart)")
+
+    def _prev_cat(r: dict) -> int:
+        if r["prev_spacing"] is None or r["prev_spacing"] > 0.75:
+            return 0
+        return 2 if r["prev_opposite"] else 1
+
+    _rate_table(
+        cross,
+        _prev_cat,
+        lambda i: ("none / far", "near, SAME side", "near, OPPOSITE side")[i],
+        "previous claim | must cross",
+    )
+    for i, name in enumerate(("none / far", "near, SAME side", "near, OPPOSITE side")):
+        grp = [r for r in cross if _prev_cat(r) == i]
+        rng_ = sorted(r["range"] for r in grp)
+        along_ = sorted(r["prev_along"] for r in grp if r["prev_along"] is not None)
+        if rng_:
+            print(
+                f"   {name:>20}: commit range p50 {rng_[len(rng_) // 2]:.3f} m"
+                + (f", previous pillar along-track at commit p50 {along_[len(along_) // 2]:+.3f} m" if along_ else "")
+            )
+    print("   the near-OPPOSITE cases, one per line (is the previous pillar real, or the same pillar believed twice?):")
+    for r in sorted((r for r in cross if _prev_cat(r) == 2), key=lambda r: (r["run"], r["range"])):
+        print(
+            f"      {r['run']}  {r['corridor']:>6} {r['colour']:>6}  spacing {r['prev_spacing']:.2f} m"
+            f"  prev along {r['prev_along']:+.2f}  commit range {r['range']:.3f}  lateral {r['commit_lateral']:+.3f}"
+            f"  {'MANOEUVRE' if r['maneuver'] else '':>9}  -> {r['verdict']}"
+        )
+        for along, sx, sy, scol, hits in r["believed"]:
+            print(
+                f"            believed {scol:>6} at ({sx:.2f},{sy:.2f}) along {along:+.2f} m, LIDAR hits within 12 cm: {hits}"
+            )
+        for k, cl in enumerate(r["seen_pillars"]):
+            print(
+                f"            LIDAR scan {k}: {len(cl)} pillar-sized cluster(s) ahead in the corridor"
+                + (": " + ", ".join(f"(along {a:+.2f}, lat {b:+.2f})" for a, b in cl) if cl else "")
+            )
+    print("   crossing x range band, previous claim near (any side) vs not:")
+    near = [r for r in cross if _prev_cat(r) != 0]
+    far = [r for r in cross if _prev_cat(r) == 0]
+    _rate_table(
+        near,
+        lambda r: _band(r["range"], RANGE_BANDS),
+        lambda i: f"{RANGE_BANDS[i][0]:.2f}-{min(RANGE_BANDS[i][1], 9.0):.2f} m",
+        "range | previous NEAR",
+    )
+    _rate_table(
+        far,
+        lambda r: _band(r["range"], RANGE_BANDS),
+        lambda i: f"{RANGE_BANDS[i][0]:.2f}-{min(RANGE_BANDS[i][1], 9.0):.2f} m",
+        "range | previous none/far",
+    )
     print()
 
     print("== COUNTERFACTUAL: the same commits, re-driven at a SPEED FLOOR (R = 0.053 + 1.86 v)")
@@ -383,7 +569,9 @@ def main() -> int:
                     still_exec += 1
                 else:
                     still_ok += 1
-        rows_cf.append([f"{v:.3f}", f"{radius:.3f}", str(bind), str(flipped), str(still), str(still_exec), str(still_ok)])
+        rows_cf.append(
+            [f"{v:.3f}", f"{radius:.3f}", str(bind), str(flipped), str(still), str(still_exec), str(still_ok)]
+        )
     print_table(rows_cf, header)
     neg = [r for r in cross if r["margin"] < 0]
     if neg:
@@ -396,15 +584,17 @@ def main() -> int:
             need_v.append(max(0.0, (r_fit - TURN_R_INTERCEPT) / TURN_R_SLOPE))
         need_v.sort()
         if need_v:
-            print(f"   speed at which the arc just FITS, over the {len(need_v)} negative-margin crossings:"
-                  f" p10 {need_v[len(need_v)//10]:.3f}  p50 {need_v[len(need_v)//2]:.3f}"
-                  f"  p90 {need_v[9*len(need_v)//10]:.3f} m/s  (unreachable below ~0.05)")
+            print(
+                f"   speed at which the arc just FITS, over the {len(need_v)} negative-margin crossings:"
+                f" p10 {need_v[len(need_v) // 10]:.3f}  p50 {need_v[len(need_v) // 2]:.3f}"
+                f"  p90 {need_v[9 * len(need_v) // 10]:.3f} m/s  (unreachable below ~0.05)"
+            )
     print()
 
     print("== SPEED DISTRIBUTION at commit (the bands are only as real as this)")
     hist = Counter(round(r["speed"], 3) for r in cc)
     for v, n in sorted(hist.items()):
-        print(f"   {v:.3f} m/s  n={n:5d}  {100*n/len(cc):5.1f}%")
+        print(f"   {v:.3f} m/s  n={n:5d}  {100 * n / len(cc):5.1f}%")
     print()
 
     print("== IS SLOWNESS JUST THE ESCAPE MANOEUVRE / A HARDER GEOMETRY?")
@@ -413,22 +603,30 @@ def main() -> int:
     for i, (lo, hi) in enumerate(SPEED_BANDS):
         sub = [r for r in cc if _band(r["speed"], SPEED_BANDS) == i]
         if sub:
-            print(f"   {lo:.2f}-{min(hi,1.0):.2f}: crossing {100*sum(1 for r in sub if r['crossing'])/len(sub):5.1f}%"
-                  f"  manoeuvre {100*sum(1 for r in sub if r['maneuver'])/len(sub):5.1f}%"
-                  f"  risk-not-safe {100*sum(1 for r in sub if r['risk'] not in ('safe','RiskLevel.SAFE'))/len(sub):5.1f}%"
-                  f"  range p50 {sorted(r['range'] for r in sub)[len(sub)//2]:.3f}  n={len(sub)}")
+            print(
+                f"   {lo:.2f}-{min(hi, 1.0):.2f}: crossing {100 * sum(1 for r in sub if r['crossing']) / len(sub):5.1f}%"
+                f"  manoeuvre {100 * sum(1 for r in sub if r['maneuver']) / len(sub):5.1f}%"
+                f"  risk-not-safe {100 * sum(1 for r in sub if r['risk'] not in ('safe', 'RiskLevel.SAFE')) / len(sub):5.1f}%"
+                f"  range p50 {sorted(r['range'] for r in sub)[len(sub) // 2]:.3f}  n={len(sub)}"
+            )
     print()
     for lab, sel in (("NO manoeuvre", lambda r: not r["maneuver"]), ("manoeuvre latched", lambda r: r["maneuver"])):
         sub = [r for r in cc if sel(r)]
-        _rate_table(sub, lambda r: _band(r["speed"], SPEED_BANDS),
-                    lambda i: f"{SPEED_BANDS[i][0]:.2f}-{min(SPEED_BANDS[i][1],1.0):.2f}",
-                    f"speed | {lab} (n={len(sub)})")
+        _rate_table(
+            sub,
+            lambda r: _band(r["speed"], SPEED_BANDS),
+            lambda i: f"{SPEED_BANDS[i][0]:.2f}-{min(SPEED_BANDS[i][1], 1.0):.2f}",
+            f"speed | {lab} (n={len(sub)})",
+        )
     print("   FULL stratification: crossing x speed")
     for cr in (False, True):
         sub = [r for r in cc if r["crossing"] == cr]
-        _rate_table(sub, lambda r: _band(r["speed"], SPEED_BANDS),
-                    lambda i: f"{SPEED_BANDS[i][0]:.2f}-{min(SPEED_BANDS[i][1],1.0):.2f}",
-                    f"speed | {'must CROSS' if cr else 'already legal'} (n={len(sub)})")
+        _rate_table(
+            sub,
+            lambda r: _band(r["speed"], SPEED_BANDS),
+            lambda i: f"{SPEED_BANDS[i][0]:.2f}-{min(SPEED_BANDS[i][1], 1.0):.2f}",
+            f"speed | {'must CROSS' if cr else 'already legal'} (n={len(sub)})",
+        )
 
     print("== LOGISTIC REGRESSION, exec=1 vs ok=0 (standardised coefficients)")
     feats = [
@@ -458,19 +656,26 @@ def main() -> int:
     for (name, _f), coef in sorted(zip(feats, w[1:]), key=lambda t: -abs(t[1])):
         print(f"   {name:>16} {coef:+.3f}   (odds x{math.exp(coef):.2f} per 1 SD)")
 
-
     print()
     print("== ADJACENT, CONDITIONAL ON THE SPEED NULL: commit RANGE within the crossing population")
-    _rate_table([r for r in cc if r["crossing"]], lambda r: _band(r["range"], RANGE_BANDS),
-                lambda i: f"{RANGE_BANDS[i][0]:.2f}-{min(RANGE_BANDS[i][1],9.0):.2f} m",
-                "commit range | must cross")
-    _rate_table([r for r in cc if not r["crossing"]], lambda r: _band(r["range"], RANGE_BANDS),
-                lambda i: f"{RANGE_BANDS[i][0]:.2f}-{min(RANGE_BANDS[i][1],9.0):.2f} m",
-                "commit range | already legal (control: should be flat and low)")
-    _rate_table([r for r in cc if r["crossing"]],
-                lambda r: 0 if r["needed"] < 0.10 else (1 if r["needed"] < 0.20 else 2),
-                lambda i: ("cross <0.10 m", "0.10-0.20 m", ">=0.20 m")[i],
-                "how far it had to cross")
+    _rate_table(
+        [r for r in cc if r["crossing"]],
+        lambda r: _band(r["range"], RANGE_BANDS),
+        lambda i: f"{RANGE_BANDS[i][0]:.2f}-{min(RANGE_BANDS[i][1], 9.0):.2f} m",
+        "commit range | must cross",
+    )
+    _rate_table(
+        [r for r in cc if not r["crossing"]],
+        lambda r: _band(r["range"], RANGE_BANDS),
+        lambda i: f"{RANGE_BANDS[i][0]:.2f}-{min(RANGE_BANDS[i][1], 9.0):.2f} m",
+        "commit range | already legal (control: should be flat and low)",
+    )
+    _rate_table(
+        [r for r in cc if r["crossing"]],
+        lambda r: 0 if r["needed"] < 0.10 else (1 if r["needed"] < 0.20 else 2),
+        lambda i: ("cross <0.10 m", "0.10-0.20 m", ">=0.20 m")[i],
+        "how far it had to cross",
+    )
     return 0
 
 

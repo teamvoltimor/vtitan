@@ -169,6 +169,7 @@ class SlotSignMap:
         self._accept_r = sr.slot_accept_radius_m
         self._min_evidence = sr.slot_min_evidence
         self._repoint_margin = sr.slot_repoint_margin
+        self._exclusive_adjacent = sr.slot_exclusive_adjacent_depths
         self._max_ingest_range_m = tuning.sign_discovery.max_ingest_range_m
 
         self._cells: dict[Cell, _CellEvidence] = {}
@@ -272,13 +273,32 @@ class SlotSignMap:
         taken: set[float] = set()
         for cell in ranked:
             depth = self._depth(cell, section)
-            if depth in taken:
+            if any(self._same_pillar_depths(depth, t) for t in taken):
                 continue
             wanted.append(cell)
             taken.add(depth)
             if len(wanted) == _SIGNS_PER_SECTION:
                 break
         return wanted
+
+    def _same_pillar_depths(self, a: float, b: float) -> bool:
+        """Whether two depth lines can only be ONE pillar under the rulebook.
+
+        The same line always is. With ``slot_exclusive_adjacent_depths`` the
+        ADJACENT line (0.5 m along, the lattice's row step) is too: the table
+        never pairs depth 1.5 with 1.0 or 2.0, so a section believing both is
+        believing one pillar whose reading straddles the midpoint between two
+        rows -- the cell claim is a hard nearest-cell snap, and a reading 0.25 m
+        off along the corridor lands on either row frame by frame. On the
+        2026-09-14/15 rounds 27% of commits happened with such a pair in the
+        window ahead, and the crossing passes made against them failed 62%
+        (``diag_bag_pass_side_speed.py``, ``diag_bag_commit_belief_vs_lidar.py``).
+        Depths 1.0 and 2.0 (1.0 m apart) stay two pillars.
+        """
+        gap = abs(a - b)
+        if gap < 0.01:
+            return True
+        return self._exclusive_adjacent and gap < 0.51
 
     def _apply_section(self, section: Section, wanted: list[Cell]) -> None:
         """Point this section's LIVE slots at ``wanted``, never opening a third.
@@ -311,7 +331,9 @@ class SlotSignMap:
             # at another wanted depth is a different pillar, and hijacking its
             # slot would hand the router's index for the depth-2.0 pillar to the
             # depth-1.0 one.
-            twins = [s for s in free if self._depth(s.cell, section) == self._depth(cell, section)]
+            twins = [
+                s for s in free if self._same_pillar_depths(self._depth(s.cell, section), self._depth(cell, section))
+            ]
             if twins:
                 # Checked BEFORE the cap: a twin below the cap would otherwise
                 # be joined by its own other lateral, and the section would
