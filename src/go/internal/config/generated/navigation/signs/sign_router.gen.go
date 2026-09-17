@@ -96,6 +96,16 @@ type NavigationSignsSignRouter struct {
 	// Obstacles-only by construction (needs a committed sign).
 	SignCommitFitSpeed bool `json:"sign_commit_fit_speed" yaml:"sign_commit_fit_speed" mapstructure:"sign_commit_fit_speed"`
 
+	// Speed, in m/s, at which sign_crossing_reverse_legs judges the arc: the turn
+	// radius is a speed curve on this chassis, so the run-up a crossing needs depends
+	// on the speed it is driven at.
+	SignCrossingReverseFitMps float64 `json:"sign_crossing_reverse_fit_mps" yaml:"sign_crossing_reverse_fit_mps" mapstructure:"sign_crossing_reverse_fit_mps"`
+
+	// Straight reverse legs the navigator may spend per committed sign, before any
+	// contact, while the committed crossing's single arc does not fit the run-up
+	// left. 0 disables.
+	SignCrossingReverseLegs int `json:"sign_crossing_reverse_legs" yaml:"sign_crossing_reverse_legs" mapstructure:"sign_crossing_reverse_legs"`
+
 	// Extra margin (m) beyond the chassis and sign half-widths when passing a sign.
 	SignClearanceMarginM float64 `json:"sign_clearance_margin_m" yaml:"sign_clearance_margin_m" mapstructure:"sign_clearance_margin_m"`
 

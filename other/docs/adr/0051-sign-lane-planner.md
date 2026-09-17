@@ -164,6 +164,19 @@ centre bias the corridor width selected (ADR 0028). It must never flatten that.
   costs wall and pillar contacts elsewhere; the pair needs ROOM the corridor does
   not have forward (see the band-change arithmetic in 0086's evidence), which
   leaves perception reach and a planned reverse in the corner square.
+- 2026-09-17, REFUTED: `sign_crossing_reverse_legs` backs the chassis straight
+  BEFORE any contact while the committed crossing's arc does not fit the run-up
+  left (`shortfall = sqrt(2 * lateral * R(v_fit)) - nose run-up`), the operator's
+  design of buying room by reversing, applied at the commit rather than after an
+  escape. Corpus (`sweep_crossing_reverse.sh`, baseline 13 reproduced in the
+  batch): 1 leg -> 18, 2 -> 19, 3 -> 27, and judging the arc at the 0.22 m/s
+  cruise tier instead of the slow tier -> 22. Monotone in the budget, and the
+  same scenarios break every time (0004 and 0011 in all four arms, plus blind
+  discovery runs): reversing at the commit hands the run-up back to a lane that
+  spends it re-approaching, and the extra ticks beside the pillar cost more than
+  the room buys. The third refutation of "more room after the pillar is seen",
+  after `setup_reverse_room_m` and `post_escape_creep_s` in 0055: the run-up is
+  not what the crossing lacks. Ships OFF.
 
 ## Cross-references
 

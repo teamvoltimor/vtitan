@@ -42,7 +42,7 @@ from src.navigation.control.controllers import (
 from src.navigation.core_navigator.corner_latch import CornerLatch
 from src.navigation.core_navigator.escape_recovery import EscapeRecovery
 from src.navigation.corridor_estimator import classify_width
-from src.navigation.geometry import arc_fit_speed_mps, chassis_half_diagonal_m
+from src.navigation.geometry import arc_fit_speed_mps, chassis_half_diagonal_m, turn_radius_at_speed_m
 from src.navigation.planning.lidar_proposer import (
     ProposerParams,
     find_clusters,
@@ -210,6 +210,8 @@ class CoreNavigator(EscapeRecovery):
         self._retracing = False
         self._setup_legs_left = 0
         self._post_escape_creep_ticks = 0
+        self._crossing_sign: tuple[float, float] | None = None
+        self._crossing_legs_left = 0
 
         self._build_challenge_controllers(sign_router)
 
@@ -678,6 +680,86 @@ class CoreNavigator(EscapeRecovery):
         if along <= 0.0:
             return None
         return arc_fit_speed_mps(along - RobotSpecs.LENGTH / 2, need)
+
+    def _crossing_run_up_shortfall(self, robot_x: float, robot_y: float, robot_yaw: float) -> float | None:
+        """Metres of run-up the committed crossing is short of, or ``None`` when nothing applies.
+
+        The belief ``_commit_fit_speed_cap`` reads (lateral still to buy against
+        the committed sign, run-up from the nose), turned the other way round:
+        instead of the speed that fits the run-up left, the run-up one arc needs
+        at ``sign_crossing_reverse_fit_mps``, ``s = sqrt(2 * lateral * R(v))``,
+        minus the run-up there is. Positive means the arc does not fit from
+        here. ``None`` on the cap's terms: no commitment, no pass side yet, the
+        lateral already held, or the sign abeam or behind the centre.
+        """
+        router = self._sign_router
+        if router is None:
+            return None
+        anchor = router.committed_sign_position
+        if anchor is None:
+            return None
+        have = router.committed_pass_side_offset((robot_x, robot_y))
+        if have is None:
+            return None
+        need = chassis_half_diagonal_m() + TrafficSignSpecs.WIDTH / 2 - have
+        if need <= 0.0:
+            return None
+        dx, dy = anchor.x - robot_x, anchor.y - robot_y
+        along = dx * math.cos(robot_yaw) + dy * math.sin(robot_yaw)
+        if along <= 0.0:
+            return None
+        radius = turn_radius_at_speed_m(self._tuning.sign_router.sign_crossing_reverse_fit_mps)
+        return math.sqrt(2.0 * need * radius) - (along - RobotSpecs.LENGTH / 2)
+
+    def _crossing_reverse_leg(
+        self, scan: LidarScan, robot_x: float, robot_y: float, robot_yaw: float
+    ) -> EscapeManeuver | None:
+        """A straight reverse to buy the run-up a committed crossing needs, or None to drive on.
+
+        The in-section opposite-colour pair (green then red 1.0 m on) is where
+        the 09-15 afternoon rounds died: the second pillar is committed with
+        the chassis 0.3-0.6 m on its wrong side and too little road left for
+        the arc, and every lever AFTER that point is refuted (escape, speed,
+        release criterion, lane geometry). The operator's design: when the
+        pillar is picked up and the crossing does not fit, back straight so the
+        crossing has more room.
+
+        Up to ``sign_crossing_reverse_legs`` legs of ``k_turn_min_s`` per
+        committed sign (the budget re-arms when the committed sign changes),
+        spent only while ``_crossing_run_up_shortfall`` is positive. Straight
+        and authorised like the setup reverse; a refusal spends the budget.
+        Unlike the refuted setup reverse it fires BEFORE any contact, on the
+        router's belief, not after a front-threat escape.
+        """
+        legs = self._tuning.sign_router.sign_crossing_reverse_legs
+        if legs <= 0 or self._active_maneuver is not None or self._sign_router is None:
+            return None
+        anchor = self._sign_router.committed_sign_position
+        if anchor is None:
+            self._crossing_sign = None
+            return None
+        key = (anchor.x, anchor.y)
+        if key != self._crossing_sign:
+            self._crossing_sign = key
+            self._crossing_legs_left = legs
+        if self._crossing_legs_left <= 0:
+            return None
+        shortfall = self._crossing_run_up_shortfall(robot_x, robot_y, robot_yaw)
+        if shortfall is None or shortfall <= 0.0:
+            return None
+        self._crossing_legs_left -= 1
+        leg = EscapeManeuver(
+            maneuver_type=ManeuverType.K_TURN,
+            steering=0.0,
+            speed=self._escape.rev_speed,
+            duration_frames=self._escape.k_turn_min_frames(self._tuning.control.control_hz),
+            priority=1,
+        )
+        if self._reversing_into_unseen_wall(leg, scan):
+            self._crossing_legs_left = 0
+            return None
+        logger.info("Crossing reverse: run-up short by %.2f m, %d leg(s) left", shortfall, self._crossing_legs_left)
+        return leg
 
     def _sign_evade_steer(self, robot_x: float, robot_y: float, robot_yaw: float) -> float | None:
         """Steering to swing the chassis clear of a routed sign it is about to clip.
@@ -1977,6 +2059,10 @@ class CoreNavigator(EscapeRecovery):
         # back straight instead of re-approaching what was just escaped.
         if scan is not None:
             setup = self._setup_reverse_leg(scan, forward_clearance)
+            if setup is None:
+                # Or before any contact at all: the committed crossing has too
+                # little road left for its arc. See _crossing_reverse_leg.
+                setup = self._crossing_reverse_leg(scan, robot_x, robot_y, robot_yaw)
             if setup is not None:
                 self._begin_maneuver(self._fit_reverse_to_rear_gap(setup, scan))
                 self._debug = debug

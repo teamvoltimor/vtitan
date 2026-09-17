@@ -90,6 +90,15 @@ class NavigationSignsSignRouter(StrictModel):
         ...,
         description='Lowest speed sign_commit_fit_speed may command, in m/s. Below ~0.06 m/s the fit is asking for a radius the chassis cannot deliver at all, and a crawl that slow costs the round clock more than it buys.',
     )
+    sign_crossing_reverse_legs: int = Field(
+        ...,
+        ge=0,
+        description="Straight reverse legs (each k_turn_min_s at rev_speed) the navigator may spend per committed sign, BEFORE any contact, while the committed crossing's single arc does not fit the run-up left: shortfall = sqrt(2 * lateral * R(sign_crossing_reverse_fit_mps)) - nose run-up, with lateral = (chassis half-diagonal + sign half-width) - the offset already held on the legal side. The budget re-arms when the committed sign changes; a reverse into unseen ground spends it. 0 disables.",
+    )
+    sign_crossing_reverse_fit_mps: float = Field(
+        ...,
+        description='Speed, in m/s, at which sign_crossing_reverse_legs judges the arc: the turn radius is a speed curve on this chassis, so the run-up a crossing needs depends on the speed it is driven at. Defaults to the slow tier committed passes are driven at.',
+    )
     sign_lane_planner: bool = Field(
         ..., description='Lane planner (the shipped sign-avoidance path)'
     )

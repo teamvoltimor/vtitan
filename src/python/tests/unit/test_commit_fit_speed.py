@@ -180,3 +180,63 @@ class TestCommitFitSpeedCap:
             pytest.skip("router did not commit in this geometry; the cap has nothing to read")
         # Facing away from the sign it is behind the chassis, whatever x says.
         assert nav._commit_fit_speed_cap(robot.x, robot.y, math.pi) is None
+
+
+class TestCrossingReverse:
+    """Back straight when the committed crossing's arc does not fit the run-up left."""
+
+    @pytest.fixture()
+    def tuning(self) -> NavigationTuning:
+        return _tuning(sign_crossing_reverse_legs=2, sign_crossing_reverse_fit_mps=0.117)
+
+    def _committed(self, tuning: NavigationTuning, robot: Pose) -> tuple[CoreNavigator, SignRouter]:
+        nav, router = TestCommitFitSpeedCap._commit(
+            TestCommitFitSpeedCap(), tuning, robot, SignSpec(x=2.5, y=0.5, color=SignColor.RED)
+        )
+        if router.committed_sign_position is None:
+            pytest.skip("router did not commit in this geometry; nothing to reverse for")
+        return nav, router
+
+    def _scan(self) -> LidarScan:
+        return LidarScan(ranges_m=tuple(create_scan_with_sectors()), angles_rad=tuple(ANGLES))
+
+    def test_shortfall_is_the_arc_run_up_minus_the_nose_run_up(self, tuning: NavigationTuning) -> None:
+        robot = Pose(x=2.05, y=0.5, yaw=0.0)
+        nav, _ = self._committed(tuning, robot)
+        need = chassis_half_diagonal_m() + TrafficSignSpecs.WIDTH / 2
+        expected = math.sqrt(2.0 * need * turn_radius_at_speed_m(0.117)) - (0.45 - RobotSpecs.LENGTH / 2)
+        assert nav._crossing_run_up_shortfall(robot.x, robot.y, robot.yaw) == pytest.approx(expected)
+        assert expected > 0.0
+
+    def test_legal_side_or_sign_behind_means_no_shortfall(self, tuning: NavigationTuning) -> None:
+        robot = Pose(x=2.05, y=0.5, yaw=0.0)
+        nav, router = self._committed(tuning, robot)
+        side = router.committed_pass_side_world
+        assert side is not None
+        assert nav._crossing_run_up_shortfall(robot.x + 0.30 * side[0], robot.y + 0.30 * side[1], 0.0) is None
+        assert nav._crossing_run_up_shortfall(2.6, robot.y, 0.0) is None
+
+    def test_a_short_crossing_backs_straight_and_spends_the_budget(self, tuning: NavigationTuning) -> None:
+        robot = Pose(x=2.05, y=0.5, yaw=0.0)
+        nav, _ = self._committed(tuning, robot)
+        scan = self._scan()
+        legs = []
+        for _ in range(4):
+            leg = nav._crossing_reverse_leg(scan, robot.x, robot.y, robot.yaw)
+            if leg is not None:
+                legs.append(leg)
+        if not legs:
+            pytest.skip("reverse refused as unseen ground in this fixture")
+        assert len(legs) <= 2
+        assert all(leg.steering == 0.0 and leg.speed < 0.0 for leg in legs)
+
+    def test_off_by_default(self) -> None:
+        tuning = _tuning()
+        assert tuning.sign_router.sign_crossing_reverse_legs == 0
+        nav, _ = self._committed(tuning, Pose(x=2.05, y=0.5, yaw=0.0))
+        assert nav._crossing_reverse_leg(self._scan(), 2.05, 0.5, 0.0) is None
+
+    def test_enough_road_means_no_reverse(self, tuning: NavigationTuning) -> None:
+        robot = Pose(x=2.05, y=0.5, yaw=0.0)
+        nav, _ = self._committed(tuning, robot)
+        assert nav._crossing_reverse_leg(self._scan(), 1.2, 0.5, 0.0) is None

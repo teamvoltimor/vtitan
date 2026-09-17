@@ -36,6 +36,10 @@ sign_aware_speed = true
 # floor: once the commit is late the geometry asks for a crawl, not a fit.
 sign_commit_fit_speed = false
 sign_commit_fit_floor_mps = 0.10
+# OFF, under measurement 2026-09-17: when the committed crossing's arc does not fit the run-up
+# left at the fit speed, back straight (legs of k_turn_min_s per committed sign) before driving on.
+sign_crossing_reverse_legs = 0
+sign_crossing_reverse_fit_mps = 0.117
 sign_lane_planner = true
 sign_lane_offset_frac = 1.0
 sign_lane_ramp_m = 0.9
