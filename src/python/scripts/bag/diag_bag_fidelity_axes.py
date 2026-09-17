@@ -59,6 +59,7 @@ import numpy as np
 import shared.domain.enums  # noqa: F401  (imported first: the models <-> enums cycle needs a seed)
 from rclpy.serialization import deserialize_message
 from sensor_msgs.msg import LaserScan
+from shared.config.constants import CorridorDimensions, RobotSpecs
 from shared.domain.models import Pose, SignColor
 
 from scripts.common.bag_io import (
@@ -73,7 +74,9 @@ from scripts.common.fidelity_axes import (
     VisionFreshness,
     contiguous_episodes,
     format_committed,
+    flank_gaps,
     format_escapes,
+    format_flank,
     format_steering,
     format_vision_freshness,
     frame_carries_observation,
@@ -256,11 +259,19 @@ def main() -> int:
             print(line)
 
         census = SectorCensus()
+        flank_left: list[float | None] = []
+        flank_right: list[float | None] = []
         for _t, data in scans[::_SCAN_STRIDE]:
             msg = deserialize_message(data, LaserScan)
             raw = np.asarray(msg.ranges, dtype=float)
             angles = np.linspace(msg.angle_min, msg.angle_max, len(raw)) + LIDAR_YAW_OFFSET_RAD
-            census.add(np.degrees((angles + math.pi) % (2 * math.pi) - math.pi), raw, finite=np.isfinite(raw))
+            degrees = np.degrees((angles + math.pi) % (2 * math.pi) - math.pi)
+            census.add(degrees, raw, finite=np.isfinite(raw))
+            left, right = flank_gaps(degrees, raw, max_range_m=RobotSpecs.LIDAR_MAX_RANGE)
+            flank_left.append(left)
+            flank_right.append(right)
+        for line in format_flank(flank_left, flank_right, corridor_width_m=CorridorDimensions.OBSTACLES_WIDTH):
+            print(line)
         print(f"{census.format()}   (robot frame, {census.scans} scans; 'finite' = the driver returned a number)")
 
         start = [(s.pose_x, s.pose_y, s.pose_yaw) for _t, s in rows[:40] if s.pose_y is not None]

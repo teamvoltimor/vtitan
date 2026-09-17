@@ -64,6 +64,8 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 
+from shared.config.constants import RobotSpecs
+
 from scripts.common.stats import percentile
 from src.navigation.planning.sign_discovery import detection_to_observation
 
@@ -316,3 +318,62 @@ def format_committed(
         f"cmd_speed p50={percentile(commanded, 0.5):.3f} p10={percentile(commanded, 0.1):.3f}  "
         f"achieved p50={percentile(achieved, 0.5):.3f}"
     )
+
+
+FLANK_HALF_FOV_DEG = 15.0
+"""Half-width of the abeam cone the flank gap is read from.
+
+Wide enough to survive the C1's dropouts (the hardware loses a quarter of its
+rays) and narrow enough that a pillar 45 degrees off the beam does not stand in
+for the wall.
+"""
+
+
+def flank_gaps(bearings_deg, ranges_m, *, max_range_m: float) -> tuple[float | None, float | None]:
+    """Closest LEFT and RIGHT returns abeam, from the chassis side, or None each.
+
+    Pose-free on purpose. The believed pose wanders 7-15 cm inside one round,
+    which is the same size as the lane differences this axis exists to measure,
+    so the wall has to be read off the sensor rather than off the belief. The
+    gap is measured from the chassis SIDE (half the width), not the LIDAR
+    origin, so the number is the clearance the paint would see.
+    """
+    bearings = np.asarray(bearings_deg, dtype=float)
+    ranges = np.asarray(ranges_m, dtype=float)
+    valid = np.isfinite(ranges) & (ranges > SUB_FLOOR_M) & (ranges < max_range_m - 1e-6)
+    out: list[float | None] = []
+    for centre in (90.0, -90.0):
+        delta = (bearings - centre + 180.0) % 360.0 - 180.0
+        side = valid & (np.abs(delta) <= FLANK_HALF_FOV_DEG)
+        out.append(float(np.min(ranges[side])) - RobotSpecs.WIDTH / 2 if bool(np.any(side)) else None)
+    return out[0], out[1]
+
+
+def format_flank(
+    left: Sequence[float | None], right: Sequence[float | None], *, corridor_width_m: float
+) -> list[str]:
+    """The lane-placement block: how close the FLANKS run to the walls, and how centred.
+
+    Why this is an axis at all: the parking lot's fins stand 0.20 m out from the
+    outer wall and the car brushes them, while the simulator drives the same
+    corridor 0.30 m further from that wall and so never touches them. A margin
+    knob measured in the simulator is then measuring a car that was never close
+    enough to need it. The offset is signed as RIGHT MINUS LEFT halved, i.e.
+    positive means hugging the left wall, and it is only meaningful when both
+    flanks answered -- in a corner one of them sees the far side of the mat.
+    """
+    lefts = [v for v in left if v is not None]
+    rights = [v for v in right if v is not None]
+    if not lefts or not rights:
+        return ["flank: too few abeam returns to characterise"]
+    nearer = [min(a, b) for a, b in zip(left, right, strict=True) if a is not None and b is not None]
+    offsets = [(b - a) / 2 for a, b in zip(left, right, strict=True) if a is not None and b is not None]
+    hug = 100 * float(np.mean(np.asarray(nearer) < 0.10)) if nearer else 0.0
+    return [
+        f"flank gap m: left p10={percentile(lefts, 0.1):.2f} p50={percentile(lefts, 0.5):.2f}  "
+        f"right p10={percentile(rights, 0.1):.2f} p50={percentile(rights, 0.5):.2f}",
+        f"  nearer flank p10={percentile(nearer, 0.1):.2f} p50={percentile(nearer, 0.5):.2f}  "
+        f"under 0.10 m: {hug:.1f}% of ticks  (corridor {corridor_width_m:.2f} m)",
+        f"  offset from centre m (right-left)/2: p10={percentile(offsets, 0.1):+.2f} "
+        f"p50={percentile(offsets, 0.5):+.2f} p90={percentile(offsets, 0.9):+.2f}  n={len(offsets)}",
+    ]
