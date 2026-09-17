@@ -42,7 +42,7 @@ from src.navigation.control.controllers import (
 from src.navigation.core_navigator.corner_latch import CornerLatch
 from src.navigation.core_navigator.escape_recovery import EscapeRecovery
 from src.navigation.corridor_estimator import classify_width
-from src.navigation.geometry import chassis_half_diagonal_m
+from src.navigation.geometry import arc_fit_speed_mps, chassis_half_diagonal_m
 from src.navigation.planning.lidar_proposer import (
     ProposerParams,
     find_clusters,
@@ -634,6 +634,50 @@ class CoreNavigator(EscapeRecovery):
             # tick, so it cannot prefer a side. Declining beats rounding.
             return None
         return -1.0 if wants_left > 0.0 else 1.0
+
+    def _commit_fit_speed_cap(self, robot_x: float, robot_y: float, robot_yaw: float) -> float | None:
+        """Speed at which the chassis can still arc onto the committed pass's legal line.
+
+        Three numbers from the router's own belief, nothing sensed:
+
+        * ``have`` -- how far the chassis already sits on the LEGAL side of
+          the committed sign (``committed_pass_side_offset``), negative when
+          it must cross the sign's line;
+        * ``need`` -- the lateral a clean pass requires, chassis half-diagonal
+          plus sign half-width (the mid-turn footprint, not the half-width:
+          the chassis is turning while it does this), minus ``have``;
+        * ``run_up`` -- along-track distance from the NOSE to the sign.
+
+        ``arc_fit_speed_mps`` turns those into the speed whose turn radius
+        buys ``need`` within ``run_up``. ``None`` when nothing applies: no
+        commitment, no pass side yet (never guess one), the lateral already
+        held, or the sign abeam or behind -- there an arc buys nothing and the
+        escape layer owns the contact.
+
+        Deliberately the physical clearance, not the lane's own commanded
+        offset: the lane asks for the clearance margin on top and clamps to
+        the wall band, so its target is unreachable for a centred sign and a
+        cap keyed on it would pin the speed to the floor for the whole
+        approach. The clearance margin is the lane's business; this is the
+        arc's.
+        """
+        router = self._sign_router
+        if router is None:
+            return None
+        anchor = router.committed_sign_position
+        if anchor is None:
+            return None
+        have = router.committed_pass_side_offset((robot_x, robot_y))
+        if have is None:
+            return None
+        need = chassis_half_diagonal_m() + TrafficSignSpecs.WIDTH / 2 - have
+        if need <= 0.0:
+            return None
+        dx, dy = anchor.x - robot_x, anchor.y - robot_y
+        along = dx * math.cos(robot_yaw) + dy * math.sin(robot_yaw)
+        if along <= 0.0:
+            return None
+        return arc_fit_speed_mps(along - RobotSpecs.LENGTH / 2, need)
 
     def _sign_evade_steer(self, robot_x: float, robot_y: float, robot_yaw: float) -> float | None:
         """Steering to swing the chassis clear of a routed sign it is about to clip.
@@ -1670,6 +1714,23 @@ class CoreNavigator(EscapeRecovery):
             and sign_deform_magnitude > self._tuning.sign_router.sign_deform_speed_threshold_m
         ):
             speed = min(speed, self._speed.slow_mps)
+
+        # Fit the turn radius to the run-up the commit actually left. On the
+        # 09-14/15 rounds the router commits at p50 0.54 m (p10 0.33), and
+        # within the passes that must CROSS to the legal side the failure
+        # rate is 61% under 0.40 m, 38% at 0.40-0.55 and 4% past 0.55; the
+        # passes already on the legal side are flat at 4-7%. The radius is a
+        # speed curve, so once the commit is late speed is the only authority
+        # left over the arc: at 0.10-0.12 m/s 20 of the 31 short arcs fit,
+        # and the remaining 7 fit at no speed. Ships OFF: corpus 13 -> 18, and
+        # on the bags it would bind on 47% of committed ticks, 92% of them ON
+        # the floor, for 21% of driving time -- once the commit is late the
+        # geometry asks for a crawl, not a fit. See _commit_fit_speed_cap and
+        # ``adr:0051-sign-lane-planner``.
+        if self._tuning.sign_router.sign_commit_fit_speed:
+            fit = self._commit_fit_speed_cap(robot_x, robot_y, robot_yaw)
+            if fit is not None:
+                speed = min(speed, max(fit, self._tuning.sign_router.sign_commit_fit_floor_mps))
 
         # Treat a discovering run's first lap as reconnaissance. The robot
         # cannot see a corridor's signs until it is inside that corridor (they

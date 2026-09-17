@@ -126,6 +126,32 @@ centre bias the corridor width selected (ADR 0028). It must never flatten that.
 - At offset_frac 1.0 a centred sign pins the lane on the clamp floor for a whole
   straight (wall 3 to 23); raising `lateral_offset` to 0.33 bought sign hits back
   at 12 new wall hits.
+- 2026-09-16: fit the speed to the run-up the commit left
+  (`sign_commit_fit_speed`, floor `sign_commit_fit_floor_mps` 0.10), REFUTED and
+  shipped off: corpus 13 -> 18 (fixes 0002, 0005, 0014; breaks 0000, 0004, 0006,
+  0008, 0009, 0011, 0013). On the bags (`diag_bag_commit_fit_cost.py`) the
+  production formula binds on 47% of committed ticks, 92% of them at the floor,
+  for 21% of driving time (~30 s a round); the most lenient calibration (cross
+  the sign's line only, run-up from the chassis centre) still costs 6.7% with 73%
+  at the floor and binds on 60% of the ticks spent on the wrong side. The
+  chassis sits on the wrong side of the committed line on 28% of committed ticks,
+  and from there the arc fits at no speed: the car resolves those passes with
+  lateral bought earlier or with the escape, not with a clean arc, so speed after
+  the commit is not the authority. Re-measured
+  on the 09-14/15 rounds (144 committed pillars, 163 passes): the router commits
+  at p50 0.537 m, p10 0.328, losing 0.315 m after publication -- the 0.50 m
+  pillar spacing, since the claim is released when the previous pillar falls
+  behind (13.5% of blocked ticks; the corner gate 8.8%). Within the passes that
+  must CROSS the execution-failure rate is 61% under 0.40 m, 38% at 0.40-0.55
+  and 4% past 0.55 (chi2 25.8, p<0.0001); the already-legal control is flat at
+  4-7%. The margin `s^2/(2R) - cross` separates too (35% fail below zero, 11%
+  above 0.10 m). Speed at commit is a NULL only because it has no variance:
+  81% commit at exactly the 0.22 m/s slow tier. Counterfactual on the 31
+  negative-margin crossings: a floor of 0.10-0.12 m/s flips 20-21 positive;
+  the other 7 fit at no speed (they need < 0.06 m/s). The simulator commits
+  EARLIER than the car (p50 0.785 m; 16% of crossing commits short against 40%
+  real, `diag_sign_commit_range.py`), so it under-represents the regime and
+  can screen harm more than benefit.
 
 ## Cross-references
 

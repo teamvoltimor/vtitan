@@ -20,6 +20,15 @@ escape_mask_chassis_margin_m = 0.01
 commit_hysteresis = true
 corridor_flip_ticks = 1
 sign_aware_speed = true
+# OFF, measured 2026-09-16: on the 09-14/15 rounds the router commits at p50 0.54 m (p10 0.33)
+# and within the passes that must CROSS the failure rate is 61% under 0.40 m against 4% past
+# 0.55, so the cap fits the turn radius (a speed curve) to the run-up left. Refuted: corpus
+# 13 -> 18 (fixes 5, breaks 10), and on the bags it would bind on 47% of committed ticks, 92%
+# of them ON the floor, costing 21% of driving time (~30 s a round). Even the most lenient
+# calibration (cross the sign's line only, run-up from the centre) costs 6.7% with 73% at the
+# floor: once the commit is late the geometry asks for a crawl, not a fit.
+sign_commit_fit_speed = false
+sign_commit_fit_floor_mps = 0.10
 sign_lane_planner = true
 sign_lane_offset_frac = 1.0
 sign_lane_ramp_m = 0.9

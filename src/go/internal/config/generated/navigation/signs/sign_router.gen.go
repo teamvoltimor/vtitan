@@ -81,6 +81,21 @@ type NavigationSignsSignRouter struct {
 	// Obstacles-only.
 	SignAwareSpeed bool `json:"sign_aware_speed" yaml:"sign_aware_speed" mapstructure:"sign_aware_speed"`
 
+	// Lowest speed sign_commit_fit_speed may command, in m/s. Below ~0.06 m/s the fit
+	// is asking for a radius the chassis cannot deliver at all, and a crawl that slow
+	// costs the round clock more than it buys.
+	SignCommitFitFloorMps float64 `json:"sign_commit_fit_floor_mps" yaml:"sign_commit_fit_floor_mps" mapstructure:"sign_commit_fit_floor_mps"`
+
+	// Cap speed so the chassis turn radius (R = intercept + slope * v, a speed curve
+	// on this chassis) can buy the lateral the committed pass still needs within the
+	// run-up the commit actually left: a single arc buys s^2/(2R) over s metres, so
+	// the fitting speed is v = (s^2 / (2 * lateral) - intercept) / slope, with s the
+	// nose-to-pillar distance and lateral = (chassis half-diagonal + sign half-width)
+	// - the offset already held on the legal side. Acts only while that lateral is
+	// positive and the pillar is ahead; the lane's own steering is untouched.
+	// Obstacles-only by construction (needs a committed sign).
+	SignCommitFitSpeed bool `json:"sign_commit_fit_speed" yaml:"sign_commit_fit_speed" mapstructure:"sign_commit_fit_speed"`
+
 	// Extra margin (m) beyond the chassis and sign half-widths when passing a sign.
 	SignClearanceMarginM float64 `json:"sign_clearance_margin_m" yaml:"sign_clearance_margin_m" mapstructure:"sign_clearance_margin_m"`
 

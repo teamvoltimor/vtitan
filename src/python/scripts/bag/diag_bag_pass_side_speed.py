@@ -45,6 +45,7 @@ import shared.domain.enums  # noqa: F401,E402
 
 from scripts.common import pass_side  # noqa: E402
 from scripts.common.bag_io import create_bags_parser, read_vision_rows_and_scans  # noqa: E402
+from scripts.common.tables import print_table
 from src.config.tuning_helpers import get_tuning  # noqa: E402
 from src.navigation.planning.sign_router import SignRouter  # noqa: E402
 
@@ -357,6 +358,47 @@ def main() -> int:
         m = sorted(r["margin"] for r in cross if r["verdict"] == v)
         if m:
             print(f"   {v:>9}: margin mean {sum(m)/len(m):+.3f}  p50 {m[len(m)//2]:+.3f}  n={len(m)}")
+    print()
+
+    print("== COUNTERFACTUAL: the same commits, re-driven at a SPEED FLOOR (R = 0.053 + 1.86 v)")
+    print("   margin = s^2/(2R(v)) - cross needed, on the crossing population; the bags carry")
+    print("   almost no speed variance (81% commit at one tier), so this is arithmetic on the")
+    print("   measured range and cross, NOT an observed effect. Bind = the cap would act.")
+    floors = (0.22, 0.152, 0.12, 0.10, 0.08)
+    header = ["floor m/s", "R m", "bind n", "neg->pos", "still neg", "exec still neg", "ok still neg"]
+    rows_cf = []
+    for v in floors:
+        radius = TURN_R_INTERCEPT + TURN_R_SLOPE * v
+        bind = flipped = still = still_exec = still_ok = 0
+        for r in cross:
+            if r["speed"] <= v:
+                continue
+            bind += 1
+            new_margin = r["range"] ** 2 / (2 * radius) - r["needed"]
+            if r["margin"] < 0 <= new_margin:
+                flipped += 1
+            if new_margin < 0:
+                still += 1
+                if r["verdict"] == "execution":
+                    still_exec += 1
+                else:
+                    still_ok += 1
+        rows_cf.append([f"{v:.3f}", f"{radius:.3f}", str(bind), str(flipped), str(still), str(still_exec), str(still_ok)])
+    print_table(rows_cf, header)
+    neg = [r for r in cross if r["margin"] < 0]
+    if neg:
+        need_v = []
+        for r in neg:
+            # the speed at which the arc JUST fits: R = s^2 / (2 needed)
+            if r["needed"] <= 0:
+                continue
+            r_fit = r["range"] ** 2 / (2 * r["needed"])
+            need_v.append(max(0.0, (r_fit - TURN_R_INTERCEPT) / TURN_R_SLOPE))
+        need_v.sort()
+        if need_v:
+            print(f"   speed at which the arc just FITS, over the {len(need_v)} negative-margin crossings:"
+                  f" p10 {need_v[len(need_v)//10]:.3f}  p50 {need_v[len(need_v)//2]:.3f}"
+                  f"  p90 {need_v[9*len(need_v)//10]:.3f} m/s  (unreachable below ~0.05)")
     print()
 
     print("== SPEED DISTRIBUTION at commit (the bands are only as real as this)")
