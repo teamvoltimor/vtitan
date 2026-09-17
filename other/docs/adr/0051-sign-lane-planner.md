@@ -152,6 +152,18 @@ centre bias the corridor width selected (ADR 0028). It must never flatten that.
   EARLIER than the car (p50 0.785 m; 16% of crossing commits short against 40%
   real, `diag_sign_commit_range.py`), so it under-represents the regime and
   can screen harm more than benefit.
+- 2026-09-17: the in-section opposite-colour PAIR is what the 09-15 afternoon
+  Obstacles rounds failed on (0 routing / 8 execution verdicts, 6 of them the
+  second pillar of a green-then-red pair 1.0 m apart or the red before the lot;
+  the east red after the east green failed 3 of 3 counter-clockwise rounds, the
+  chassis committing 0.3-0.6 m on the wrong side at 0.6 m). `_control_points`
+  leaves 0.50 m of S-bend between two 0.25 m plateaux for a 0.644 m shift. Sweep
+  (`sweep_pair_lane.sh`, baseline 13): `sign_lane_hold_m` 0.10 -> 14 (fixes 0003,
+  breaks 0004 and 0009 blind); `sign_clearance_margin_m` 0.05 -> 17; both -> 19;
+  margin 0.0 -> 17. Shrinking the lane's demand does not buy the crossing and
+  costs wall and pillar contacts elsewhere; the pair needs ROOM the corridor does
+  not have forward (see the band-change arithmetic in 0086's evidence), which
+  leaves perception reach and a planned reverse in the corner square.
 
 ## Cross-references
 
