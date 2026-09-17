@@ -38,6 +38,11 @@ type NavigationEscapeEscape struct {
 	// firing 2-7 times in every round with a 35-170 s stall.
 	EscapeDwellSeconds float64 `json:"escape_dwell_seconds" yaml:"escape_dwell_seconds" mapstructure:"escape_dwell_seconds"`
 
+	// Obstacles-only override of escape_dwell_seconds. ON at 12.0 since 2026-09-17:
+	// the gate switches the escape's committed side, which only Obstacles has, and
+	// the corpus cannot score it because the simulator reproduces no wedge.
+	ObstaclesEscapeDwellSeconds float64 `json:"obstacles_escape_dwell_seconds" yaml:"obstacles_escape_dwell_seconds" mapstructure:"obstacles_escape_dwell_seconds"`
+
 	// Steer the opposite way on an escape's reverse leg so forward and reverse arcs
 	// accumulate rotation. False shared, true for Obstacles.
 	EscapeMirrorsReverse bool `json:"escape_mirrors_reverse" yaml:"escape_mirrors_reverse" mapstructure:"escape_mirrors_reverse"`

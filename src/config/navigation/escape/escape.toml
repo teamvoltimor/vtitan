@@ -55,6 +55,12 @@ post_escape_creep_s = 0.0
 # ticks beside the pillar, not a cleaner pass. See adr:0055.
 obstacles_post_escape_creep_s = 0.0
 escape_dwell_seconds = 0.0
+# ON for Obstacles since 2026-09-17, measured on the RECORDED rounds because the corpus has no
+# wedge to gate: at 12 s the separation is perfect over the 786 escape latches of 2026-09-15,
+# silent in all five rounds whose longest stay is under 25 s (the scoreable one peaks at 8.9 s)
+# and firing 2-7 times in every round with a 35-170 s stall. The 09-15 afternoon rounds that
+# looped beside a pillar are the target. Open stays OFF: it has no committed side to switch.
+obstacles_escape_dwell_seconds = 12.0
 escape_dwell_radius_m = 0.30
 escape_dwell_cooldown_s = 10.0
 escape_dwell_max_per_place = 3

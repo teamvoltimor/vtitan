@@ -272,3 +272,13 @@ in-time / 28 laps>=3 / 9 timed out; 1.8 gave 29 / 34 / 0; 2.3 gave 31 / 33 / 0;
 - K-turn trap, 2026-09-14: the escalated manoeuvre feeds the K-turn, and the
   K-turn was measured turning against the plan on 57 percent of episodes, so make
   the response right before making the ladder reachable.
+- Dwell gate turned ON for Obstacles, 2026-09-17: `obstacles_escape_dwell_seconds`
+  = 12.0, with the shared key left at 0.0 so Open is untouched (it has no
+  committed side to switch). The corpus cannot score it - the simulator
+  reproduces no wedge - and a full Obstacles corpus with the override on returns
+  the SAME 13 failures, scenario for scenario, so the change is inert where it
+  cannot be measured and lives or dies on the recorded rounds it was fitted to:
+  perfect separation over the 786 escape latches of 2026-09-15, silent in the
+  five rounds whose longest stay in a 0.30 m circle is under 25 s and firing 2-7
+  times in every round with a 35-170 s stall. The 09-15 afternoon rounds that
+  looped beside a pillar and beside the lot are the target.

@@ -160,6 +160,10 @@ class NavigationEscapeEscape(StrictModel):
         ...,
         description='Seconds the chassis must have stayed inside escape_dwell_radius_m before an escape is allowed to switch its committed side. 0.0 disables the gate, which is how it ships. It exists because the attempt COUNTER is anti-correlated with the failure it was built for: measured over the 786 escape latches of the 2026-09-15 session, escalate_after_attempts fired on 24% of latches in a clean 3-lap round whose longest stay in a 0.30 m circle was 8 s, and on 0% in the round that spent 98 of its 183 s pinned inside one. The wedged robot does not sit still: it covers 22.3 m of path for 0.14 m of net displacement, and every thrash clears the 3 cm reset that the counter and the stuck detector both watch. Dwell measures the thing that actually distinguishes them. At 12 s the separation is perfect on that session: silent in all five rounds whose longest stay is under 25 s, including the only scoreable one (worst case 8.9 s), and firing 2-7 times in every round with a 35-170 s stall.',
     )
+    obstacles_escape_dwell_seconds: float = Field(
+        ...,
+        description='Obstacles-only override of escape_dwell_seconds. ON at 12.0 since 2026-09-17: the gate switches the escape\'s committed side, which only Obstacles has, and the corpus cannot score it because the simulator reproduces no wedge -- the ruler is the recorded session the threshold was fitted on.',
+    )
     escape_dwell_radius_m: float = Field(
         ...,
         description='Radius of the circle the chassis must not leave for escape_dwell_seconds to accumulate. 0.30 m is large enough that the thrashing inside a wedge stays inside it and small enough that ordinary driving leaves it immediately.',
