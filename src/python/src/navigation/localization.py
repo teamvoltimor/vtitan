@@ -383,34 +383,55 @@ class LidarLocalizer:
         the correction of an estimate already known to be wrong, so the distance
         it covers carries no information about how fast the robot went.
 
-        A LONG jump is nevertheless held for confirmation, which is a different
-        claim from the speed bound: not "the robot cannot have travelled that
-        far" but "on this track a candidate that far away is usually the
-        symmetry twin of the right answer rather than the right answer". The
-        width-spread gate above refuses the search outright when the believed
-        free space is exactly symmetric; it cannot help when the widths differ
-        enough to pass it and the scan is still nearly as well explained from a
-        mirrored pose. MEASURED on run_20260915_160804, an Open round whose
-        believed widths were 0.63 / 0.955 / 0.958 and which therefore passed
-        that gate: the estimate teleported 2.06 m across the mat in 1.26 s
-        (1.64 m/s against 0.26 m/s commanded), its corridor label flipped east
-        to west, the cost fell 0.0316 to 0.0100 so the accept ratio was happy,
-        and the planner then replanned 26 waypoints backwards and swept 213
-        degrees of yaw in 4.8 s inside an 8 x 26 cm box -- the U-turn the
-        operator saw, on a round that scored 6. The pair it chose is very nearly
-        the mirror of the pose it left.
+        A LONG jump is nevertheless held for confirmation. The width-spread gate
+        above tests ``max - min`` of the four believed widths, which is not the
+        same question as "is this model symmetric". MEASURED on
+        run_20260915_160804, an Open round already carrying that gate: the
+        BELIEVED widths were 0.600 / 0.600 / 1.000 / 1.000, a spread of 0.400
+        that passes easily while the model is EXACTLY mirror-symmetric about
+        both axes, so every pose has twins that explain the scan as well as it
+        does. (0.63 / 0.955 / 0.958 are that round's TRUE spans measured off
+        ``/scan``; an earlier version of this comment cited them as the belief,
+        which was wrong.) The estimate teleported 2.06 m across the mat in
+        1.26 s, its corridor label flipped east to west, the cost fell 0.0316 to
+        0.0100 so the accept ratio was happy, and the planner then replanned 26
+        waypoints backwards and swept 213 degrees of yaw in 4.8 s inside an
+        8 x 26 cm box -- the U-turn the operator saw, on a round that scored 6.
 
         So a winner further than ``relocalize_confirm_dist_m`` from the prior is
         held, not taken, and is trusted only if a LATER global search lands
-        within ``jump_confirm_tolerance_m`` of it. This reuses the reasoning the
-        local speed guard already rests on and which the reverted cost/margin
-        guard did not: a real correction reconverges to nearly the same position
-        from an independent scan, while an ambiguous tie does not. The tie is
-        measured, not assumed -- a coarse-to-fine grid picked a DIFFERENT winner
-        on 6 of 38 scans of the 140358 event, and refining the lattice did not
-        reduce that. The cost is latency: the streak restarts below, so a
-        genuine long rescue is delayed by ``relocalize_after_scans`` scans
-        (~1.5 s) rather than refused. Inert at 0.0.
+        within ``jump_confirm_tolerance_m`` of it.
+
+        WHAT THIS GUARD ACTUALLY IS, measured rather than intended. It was built
+        on the local speed guard's reasoning -- "a real correction reconverges
+        from an independent scan, an ambiguous tie does not" -- and replaying the
+        real search over every scan of both available bags REFUTES that: at one
+        scan's lag the genuine rescue reconverges within 5 cm on 95.5% of 555
+        pairs and the twin on 80-95% of its own. BOTH reconverge; on the next
+        scan this guard would take the twin. What makes it work is the cadence.
+        The streak restarts below, so the second search is >= 15 scans later, and
+        by then the winner has MOVED WITH THE ROBOT (median 0.309 m against the
+        robot's own 0.335 m) while ``jump_confirm_tolerance_m`` carries no motion
+        compensation. At its real cadence this is a STATIONARITY test, and the
+        160804 twin episode lasts 3 scans while the car moved 0.3 m, so it is
+        refused. Do not "fix" the tolerance by compensating for motion: that
+        would turn it back into the reconvergence test the measurement just
+        refuted, and it would accept the twin.
+
+        THE COST IS LARGER THAN IT LOOKS. On the one genuine rescue available
+        (run_20260907_205830) consecutive 15-scan searches confirm on 5 of 37
+        pairs and the first confirmation lands at 10.5 s, not the ~1.5 s one
+        re-arm would suggest. That is still far better than the 48 s divergence
+        that rescue recovered, which is why it ships on, but it is the honest
+        number. Inert at 0.0.
+
+        THE DEEPER DEFECT IS UPSTREAM AND IS NOT FIXED HERE. The 160804 event
+        sits inside a 1.256 s control-loop stall, and replaying the search with
+        the yaw interpolated across that gap NEVER produces the teleport -- 40
+        scans, zero flips. It reproduces only when the post-stall yaw is applied
+        to a pre-stall scan, and one DEGREE of yaw is enough to flip the winner
+        between twins 2.0 m apart at costs 6% apart. The real lever is pairing a
+        scan with the yaw that belongs to it.
 
         Returns ``None`` when the global winner does not fit MATERIALLY better
         than the local one, which is the case that matters most: a cost above

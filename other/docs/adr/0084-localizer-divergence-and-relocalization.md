@@ -167,32 +167,66 @@ the slowest feed's scan period (LIDAR at 10 Hz).
   a wedge as the parking lot's west fin, and found a pillar 0.38 m from the wall in
   one round and 0.53 m in its siblings: 15 cm of same-layout disagreement, an
   object that moved or a pose bias that no clearance metric surfaces.
-- The width-spread gate is necessary, not sufficient. `run_20260915_160804` ran
-  commit `98fd5a37` with a clean tree, so `relocalize_min_width_spread_m` was
-  already shipped, and the round still lost its pose: the believed widths were
-  0.63 / 0.955 / 0.958, a spread of 0.325 that passes the gate because ONE pair of
-  opposite corridors differs, while the OTHER pair is equal to within 3 mm and
-  leaves a mirror that explains the scan as well as the truth. The search ran, the
-  estimate teleported 2.06 m in 1.26 s (1.64 m/s against 0.26 m/s commanded), the
-  cost fell 0.0316 to 0.0100 so `relocalize_accept_ratio` was satisfied, and the
-  corridor label flipped east to west. The planner then replanned the waypoint
-  index 35 -> 9, drove `angle_error_rad` to 2.96 (170 deg, target directly behind),
-  and swept yaw -68 -> +145 deg -- 213 deg in 4.8 s -- while the pose stayed inside
-  an 8 x 26 cm box. That is the U-turn the operator saw on the round scored 6.
-- The event is also the only tick stall over 0.5 s in the whole afternoon: the
-  control loop blocked 1.26 s across the relocalization, one `no_pose` snapshot.
-- `relocalize_confirm_dist_m` answers it by REUSING the local speed guard's
-  discriminator rather than the reverted cost/margin one: a winner further than
-  the knob is held and taken only when a later global search reconverges within
-  `jump_confirm_tolerance_m`. A real correction reconverges from an independent
-  scan; an ambiguous tie does not, and the 140358 event measured exactly that --
-  a coarse-to-fine grid picked a different winner on 6 of 38 scans and refining
-  the lattice did not reduce it. The price is latency, not refusal: a genuine long
-  rescue is delayed by `relocalize_after_scans` (~1.5 s), which is asserted in the
-  two rescue tests rather than hidden in a generous tick count.
-- The corpus cannot score the benefit. Obstacles fixes all four corridors at
-  1000 mm, so the spread gate refuses the search there and this guard sits
-  downstream of it; the corpus is a damage ruler only.
+- The width-spread gate is necessary, not sufficient, and it tests the wrong
+  statistic. `run_20260915_160804` ran commit `98fd5a37` with a clean tree, so
+  `relocalize_min_width_spread_m` was already shipped, and the round still lost its
+  pose. The BELIEVED widths were 0.600 / 0.600 / 1.000 / 1.000: a spread of 0.400
+  that passes the gate easily, while the model is EXACTLY mirror-symmetric about
+  both axes, so every pose has twins explaining the scan as well as it does. The
+  gate reads `max - min`, which is not the same question as "is this model
+  symmetric". (0.63 / 0.955 / 0.958 are that round's TRUE spans measured off
+  `/scan`; an earlier revision of this entry cited them as the belief. That was an
+  attribution error and it is corrected here.)
+- The event itself: the estimate teleported 2.06 m in 1.26 s, the cost fell 0.0316
+  to 0.0100 so `relocalize_accept_ratio` was satisfied, the corridor label flipped
+  east to west, the planner replanned the waypoint index 35 -> 9, `angle_error_rad`
+  reached 2.96 (170 deg, target directly behind), and yaw swept -68 -> +145 deg,
+  213 deg in 4.8 s, while the pose stayed inside an 8 x 26 cm box. That is the
+  U-turn the operator saw on the round scored 6. It is also the only tick stall over
+  0.5 s in the whole afternoon: the control loop blocked 1.256 s across it.
+- THE REAL DEFECT IS THE SCAN/YAW PAIRING, not the search. Replaying the shipped
+  `_relocalize_globally` over the 40 scans of t=20.5-24.5 s with the yaw interpolated
+  across the stall NEVER produces the teleport: the winner stays at x~2.5, lag-1
+  median 0.030 m, zero flips. It reproduces only when the POST-stall yaw (-87.55 deg,
+  what production logged at t=22.907) is applied to PRE-stall scans, and then the
+  winner lands within 6 cm of production's accepted pose. One DEGREE of yaw flips
+  the winner between twins 2.0 m apart, at costs 6% apart. Pairing a scan with the
+  yaw that belongs to it is the lever; `relocalize_confirm_dist_m` is not.
+- `relocalize_confirm_dist_m` holds a winner further than 1.00 m and takes it only
+  when a later global search lands within `jump_confirm_tolerance_m`. It was built
+  on the local speed guard's reasoning -- a real correction reconverges from an
+  independent scan, an ambiguous tie does not -- and REPLAYING THE REAL SEARCH OVER
+  EVERY SCAN OF BOTH AVAILABLE BAGS REFUTES THAT REASONING. At one scan's lag the
+  genuine rescue (`run_20260907_205830`) reconverges within 5 cm on 95.5% of 555
+  pairs and the twin on 80-95% of its own; both would confirm, and on the next scan
+  the guard would take the twin. There is no separation: inside 160804's clean
+  window the correct family is 81.6% stable and the twin family 80.0%.
+- What makes the guard work is the CADENCE, not the reasoning. `_relocalize_globally`
+  zeroes the streak, so the second search is at least `relocalize_after_scans` later,
+  and by then the winner has moved WITH the robot: at lag 15 the winner displaces a
+  median 0.309 m against the robot's own 0.335 m, and `jump_confirm_tolerance_m`
+  carries no motion compensation. At its real cadence this is a STATIONARITY test.
+  It refuses the 160804 teleport because that twin episode lasts 3 scans while the
+  car moved 0.3 m. Simulating a search every 15 scans over that bag, 2 of 30
+  consecutive pairs confirm. DO NOT add motion compensation: it would restore the
+  refuted reconvergence test and accept the twin.
+- The cost is understated by about 7x if quoted as one re-arm. On the genuine rescue,
+  15-scan-apart searches confirm on 5 of 37 pairs and the first confirmation lands at
+  10.5 s, not ~1.5 s. Still far better than the 48 s divergence that rescue recovered,
+  which is why it ships on.
+- The confirm rule would NOT have protected the uniform-layout runs. On 140358 and
+  161222 the robot is nearly still on 56% and 45% of scans, 15-scan-apart searches
+  confirm on 19 of 39 and 6 of 10 consecutive pairs, and the lag-1 winner still flips
+  between twins 1.4-2.8 m apart. Only `relocalize_min_width_spread_m` keeps the search
+  off those runs.
+- The one discriminator the replay did find, and which NEITHER guard tests, is the
+  FLIP RATE over a window: 0 flips above 0.5 m in 555 pairs on the genuine rescue,
+  against 4 of 457, 7 of 599 and 13 of 159 on the three ambiguous runs.
+- The corpus cannot score any of this. Obstacles fixes all four corridors at 1000 mm,
+  so the spread gate refuses the search there and the confirm rule sits downstream of
+  it; measured, both arms return 14 failures with an identical set (fixed=0, broke=0).
+- n CAVEAT: exactly two bags both pass the spread gate and contain the phenomenon,
+  one event each. Every percentage above rests on a single run apiece.
 - GO PARITY GAP, recorded rather than silently carried: `src/go/internal/nav/
-  localization` has neither this guard nor `relocalize_min_width_spread_m`. The
-  Go localizer is two guards behind the Python one.
+  localization` has neither this guard nor `relocalize_min_width_spread_m`. The Go
+  localizer is two guards behind the Python one.

@@ -493,26 +493,27 @@ class TestGlobalRelocalization:
 class TestLongJumpConfirmation:
     """The global search may pick a MIRROR TWIN on a layout the spread gate admits.
 
-    ``relocalize_min_width_spread_m`` refuses the search when the believed free
-    space is exactly symmetric, which covers Obstacles (four corridors at
-    1000 mm, spread 0). It cannot cover a layout whose spread is large enough to
-    pass -- because one PAIR of opposite corridors differs -- while the OTHER
-    pair is near-equal, leaving a mirror that explains the scan just as well.
+    ``relocalize_min_width_spread_m`` tests ``max - min`` of the four believed
+    widths, which is not the same question as whether the model is SYMMETRIC. It
+    covers Obstacles (four corridors at 1000 mm, spread 0). It does not cover a
+    layout where one PAIR of opposite corridors differs from the other pair --
+    spread large, mirror intact.
 
     MEASURED on run_20260915_160804, an Open round on commit 98fd5a37 with the
-    spread guard already shipped: believed widths 0.63 / 0.955 / 0.958, the
-    search ran, and the estimate teleported 2.06 m in 1.26 s (1.64 m/s against
-    0.26 m/s commanded) to very nearly the mirror of the pose it left. The cost
-    fell 0.0316 to 0.0100, so ``relocalize_accept_ratio`` was satisfied and had
+    spread guard already shipped: the BELIEVED widths were 0.600 / 0.600 /
+    1.000 / 1.000, a spread of 0.400 that passes easily while the model is
+    exactly mirror-symmetric about both axes. The search ran and the estimate
+    teleported 2.06 m in 1.26 s to the mirror of the pose it left. The cost fell
+    0.0316 to 0.0100, so ``relocalize_accept_ratio`` was satisfied and had
     nothing to say. The corridor label flipped east to west, the planner
     replanned 26 waypoints backwards, and the car swept 213 degrees of yaw in
     4.8 s inside an 8 x 26 cm box -- the U-turn the operator saw, on the round
     that scored 6. See adr:0084-localizer-divergence-and-relocalization.
     """
 
-    # The 160804 shape: one pair separated (the spread gate passes), the other
-    # pair near-equal (the mirror survives).
-    _NEAR_MIRROR = {Section.NORTH: 0.63, Section.SOUTH: 0.63, Section.EAST: 0.955, Section.WEST: 0.958}
+    # The exact believed shape of 160804: both opposite PAIRS equal, so the
+    # model has two mirror axes, while max - min is 0.400 and the gate passes.
+    _NEAR_MIRROR = {Section.NORTH: 0.6, Section.SOUTH: 0.6, Section.EAST: 1.0, Section.WEST: 1.0}
 
     def test_the_near_mirror_layout_passes_the_spread_gate(self) -> None:
         """Without this, the tests below would prove nothing about the new guard.
@@ -546,14 +547,18 @@ class TestLongJumpConfirmation:
         assert localizer.relocalization_count == 1
 
     def test_two_disagreeing_winners_are_both_refused(self) -> None:
-        """The discriminator itself: reconvergence, not cost.
+        """The rule as written, pinned so a future edit cannot quietly change it.
 
-        A cost/margin ambiguity guard was tried and reverted because confirmed-
-        bad and genuinely correct matches had indistinguishable cost on real
-        scans. This one reads a different signal -- whether an INDEPENDENT scan
-        lands on the same place -- and the 140358 event says an ambiguous tie
-        does not: a coarse-to-fine grid picked a different winner on 6 of 38
-        scans, and refining the lattice did not reduce that.
+        This asserts the CONTRACT, not a claim about real scans. The claim the
+        rule was built on -- that a genuine correction reconverges from an
+        independent scan while an ambiguous tie does not -- was replayed over
+        every scan of both available bags and REFUTED: at one scan's lag the
+        genuine rescue reconverges within 5 cm on 95.5% of 555 pairs and the
+        twin on 80-95% of its own. What refuses the twin in production is the
+        CADENCE, not this contract: the next search is 15 scans away and the
+        winner moves with the robot against an uncompensated tolerance. See
+        adr:0084-localizer-divergence-and-relocalization, and do not add motion
+        compensation to the tolerance on the strength of this test.
         """
         localizer, _ = _localizer_for(self._NEAR_MIRROR)
         prior = Waypoint(2.5, 1.5)
