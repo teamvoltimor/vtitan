@@ -343,3 +343,35 @@ So the turn-back the operator sees is NOT a lap-sense reversal, and the exit's
 heading is not the defect either. What the bags do convict is the pocket's COST:
 8.6-14.6 s, about 8% of a three-minute round, before the robot knows which way
 it is going.
+
+## The turn-back after the exit: a stale waypoint index, 2026-09-17
+
+The operator's "it comes out running the wrong way and then turns back" is real,
+it is not a rotation-sign problem, and it is not the direction belief. Measured
+on `run_20260915_165421` and `run_20260915_173029`, both of which died inside
+30 seconds having covered 0.08 laps:
+
+| round | target bearing at hand-over | outcome |
+| --- | --- | --- |
+| 165421 | +121 to +129 deg | drove across the corridor into the far wall, stuck |
+| 173029 | -106 to -165 deg | turned around, 1 m back along the placement heading, then spun -286 deg |
+| 150722 | +3 to +31 deg | drove away, 3.04 laps |
+| 145029 | +3 to +31 deg | drove away |
+| 151026 | +26 to +36 deg | drove away, 2.97 laps |
+
+Both failures hand over with `waypoint_index = 6` and a steer target 0.7-0.8 m
+BEHIND the chassis; the healthy rounds hand over with the target ahead. Pure
+pursuit then does exactly what it is asked and turns the car around.
+
+The cause is an omission in the ROS2 node, not in the manoeuvre. The navigator
+does not step while the exit holds the chassis, so its waypoint index still
+describes the pocket after the exit has driven half a metre and turned 45-66
+degrees out of it. The node already performs this resync at the direction
+commit, with a comment that names this exact failure ("it would resume by
+chasing a waypoint behind itself"), and the simulator has always done it -- its
+settle block falls through to `replace_path` after the exit. Only the node's
+bay-exit hand-over skipped it, so only the hardware's in-bay start could hit it.
+
+Fixed by calling the same `replace_path` at the hand-over. The corpus cannot
+score this (its scenarios do not start in the bay and its own path already
+resyncs); the ruler is the bags above.

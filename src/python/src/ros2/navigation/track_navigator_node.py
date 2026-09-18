@@ -826,6 +826,21 @@ class TrackNavigator(Node, ResettableNode):
                     budget,
                 )
             self._exiting_bay = False
+            # Re-anchor the plan to where the chassis now IS. Same resync the
+            # direction commit does, for the same reason and with more distance
+            # behind it: the navigator does not step while the manoeuvre holds
+            # the chassis, so its waypoint index still describes the pocket
+            # while the exit has driven half a metre and turned 45-66 degrees
+            # out of it. Measured on the 2026-09-15 bags: the two rounds whose
+            # target sat 121-165 degrees BEHIND the chassis at hand-over both
+            # turned around to chase it and died inside 30 seconds, while the
+            # four that handed over with the target 3-36 degrees ahead drove
+            # away. The simulator has always done this -- its settle block falls
+            # through to `replace_path` after the exit -- and only the node
+            # skipped it. See ``adr:0060-bay-exit-clearance-guard``.
+            self._core_navigator.replace_path(
+                self._plan(self._believed_geometry()), (pose.x, pose.y), pose.yaw
+            )
 
         if self._exiting_bay:
             odom = self._gateway.get_wheel_odometry()
