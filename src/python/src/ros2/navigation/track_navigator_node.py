@@ -73,6 +73,63 @@ from src.ros2.resettable_node import ResettableNode
 logger = logging.getLogger(__name__)
 
 
+def pose_is_worth_anchoring(fit_cost: float | None, threshold: float) -> bool:
+    """Is this pose good enough to lay a whole lap's plan around?
+
+    Pure, and module-level for the same reason ``pose_at_time`` is: the decision
+    is arithmetic and deserves a test that does not need a ROS node.
+
+    Used at the bay-exit hand-over, which re-anchors the plan to the pose of that
+    tick. The hand-over is the one moment in a round when that trust is least
+    deserved, because the pocket is where the localizer is worst, and a plan laid
+    out around a wrong pose is not a resync but a different round.
+
+    MEASURED on the five in-bay rounds of 2026-09-15 evening, the first to carry
+    that re-anchor. Fit cost at hand-over, against the waypoint the plan then
+    anchored to:
+
+        214555  0.0122  wp 0   2 laps
+        214858  0.0120  wp 5   3 laps
+        215148  0.0127  wp 5   3 laps
+        215659  0.0123  wp 5   (stopped early, for an unrelated wrong-side pass)
+        215743  0.0454  wp 41  travelled AGAINST its own belief, 0.12 laps
+
+    Perfect separation on those five. The one round whose fit was 3.7x the others
+    anchored to a pose about 1.5 m out, which put the plan at waypoint 41 -- near
+    the END of the lap -- instead of 5, and the chassis drove that plan. It never
+    recovered, because Obstacles fixes all four corridors at 1000 mm so
+    ``relocalize_min_width_spread_m`` refuses the global search:
+    ``relocalization_count`` stayed 0 for the whole round.
+
+    IT IS NOT A PERFECT SEPARATOR, and five rounds are not the evidence. Scored
+    over every in-bay round recorded (38 judged, ``diag_bag_reanchor_gate.py``)
+    the gate fires on 6, and of those 6 three drove the wrong way round against
+    2 of the 32 below the threshold: 50% against 6.3%, odds 15.0, Fisher
+    p = 0.0207. So the trigger is predictive, not decisive. Both error
+    directions are real and worth naming:
+
+    * it MISSES two wrong-way rounds whose fit was healthy (113121 at -195 deg,
+      140358 at -18 deg). 140358 is the known global-relocalization event, a
+      different mechanism entirely;
+    * it FIRES on 151026, which completed three laps. That one is the reassuring
+      case rather than the damning one: 151026 predates the re-anchor, so its
+      waypoint 41 at hand-over IS the fallback this gate reverts to, and it drove
+      three laps on it. The behaviour a refusal falls back to is not speculative,
+      it is what the robot did for months.
+
+    ``threshold`` is ``relocalize_cost_threshold`` and is NOT fitted to those
+    five rounds. It already ships at 0.03 as this repo's definition of "this pose
+    does not explain the scan", and ``LocalizerHealth.fit_cost``'s own docstring
+    already records 0.010 healthy against 0.043 on the run that lost the track.
+
+    A missing fit cost counts as WORTH anchoring rather than refused: before the
+    first scan there is no evidence to refuse it with, and refusing there would
+    silently disable the re-anchor on every round whose hand-over lands on a tick
+    without a fresh fix.
+    """
+    return fit_cost is None or fit_cost <= threshold
+
+
 def _direction_gate_verdict(
     ranges_m: Any,
     angles_rad: Any,
@@ -849,9 +906,27 @@ class TrackNavigator(Node, ResettableNode):
             # away. The simulator has always done this -- its settle block falls
             # through to `replace_path` after the exit -- and only the node
             # skipped it. See ``adr:0060-bay-exit-clearance-guard``.
-            self._core_navigator.replace_path(
-                self._plan(self._believed_geometry()), (pose.x, pose.y), pose.yaw
-            )
+            #
+            # ONLY IF THE POSE IS WORTH ANCHORING TO -- see
+            # ``pose_is_worth_anchoring`` for the measurement that added this
+            # gate and why the threshold is not a new knob. There is
+            # deliberately no off switch: the fallback is simply the plan that
+            # shipped for months before the re-anchor existed, so anchoring to a
+            # pose known not to explain the scan has no case to answer.
+            health = self._gateway.get_localizer_health()
+            fit_cost = health.fit_cost if health is not None else None
+            threshold = self._tuning.localization.relocalize_cost_threshold
+            if pose_is_worth_anchoring(fit_cost, threshold):
+                self._core_navigator.replace_path(
+                    self._plan(self._believed_geometry()), (pose.x, pose.y), pose.yaw
+                )
+            else:
+                logger.warning(
+                    "bay exit hand-over NOT re-anchored: fit cost %.4f exceeds %.4f, "
+                    "so the pose is not worth planning around -- keeping the existing path",
+                    fit_cost,
+                    threshold,
+                )
 
         if self._exiting_bay:
             odom = self._gateway.get_wheel_odometry()
