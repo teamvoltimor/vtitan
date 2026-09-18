@@ -69,8 +69,10 @@ class LidarLocalizer:
         self._relocalize_grid_step_m = params.relocalize_grid_step_m
         self._relocalize_accept_ratio = params.relocalize_accept_ratio
         self._relocalize_min_width_spread_m = params.relocalize_min_width_spread_m
+        self._relocalize_confirm_dist_m = params.relocalize_confirm_dist_m
         self._last_estimate_time_s: float | None = None
         self._pending_jump_xy: Waypoint | None = None
+        self._pending_reloc_xy: Waypoint | None = None
         self._bad_fit_streak = 0
         self._relocalization_count = 0
         self._last_fit_cost: float | None = None
@@ -108,6 +110,7 @@ class LidarLocalizer:
         is precisely the corruption the re-seed exists to discard.
         """
         self._pending_jump_xy = None
+        self._pending_reloc_xy = None
         self._last_estimate_time_s = None
         # The streak counts consecutive scans the CURRENT estimate failed to
         # explain. A re-seed replaces that estimate outright, so the count
@@ -255,7 +258,7 @@ class LidarLocalizer:
             self._bad_fit_streak = 0
 
         if self._bad_fit_streak >= self._relocalize_after_scans and self._model_can_be_matched():
-            rescued = self._relocalize_globally(yaw, ranges, angles, best_cost)
+            rescued = self._relocalize_globally(yaw, ranges, angles, best_cost, prior)
             if rescued is not None:
                 return rescued
 
@@ -361,6 +364,7 @@ class LidarLocalizer:
         ranges: np.ndarray,
         angles: np.ndarray,
         local_cost: float,
+        prior: Waypoint,
     ) -> Waypoint | None:
         """Re-solve position over the whole track, with no prior at all.
 
@@ -374,10 +378,39 @@ class LidarLocalizer:
         in residual and none of its beams off-track; see
         ``adr:0084-localizer-divergence-and-relocalization``.
 
-        The speed guard is deliberately bypassed. It bounds motion between
-        consecutive estimates, and this is not motion -- it is the correction
-        of an estimate already known to be wrong, so the distance it covers
-        carries no information about how fast the robot went.
+        The speed guard is deliberately bypassed, and stays bypassed. It bounds
+        motion between consecutive estimates, and this is not motion -- it is
+        the correction of an estimate already known to be wrong, so the distance
+        it covers carries no information about how fast the robot went.
+
+        A LONG jump is nevertheless held for confirmation, which is a different
+        claim from the speed bound: not "the robot cannot have travelled that
+        far" but "on this track a candidate that far away is usually the
+        symmetry twin of the right answer rather than the right answer". The
+        width-spread gate above refuses the search outright when the believed
+        free space is exactly symmetric; it cannot help when the widths differ
+        enough to pass it and the scan is still nearly as well explained from a
+        mirrored pose. MEASURED on run_20260915_160804, an Open round whose
+        believed widths were 0.63 / 0.955 / 0.958 and which therefore passed
+        that gate: the estimate teleported 2.06 m across the mat in 1.26 s
+        (1.64 m/s against 0.26 m/s commanded), its corridor label flipped east
+        to west, the cost fell 0.0316 to 0.0100 so the accept ratio was happy,
+        and the planner then replanned 26 waypoints backwards and swept 213
+        degrees of yaw in 4.8 s inside an 8 x 26 cm box -- the U-turn the
+        operator saw, on a round that scored 6. The pair it chose is very nearly
+        the mirror of the pose it left.
+
+        So a winner further than ``relocalize_confirm_dist_m`` from the prior is
+        held, not taken, and is trusted only if a LATER global search lands
+        within ``jump_confirm_tolerance_m`` of it. This reuses the reasoning the
+        local speed guard already rests on and which the reverted cost/margin
+        guard did not: a real correction reconverges to nearly the same position
+        from an independent scan, while an ambiguous tie does not. The tie is
+        measured, not assumed -- a coarse-to-fine grid picked a DIFFERENT winner
+        on 6 of 38 scans of the 140358 event, and refining the lattice did not
+        reduce that. The cost is latency: the streak restarts below, so a
+        genuine long rescue is delayed by ``relocalize_after_scans`` scans
+        (~1.5 s) rather than refused. Inert at 0.0.
 
         Returns ``None`` when the global winner does not fit MATERIALLY better
         than the local one, which is the case that matters most: a cost above
@@ -409,10 +442,33 @@ class LidarLocalizer:
         if best_cost > local_cost * self._relocalize_accept_ratio:
             return None
 
+        winner = Waypoint(float(gx[best_idx]), float(gy[best_idx]))
+        if self._holds_long_jump(winner, prior):
+            return None
+
         self._pending_jump_xy = None
         self._relocalization_count += 1
         self._last_fit_cost = best_cost
-        return Waypoint(float(gx[best_idx]), float(gy[best_idx]))
+        return winner
+
+    def _holds_long_jump(self, winner: Waypoint, prior: Waypoint) -> bool:
+        """Return True when a global winner is too far to take on one scan.
+
+        Short jumps pass straight through: the failure this exists for puts the
+        winner on the far side of the mat, and holding a 20 cm correction would
+        only add latency to the case the search is good at. See
+        :meth:`_relocalize_globally` for the measured event.
+        """
+        limit = self._relocalize_confirm_dist_m
+        if limit <= 0.0 or winner.distance_to(prior) <= limit:
+            self._pending_reloc_xy = None
+            return False
+        pending = self._pending_reloc_xy
+        if pending is not None and winner.distance_to(pending) <= self._jump_confirm_tolerance:
+            self._pending_reloc_xy = None
+            return False
+        self._pending_reloc_xy = winner
+        return True
 
     def _free_space_candidates(self) -> tuple[np.ndarray, np.ndarray]:
         """Every on-track position the global search considers, cached.

@@ -27,6 +27,10 @@ class NavigationBlindNavLocalization(StrictModel):
         ...,
         description='how close two consecutive rejected candidates must be to confirm a real correction',
     )
+    relocalize_confirm_dist_m: float = Field(
+        ...,
+        description='Distance (m) beyond which a global relocalization winner is HELD for confirmation instead of taken on the scan that found it, and accepted only when a later global search lands within jump_confirm_tolerance_m of it. This is not the speed bound, which stays bypassed for the global search: the claim is that a candidate this far away is usually the SYMMETRY TWIN of the right answer rather than the right answer. relocalize_min_width_spread_m refuses the search only when the believed free space is exactly symmetric; MEASURED on run_20260915_160804 the believed widths were 0.63/0.955/0.958 so the search ran, the estimate teleported 2.06 m in 1.26 s (1.64 m/s against 0.26 m/s commanded) to very nearly the mirror of the pose it left, the corridor label flipped east to west, and the cost fell 0.0316 to 0.0100 so the accept ratio was satisfied; the planner then replanned 26 waypoints backwards and swept 213 degrees of yaw in 4.8 s inside an 8 x 26 cm box, which is the U-turn that round was scored 6 for. The cost of the guard is latency, not refusal: a genuine long rescue is delayed by relocalize_after_scans (~1.5 s). Set to 0.0 to restore the unconditional behaviour.',
+    )
     relocalize_cost_threshold: float = Field(
         ...,
         description='Mean clipped squared residual (m^2, real returns only) at which a scan counts as not explaining the pose, arming global relocalization.',

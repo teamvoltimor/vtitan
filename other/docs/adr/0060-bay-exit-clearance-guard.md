@@ -309,3 +309,37 @@ function of heading, so a closed cycle returns both. The open problem is now
 exact: the pocket needs an exit that GAINS heading without paying a lock-to-lock
 swing and without sweeping the tail across a fin. Both knobs ship off with these
 measurements.
+
+## What the HARDWARE exit does, measured 2026-09-17
+
+The operator's account corrects the simulator's: the real car DOES leave the
+pocket, nose first toward the open side, and it is placed nose-first in the lap
+sense the round is meant to run. `diag_bag_bay_exit_heading.py` measures what
+the exit leaves behind, from the IMU for heading and from angular progress about
+the mat centre for the travel sense.
+
+Over the 2026-09-15 session, 12 rounds started in the bay:
+
+- the pocket costs 8.6-14.6 s before the round's travel direction even appears
+  in `/nav_debug`, against under 3 s for a start outside it, and 172-469 ticks
+  of manoeuvre. A round that never ran the exit is a full lap in while a bay
+  start is still deciding which way it faces;
+- the exit leaves the chassis 45-66 degrees off its placement heading, against
+  the 70 `bay_exit_target_yaw_deg` asks for;
+- the committed direction never flips: one value per round, kept to the end.
+
+RETRACTED, same day, before it could mislead: an earlier cut of this measurement
+claimed 2 of the 12 rounds "left in the opposite sense", on net IMU heading 30 s
+after the start. That threshold cannot separate a reversal from an ordinary
+exit, because 30 s covers the exit's own 45-66 degrees PLUS a 90 degree corner.
+Measured properly -- cumulative angular progress about the mat centre, which
+corners cannot change the sign of -- every one of the 24 rounds in the session
+travelled in the sense it believed, including the two accused. Backtracking is
+11-55 degrees on the in-bay rounds, i.e. local correction, with the two large
+ones (346 and 360 degrees) belonging to the known wedge round and to a localizer
+teleport rather than to a turn-around.
+
+So the turn-back the operator sees is NOT a lap-sense reversal, and the exit's
+heading is not the defect either. What the bags do convict is the pocket's COST:
+8.6-14.6 s, about 8% of a three-minute round, before the robot knows which way
+it is going.
