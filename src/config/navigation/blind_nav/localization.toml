@@ -12,6 +12,25 @@ relocalize_cost_threshold = 0.03
 relocalize_after_scans = 15
 relocalize_grid_step_m = 0.03
 relocalize_accept_ratio = 0.5
+# 1.00 m, measured 2026-09-17. The width-spread gate below tests max-min of the four believed
+# widths, which is not the same question as "is this model symmetric": run_20260915_160804
+# believed 0.600/0.600/1.000/1.000, a spread of 0.400 that passes easily while the model is
+# EXACTLY mirror-symmetric about both axes. It ran and picked the mirror of the pose it left --
+# 2.06 m in 1.26 s, cost 0.0316 -> 0.0100 so the accept ratio was satisfied, corridor label
+# east -> west, then 26 waypoints of backwards replan and 213 deg of yaw in 4.8 s inside an
+# 8 x 26 cm box: the U-turn that round scored 6 for.
+# WHAT IT ACTUALLY DOES, measured over every scan of both available bags: it is NOT the
+# reconvergence test it was built as. At one scan's lag the genuine rescue reconverges within
+# 5 cm on 95.5% of pairs and the twin on 80-95%, so both would confirm. It works because the
+# second search is >= relocalize_after_scans later and by then the winner has moved WITH the
+# robot (0.309 m against the robot's 0.335 m) against an uncompensated 5 cm tolerance -- at its
+# real cadence it is a STATIONARITY test, and the twin episode lasted 3 scans. Do NOT add motion
+# compensation: that restores the refuted test and accepts the twin.
+# COST: on the one genuine rescue (run_20260907_205830) the first confirmation lands at 10.5 s,
+# not 1.5 s. Still far better than the 48 s divergence it recovered. 0.0 restores the old
+# behaviour. The real lever is upstream: the event only reproduces when a post-stall yaw is
+# paired with a pre-stall scan, and 1 deg of yaw flips the winner between twins 2.0 m apart.
+relocalize_confirm_dist_m = 1.00
 # 0.05 m, not 0: the widths are ESTIMATED, so four nominally equal corridors are
 # never bitwise equal. Obstacles fixes all four at 1000 mm (spread 0.000 measured
 # over 6450 ticks of two rounds) and Open separates them by 0.400, so anything

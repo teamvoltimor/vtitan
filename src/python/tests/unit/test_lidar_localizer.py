@@ -304,7 +304,13 @@ class TestGlobalRelocalization:
         seed = Waypoint(0.3, 1.5)
 
         params = shipped_group(LocalizationParams)
-        estimate = self._drive(localizer, walls, truth, seed, params.relocalize_after_scans + 1)
+        # TWO search cycles, not one: this seed is 2.2 m from the truth, past
+        # relocalize_confirm_dist_m, so the first winner is HELD and the second
+        # search has to reconverge to it before it is taken. The delay is the
+        # guard's whole price and it is stated here rather than hidden in a
+        # generous tick count -- see test_a_long_winner_is_held_for_one_cycle.
+        ticks = params.relocalize_after_scans * 2 + 2
+        estimate = self._drive(localizer, walls, truth, seed, ticks)
 
         assert localizer.relocalization_count == 1
         assert math.hypot(estimate.x - truth[0], estimate.y - truth[1]) <= params.relocalize_grid_step_m
@@ -448,7 +454,8 @@ class TestGlobalRelocalization:
         truth = (2.5, 1.5, math.pi / 2)
 
         params = shipped_group(LocalizationParams)
-        estimate = self._drive(localizer, walls, truth, Waypoint(0.3, 1.5), params.relocalize_after_scans + 1)
+        ticks = params.relocalize_after_scans * 2 + 2
+        estimate = self._drive(localizer, walls, truth, Waypoint(0.3, 1.5), ticks)
 
         assert localizer.relocalization_count == 1
         assert math.hypot(estimate.x - truth[0], estimate.y - truth[1]) <= params.relocalize_grid_step_m
@@ -481,3 +488,108 @@ class TestGlobalRelocalization:
         )
         assert localizer.relocalization_count == 0
         assert walls.point_in_free_space(estimate.x, estimate.y)
+
+
+class TestLongJumpConfirmation:
+    """The global search may pick a MIRROR TWIN on a layout the spread gate admits.
+
+    ``relocalize_min_width_spread_m`` tests ``max - min`` of the four believed
+    widths, which is not the same question as whether the model is SYMMETRIC. It
+    covers Obstacles (four corridors at 1000 mm, spread 0). It does not cover a
+    layout where one PAIR of opposite corridors differs from the other pair --
+    spread large, mirror intact.
+
+    MEASURED on run_20260915_160804, an Open round on commit 98fd5a37 with the
+    spread guard already shipped: the BELIEVED widths were 0.600 / 0.600 /
+    1.000 / 1.000, a spread of 0.400 that passes easily while the model is
+    exactly mirror-symmetric about both axes. The search ran and the estimate
+    teleported 2.06 m in 1.26 s to the mirror of the pose it left. The cost fell
+    0.0316 to 0.0100, so ``relocalize_accept_ratio`` was satisfied and had
+    nothing to say. The corridor label flipped east to west, the planner
+    replanned 26 waypoints backwards, and the car swept 213 degrees of yaw in
+    4.8 s inside an 8 x 26 cm box -- the U-turn the operator saw, on the round
+    that scored 6. See adr:0084-localizer-divergence-and-relocalization.
+    """
+
+    # The exact believed shape of 160804: both opposite PAIRS equal, so the
+    # model has two mirror axes, while max - min is 0.400 and the gate passes.
+    _NEAR_MIRROR = {Section.NORTH: 0.6, Section.SOUTH: 0.6, Section.EAST: 1.0, Section.WEST: 1.0}
+
+    def test_the_near_mirror_layout_passes_the_spread_gate(self) -> None:
+        """Without this, the tests below would prove nothing about the new guard.
+
+        If the spread gate already refused this layout it would be the thing
+        protecting the round, and confirmation would be dead code.
+        """
+        _, walls = _localizer_for(self._NEAR_MIRROR)
+
+        assert walls.geometry.width_spread_m >= shipped_group(LocalizationParams).relocalize_min_width_spread_m
+
+    def test_a_long_winner_is_held_for_one_cycle(self) -> None:
+        """The price of the guard, asserted as a number rather than described."""
+        localizer, walls = _localizer_for(_MIXED_WIDTHS)
+        truth = (2.5, 1.5, math.pi / 2)
+        params = shipped_group(LocalizationParams)
+        seed = Waypoint(0.3, 1.5)
+        assert seed.distance_to(Waypoint(truth[0], truth[1])) > params.relocalize_confirm_dist_m, (
+            "test is void unless the rescue really is a long jump"
+        )
+
+        after_one = TestGlobalRelocalization._drive(localizer, walls, truth, seed, params.relocalize_after_scans + 1)
+        assert localizer.relocalization_count == 0
+        # The local hill-climb keeps creeping, which is fine and is not the
+        # thing under test; what must NOT have happened is the teleport.
+        assert math.hypot(after_one.x - truth[0], after_one.y - truth[1]) > params.relocalize_confirm_dist_m, (
+            "a held winner must not be applied"
+        )
+
+        TestGlobalRelocalization._drive(localizer, walls, truth, after_one, params.relocalize_after_scans + 1)
+        assert localizer.relocalization_count == 1
+
+    def test_two_disagreeing_winners_are_both_refused(self) -> None:
+        """The rule as written, pinned so a future edit cannot quietly change it.
+
+        This asserts the CONTRACT, not a claim about real scans. The claim the
+        rule was built on -- that a genuine correction reconverges from an
+        independent scan while an ambiguous tie does not -- was replayed over
+        every scan of both available bags and REFUTED: at one scan's lag the
+        genuine rescue reconverges within 5 cm on 95.5% of 555 pairs and the
+        twin on 80-95% of its own. What refuses the twin in production is the
+        CADENCE, not this contract: the next search is 15 scans away and the
+        winner moves with the robot against an uncompensated tolerance. See
+        adr:0084-localizer-divergence-and-relocalization, and do not add motion
+        compensation to the tolerance on the strength of this test.
+        """
+        localizer, _ = _localizer_for(self._NEAR_MIRROR)
+        prior = Waypoint(2.5, 1.5)
+        twin = Waypoint(0.5, 1.5)
+        other_twin = Waypoint(1.5, 0.4)
+
+        assert localizer._holds_long_jump(twin, prior) is True
+        assert localizer._holds_long_jump(other_twin, prior) is True
+        assert localizer._holds_long_jump(other_twin, prior) is False, "a repeat of the SAME winner is trusted"
+
+    def test_a_short_winner_is_never_held(self) -> None:
+        """No latency is added to the correction the search is already good at."""
+        localizer, _ = _localizer_for(_MIXED_WIDTHS)
+        prior = Waypoint(2.5, 1.5)
+        limit = shipped_group(LocalizationParams).relocalize_confirm_dist_m
+        near = Waypoint(2.5 + limit / 2.0, 1.5)
+
+        assert localizer._holds_long_jump(near, prior) is False
+
+    def test_reset_tracking_discards_a_held_winner(self) -> None:
+        """A re-seed spans a discontinuity, so the held candidate is stale.
+
+        Same reasoning as the local speed guard's own reset: left in place, the
+        first long winner after a re-seed could be confirmed by a candidate
+        found in a frame that no longer exists.
+        """
+        localizer, _ = _localizer_for(self._NEAR_MIRROR)
+        prior = Waypoint(2.5, 1.5)
+        twin = Waypoint(0.5, 1.5)
+
+        assert localizer._holds_long_jump(twin, prior) is True
+        localizer.reset_tracking()
+
+        assert localizer._holds_long_jump(twin, prior) is True, "the stale candidate must not confirm it"

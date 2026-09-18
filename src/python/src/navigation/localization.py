@@ -69,8 +69,10 @@ class LidarLocalizer:
         self._relocalize_grid_step_m = params.relocalize_grid_step_m
         self._relocalize_accept_ratio = params.relocalize_accept_ratio
         self._relocalize_min_width_spread_m = params.relocalize_min_width_spread_m
+        self._relocalize_confirm_dist_m = params.relocalize_confirm_dist_m
         self._last_estimate_time_s: float | None = None
         self._pending_jump_xy: Waypoint | None = None
+        self._pending_reloc_xy: Waypoint | None = None
         self._bad_fit_streak = 0
         self._relocalization_count = 0
         self._last_fit_cost: float | None = None
@@ -108,6 +110,7 @@ class LidarLocalizer:
         is precisely the corruption the re-seed exists to discard.
         """
         self._pending_jump_xy = None
+        self._pending_reloc_xy = None
         self._last_estimate_time_s = None
         # The streak counts consecutive scans the CURRENT estimate failed to
         # explain. A re-seed replaces that estimate outright, so the count
@@ -255,7 +258,7 @@ class LidarLocalizer:
             self._bad_fit_streak = 0
 
         if self._bad_fit_streak >= self._relocalize_after_scans and self._model_can_be_matched():
-            rescued = self._relocalize_globally(yaw, ranges, angles, best_cost)
+            rescued = self._relocalize_globally(yaw, ranges, angles, best_cost, prior)
             if rescued is not None:
                 return rescued
 
@@ -361,6 +364,7 @@ class LidarLocalizer:
         ranges: np.ndarray,
         angles: np.ndarray,
         local_cost: float,
+        prior: Waypoint,
     ) -> Waypoint | None:
         """Re-solve position over the whole track, with no prior at all.
 
@@ -374,10 +378,60 @@ class LidarLocalizer:
         in residual and none of its beams off-track; see
         ``adr:0084-localizer-divergence-and-relocalization``.
 
-        The speed guard is deliberately bypassed. It bounds motion between
-        consecutive estimates, and this is not motion -- it is the correction
-        of an estimate already known to be wrong, so the distance it covers
-        carries no information about how fast the robot went.
+        The speed guard is deliberately bypassed, and stays bypassed. It bounds
+        motion between consecutive estimates, and this is not motion -- it is
+        the correction of an estimate already known to be wrong, so the distance
+        it covers carries no information about how fast the robot went.
+
+        A LONG jump is nevertheless held for confirmation. The width-spread gate
+        above tests ``max - min`` of the four believed widths, which is not the
+        same question as "is this model symmetric". MEASURED on
+        run_20260915_160804, an Open round already carrying that gate: the
+        BELIEVED widths were 0.600 / 0.600 / 1.000 / 1.000, a spread of 0.400
+        that passes easily while the model is EXACTLY mirror-symmetric about
+        both axes, so every pose has twins that explain the scan as well as it
+        does. (0.63 / 0.955 / 0.958 are that round's TRUE spans measured off
+        ``/scan``; an earlier version of this comment cited them as the belief,
+        which was wrong.) The estimate teleported 2.06 m across the mat in
+        1.26 s, its corridor label flipped east to west, the cost fell 0.0316 to
+        0.0100 so the accept ratio was happy, and the planner then replanned 26
+        waypoints backwards and swept 213 degrees of yaw in 4.8 s inside an
+        8 x 26 cm box -- the U-turn the operator saw, on a round that scored 6.
+
+        So a winner further than ``relocalize_confirm_dist_m`` from the prior is
+        held, not taken, and is trusted only if a LATER global search lands
+        within ``jump_confirm_tolerance_m`` of it.
+
+        WHAT THIS GUARD ACTUALLY IS, measured rather than intended. It was built
+        on the local speed guard's reasoning -- "a real correction reconverges
+        from an independent scan, an ambiguous tie does not" -- and replaying the
+        real search over every scan of both available bags REFUTES that: at one
+        scan's lag the genuine rescue reconverges within 5 cm on 95.5% of 555
+        pairs and the twin on 80-95% of its own. BOTH reconverge; on the next
+        scan this guard would take the twin. What makes it work is the cadence.
+        The streak restarts below, so the second search is >= 15 scans later, and
+        by then the winner has MOVED WITH THE ROBOT (median 0.309 m against the
+        robot's own 0.335 m) while ``jump_confirm_tolerance_m`` carries no motion
+        compensation. At its real cadence this is a STATIONARITY test, and the
+        160804 twin episode lasts 3 scans while the car moved 0.3 m, so it is
+        refused. Do not "fix" the tolerance by compensating for motion: that
+        would turn it back into the reconvergence test the measurement just
+        refuted, and it would accept the twin.
+
+        THE COST IS LARGER THAN IT LOOKS. On the one genuine rescue available
+        (run_20260907_205830) consecutive 15-scan searches confirm on 5 of 37
+        pairs and the first confirmation lands at 10.5 s, not the ~1.5 s one
+        re-arm would suggest. That is still far better than the 48 s divergence
+        that rescue recovered, which is why it ships on, but it is the honest
+        number. Inert at 0.0.
+
+        THE DEEPER DEFECT IS UPSTREAM AND IS NOT FIXED HERE. The 160804 event
+        sits inside a 1.256 s control-loop stall, and replaying the search with
+        the yaw interpolated across that gap NEVER produces the teleport -- 40
+        scans, zero flips. It reproduces only when the post-stall yaw is applied
+        to a pre-stall scan, and one DEGREE of yaw is enough to flip the winner
+        between twins 2.0 m apart at costs 6% apart. The real lever is pairing a
+        scan with the yaw that belongs to it.
 
         Returns ``None`` when the global winner does not fit MATERIALLY better
         than the local one, which is the case that matters most: a cost above
@@ -409,10 +463,33 @@ class LidarLocalizer:
         if best_cost > local_cost * self._relocalize_accept_ratio:
             return None
 
+        winner = Waypoint(float(gx[best_idx]), float(gy[best_idx]))
+        if self._holds_long_jump(winner, prior):
+            return None
+
         self._pending_jump_xy = None
         self._relocalization_count += 1
         self._last_fit_cost = best_cost
-        return Waypoint(float(gx[best_idx]), float(gy[best_idx]))
+        return winner
+
+    def _holds_long_jump(self, winner: Waypoint, prior: Waypoint) -> bool:
+        """Return True when a global winner is too far to take on one scan.
+
+        Short jumps pass straight through: the failure this exists for puts the
+        winner on the far side of the mat, and holding a 20 cm correction would
+        only add latency to the case the search is good at. See
+        :meth:`_relocalize_globally` for the measured event.
+        """
+        limit = self._relocalize_confirm_dist_m
+        if limit <= 0.0 or winner.distance_to(prior) <= limit:
+            self._pending_reloc_xy = None
+            return False
+        pending = self._pending_reloc_xy
+        if pending is not None and winner.distance_to(pending) <= self._jump_confirm_tolerance:
+            self._pending_reloc_xy = None
+            return False
+        self._pending_reloc_xy = winner
+        return True
 
     def _free_space_candidates(self) -> tuple[np.ndarray, np.ndarray]:
         """Every on-track position the global search considers, cached.
