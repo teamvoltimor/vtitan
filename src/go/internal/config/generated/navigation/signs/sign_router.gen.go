@@ -151,6 +151,29 @@ type NavigationSignsSignRouter struct {
 	// Fraction of the full lane offset actually applied.
 	SignLaneOffsetFrac float64 `json:"sign_lane_offset_frac" yaml:"sign_lane_offset_frac" mapstructure:"sign_lane_offset_frac"`
 
+	// Replay the sign detections taken DURING the bay exit into the map once the travel
+	// direction settles, instead of discarding them. The node returns out of the control
+	// tick while the exit manoeuvre holds the chassis (`if self._resolve_direction():
+	// return`), so CoreNavigator.step and its ingest never run and the sign map is EMPTY for
+	// the 8-14 s the pocket costs: MEASURED over 18 in-bay rounds, the first pillar's first
+	// sighting and its commitment are the same instant in 13 of them, which is why that pass
+	// fails 33.3% against ~10% for every later one, and 56% when it must cross. The evidence
+	// is already there to take: over 11 clockwise rounds, 820 of 2,199 accepted observations
+	// (37.3%) land within 0.35 m of the exact pillar the round then commits to, in 9 of 11
+	// rounds. Buffered rather than ingested live because `direction` is None for the whole
+	// exit and the published yaw then moves by pi at the hand-over in every counterclockwise
+	// round (-111 to +73.5 degrees measured), so a live projection files every
+	// counterclockwise sighting on the far side of the mat: as published only 1.4% land on
+	// the pillar against 37.3% clockwise, and replaying counterclockwise with the yaw turned
+	// by pi recovers 5.5% to 44.2% on any real pillar while destroying the clockwise figure
+	// (71.2% to 0.1%). So the samples carry the yaw they were taken at and are re-stamped by
+	// the same heading_delta _commit_direction already applies to the creep WIDTH samples.
+	// Ships OFF: 63% of those observations land somewhere OTHER than the pillar, and this
+	// map is already known to invent pillars, so the flag needs its junk measured on the
+	// bags before it can be trusted. The corpus cannot score it at all -- its scenarios
+	// start outside the bay.
+	IngestDuringBayExit bool `json:"ingest_during_bay_exit" yaml:"ingest_during_bay_exit" mapstructure:"ingest_during_bay_exit"`
+
 	// Lane planner (the shipped sign-avoidance path)
 	SignLanePlanner bool `json:"sign_lane_planner" yaml:"sign_lane_planner" mapstructure:"sign_lane_planner"`
 

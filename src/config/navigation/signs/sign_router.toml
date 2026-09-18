@@ -40,6 +40,18 @@ sign_commit_fit_floor_mps = 0.10
 # left at the fit speed, back straight (legs of k_turn_min_s per committed sign) before driving on.
 sign_crossing_reverse_legs = 0
 sign_crossing_reverse_fit_mps = 0.117
+# OFF, under measurement 2026-09-17: the node returns out of the control tick while the bay exit
+# holds the chassis, so the sign map is EMPTY for the 8-14 s the pocket costs, and the first pillar's
+# first sighting and its commitment are the SAME instant in 13 of 18 in-bay rounds -- that pass fails
+# 33.3% against ~10% for every later one, and 56% when it has to cross. The evidence is there to take:
+# over 11 clockwise rounds 820 of 2,199 accepted observations (37.3%) land within 0.35 m of the exact
+# pillar the round then commits to, in 9 of 11 rounds. Buffered, not ingested live, because `direction`
+# is None for the whole exit and the published yaw moves by pi at hand-over in every ccw round (-111 to
+# +73.5 deg measured): live, only 1.4% of ccw observations land on the pillar, and re-stamping by the
+# same heading_delta the creep WIDTH samples already use recovers ccw 5.5% -> 44.2% on any real pillar.
+# Ships OFF because 63% of those observations land somewhere OTHER than the pillar and this map already
+# invents them; the junk needs measuring on the bags first. The corpus cannot score it.
+ingest_during_bay_exit = false
 sign_lane_planner = true
 sign_lane_offset_frac = 1.0
 sign_lane_ramp_m = 0.9

@@ -26,12 +26,14 @@ from shared.config.ros_topics import RosTopicConfig
 from shared.domain.enums import Direction, NavigatorPhase, ScenarioType, Section
 from shared.domain.models import (
     CorridorGeometry,
+    CreepSignSample,
     CreepWidthSample,
     NavigatorDebugSnapshot,
     Pose,
     ScenarioMetadata,
     SignColor,
     SignSighting,
+    TrafficSignObservation,
     Waypoint,
 )
 from std_msgs.msg import Int32, String
@@ -380,6 +382,11 @@ class TrackNavigator(Node, ResettableNode):
         # is consumed in three places on three different frames and the model
         # keeps the yaw/width naming honest at each one.
         self._creep_widths: list[CreepWidthSample] = []
+        # Sign sightings taken before the direction settled, and a tick counter
+        # to group them by. Separate from the width buffer because the replay
+        # needs the grouping and the widths do not. See _replay_creep_sightings.
+        self._creep_sightings: list[CreepSignSample] = []
+        self._creep_sighting_tick = 0
         # Set once direction inference settles; None until then, and left
         # None for a scan the measurement refused (see _commit_direction).
         self._measured_start: MeasuredStart | None = None
@@ -692,6 +699,103 @@ class TrackNavigator(Node, ResettableNode):
         self._commit_direction(self._direction, pose, scan)
         return False
 
+    def _buffer_creep_sightings(self, pose: Pose) -> None:
+        """Keep this tick's sign sightings for replay once the direction settles.
+
+        Inert unless ``ingest_during_bay_exit``. Stores the CHASSIS's own view
+        (colour, range, bearing) plus the pose and yaw it was taken at, because
+        only the yaw needs correcting later and the sighting itself needs none.
+
+        Bounded by ``settle_ticks``, the same budget that bounds how long the
+        router waits for a track to settle: an exit that never completes must
+        not grow this without limit, and the OLDEST sightings are the ones
+        taken deepest in the pocket, where the camera sees least of the mat.
+        """
+        if not self._tuning.sign_router.ingest_during_bay_exit:
+            return
+        sightings = self._gateway.get_sign_sightings()
+        if not sightings:
+            return
+        self._creep_sighting_tick += 1
+        for sighting in sightings:
+            if sighting.color not in (SignColor.RED, SignColor.GREEN):
+                continue
+            self._creep_sightings.append(
+                CreepSignSample(
+                    tick=self._creep_sighting_tick,
+                    pose_x=pose.x,
+                    pose_y=pose.y,
+                    yaw=pose.yaw,
+                    color=sighting.color,
+                    range_m=sighting.range_m,
+                    bearing_rad=sighting.bearing_rad,
+                    confidence=sighting.confidence,
+                )
+            )
+        budget = self._tuning.sign_router.settle_ticks
+        if len(self._creep_sightings) > budget:
+            del self._creep_sightings[: len(self._creep_sightings) - budget]
+
+    def _replay_creep_sightings(self, heading_delta: float, corridor: Section) -> None:
+        """Feed the buffered bay-exit sightings into the map, frame-corrected.
+
+        WHY THIS EXISTS. The node returns out of the control tick while the exit
+        manoeuvre holds the chassis, so ``CoreNavigator.step`` -- and with it the
+        router call that performs the blind discovery ingest -- never runs. The
+        sign map is therefore EMPTY for the 8-14 s the pocket costs. MEASURED
+        over 18 in-bay rounds, the first pillar's first sighting and its
+        commitment are the SAME instant in 13 of them, and that pass fails 33.3%
+        against about 10% for every later pass, 56% when it must cross.
+
+        WHY BUFFERED AND NOT LIVE. ``direction`` is None for the whole exit and
+        the published yaw then moves by pi at the hand-over: measured -111 to
+        +73.5 degrees on the counterclockwise rounds, a delta of +184.8. A live
+        projection therefore files every counterclockwise sighting on the far
+        side of the mat, and the numbers are unambiguous -- as published, 1.4% of
+        counterclockwise observations land within 0.35 m of the pillar the round
+        commits to, against 37.3% clockwise; replaying counterclockwise with the
+        yaw turned by pi moves "on any real pillar" from 5.5% to 44.2% while the
+        same turn destroys clockwise, 71.2% to 0.1%. A clean two-sided control.
+
+        So the correction is exactly the one ``_commit_direction`` already
+        computes for the creep WIDTH samples, applied to the same kind of stale
+        yaw, and it is passed in rather than recomputed so the two cannot drift.
+
+        REPLAYED TICK BY TICK, not as one batch: a track needs ``MIN_HITS``
+        confirmations across ticks before the map publishes it, and one batch
+        would count once however many sightings it held.
+
+        WHY IT SHIPS OFF. 63% of those accepted observations land somewhere
+        OTHER than the pillar, and this map is already known to invent pillars,
+        so the junk has to be measured on the bags before the flag can be
+        trusted. The corpus cannot referee it: its scenarios start outside the
+        bay, so the branch never runs there.
+        """
+        if not self._creep_sightings:
+            return
+        by_tick: dict[int, list[TrafficSignObservation]] = {}
+        for sample in self._creep_sightings:
+            yaw = wrap_angle(sample.yaw + heading_delta)
+            world_x = sample.pose_x + sample.range_m * math.cos(yaw + sample.bearing_rad)
+            world_y = sample.pose_y + sample.range_m * math.sin(yaw + sample.bearing_rad)
+            by_tick.setdefault(sample.tick, []).append(
+                TrafficSignObservation(
+                    world_x_m=world_x,
+                    world_y_m=world_y,
+                    color=sample.color,
+                    confidence=sample.confidence,
+                    detected_at_timestamp=0.0,
+                )
+            )
+        replayed = self._core_navigator.replay_sign_observations(by_tick, corridor)
+        logger.info(
+            "bay-exit sightings replayed: %d observations over %d ticks, %d reached the map",
+            len(self._creep_sightings),
+            len(by_tick),
+            replayed,
+        )
+        self._creep_sightings.clear()
+
     def _sign_dodge_side(self) -> TurnSide | None:
         """Which side BLIND_CREEP should turn toward to honour the WRO pass-side rule.
 
@@ -810,6 +914,13 @@ class TrackNavigator(Node, ResettableNode):
             m = measure_corridor_width(scan.ranges_m, scan.angles_rad, pose.yaw)
             if m is not None:
                 self._creep_widths.append(CreepWidthSample(yaw=pose.yaw, width_m=m.width_m))
+
+        # Signs seen now cannot be filed either, and for the SAME reason: the
+        # frame is provisional until the direction commits. But they are thrown
+        # away entirely today, and that is the largest measured hole in the
+        # round -- see `_replay_creep_sightings`. Buffer them here alongside the
+        # widths; the replay is what decides whether they are worth anything.
+        self._buffer_creep_sightings(pose)
 
         # Conclusive on its own, so it settles the estimator rather than
         # voting; the block below then runs unchanged.
@@ -1156,6 +1267,11 @@ class TrackNavigator(Node, ResettableNode):
                 )
             self._creep_widths.clear()
             self._gateway.set_believed_walls(TrackWalls(corridor_geometry_from_widths(self._width_estimator.widths)))
+
+        # Same stale frame, same correction. Done here rather than at the bay
+        # exit's own hand-over because THIS is the tick the correction becomes
+        # known; the hand-over may be several ticks later.
+        self._replay_creep_sightings(heading_delta, section_from_heading(wrap_angle(pose.yaw + heading_delta), inferred))
 
         # Read the starting pose off the track rather than asserting it. The
         # assumed start is the middle of the mat's side, which is not even a
@@ -1561,6 +1677,11 @@ class TrackNavigator(Node, ResettableNode):
         # known to be sitting at its starting pose, so "the heading it has now"
         # and "the heading those readings were taken at" are the same.
         self._creep_widths = [CreepWidthSample(yaw=0.0, width_m=s.width_m) for s in self._creep_widths]
+        # Sightings are NOT re-stamped, they are dropped: a width is a scalar
+        # that survives a frame change, a sign is a position that does not, and
+        # the round they belong to is over.
+        self._creep_sightings.clear()
+        self._creep_sighting_tick = 0
         # Belongs to the round that just ended: the robot is picked up and put
         # down between rounds, so the next one measures its own. The retry
         # budget goes with it -- a round that never refused leaves it at zero,

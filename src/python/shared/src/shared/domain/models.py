@@ -688,6 +688,37 @@ class CreepWidthSample:
 
 
 @dataclass(slots=True, frozen=True)
+class CreepSignSample:
+    """A sign seen BEFORE the travel direction settled, kept for replay.
+
+    The sibling of :class:`CreepWidthSample` and buffered for the same reason:
+    a reading taken before the direction is known cannot be filed yet, because
+    the frame it was taken in is provisional. MEASURED on the 2026-09-15 in-bay
+    rounds: ``direction`` is ``None`` for the whole bay exit and the published
+    yaw then moves from -111 to +73.5 degrees at the hand-over, a delta of
+    +184.8, so projecting these to world coordinates as they arrive puts every
+    counterclockwise one on the far side of the mat.
+
+    ``range_m`` and ``bearing_rad`` are the chassis's own view of the sign (see
+    :class:`SignSighting`) and need no correction at all -- only ``yaw`` does,
+    by the same ``heading_delta`` ``_commit_direction`` already computes for the
+    width samples. ``tick`` groups samples taken on the same control tick, so a
+    replay can feed them in as separate observations rather than one batch: the
+    map needs ``MIN_HITS`` confirmations across ticks before it publishes a
+    track, and a single batch would count once.
+    """
+
+    tick: int
+    pose_x: float
+    pose_y: float
+    yaw: float
+    color: SignColor
+    range_m: float
+    bearing_rad: float
+    confidence: float
+
+
+@dataclass(slots=True, frozen=True)
 class RoutedSignPosition:
     """A sign position resolved to world coordinates within a section (audit §7c)."""
 

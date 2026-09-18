@@ -59,6 +59,7 @@ if TYPE_CHECKING:
     import numpy as np
     from shared.config.navigation_tuning import NavigationTuning
     from shared.domain.enums import Section
+    from shared.domain.models import TrafficSignObservation
 
     from src.navigation.maneuvers.parking import ParkController
     from src.navigation.maneuvers.parking.zone import ParkZone
@@ -1141,6 +1142,61 @@ class CoreNavigator(EscapeRecovery):
         retire = getattr(self._sign_router, "retire_committed", None)
         if retire is not None:
             retire()
+
+    def replay_sign_observations(
+        self,
+        by_tick: dict[int, list[TrafficSignObservation]],
+        corridor: Section,
+    ) -> int:
+        """Fold already-projected observations into the map, one tick at a time.
+
+        For evidence gathered while ``step()`` could not run at all -- the bay
+        exit holds the chassis and the node returns out of the control tick, so
+        the map stays empty for the 8-14 s the pocket costs. The caller has
+        already corrected the frame those observations were taken in; see
+        ``TrackNavigator._replay_creep_sightings`` for why that correction is
+        the caller's job and not this method's.
+
+        Kept separate from :meth:`_ingest_sign_observations` rather than folded
+        into it, because that one PULLS this tick's detections off the gateway
+        and this one is handed a history. Sharing the body would mean one of the
+        two lying about where its observations came from.
+
+        Iterated in tick order and one tick per call, because the map needs
+        ``MIN_HITS`` confirmations ACROSS ticks before it publishes a track: a
+        single call holding every observation would count once, however many it
+        held, and nothing would ever become a sign.
+
+        The deformed waypoint is dropped, exactly as in the manoeuvre replay:
+        this buys a populated map, never a steering signal.
+
+        Returns:
+            How many observations were handed to the router. Zero when there is
+            no router at all (Open Challenge), which is not an error.
+        """
+        router = self._sign_router
+        if router is None:
+            return 0
+        handed = 0
+        for tick in sorted(by_tick):
+            observations = by_tick[tick]
+            if not observations:
+                continue
+            # The robot's own position is the stand-in target. There is no plan
+            # to deform yet -- this runs before the first step of the round --
+            # and the return value is dropped, so the target's only job is to
+            # keep the call well-formed.
+            anchor = (observations[0].world_x_m, observations[0].world_y_m)
+            router.deform_waypoint(
+                waypoint=anchor,
+                robot_pos=anchor,
+                robot_yaw=0.0,
+                corridor=corridor,
+                observations=observations,
+                lidar_proposals=None,
+            )
+            handed += len(observations)
+        return handed
 
     def _ingest_sign_observations(self, robot_x: float, robot_y: float, robot_yaw: float) -> None:
         """Fold this tick's sign evidence into the router WITHOUT steering by it.
