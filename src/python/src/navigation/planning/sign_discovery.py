@@ -308,6 +308,44 @@ def detection_to_world_point(
     )
 
 
+def detection_body_frame(
+    det: Detection,
+    tuning: NavigationTuning | None = None,
+) -> tuple[float, float] | None:
+    """Range and bearing of a detection in the CHASSIS's own frame.
+
+    Both numbers are computed inside :func:`_detection_to_world` already and
+    then consumed by a projection that needs a pose and a heading. Callers that
+    only want "how far, and which side" must not pay for that projection, and
+    on this robot they positively must not: during the blind phases the travel
+    direction is not yet inferred, the heading is recorded against a PROVISIONAL
+    frame, and a counterclockwise round's published yaw is then overturned by pi
+    when the direction settles. MEASURED on the 2026-09-15 in-bay rounds: of the
+    observations accepted during a counterclockwise bay exit, 1.8% land within
+    0.35 m of any pillar the round later believes in, against 84.3% clockwise,
+    where the yaw is not overturned. A world position built on that heading is
+    not approximate, it is reflected across the mat.
+
+    Range comes from the pinhole (``d = f * H / h``, scaled) and bearing from
+    the horizontal offset in frame, POSITIVE TO THE LEFT to match the robot
+    frame. Neither depends on where the robot thinks it is. No LIDAR fusion:
+    fusion corroborates a range from a sweep that is itself robot-frame, so it
+    would be legitimate here, but it needs a scan the frame-free callers do not
+    necessarily hold, and the pinhole alone is what the pass-side rule needs.
+
+    Returns:
+        ``(range_m, bearing_rad)``, or ``None`` when the box is too small to be
+        placed at all -- the same floor :func:`_detection_to_world` applies.
+    """
+    tuning = get_tuning(tuning)
+    bbox = det.as_bbox()
+    if bbox.height < tuning.sign_discovery.min_reliable_bbox_height_px:
+        return None
+    distance = _CAMERA_FOCAL_PX * TrafficSignSpecs.HEIGHT / bbox.height * tuning.sign_discovery.range_scale
+    bearing = (0.5 - bbox.center.x / RobotSpecs.CAMERA_WIDTH) * RobotSpecs.CAMERA_HFOV
+    return (distance, bearing)
+
+
 def _detection_to_world(
     det: Detection,
     robot_pos: tuple[float, float],

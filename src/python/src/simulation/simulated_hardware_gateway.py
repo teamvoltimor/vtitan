@@ -24,6 +24,7 @@ from shared.domain.models import (
     LocalizerInputs,
     Pose,
     SignColor,
+    SignSighting,
     TrafficSignObservation,
     Waypoint,
 )
@@ -973,6 +974,45 @@ class SimulatedHardwareGateway:
             now_s=self._elapsed_s,
         )
         self._estimator.update_position(est.x, est.y)
+
+    def get_sign_sightings(self) -> list[SignSighting]:
+        """Colour, range and bearing of what the camera resolves, pose-free.
+
+        Built from the TRUE pose and the signs' TRUE positions, which is the
+        honest analogue here: a real camera measures bearing and apparent size
+        from where the chassis actually is, and the believed pose never enters
+        the measurement -- only the projection this method deliberately skips.
+
+        DELIBERATELY NOT ``_detectable_signs()``, which is where the range model
+        and the residual miss rate live. That method draws from ``_vision_rng``
+        twice per sign PER CALL, so routing this through it would mean that
+        merely ASKING changes the simulation: the draws would shift the stream
+        every later tick reads, exactly the trap its own docstring records for
+        the LIDAR generator. Memoising it per tick would fix that but would also
+        halve the draws ``get_vision_detections`` makes on a tick the navigator
+        polls twice, which is a corpus-visible behaviour change and does not
+        belong in a data-path commit.
+
+        So this reports every sign inside the camera's cone, and it is therefore
+        MORE generous than what the emulated detector returns. The consequence,
+        stated because it bounds what the corpus can ever prove here: the
+        simulator can be used to check WHAT a colour rule says, never HOW OFTEN
+        the colour is available. On top of that the emulator never mislabels a
+        colour and has no latency, while the hardware decoder does both. See
+        ``adr:0072-vision-data-path``.
+        """
+        sightings: list[SignSighting] = []
+        for spec in self._signs or []:
+            dx = spec.x - self._state.x
+            dy = spec.y - self._state.y
+            range_m = math.hypot(dx, dy)
+            bearing = _wrap_angle(math.atan2(dy, dx) - self._state.yaw)
+            if abs(bearing) > RobotSpecs.CAMERA_HFOV / 2 or range_m > RobotSpecs.CAMERA_FAR_CLIP:
+                continue
+            sightings.append(
+                SignSighting(color=spec.color, range_m=range_m, bearing_rad=bearing, confidence=1.0)
+            )
+        return sightings
 
     def get_localizer_inputs(self) -> LocalizerInputs | None:
         """(yaw, prior_x, prior_y) handed to the localizer on the last scan."""

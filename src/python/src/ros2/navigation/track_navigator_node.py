@@ -31,7 +31,7 @@ from shared.domain.models import (
     Pose,
     ScenarioMetadata,
     SignColor,
-    TrafficSignObservation,
+    SignSighting,
     Waypoint,
 )
 from std_msgs.msg import Int32, String
@@ -635,7 +635,7 @@ class TrackNavigator(Node, ResettableNode):
         self._commit_direction(self._direction, pose, scan)
         return False
 
-    def _sign_dodge_side(self, pose: Pose) -> TurnSide | None:
+    def _sign_dodge_side(self) -> TurnSide | None:
         """Which side BLIND_CREEP should turn toward to honour the WRO pass-side rule.
 
         follow_corridor() treats every close obstacle the same way -- turn
@@ -654,6 +654,19 @@ class TrackNavigator(Node, ResettableNode):
         direction is not known yet: the world-frame lookup REQUIRES a direction,
         but this does not.
 
+        That claim used to be only half true, and the half that failed was the
+        half that decides. The colour-to-side step needed no frame, but WHICH
+        sign it obeyed was picked by world distance from the believed pose --
+        computed from a heading that, on a counterclockwise round, is recorded
+        against a provisional frame and then overturned by pi when the direction
+        settles. MEASURED on the 2026-09-15 in-bay rounds: 1.8% of the
+        observations accepted during a counterclockwise bay exit land within
+        0.35 m of any pillar the round later believes in, against 84.3%
+        clockwise. So in exactly the direction that fails most, the nearest-sign
+        pick and the activation gate were reading a reflected position. It now
+        selects on the detection's own RANGE and the gate compares that, both
+        straight off the bbox (see ``detection_body_frame``).
+
         Returns:
             A :class:`TurnSide` to override follow_corridor's clearance
             heuristic, or ``None`` to defer to it (Open Challenge has no
@@ -662,17 +675,15 @@ class TrackNavigator(Node, ResettableNode):
         if self._is_open_challenge:
             return None
         sign_cfg = self._tuning.sign_router
-        nearest: TrafficSignObservation | None = None
-        nearest_dist = math.inf
-        for obs in self._gateway.get_vision_detections():
-            if obs.color not in (SignColor.RED, SignColor.GREEN):
+        nearest: SignSighting | None = None
+        for sighting in self._gateway.get_sign_sightings():
+            if sighting.color not in (SignColor.RED, SignColor.GREEN):
                 continue
-            if obs.confidence < sign_cfg.min_confidence:
+            if sighting.confidence < sign_cfg.min_confidence:
                 continue
-            dist = pose.to_waypoint().distance_to(Waypoint(obs.world_x_m, obs.world_y_m))
-            if dist < nearest_dist:
-                nearest, nearest_dist = obs, dist
-        if nearest is None or nearest_dist > sign_cfg.activation_dist_m:
+            if nearest is None or sighting.range_m < nearest.range_m:
+                nearest = sighting
+        if nearest is None or nearest.range_m > sign_cfg.activation_dist_m:
             return None
         return TurnSide.RIGHT if nearest.color == SignColor.RED else TurnSide.LEFT
 
@@ -940,7 +951,7 @@ class TrackNavigator(Node, ResettableNode):
             self._blind_follow_speed,
             pose.yaw,
             self._tuning,
-            forced_turn_side=self._sign_dodge_side(pose),
+            forced_turn_side=self._sign_dodge_side(),
             believed_width_m=corridor_width_belief_m,
         )
         self._gateway.publish_drive(drive)

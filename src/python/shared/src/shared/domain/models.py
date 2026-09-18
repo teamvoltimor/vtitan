@@ -587,6 +587,25 @@ class RoutingEntry:
 
 
 @dataclass(slots=True, frozen=True)
+class SignSighting:
+    """One detection as the CHASSIS sees it: colour, how far, which side.
+
+    Deliberately not a :class:`TrafficSignObservation`, which carries a world
+    position and is therefore only as trustworthy as the heading it was
+    projected with. Nothing here depends on a pose or a heading, which is what
+    makes it usable before the travel direction is inferred -- the phase where
+    a counterclockwise round's published yaw is still going to be overturned by
+    pi. ``bearing_rad`` is POSITIVE TO THE LEFT, matching the robot frame that
+    :class:`LidarScan` uses (0 = forward, +pi/2 = left).
+    """
+
+    color: SignColor
+    range_m: float
+    bearing_rad: float
+    confidence: float
+
+
+@dataclass(slots=True, frozen=True)
 class LocalizerInputs:
     """Inputs the localizer uses to seed/refine its pose estimate."""
 

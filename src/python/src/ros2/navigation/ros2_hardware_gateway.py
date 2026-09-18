@@ -31,6 +31,7 @@ from shared.domain.models import (
     LocalizerInputs,
     Pose,
     SignColor,
+    SignSighting,
     TrafficSignObservation,
     Waypoint,
 )
@@ -41,7 +42,11 @@ from src.config.tuning_helpers import get_tuning
 from src.hardware.motors.enums import DRIVE_JOINT
 from src.navigation.localization import make_localizer
 from src.navigation.planning.barrier_belief import BarrierBelief
-from src.navigation.planning.sign_discovery import detection_to_observation, detection_to_world_point
+from src.navigation.planning.sign_discovery import (
+    detection_body_frame,
+    detection_to_observation,
+    detection_to_world_point,
+)
 from src.navigation.ports import DriveCommand, HardwareGateway, LidarScan, WheelOdometry, sanitize_lidar_ranges
 from src.navigation.track_geometry import TrackWalls, corridor_geometry_from_widths
 from src.navigation.utils import clamp
@@ -320,6 +325,31 @@ class ROS2HardwareGateway(HardwareGateway):
         # with a fraction of a second of duplicates instead of the seconds of
         # history the camera lag needs.
         self._pose_history.append((self._lidar_stamp, self._estimator.estimate_pose()))
+
+    def get_sign_sightings(self) -> list[SignSighting]:
+        """Colour, range and bearing of the latest boxes, with no pose involved.
+
+        Not filtered by colour and not gated on a corridor: those are decisions
+        for the caller, and the two callers that need this need different ones.
+        Deliberately does NOT wait for ``_pose_when_seen()`` -- the camera lag
+        that accessor exists to compensate is a lag in matching a box to a POSE,
+        and there is no pose here to match.
+        """
+        sightings: list[SignSighting] = []
+        for det in self._latest_detections:
+            body = detection_body_frame(det)
+            if body is None:
+                continue
+            range_m, bearing_rad = body
+            sightings.append(
+                SignSighting(
+                    color=det.color,
+                    range_m=range_m,
+                    bearing_rad=bearing_rad,
+                    confidence=det.confidence,
+                )
+            )
+        return sightings
 
     def get_localizer_inputs(self) -> LocalizerInputs | None:
         """(yaw, prior_x, prior_y) handed to the localizer on the last scan."""

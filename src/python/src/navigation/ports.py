@@ -38,6 +38,7 @@ if TYPE_CHECKING:
         LocalizerInputs,
         Pose,
         SectorRanges,
+        SignSighting,
         TrafficSignObservation,
     )
 
@@ -226,6 +227,20 @@ class HardwareGateway(Protocol):
         self, current_corridor: Section | None = None
     ) -> list[TrafficSignObservation]:
         """Get the latest sign observations from the camera."""
+
+    def get_sign_sightings(self) -> list[SignSighting]:
+        """Colour, range and bearing of the latest detections, frame-free.
+
+        The companion to ``get_vision_detections`` for callers that must work
+        BEFORE the travel direction is known. That one returns world positions,
+        which are only as good as the heading they were projected with, and
+        during the blind phases the heading is recorded against a provisional
+        frame that a counterclockwise round overturns by pi once the direction
+        settles. MEASURED on the 2026-09-15 in-bay rounds: 1.8% of the
+        observations accepted during a counterclockwise bay exit land within
+        0.35 m of any pillar the round later believes in, against 84.3%
+        clockwise. These three numbers need no pose and no heading at all.
+        """
 
     def get_localizer_inputs(self) -> LocalizerInputs | None:
         """(yaw, prior_x, prior_y) last handed to the LIDAR localizer.
