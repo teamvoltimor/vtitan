@@ -134,7 +134,6 @@ var curatedSpec = []Command{
 		Path:  []string{"sim", "navigate"},
 		Task:  "sim:navigate",
 		Short: "Closed-loop simulation test with the real navigator",
-		Heavy: true,
 	},
 	{
 		Path:  []string{"sim", "navigate", "rviz"},
@@ -180,7 +179,6 @@ var curatedSpec = []Command{
 		Path:  []string{"sim", "test"},
 		Task:  "sim:test",
 		Short: "Simulator tests",
-		Heavy: true,
 		Flags: []Flag{
 			{Name: "quick", Var: "QUICK", Kind: FlagBool, Default: "false", Usage: "fail fast with short tracebacks"},
 		},
