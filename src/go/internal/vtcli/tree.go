@@ -2,6 +2,9 @@ package vtcli
 
 import (
 	"fmt"
+	"maps"
+	"runtime"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -16,66 +19,74 @@ type App struct {
 	spec     []Command
 	tasks    []TaskInfo
 	ui       UI
+	// goos decides which platform-limited commands are shown; recentPath is
+	// where picks are remembered ("" disables it).
+	goos       string
+	recentPath string
+	// dryRun prints the invocation a curated command resolves to instead of
+	// running it (--dry-run).
+	dryRun bool
 }
 
-// flagBinding registers one spec Flag and remembers where its parsed value
-// lives. A value is only forwarded to Task when the user changed it.
+// flagBinding registers one flag (a spec Flag or a Variant switch) and
+// remembers where its parsed value lives.
 type flagBinding struct {
-	spec  Flag
+	name  string
+	kind  FlagKind
 	text  *string
 	whole *int
 	truth *bool
 }
 
-// rootDomainShort gives each first-level domain its one-line description.
+// rootGroup is one section of the root help and menu, in display order.
+type rootGroup struct {
+	id      string
+	title   string
+	members []string
+}
+
+// rootGroups orders the first level: the domains people work in, the verbs
+// that span every module, then the escape hatch.
+var rootGroups = []rootGroup{
+	{id: "domains", title: "Domains:", members: []string{"sim", "robot", "go", "fleet", "gen"}},
+	{id: "repo", title: "Across modules:", members: []string{"setup", "test", "lint", "clean"}},
+	{id: "any", title: "Any task:", members: []string{catchAllName}},
+}
+
+// rootDomainShort gives each first-level namespace its one-line description.
 var rootDomainShort = map[string]string{
-	"sim":   "Simulation (Gazebo + navigation)",
-	"robot": "Robot from the dev machine: deploy, sync runs, vision, ROS2",
-	"init":  "One-time setup",
+	"sim":   "Simulation: headless sim + RViz, Gazebo, sim tests",
+	"robot": "The robot, from the dev machine: deploy, runs, vision, ROS2",
+	"go":    "Go module: build, deploy, hardware tests",
+	"fleet": "Boards over SSH and network",
+	"gen":   "Generate tracks, scenarios and the sweep corpus",
+	"setup": "Install and one-time setup",
 	"lint":  "Lint every module",
 	"clean": "Clean generated data",
-	"rpi":   "Raspberry Pi (local config)",
-	"fleet": "Boards over SSH and network",
-	"go":    "Go module",
-	"py":    "Python module",
-	"docs":  "Documentation",
-	"apps":  "Applications",
-	"ml":    "ML and models",
-	"infra": "Infrastructure",
-	"run":   "Escape hatch: any Task task",
 }
 
 // segmentHelp gives the intermediate tree nodes a one-line description.
 var segmentHelp = map[string]string{
-	"build":       "Build",
-	"test":        "Tests",
-	"hw":          "Hardware",
-	"navigate":    "Navigation",
-	"visualize":   "Visualize",
-	"provision":   "Provision",
-	"set-wifi":    "Set WiFi",
-	"audit":       "Audit",
-	"static":      "CGO off (pure-Go)",
-	"capture":     "CGO on (gocv/OpenCV)",
-	"interactive": "Interactive tests",
-	"all":         "All",
-	"run":         "Run",
-	"stop":        "Stop",
-	"deploy":      "Deploy",
-	"ping":        "Ping",
-	"ssh":         "SSH",
-	"ssh-config":  "~/.ssh/config entries",
-	"ethernet":    "Direct Ethernet link (Windows, admin)",
-	"route":       "Persistent routes (Windows, admin)",
-	"pull":        "Pull from the Pi 5",
-	"push":        "Push to the Pi 5",
-	"bench-hud":   "Bench vision/HUD session",
-	"lint":        "Lint",
+	"build":      "Build",
+	"hw":         "Hardware tests on a Pi",
+	"view":       "Watch a run in RViz",
+	"parts":      "The two halves of view, for separate terminals",
+	"vision":     "Detections from the Pi 5 camera",
+	"pull":       "Pull from the Pi 5",
+	"push":       "Push to the Pi 5",
+	"bench-hud":  "Bench vision/HUD session",
+	"setup":      "One-time network and SSH setup",
+	"ethernet":   "Direct Ethernet link (Windows, admin)",
+	"route":      "Persistent routes (Windows, admin)",
+	"ssh-config": "~/.ssh/config entries",
 }
 
 // NewApp attaches the curated spec and the generated catch-all to root.
 func NewApp(repoRoot string, root *cobra.Command, ui UI, spec []Command, tasks []TaskInfo) (*App, error) {
-	app := &App{Root: root, repoRoot: repoRoot, spec: spec, tasks: tasks, ui: ui}
+	app := &App{
+		Root: root, repoRoot: repoRoot, spec: spec, tasks: tasks, ui: ui,
+		goos: runtime.GOOS, recentPath: defaultRecentPath(),
+	}
 	if err := app.build(); err != nil {
 		return nil, err
 	}
@@ -84,16 +95,29 @@ func NewApp(repoRoot string, root *cobra.Command, ui UI, spec []Command, tasks [
 }
 
 // build wires the curated leaves, the catch-all, and the bare-command banner
-// onto the root.
+// onto the root, in rootGroups order rather than alphabetical.
 func (a *App) build() error {
-	for _, command := range a.spec {
-		if err := a.addCurated(command); err != nil {
+	// Group order is the point of rootGroups; cobra only exposes it as a
+	// package toggle, and vt is the process's only command tree.
+	cobra.EnableCommandSorting = false //nolint:reassign // cobra's sole ordering switch; see above
+
+	for _, group := range rootGroups {
+		a.Root.AddGroup(&cobra.Group{ID: group.id, Title: group.title})
+	}
+
+	for i := range a.spec {
+		if err := a.addCurated(a.spec[i]); err != nil {
 			return err
 		}
 	}
 
-	a.Root.AddCommand(a.runCommand())
+	a.Root.AddCommand(a.taskCommand())
+	hideEmptyNamespaces(a.Root)
+	a.assignGroups()
+
 	a.Root.Long = "Command tree over the repository Taskfiles."
+	a.Root.PersistentFlags().BoolVar(&a.dryRun, dryRunFlag, false,
+		"print the task invocation a command resolves to, secrets masked, instead of running it")
 	a.Root.SilenceUsage = true
 	a.Root.SilenceErrors = true
 	a.Root.RunE = func(cmd *cobra.Command, args []string) error {
@@ -107,19 +131,37 @@ func (a *App) build() error {
 	return nil
 }
 
-// menuEntries lists the first-level commands for the home menu, skipping
-// cobra's own completion/help plumbing.
-func (a *App) menuEntries() []MenuEntry {
-	entries := make([]MenuEntry, 0, len(a.Root.Commands()))
-	for _, child := range a.Root.Commands() {
-		if child.Name() == "completion" || child.Name() == "help" {
-			continue
+// assignGroups files each first-level command under its root group.
+func (a *App) assignGroups() {
+	for _, group := range rootGroups {
+		for _, member := range group.members {
+			if child := findChild(a.Root, member); child != nil {
+				child.GroupID = group.id
+			}
+		}
+	}
+}
+
+// menuSections lists the visible first-level commands per root group, for
+// the static home menu.
+func (a *App) menuSections() []MenuSection {
+	sections := make([]MenuSection, 0, len(rootGroups))
+
+	for _, group := range rootGroups {
+		section := MenuSection{Title: group.title}
+
+		for _, member := range group.members {
+			if child := findChild(a.Root, member); child != nil && !child.Hidden {
+				section.Entries = append(section.Entries, MenuEntry{Name: child.Name(), Short: child.Short})
+			}
 		}
 
-		entries = append(entries, MenuEntry{Name: child.Name(), Short: child.Short})
+		if len(section.Entries) > 0 {
+			sections = append(sections, section)
+		}
 	}
 
-	return entries
+	return sections
 }
 
 // addCurated creates the parent path for command and attaches its leaf.
@@ -159,36 +201,42 @@ func (a *App) ensurePath(path []string) *cobra.Command {
 	return current
 }
 
-// newLeaf builds the cobra command that runs one wrapped Task.
+// newLeaf builds the cobra command that runs one wrapped command. A command
+// limited to other platforms is still built, hidden, and refuses to run with
+// a message rather than an "unknown command".
 func (a *App) newLeaf(command Command) (*cobra.Command, error) {
-	bindings := make([]*flagBinding, len(command.Flags))
-	for i := range command.Flags {
-		bindings[i] = &flagBinding{spec: command.Flags[i]}
+	bindings := make([]*flagBinding, 0, len(command.Flags)+len(command.Variants))
+	for _, flag := range command.Flags {
+		bindings = append(bindings, &flagBinding{name: flag.Name, kind: flag.Kind})
 	}
 
-	positional := append([]Arg{}, command.Args...)
+	for _, variant := range command.Variants {
+		bindings = append(bindings, &flagBinding{name: variant.Flag, kind: FlagBool})
+	}
 
 	leaf := &cobra.Command{
-		Use:   useLine(command),
-		Short: command.Short,
-		Args:  argsValidator(command),
+		Use:    useLine(command),
+		Short:  command.Short,
+		Args:   argsValidator(command),
+		Hidden: !command.Available(a.goos),
 		RunE: func(cmd *cobra.Command, raw []string) error {
-			extra := append([]string{}, collectVars(cmd, bindings, positional, raw)...)
-			if command.Passthrough && len(raw) > 0 {
-				extra = append(extra, "--")
-				extra = append(extra, raw...)
+			if !command.Available(a.goos) {
+				return fmt.Errorf("`vt %s` runs on %s only; this is %s",
+					strings.Join(command.Path, " "), strings.Join(command.Platforms, "/"), a.goos)
 			}
 
-			return runTask(cmd.Context(), a.repoRoot, command.Task, extra)
+			values, passthrough := cliValues(cmd, command, bindings, raw)
+
+			return a.execute(cmd.Context(), command, values, passthrough)
 		},
 	}
 
-	registerFlags(leaf, bindings)
+	registerFlags(leaf, command, bindings)
 
-	for _, binding := range bindings {
-		if binding.spec.Required {
-			if err := leaf.MarkFlagRequired(binding.spec.Name); err != nil {
-				return nil, fmt.Errorf("mark %s required: %w", binding.spec.Name, err)
+	for _, flag := range command.Flags {
+		if flag.Required {
+			if err := leaf.MarkFlagRequired(flag.Name); err != nil {
+				return nil, fmt.Errorf("mark %s required: %w", flag.Name, err)
 			}
 		}
 	}
@@ -196,12 +244,14 @@ func (a *App) newLeaf(command Command) (*cobra.Command, error) {
 	return leaf, nil
 }
 
-// runCommand builds the catch-all: any Task name, forwarded verbatim.
-func (a *App) runCommand() *cobra.Command {
+// taskCommand builds the catch-all: any Task name, forwarded verbatim. `run`
+// stays as an alias for the name it had before.
+func (a *App) taskCommand() *cobra.Command {
 	return &cobra.Command{
-		Use:   "run [<task> [VAR=value ...] [-- <args>]]",
-		Short: "Run any Task task, with or without typed flags",
-		Long: "Escape hatch for tasks that have no typed flags yet. The name is validated against the real " +
+		Use:     catchAllName + " [<task> [VAR=value ...] [-- <args>]]",
+		Aliases: []string{"run"},
+		Short:   "Run any Task task, with or without typed flags",
+		Long: "Escape hatch for tasks that have no typed flags. The name is validated against the real " +
 			"inventory before running. With no task, lists every task with its description.",
 		Args:               cobra.ArbitraryArgs,
 		DisableFlagParsing: true,
@@ -212,8 +262,10 @@ func (a *App) runCommand() *cobra.Command {
 
 			name := raw[0]
 			if !KnownTask(a.tasks, name) {
-				return fmt.Errorf("unknown task %q; try `vt --help` or `task --list-all`", name)
+				return fmt.Errorf("unknown task %q; try `vt %s` to list them", name, catchAllName)
 			}
+
+			a.remember(recentTaskPrefix + name)
 
 			return runTask(cmd.Context(), a.repoRoot, name, raw[1:])
 		},
@@ -223,8 +275,8 @@ func (a *App) runCommand() *cobra.Command {
 // printTasks lists the whole inventory with descriptions. It is what retired
 // the hand-written `help` task, which drifted every time a task was added.
 func (a *App) printTasks(cmd *cobra.Command) error {
-	listing := fmt.Sprintf("%d tasks. Run one with `vt run <task> [VAR=value ...]`.\n\n%s",
-		len(a.tasks), a.ui.Menu(TaskEntries(a.tasks)))
+	listing := fmt.Sprintf("%d tasks. Run one with `vt %s <task> [VAR=value ...]`.\n\n%s",
+		len(a.tasks), catchAllName, a.ui.Menu(TaskEntries(a.tasks)))
 
 	if _, err := fmt.Fprintln(cmd.OutOrStdout(), listing); err != nil {
 		return fmt.Errorf("write task list: %w", err)
@@ -234,52 +286,77 @@ func (a *App) printTasks(cmd *cobra.Command) error {
 }
 
 // registerFlags declares each binding on the leaf's flag set.
-func registerFlags(leaf *cobra.Command, bindings []*flagBinding) {
+func registerFlags(leaf *cobra.Command, command Command, bindings []*flagBinding) {
 	flags := leaf.Flags()
+	usage, defaults := flagDocs(command)
 
 	for _, binding := range bindings {
-		switch binding.spec.Kind {
+		switch binding.kind {
 		case FlagInt:
 			binding.whole = new(int)
-			flags.IntVar(binding.whole, binding.spec.Name, intDefault(binding.spec.Default), binding.spec.Usage)
+			flags.IntVar(binding.whole, binding.name, intDefault(defaults[binding.name]), usage[binding.name])
 		case FlagBool:
 			binding.truth = new(bool)
-			flags.BoolVar(binding.truth, binding.spec.Name, boolDefault(binding.spec.Default), binding.spec.Usage)
+			flags.BoolVar(binding.truth, binding.name, boolDefault(defaults[binding.name]), usage[binding.name])
 		default:
 			binding.text = new(string)
-			flags.StringVar(binding.text, binding.spec.Name, binding.spec.Default, binding.spec.Usage)
+			flags.StringVar(binding.text, binding.name, defaults[binding.name], usage[binding.name])
 		}
 	}
 }
 
-// collectVars turns the changed flags and supplied positionals into the
-// KEY=value pairs Task expects.
-func collectVars(
+// flagDocs collects the help text and displayed default of every flag and
+// variant switch of command, by name.
+func flagDocs(command Command) (usage, defaults map[string]string) {
+	usage = make(map[string]string)
+	defaults = make(map[string]string)
+
+	for _, flag := range command.Flags {
+		usage[flag.Name], defaults[flag.Name] = flag.Usage, flag.Default
+	}
+
+	for _, variant := range command.Variants {
+		usage[variant.Flag] = variant.Usage + " (runs " + variant.Task + ")"
+	}
+
+	return usage, defaults
+}
+
+// cliValues turns a parsed command line into the values planInvocation reads:
+// changed flags only, positionals by name, and whatever follows `--`.
+func cliValues(
 	cmd *cobra.Command,
+	command Command,
 	bindings []*flagBinding,
-	argSpecs []Arg,
 	raw []string,
-) []string {
-	vars := make([]string, 0, len(bindings)+len(argSpecs))
+) (values map[string]string, passthrough []string) {
+	values = make(map[string]string, len(bindings)+len(command.Args))
 
 	for _, binding := range bindings {
-		if !cmd.Flags().Changed(binding.spec.Name) {
-			continue
+		if cmd.Flags().Changed(binding.name) {
+			values[binding.name] = binding.value()
 		}
-
-		vars = append(vars, binding.spec.Var+"="+binding.value())
 	}
 
-	for i, spec := range argSpecs {
-		vars = append(vars, spec.Var+"="+raw[i])
+	positional := raw
+	if dash := cmd.ArgsLenAtDash(); dash >= 0 {
+		positional, passthrough = raw[:dash], raw[dash:]
+	} else if len(raw) > len(command.Args) {
+		positional, passthrough = raw[:len(command.Args)], raw[len(command.Args):]
 	}
 
-	return vars
+	for i, arg := range command.Args {
+		if i < len(positional) {
+			values[arg.Name] = positional[i]
+		}
+	}
+
+	return values, passthrough
 }
 
 // value formats the flag's current value as Task would receive it.
 func (b *flagBinding) value() string {
-	switch b.spec.Kind {
+	switch b.kind {
 	case FlagInt:
 		return strconv.Itoa(*b.whole)
 	case FlagBool:
@@ -289,16 +366,22 @@ func (b *flagBinding) value() string {
 	}
 }
 
-// argsValidator picks the positional-argument contract for a leaf.
+// argsValidator picks the positional-argument contract for a leaf: required
+// arguments must be there, optional ones may be, and only a passthrough
+// command takes more.
 func argsValidator(command Command) cobra.PositionalArgs {
-	switch {
-	case len(command.Args) > 0:
-		return cobra.ExactArgs(len(command.Args))
-	case command.Passthrough:
-		return cobra.ArbitraryArgs
-	default:
-		return cobra.NoArgs
+	required := 0
+	for _, arg := range command.Args {
+		if arg.Required {
+			required++
+		}
 	}
+
+	if command.Passthrough {
+		return cobra.MinimumNArgs(required)
+	}
+
+	return cobra.RangeArgs(required, len(command.Args))
 }
 
 // useLine renders the `Use` string for a leaf, including placeholders.
@@ -306,10 +389,15 @@ func useLine(command Command) string {
 	parts := []string{command.Path[len(command.Path)-1]}
 
 	for _, arg := range command.Args {
+		name := arg.Name
+		if arg.Tasks != nil {
+			name = strings.Join(slices.Sorted(maps.Keys(arg.Tasks)), "|")
+		}
+
 		if arg.Required {
-			parts = append(parts, "<"+arg.Name+">")
+			parts = append(parts, "<"+name+">")
 		} else {
-			parts = append(parts, "["+arg.Name+"]")
+			parts = append(parts, "["+name+"]")
 		}
 	}
 
@@ -318,6 +406,28 @@ func useLine(command Command) string {
 	}
 
 	return strings.Join(parts, " ")
+}
+
+// hideEmptyNamespaces hides every intermediate command whose children are all
+// hidden, so a platform-limited branch disappears as a whole.
+func hideEmptyNamespaces(parent *cobra.Command) bool {
+	children := parent.Commands()
+	if len(children) == 0 {
+		return parent.Hidden
+	}
+
+	allHidden := true
+	for _, child := range children {
+		if !hideEmptyNamespaces(child) {
+			allHidden = false
+		}
+	}
+
+	if allHidden && parent.RunE == nil && parent.Run == nil {
+		parent.Hidden = true
+	}
+
+	return parent.Hidden
 }
 
 // findChild returns the existing subcommand named segment, if any.
@@ -329,28 +439,4 @@ func findChild(parent *cobra.Command, segment string) *cobra.Command {
 	}
 
 	return nil
-}
-
-// intDefault parses a spec default, falling back to zero.
-func intDefault(raw string) int {
-	if raw == "" {
-		return 0
-	}
-
-	value, err := strconv.Atoi(raw)
-	if err != nil {
-		return 0
-	}
-
-	return value
-}
-
-// boolDefault parses a spec default, falling back to false.
-func boolDefault(raw string) bool {
-	value, err := strconv.ParseBool(raw)
-	if err != nil {
-		return false
-	}
-
-	return value
 }

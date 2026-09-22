@@ -92,6 +92,17 @@ func TaskEntries(tasks []TaskInfo) []MenuEntry {
 	return entries
 }
 
+// taskShort returns the listing description of one task, "" if unknown.
+func taskShort(tasks []TaskInfo, name string) string {
+	for _, entry := range TaskEntries(tasks) {
+		if entry.Name == name {
+			return entry.Short
+		}
+	}
+
+	return ""
+}
+
 // KnownTask reports whether name (or one of its aliases) is in the inventory.
 func KnownTask(tasks []TaskInfo, name string) bool {
 	for _, task := range tasks {

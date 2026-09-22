@@ -19,14 +19,28 @@ type Flag struct {
 	Default  string
 	Usage    string
 	Required bool
+	// Secret masks the value wherever vt echoes a command line back, and
+	// hides it while typing in the form.
+	Secret bool
 }
 
-// Arg maps one positional CLI argument to one Task variable.
+// Arg maps one positional CLI argument to one Task variable, or, when Tasks
+// is set, picks which task runs (`vt fleet audit zero`) and is not forwarded.
 type Arg struct {
 	Name     string
 	Var      string
 	Usage    string
 	Required bool
+	Tasks    map[string]string
+}
+
+// Variant is a boolean flag that swaps the task a command runs, for tasks that
+// are one operation with a modifier (`vt lint --fix` runs lint:fix). At most
+// one variant of a command may be set.
+type Variant struct {
+	Flag  string
+	Task  string
+	Usage string
 }
 
 // Command is one wrapped leaf: a path in the CLI tree that runs one Task.
@@ -40,6 +54,10 @@ type Command struct {
 	// Heavy marks a task that starts long-running processes (a simulator, a
 	// service): the interactive form warns before running it.
 	Heavy bool
+	// Platforms limits the command to these GOOS values; empty means every
+	// platform. Elsewhere it is hidden from help, menus and the picker.
+	Platforms []string
+	Variants  []Variant
 }
 
 // Domain groups a first-level CLI namespace and the Task-name prefix it owns.
@@ -94,6 +112,7 @@ var curatedDomains = []Domain{
 	{ID: "go", Title: "Go module", TaskPrefix: "go:"},
 	{ID: "fleet", Title: "boards over SSH", TaskPrefix: "windows:"},
 	{ID: "sim", Title: "simulation", TaskPrefix: "sim:"},
+	{ID: "gen", Title: "generators", TaskPrefix: "gen:"},
 	{ID: "robot", Title: "Python/ROS2 runtime", TaskPrefix: "robot:"},
 	{ID: "rpi", Title: "on-board Pi tasks", TaskPrefix: "rpi:"},
 	{ID: "install", Title: "umbrella install", TaskPrefix: "install:"},
@@ -106,7 +125,7 @@ var curatedDomains = []Domain{
 // curatedSpec is the single declarative table the tree is built from, one
 // table per domain. One entry per wrapped command; nothing here duplicates how
 // a task runs. Within a table a command precedes its children.
-var curatedSpec = slices.Concat(simSpec, goSpec, fleetSpec, robotSpec, umbrellaSpec)
+var curatedSpec = slices.Concat(simSpec, robotSpec, goSpec, fleetSpec, genSpec, umbrellaSpec)
 
 // exclusions records the tasks deliberately left out of the typed tree and
 // why. Adding a task to a curated domain without deciding anything here fails
@@ -136,4 +155,35 @@ func CuratedDomains() []Domain {
 // Exclusions returns the explicit per-task exclusions for curated domains.
 func Exclusions() map[string]string {
 	return exclusions
+}
+
+// Tasks lists every task the command can run: its own, its variants', and
+// its task-picking argument's.
+func (c Command) Tasks() []string {
+	var tasks []string
+	if c.Task != "" {
+		tasks = append(tasks, c.Task)
+	}
+
+	for _, variant := range c.Variants {
+		tasks = append(tasks, variant.Task)
+	}
+
+	for _, arg := range c.Args {
+		for _, value := range slices.Sorted(maps.Keys(arg.Tasks)) {
+			tasks = append(tasks, arg.Tasks[value])
+		}
+	}
+
+	return tasks
+}
+
+// Available reports whether the command runs on goos.
+func (c Command) Available(goos string) bool {
+	return len(c.Platforms) == 0 || slices.Contains(c.Platforms, goos)
+}
+
+// fixVariant is the --fix switch of a lint command: the same linter, fixing.
+func fixVariant(task string) Variant {
+	return Variant{Flag: "fix", Task: task, Usage: "fix what can be fixed"}
 }

@@ -7,60 +7,13 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/spf13/cobra"
 )
 
-// formModel drives the argument form after a command is chosen, ending in a
-// confirmation step so a stray enter never launches anything heavy.
-type formModel struct {
-	title     string
-	fields    []*formField
-	index     int
-	submit    bool
-	cancelled bool
-	err       string
-	confirm   bool
-	heavy     bool
-	taskName  string
-	ui        UI
-}
-
-// formField is one prompt in the argument form. defaultValue/defaultBool are
-// the Task defaults: shown (prefilled) but never forwarded unless edited.
-type formField struct {
-	label        string
-	varName      string
-	placement    fieldPlacement
-	help         string
-	kind         FlagKind
-	required     bool
-	isBool       bool
-	boolVal      bool
-	defaultValue string
-	defaultBool  bool
-	input        textinput.Model
-}
-
-// fieldPlacement says where a field's value lands in the task command line.
-type fieldPlacement int
-
-const (
-	// placeVar forwards the value as VAR=value.
-	placeVar fieldPlacement = iota
-	// placePassthrough forwards the value after `--`, into CLI_ARGS.
-	placePassthrough
-	// placeVerbatim forwards the value as typed (the escape hatch's args).
-	placeVerbatim
-)
-
-// backRowTitle labels the row that returns to the parent level, and
-// backSegment is the sentinel choose() recognises for it.
-const (
-	backRowTitle = ".. back"
-	backSegment  = "\x00back"
-)
+// argsField is the form field that carries what goes after `--`, or, for the
+// escape hatch, the task's raw arguments.
+const argsField = "args"
 
 // canPick reports whether an interactive picker is appropriate: both ends are
 // a terminal and the user has not opted out.
@@ -80,11 +33,13 @@ func (a *App) home(cmd *cobra.Command) error {
 
 // printHome renders the non-interactive banner + menu.
 func (a *App) printHome(cmd *cobra.Command) error {
-	out := cmd.OutOrStdout()
-	home := a.ui.Banner() + "\n\n" + a.ui.Menu(a.menuEntries()) +
-		"\n\nUse `vt <domain> --help` for details, `vt run` to list every task, or `vt run <task>` to run one."
+	home := a.ui.Banner() + "\n\n" + a.ui.MenuSections(a.menuSections()) + "\n\n" +
+		fmt.Sprintf(
+			"Use `vt <domain> --help` for details, `vt %[1]s` to list every task, or `vt %[1]s <task>` to run one.",
+			catchAllName,
+		)
 
-	if _, err := fmt.Fprintln(out, home); err != nil {
+	if _, err := fmt.Fprintln(cmd.OutOrStdout(), home); err != nil {
 		return fmt.Errorf("write home: %w", err)
 	}
 
@@ -118,162 +73,120 @@ func (a *App) pickAndRun(cmd *cobra.Command) error {
 		return nil
 	}
 
-	values, submitted, err := a.promptFields(*result.selected.spec)
+	command := *result.selected.spec
+
+	values, submitted, err := a.promptFields(command)
 	if err != nil || !submitted {
 		return err
 	}
 
-	passthrough := values["args"]
-	delete(values, "args")
+	passthrough := splitArgs(values[argsField])
+	a.echo(vtLine(command, values, passthrough))
 
-	return a.invoke(cmd.Context(), *result.selected.spec, values, passthrough)
+	return a.execute(cmd.Context(), command, values, passthrough)
+}
+
+// execute resolves a command against its values and runs the task. Every path
+// into a curated command ends here, so the picker and the CLI cannot diverge.
+func (a *App) execute(ctx context.Context, command Command, values map[string]string, passthrough []string) error {
+	inv, err := planInvocation(command, values, passthrough)
+	if err != nil {
+		return err
+	}
+
+	if a.dryRun {
+		fmt.Fprintln(os.Stdout, inv.display())
+
+		return nil
+	}
+
+	a.remember(recentCommandPrefix + strings.Join(command.Path, " "))
+
+	return runTask(ctx, a.repoRoot, inv.task, inv.argv())
 }
 
 // promptTaskArgs asks for the free-form arguments of a task picked from the
 // full inventory, which has no typed flags to build a form from.
 func (a *App) promptTaskArgs(ctx context.Context, name string) error {
-	field := newTextField("args", "VAR=value and flags, verbatim (optional)", false, FlagString)
-	field.placement = placeVerbatim
+	field := newTextField(argsField, "VAR=value and flags, verbatim (optional)", false, FlagString)
 
-	values, submitted, err := runForm(a.ui, "run "+name, name, []*formField{field})
+	preview := func(values map[string]string) (string, error) {
+		line := "task " + name
+		if args := strings.TrimSpace(values[argsField]); args != "" {
+			line += " " + args
+		}
+
+		return line, nil
+	}
+
+	values, submitted, err := runForm(a.ui, catchAllName+" "+name, []*formField{field}, preview, false)
 	if err != nil || !submitted {
 		return err
 	}
 
-	return runTask(ctx, a.repoRoot, name, splitArgs(values["args"]))
+	args := splitArgs(values[argsField])
+	a.echo(strings.Join(append([]string{"vt", catchAllName, name}, args...), " "))
+	a.remember(recentTaskPrefix + name)
+
+	return runTask(ctx, a.repoRoot, name, args)
 }
 
-// promptFields builds and runs the argument form for one command.
+// promptFields builds and runs the argument form for one command. The preview
+// is planInvocation's own rendering, so the confirmation shows exactly what
+// will run.
 func (a *App) promptFields(command Command) (values map[string]string, ok bool, err error) {
-	fields := make([]*formField, 0, len(command.Args)+len(command.Flags)+1)
+	fields := make([]*formField, 0, len(command.Args)+len(command.Flags)+len(command.Variants)+1)
 
 	for _, arg := range command.Args {
-		field := newTextField(arg.Name, arg.Usage, arg.Required, FlagString)
-		field.varName = arg.Var
-		fields = append(fields, field)
+		usage := arg.Usage
+		if usage == "" && arg.Tasks != nil {
+			usage = useLine(Command{Path: []string{""}, Args: []Arg{arg}})
+		}
+
+		fields = append(fields, newTextField(arg.Name, usage, arg.Required, FlagString))
+	}
+
+	for _, variant := range command.Variants {
+		fields = append(fields, newBoolField(variant.Flag, variant.Usage+" (runs "+variant.Task+")", false))
 	}
 
 	for _, flag := range command.Flags {
-		field := newTextField(flag.Name, flag.Usage, flag.Required, flag.Kind)
-		field.varName = flag.Var
 		if flag.Kind == FlagBool {
-			field.isBool = true
-			field.boolVal = boolDefault(flag.Default)
-			field.defaultBool = field.boolVal
-		} else {
-			field.input.SetValue(flag.Default)
-			field.defaultValue = flag.Default
+			fields = append(fields, newBoolField(flag.Name, flag.Usage, boolDefault(flag.Default)))
+
+			continue
 		}
 
+		field := newTextField(flag.Name, flag.Usage, flag.Required, flag.Kind)
+		field.input.SetValue(flag.Default)
+		field.secret(flag.Secret)
 		fields = append(fields, field)
 	}
 
 	if command.Passthrough {
-		field := newTextField("args", "extra arguments after --", false, FlagString)
-		field.placement = placePassthrough
-		fields = append(fields, field)
+		fields = append(fields, newTextField(argsField, "extra arguments after --", false, FlagString))
+	}
+
+	preview := func(values map[string]string) (string, error) {
+		inv, planErr := planInvocation(command, values, splitArgs(values[argsField]))
+		if planErr != nil {
+			return "", planErr
+		}
+
+		return inv.display(), nil
 	}
 
 	if len(fields) == 0 {
 		return map[string]string{}, true, nil
 	}
 
-	return runFormHeavy(a.ui, strings.Join(command.Path, " "), command.Task, fields, command.Heavy)
+	return runForm(a.ui, strings.Join(command.Path, " "), fields, preview, command.Heavy)
 }
 
-// newTextField creates a text field for one argument.
-func newTextField(name, help string, required bool, kind FlagKind) *formField {
-	input := textinput.New()
-	input.Placeholder = help
-	input.CharLimit = formCharLimit
-	input.Width = defaultFormInputWidth
-
-	return &formField{label: name, help: help, kind: kind, required: required, input: input}
-}
-
-// runForm runs the argument form and returns the collected values.
-func runForm(ui UI, title, taskName string, fields []*formField) (values map[string]string, ok bool, err error) {
-	return runFormHeavy(ui, title, taskName, fields, false)
-}
-
-// runFormHeavy runs the form and, before executing, asks for confirmation.
-func runFormHeavy(ui UI, title, taskName string, fields []*formField, heavy bool) (
-	values map[string]string, ok bool, err error,
-) {
-	model := formModel{title: title, fields: fields, heavy: heavy, taskName: taskName, ui: ui}
-	model.focus(0)
-
-	program := tea.NewProgram(&model, tea.WithAltScreen(), tea.WithInput(os.Stdin), tea.WithOutput(os.Stdout))
-
-	final, err := program.Run()
-	if err != nil {
-		return nil, false, fmt.Errorf("form: %w", err)
-	}
-
-	result, isForm := final.(*formModel)
-	if !isForm || result.cancelled || !result.submit {
-		return nil, false, nil
-	}
-
-	return result.values(), true, nil
-}
-
-// invoke maps the collected values to Task vars and runs the task.
-func (a *App) invoke(ctx context.Context, command Command, values map[string]string, passed string) error {
-	extra, err := buildExtra(command, values, passed)
-	if err != nil {
-		return err
-	}
-
-	return runTask(ctx, a.repoRoot, command.Task, extra)
-}
-
-// buildExtra turns form values into the KEY=value pairs Task expects.
-func buildExtra(command Command, values map[string]string, passed string) ([]string, error) {
-	extra := make([]string, 0, len(command.Args)+len(command.Flags)+2)
-
-	for _, arg := range command.Args {
-		value := strings.TrimSpace(values[arg.Name])
-		if value == "" {
-			if arg.Required {
-				return nil, fmt.Errorf("missing argument %q", arg.Name)
-			}
-
-			continue
-		}
-
-		extra = append(extra, arg.Var+"="+value)
-	}
-
-	for _, flag := range command.Flags {
-		value := strings.TrimSpace(values[flag.Name])
-		if flag.Kind == FlagBool {
-			if value == "" {
-				value = strconv.FormatBool(false)
-			}
-
-			if value == strconv.FormatBool(boolDefault(flag.Default)) {
-				continue
-			}
-
-			extra = append(extra, flag.Var+"="+value)
-
-			continue
-		}
-
-		if value == "" || value == strings.TrimSpace(flag.Default) {
-			continue
-		}
-
-		extra = append(extra, flag.Var+"="+value)
-	}
-
-	if command.Passthrough && strings.TrimSpace(passed) != "" {
-		extra = append(extra, "--")
-		extra = append(extra, splitArgs(passed)...)
-	}
-
-	return extra, nil
+// echo prints the command line that reproduces a picker run, so the flags can
+// be learned and the run repeated without the picker.
+func (a *App) echo(line string) {
+	fmt.Fprintln(os.Stderr, a.ui.Muted(equivalentPrefix+line))
 }
 
 // splitArgs splits a free-text argument line on spaces, honouring quotes.
@@ -313,229 +226,26 @@ func splitArgs(raw string) []string {
 	return args
 }
 
-// Init implements tea.Model.
-func (m *formModel) Init() tea.Cmd { return textinput.Blink }
-
-// Update implements tea.Model.
-func (m *formModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	if size, isResize := msg.(tea.WindowSizeMsg); isResize {
-		m.resizeInputs(size.Width)
-
-		return m, nil
+// intDefault parses a spec default, falling back to zero.
+func intDefault(raw string) int {
+	if raw == "" {
+		return 0
 	}
 
-	if key, ok := msg.(tea.KeyMsg); ok {
-		if handled, cmd := m.handleKey(key); handled {
-			return m, cmd
-		}
+	value, err := strconv.Atoi(raw)
+	if err != nil {
+		return 0
 	}
 
-	var cmd tea.Cmd
-	m.fields[m.index].input, cmd = m.fields[m.index].input.Update(msg)
-
-	return m, cmd
+	return value
 }
 
-// View implements tea.Model.
-func (m *formModel) View() string {
-	lines := []string{m.ui.Accent(m.title, true), ""}
-
-	for i, field := range m.fields {
-		cursor := "  "
-		if i == m.index {
-			cursor = m.ui.Accent("> ", true)
-		}
-
-		if field.isBool {
-			mark := " "
-			if field.boolVal {
-				mark = "x"
-			}
-
-			lines = append(lines, cursor+field.label+"  ["+mark+"]  "+field.help)
-
-			continue
-		}
-
-		lines = append(lines, cursor+field.label, "    "+field.input.View())
+// boolDefault parses a spec default, falling back to false.
+func boolDefault(raw string) bool {
+	value, err := strconv.ParseBool(raw)
+	if err != nil {
+		return false
 	}
 
-	if m.err != "" {
-		lines = append(lines, "", m.ui.Danger(m.err))
-	}
-
-	if m.confirm {
-		lines = append(lines, "", "Will run:  "+m.ui.Accent(m.commandLine(), true))
-
-		if m.heavy {
-			lines = append(lines, m.ui.Warning("WARNING: this task starts long-running processes (simulator/service)."))
-		}
-
-		lines = append(lines, "", m.ui.Muted("(enter: run · esc: cancel)"))
-
-		return strings.Join(lines, "\n")
-	}
-
-	lines = append(lines, "", m.ui.Muted("(tab: next · enter: next · esc: cancel) · untouched defaults stay with Task"))
-
-	return strings.Join(lines, "\n")
-}
-
-// commandLine renders the task command the form is about to run.
-func (m *formModel) commandLine() string {
-	target := m.taskName
-	if target == "" {
-		target = m.title
-	}
-
-	parts := []string{"task", target}
-	var tail []string
-
-	for _, field := range m.fields {
-		if field.isBool {
-			if field.boolVal != field.defaultBool {
-				parts = append(parts, field.varName+"="+strconv.FormatBool(field.boolVal))
-			}
-
-			continue
-		}
-
-		value := strings.TrimSpace(field.input.Value())
-		if value == "" || value == strings.TrimSpace(field.defaultValue) {
-			continue
-		}
-
-		switch field.placement {
-		case placeVar:
-			parts = append(parts, field.varName+"="+value)
-		case placePassthrough:
-			tail = append(tail, "--", value)
-		case placeVerbatim:
-			parts = append(parts, value)
-		}
-	}
-
-	return strings.Join(append(parts, tail...), " ")
-}
-
-// resizeInputs keeps the text inputs as wide as the terminal allows.
-func (m *formModel) resizeInputs(termWidth int) {
-	width := max(termWidth-formWidthMargin, minFormInputWidth)
-
-	for _, field := range m.fields {
-		field.input.Width = width
-	}
-}
-
-// handleKey processes navigation and toggles. It reports whether the key was
-// consumed by the form rather than the focused input.
-func (m *formModel) handleKey(key tea.KeyMsg) (bool, tea.Cmd) {
-	switch key.String() {
-	case "ctrl+c", "esc":
-		m.cancelled = true
-
-		return true, tea.Quit
-	case "tab", "down":
-		m.focus(m.index + 1)
-
-		return true, nil
-	case "shift+tab", "up":
-		m.focus(m.index - 1)
-
-		return true, nil
-	case "enter":
-		if m.confirm {
-			m.submit = true
-
-			return true, tea.Quit
-		}
-
-		if m.index == len(m.fields)-1 {
-			if err := m.validate(); err != nil {
-				m.err = err.Error()
-
-				return true, nil
-			}
-
-			m.confirm = true
-			m.err = ""
-
-			return true, nil
-		}
-
-		m.focus(m.index + 1)
-
-		return true, nil
-	}
-
-	if m.fields[m.index].isBool && (key.String() == "left" || key.String() == "right" || key.String() == " ") {
-		m.fields[m.index].boolVal = !m.fields[m.index].boolVal
-
-		return true, nil
-	}
-
-	return false, nil
-}
-
-// focus moves the highlight to index, wrapping around.
-func (m *formModel) focus(index int) {
-	if len(m.fields) == 0 {
-		return
-	}
-
-	if index < 0 {
-		index = len(m.fields) - 1
-	}
-
-	if index >= len(m.fields) {
-		index = 0
-	}
-
-	for i, field := range m.fields {
-		if i == index {
-			field.input.Focus()
-		} else {
-			field.input.Blur()
-		}
-	}
-
-	m.index = index
-}
-
-// validate enforces required fields and integer parsing.
-func (m *formModel) validate() error {
-	for _, field := range m.fields {
-		if field.isBool {
-			continue
-		}
-
-		value := strings.TrimSpace(field.input.Value())
-		if field.required && value == "" {
-			return fmt.Errorf("field %q is required", field.label)
-		}
-
-		if field.kind == FlagInt && value != "" {
-			if _, err := strconv.Atoi(value); err != nil {
-				return fmt.Errorf("field %q must be an integer", field.label)
-			}
-		}
-	}
-
-	return nil
-}
-
-// values collects the form state as a name -> value map.
-func (m *formModel) values() map[string]string {
-	values := make(map[string]string, len(m.fields))
-	for _, field := range m.fields {
-		if field.isBool {
-			values[field.label] = strconv.FormatBool(field.boolVal)
-
-			continue
-		}
-
-		values[field.label] = strings.TrimSpace(field.input.Value())
-	}
-
-	return values
+	return value
 }

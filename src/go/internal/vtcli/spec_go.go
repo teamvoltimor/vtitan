@@ -1,6 +1,7 @@
 package vtcli
 
-// goSpec wraps the go:* tasks (src/go/Taskfile.yml).
+// goSpec wraps the go:* tasks (src/go/Taskfile.yml). The hardware tests sit
+// under `go hw`: build them, run one on a Pi, stop the services it needs.
 var goSpec = []Command{
 	{
 		Path:  []string{"go", "build", "static"},
@@ -9,9 +10,10 @@ var goSpec = []Command{
 		Flags: []Flag{{Name: flagOut, Var: "OUT", Default: "dist", Usage: "output directory"}},
 	},
 	{
-		Path:  []string{"go", "build", "capture"},
-		Task:  "go:build:capture",
-		Short: "Build the camera binaries with gocv/OpenCV (CGO on)",
+		Path:      []string{"go", "build", "capture"},
+		Task:      "go:build:capture",
+		Short:     "Build the camera binaries with gocv/OpenCV (CGO on)",
+		Platforms: []string{"linux", "windows"},
 		Flags: []Flag{
 			{Name: flagOut, Var: "OUT", Default: "dist", Usage: "output directory"},
 			{Name: "cc", Var: "CC", Default: "aarch64-linux-gnu-gcc", Usage: "C cross-compiler"},
@@ -20,7 +22,8 @@ var goSpec = []Command{
 	{
 		Path:  []string{"go", "deploy"},
 		Task:  "go:deploy",
-		Short: "Build and ship the binaries to a Pi (/opt/vtitan-go)",
+		Short: "Deploy the Go binaries to a Pi (/opt/vtitan-go); robot deploy ships the Python stack",
+		Heavy: true,
 		Flags: []Flag{
 			{Name: "target-host", Var: "TARGET_HOST", Usage: "destination user@host"},
 			{Name: "install-dir", Var: "INSTALL_DIR", Usage: "install directory"},
@@ -34,21 +37,19 @@ var goSpec = []Command{
 		Short: "Build pkg/portable for the Pico 2 under TinyGo",
 	},
 	{
-		Path:  []string{"go", "test", "hw"},
+		Path:  []string{"go", "hw", "build"},
 		Task:  "go:test:hw",
-		Short: "Cross-compile the hardware tests (linux/arm64)",
+		Short: "Cross-compile the hardware tests for linux/arm64 (builds, does not run)",
+		Variants: []Variant{{
+			Flag: "interactive", Task: "go:test:hw:interactive", Usage: "the interactive tests instead",
+		}},
 		Flags: []Flag{
-			{Name: flagPkg, Var: "PKG", Usage: "button|ssd1306|imu|lidar|motor|nats"},
-			{Name: flagOut, Var: "OUT", Default: "dist/hw", Usage: "output directory"},
-		},
-	},
-	{
-		Path:  []string{"go", "test", "hw", "interactive"},
-		Task:  "go:test:hw:interactive",
-		Short: "Cross-compile the interactive hardware tests",
-		Flags: []Flag{
-			{Name: flagPkg, Var: "PKG", Usage: "motor|imu|lidar|ssd1306"},
-			{Name: flagOut, Var: "OUT", Default: "dist/hw-interactive", Usage: "output directory"},
+			{
+				Name:  flagPkg,
+				Var:   "PKG",
+				Usage: "button|ssd1306|imu|lidar|motor|nats; interactive: motor|imu|lidar|ssd1306",
+			},
+			{Name: flagOut, Var: "OUT", Usage: "output directory (default dist/hw, or dist/hw-interactive)"},
 		},
 	},
 	{
@@ -57,7 +58,7 @@ var goSpec = []Command{
 		Short: "Build, ship and run an interactive hardware test on a Pi",
 		Flags: []Flag{
 			{Name: flagPkg, Var: "PKG", Default: "lidar", Usage: "motor|imu|lidar|ssd1306"},
-			{Name: "host", Var: "HOST", Default: "rpi-5-local", Usage: "SSH alias of the Pi"},
+			{Name: "host", Var: "HOST", Default: defaultPI5Host, Usage: "SSH alias of the Pi"},
 			{Name: "yaw-offset", Var: "YAW_OFFSET", Default: "0", Usage: "lidar mount yaw offset"},
 			{Name: "inverted", Var: "INVERTED", Kind: FlagBool, Default: "true", Usage: "lidar mounted upside down"},
 			{Name: "scan-mode", Var: "SCAN_MODE", Usage: "lidar scan mode"},

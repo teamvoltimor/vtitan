@@ -8,9 +8,9 @@ var pi5HostFlag = Flag{Name: flagPI5Host, Var: "PI5_HOST", Default: defaultPI5Ho
 var patternArg = Arg{Name: "pattern", Var: "PATTERN", Usage: "run name prefix, e.g. run_20260809"}
 
 // robotSpec wraps the robot:* tasks that run on the dev machine
-// (src/python/Taskfile.yml). The ones that run on a Pi are excluded below.
+// (src/python/Taskfile.yml). The ones that run on a Pi are excluded below, and
+// the install/build ones live under `vt setup`.
 var robotSpec = []Command{
-	{Path: []string{"robot", "install"}, Task: "robot:install", Short: "Install the robot pixi envs (default + dev)"},
 	{
 		Path:  []string{"robot", "test"},
 		Task:  "robot:test",
@@ -26,23 +26,17 @@ var robotSpec = []Command{
 			{Name: "workers", Var: "WORKERS", Default: "auto", Usage: "auto|N|serial"},
 		},
 	},
-	{Path: []string{"robot", "lint"}, Task: "robot:lint", Short: "Lint the robot code"},
-	{Path: []string{"robot", "lint", "fix"}, Task: "robot:lint:fix", Short: "Auto-fix robot lint issues"},
+	{
+		Path:     []string{"robot", "lint"},
+		Task:     "robot:lint",
+		Short:    "Lint the robot code",
+		Variants: []Variant{fixVariant("robot:lint:fix")},
+	},
 	{Path: []string{"robot", "typecheck"}, Task: "robot:typecheck", Short: "mypy over src/ and the ros2_ws packages"},
-	{
-		Path:  []string{"robot", "build-ws"},
-		Task:  "robot:build-ws",
-		Short: "Build the ROS2 workspace with colcon (Linux)",
-	},
-	{
-		Path:  []string{"robot", "fetch-lidar-driver"},
-		Task:  "robot:fetch-lidar-driver",
-		Short: "Clone the sllidar_ros2 driver into the workspace (before build-ws)",
-	},
 	{
 		Path:  []string{"robot", "launch"},
 		Task:  "robot:launch",
-		Short: "Launch a node set (needs build-ws)",
+		Short: "Launch a node set (needs setup ros-ws)",
 		Heavy: true,
 		Args: []Arg{{
 			Name:     "set",
@@ -54,7 +48,7 @@ var robotSpec = []Command{
 	{
 		Path:        []string{"robot", "run"},
 		Task:        "robot:run",
-		Short:       "Run a single node (needs build-ws)",
+		Short:       "Run a single node (needs setup ros-ws)",
 		Heavy:       true,
 		Passthrough: true,
 		Args: []Arg{{
@@ -67,10 +61,15 @@ var robotSpec = []Command{
 	{
 		Path:  []string{"robot", "deploy"},
 		Task:  "robot:deploy",
-		Short: "Ship code + detector to the Pi 5, rebuild and restart the service",
+		Short: "Deploy the Python/ROS2 stack + detector to the Pi 5; go deploy ships the Go binaries",
 		Heavy: true,
 		Flags: []Flag{
 			pi5HostFlag,
+			{
+				Name:  "hef",
+				Var:   "HEF",
+				Usage: "detector .hef to ship instead of the default; code only: vt task robot:deploy HEF=",
+			},
 			{
 				Name:    "skip-restart",
 				Var:     "SKIP_RESTART",
@@ -81,7 +80,7 @@ var robotSpec = []Command{
 		},
 	},
 	{
-		Path:  []string{"robot", "record-vision"},
+		Path:  []string{"robot", "vision", "record"},
 		Task:  "robot:record-vision",
 		Short: "Record the annotated detection video on the Pi 5 and copy it back",
 		Heavy: true,
@@ -99,7 +98,7 @@ var robotSpec = []Command{
 		},
 	},
 	{
-		Path:  []string{"robot", "watch-vision"},
+		Path:  []string{"robot", "vision", "watch"},
 		Task:  "robot:watch-vision",
 		Short: "Print live detections, one line per frame (read-only)",
 		Flags: []Flag{

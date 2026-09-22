@@ -46,10 +46,10 @@ type pickerModel struct {
 func (a *App) buildPickerRoot() []pickItem {
 	// childLevel already separates leaves from namespaces (a root command with
 	// children, such as lint, must open rather than run); drop its back row.
-	items := a.childLevel(nil)[1:]
+	items := append(a.recentItems(), a.childLevel(nil)[1:]...)
 
 	items = append(items, pickItem{
-		title:  "run",
+		title:  catchAllName,
 		desc:   "Any Task task: browse and filter the full inventory",
 		escape: true,
 	})
@@ -66,7 +66,7 @@ func (a *App) childLevel(segments []string) []pickItem {
 	hasChildren := make(map[string]struct{})
 	for i := range a.spec {
 		path := a.spec[i].Path
-		if hasPrefixPath(path, segments) && len(path) > len(segments)+1 {
+		if a.spec[i].Available(a.goos) && hasPrefixPath(path, segments) && len(path) > len(segments)+1 {
 			hasChildren[path[len(segments)]] = struct{}{}
 		}
 	}
@@ -77,7 +77,7 @@ func (a *App) childLevel(segments []string) []pickItem {
 	for i := range a.spec {
 		command := &a.spec[i]
 		path := command.Path
-		if !hasPrefixPath(path, segments) {
+		if !command.Available(a.goos) || !hasPrefixPath(path, segments) {
 			continue
 		}
 
@@ -265,7 +265,7 @@ func (m *pickerModel) fit() {
 func (m *pickerModel) choose(item pickItem) (tea.Model, tea.Cmd) {
 	switch {
 	case item.escape:
-		m.push("run", append([]pickItem{backRow()}, m.tasks...))
+		m.push(catchAllName, append([]pickItem{backRow()}, m.tasks...))
 
 		return m, nil
 	case item.task != "", item.spec != nil:

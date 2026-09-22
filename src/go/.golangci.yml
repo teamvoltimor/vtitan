@@ -518,7 +518,7 @@ linters:
 
       # bubbletea's tea.Model interface forces Init/Update/View to
       # return tea.Model; there is no concrete-return option.
-      - path: 'internal/vtcli/(interactive|picker)\.go$'
+      - path: 'internal/vtcli/(form|picker)\.go$'
         linters:
           - ireturn
 

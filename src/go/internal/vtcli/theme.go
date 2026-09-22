@@ -28,7 +28,30 @@ const (
 	tagline         = "Team Voltimor · development CLI over the Taskfiles"
 	compactHeadline = "vTitan · Team Voltimor"
 	plainHeadline   = "vt: vTitan development CLI, Team Voltimor"
-	escapeHint      = "`task <name>` keeps working unchanged; `vt run <name>` is the escape hatch."
+	escapeHint      = "`task <name>` keeps working unchanged; `vt task <name>` runs any task from here."
+
+	// catchAllName is the escape hatch's command: any Task task by name.
+	catchAllName = "task"
+	// secretMask replaces a Secret flag's value wherever vt prints it.
+	secretMask = "***"
+	// equivalentPrefix starts the line vt prints after a picker run: the
+	// command that repeats it without the picker.
+	equivalentPrefix = "$ "
+	// dryRunFlag names the global flag that prints instead of running.
+	dryRunFlag = "dry-run"
+	// recentMark prefixes the picker's recently used rows.
+	recentMark = "↺ "
+)
+
+// Recent picks, kept in the user cache directory.
+const (
+	recentLimit         = 5
+	recentDir           = "vt"
+	recentFile          = "recent"
+	recentCommandPrefix = "cmd:"
+	recentTaskPrefix    = "task:"
+	recentDirPerm       = 0o755
+	recentFilePerm      = 0o644
 )
 
 // Layout. The header is centered in the terminal with a blank row above and

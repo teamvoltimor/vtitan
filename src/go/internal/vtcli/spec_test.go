@@ -3,6 +3,7 @@ package vtcli
 import (
 	"fmt"
 	"os/exec"
+	"strings"
 	"testing"
 )
 
@@ -84,9 +85,13 @@ func checkSpecTasksExist(spec []Command, tasks []TaskInfo) []string {
 	}
 
 	problems := make([]string, 0)
-	for _, command := range spec {
-		if _, ok := known[command.Task]; !ok {
-			problems = append(problems, fmt.Sprintf("spec points at missing task %q", command.Task))
+	for i := range spec {
+		command := &spec[i]
+		for _, task := range command.Tasks() {
+			if _, ok := known[task]; !ok {
+				problems = append(problems, fmt.Sprintf("vt %s points at missing task %q",
+					strings.Join(command.Path, " "), task))
+			}
 		}
 	}
 
@@ -102,8 +107,10 @@ func checkCuratedCoverage(
 	excluded map[string]string,
 ) []string {
 	covered := make(map[string]struct{}, len(spec))
-	for _, command := range spec {
-		covered[command.Task] = struct{}{}
+	for i := range spec {
+		for _, task := range spec[i].Tasks() {
+			covered[task] = struct{}{}
+		}
 	}
 
 	problems := make([]string, 0)

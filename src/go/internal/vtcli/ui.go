@@ -33,6 +33,12 @@ type MenuEntry struct {
 	Short string
 }
 
+// MenuSection is one titled group of the home menu.
+type MenuSection struct {
+	Title   string
+	Entries []MenuEntry
+}
+
 // NewUI returns a UI bound to the capabilities of standard output.
 func NewUI() UI {
 	ui := UI{color: useColor(os.Stdout), art: isTerminal(os.Stdout) && os.Getenv("TERM") != "dumb"}
@@ -126,6 +132,30 @@ func (u UI) Menu(entries []MenuEntry) string {
 	}
 
 	return strings.Join(rows, "\n")
+}
+
+// MenuSections renders the home menu group by group, titles muted, with one
+// name column shared by every section so they line up.
+func (u UI) MenuSections(sections []MenuSection) string {
+	var all []MenuEntry
+	for _, section := range sections {
+		all = append(all, section.Entries...)
+	}
+
+	width := nameColumnWidth(all)
+	blocks := make([]string, 0, len(sections))
+
+	for _, section := range sections {
+		rows := []string{u.Muted(section.Title)}
+		for _, entry := range section.Entries {
+			rows = append(rows, strings.Repeat(" ", menuIndent)+u.Accent(fmt.Sprintf("%-*s", width, entry.Name), true)+
+				" "+entry.Short)
+		}
+
+		blocks = append(blocks, strings.Join(rows, "\n"))
+	}
+
+	return strings.Join(blocks, "\n\n")
 }
 
 // Danger paints a failure the user has to act on.
