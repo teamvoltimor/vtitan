@@ -296,7 +296,6 @@ linters:
           yaml: snake
 
     prealloc:
-      range-allocs: true
       for-loops: false
 
     reassign:
@@ -308,9 +307,6 @@ linters:
 
     unparam:
       check-exported: false
-
-    modernize:
-      exclude-unsafe: false
 
     godoclint:
       default: basic
@@ -350,7 +346,6 @@ linters:
         - recognises
 
     nolintlint:
-      allow-leading-space: false
       require-explanation: true
       require-specific: true
 
