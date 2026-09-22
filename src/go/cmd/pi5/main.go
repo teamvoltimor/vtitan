@@ -33,7 +33,6 @@ import (
 
 	"github.com/teamvoltimor/vtitan/src/go/internal/cmdkit"
 	"github.com/teamvoltimor/vtitan/src/go/internal/config/profile"
-	"github.com/teamvoltimor/vtitan/src/go/internal/driver/camera"
 	"github.com/teamvoltimor/vtitan/src/go/internal/hwconfig"
 	"github.com/teamvoltimor/vtitan/src/go/internal/node/capture"
 	nodeimu "github.com/teamvoltimor/vtitan/src/go/internal/node/imu"
@@ -41,6 +40,7 @@ import (
 	nodenav "github.com/teamvoltimor/vtitan/src/go/internal/node/nav"
 	nodestatemachine "github.com/teamvoltimor/vtitan/src/go/internal/node/statemachine"
 	nodetelemetry "github.com/teamvoltimor/vtitan/src/go/internal/node/telemetry"
+	"github.com/teamvoltimor/vtitan/src/go/pkg/driver/camera"
 	"github.com/teamvoltimor/vtitan/src/go/pkg/driver/imu"
 	"github.com/teamvoltimor/vtitan/src/go/pkg/driver/lidar"
 	"github.com/teamvoltimor/vtitan/src/go/pkg/supervise"

@@ -6,7 +6,7 @@
 // startup from config (robot.toml [camera].source), mirroring the Python
 // VisionNode's camera_source split (config/hardware/vision/node.toml).
 //
-// Only the "v4l2" backend (internal/driver/camera/gocv) links OpenCV and is
+// Only the "v4l2" backend (pkg/driver/camera/gocv) links OpenCV and is
 // built behind the `cgo` build tag; "topic" and "synthetic" are pure Go.
 package camera
 
@@ -64,17 +64,17 @@ const (
 	SourceSynthetic = "synthetic"
 )
 
-// errNoNATSConn is returned by NATSSourceDriver.Open when BindConn was not
-// called with a live connection first.
-var errNoNATSConn = errors.New("camera: NATSSourceDriver used before BindConn")
-
 // New constructs the Driver named by cfg.Source.
 func New(cfg Config) (Driver, error) {
 	switch cfg.Source {
 	case SourceSynthetic, "":
 		return NewSynthetic(cfg), nil
 	case SourceTopic:
-		return NewNATSSource(cfg), nil
+		// Deliberately not constructed here: a topic-backed source needs the
+		// transport, and a driver must not know about it (see
+		// adr:0094-pkg-is-the-public-surface). internal/adapters/natscamera
+		// implements Driver over a connection its caller already owns.
+		return nil, errors.New("camera: source \"topic\" is built by internal/adapters/natscamera, not camera.New")
 	case SourceV4L2:
 		return newV4L2Driver(cfg)
 	default:

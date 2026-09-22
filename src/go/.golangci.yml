@@ -437,7 +437,7 @@ linters:
       # Adapter seams deliberately return the port interface they implement
       # (camera.Driver, recording.VideoSink); returning the concrete type
       # would defeat the seam the constructor exists to hide.
-      - path: 'internal/driver/camera/'
+      - path: 'pkg/driver/camera/'
         linters:
           - ireturn
       - path: 'pkg/recording/sink_(dispatch|mjpeg)\.go$'

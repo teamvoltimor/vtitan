@@ -19,8 +19,8 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/teamvoltimor/vtitan/src/go/internal/driver/camera"
 	"github.com/teamvoltimor/vtitan/src/go/internal/node/capture"
+	"github.com/teamvoltimor/vtitan/src/go/pkg/driver/camera"
 	"github.com/teamvoltimor/vtitan/src/go/pkg/transport/nats"
 )
 

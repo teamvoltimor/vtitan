@@ -11,10 +11,9 @@ import (
 	"log/slog"
 	"time"
 
-	natsio "github.com/nats-io/nats.go"
-
-	"github.com/teamvoltimor/vtitan/src/go/internal/driver/camera"
+	"github.com/teamvoltimor/vtitan/src/go/internal/adapters/natscamera"
 	sensorv1 "github.com/teamvoltimor/vtitan/src/go/internal/schema/pb/vtitan/sensor/v1"
+	"github.com/teamvoltimor/vtitan/src/go/pkg/driver/camera"
 	"github.com/teamvoltimor/vtitan/src/go/pkg/recording"
 	"github.com/teamvoltimor/vtitan/src/go/pkg/transport/nats"
 )
@@ -172,19 +171,10 @@ func buildDriver(ctx context.Context, cfg Config, logger *slog.Logger) (camera.D
 	if err != nil {
 		return nil, fmt.Errorf("capture: connecting to NATS: %w", err)
 	}
-	drv, err := camera.New(cfg.Camera)
+	drv, err := natscamera.New(cfg.Camera, conn)
 	if err != nil {
 		conn.Close()
 		return nil, fmt.Errorf("capture: creating topic camera driver: %w", err)
-	}
-	binder, ok := drv.(interface{ BindConn(*natsio.Conn) error })
-	if !ok {
-		conn.Close()
-		return nil, errors.New("capture: topic driver does not support BindConn")
-	}
-	if err = binder.BindConn(conn); err != nil {
-		conn.Close()
-		return nil, fmt.Errorf("capture: binding NATS connection: %w", err)
 	}
 	go func() {
 		<-ctx.Done()
