@@ -22,9 +22,12 @@ type Config struct {
 	// relocalizeGlobally. See
 	// adr:0084-localizer-divergence-and-relocalization.
 	RelocalizeCostThreshold float64
-	RelocalizeAfterScans    int
-	RelocalizeGridStepM     float64
-	RelocalizeAcceptRatio   float64
+	// RelocalizeAfterScans is the bad-fit streak that triggers the global
+	// search. Zero (RelocalizationOff) disables it: the local search keeps
+	// its speed bound and jump confirmation without the global rescue.
+	RelocalizeAfterScans  int
+	RelocalizeGridStepM   float64
+	RelocalizeAcceptRatio float64
 }
 
 // Shipped defaults, matching
@@ -61,6 +64,10 @@ const (
 	// DefaultRelocalizeAfterScans matches localization.toml's
 	// relocalize_after_scans.
 	DefaultRelocalizeAfterScans = 15
+	// RelocalizationOff disables the global relocalization search when used
+	// as Config.RelocalizeAfterScans. See adr:0084-localizer-divergence-
+	// and-relocalization for why a caller may want it off.
+	RelocalizationOff = 0
 	// DefaultRelocalizeGridStepM matches localization.toml's
 	// relocalize_grid_step_m.
 	DefaultRelocalizeGridStepM = 0.03

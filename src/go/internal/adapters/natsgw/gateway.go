@@ -70,6 +70,11 @@ type Gateway struct {
 	// pendingWalls is drained.
 	walls *trackmodel.TrackWalls
 
+	// loc is the ONE localizer for this wall set, kept alive across scans so
+	// its between-tick state (the speed bound, jump confirmation, fit cost)
+	// survives. Rebuilt only when walls swap, never per scan.
+	loc *localization.LidarLocalizer
+
 	locCfg localization.Config
 
 	pose trackmodel.Pose
@@ -168,6 +173,13 @@ func New(
 	if staleTimeout <= 0 {
 		return nil, errors.New("natsgw: stale timeout must be positive")
 	}
+	// Relocalization is disabled here (adr:0084-localizer-divergence-and-
+	// relocalization): the global search can teleport the pose to the track's
+	// 180-degree-symmetric copy, and the two cheaper guards (the speed bound
+	// and jump confirmation) only work while the localizer's tracking state
+	// persists, which this gateway now keeps. Set RelocalizeAfterScans to
+	// re-enable it.
+	locCfg.RelocalizeAfterScans = localization.RelocalizationOff
 	return &Gateway{
 		conn: conn,
 		drivePub: natsx.NewPublisher[*actuationv1.AckermannCmd](
@@ -176,6 +188,7 @@ func New(
 		),
 		locCfg:       locCfg,
 		walls:        initialWalls,
+		loc:          localization.New(initialWalls, locCfg),
 		wheelRadiusM: wheelRadiusM,
 		staleTimeout: staleTimeout,
 	}, nil
@@ -330,12 +343,6 @@ func (g *Gateway) Run(
 	return err
 }
 
-// localizer builds a fresh LidarLocalizer over walls. Rebuilt (not mutated) on
-// SetBelievedWalls so the gateway owns the localizer lifecycle cleanly.
-func (g *Gateway) localizer(walls *trackmodel.TrackWalls) *localization.LidarLocalizer {
-	return localization.New(walls, g.locCfg)
-}
-
 // driveCommand encodes a DriveCommand as an AckermannCmd without publishing.
 // SteeringNorm (+ = left) maps to a positive (left) wheel angle; the magnitude
 // scales against maxSteeringWheelAngleRad and is clamped to [-1, 1].
@@ -392,11 +399,19 @@ func (g *Gateway) scanLoop(ctx context.Context, sub *natsx.Subscriber[*sensorv1.
 		// Drain a pending wall swap / position re-seed before scoring.
 		if g.pendingWalls != nil {
 			g.walls = g.pendingWalls
+			// A new wall set invalidates the cached free-space grid, so the
+			// localizer is rebuilt rather than mutated.
+			g.loc = localization.New(g.walls, g.locCfg)
 			g.pendingWalls = nil
 		}
 		if g.pendingResetXY != nil {
 			g.pose = trackmodel.Pose{X: g.pendingResetXY.X, Y: g.pendingResetXY.Y, Yaw: g.pose.Yaw}
 			g.havePose = true
+			// A re-seed is a discontinuity, not travel: drop the tracking state
+			// the speed bound and jump confirmation accrued against the old pose.
+			if g.loc != nil {
+				g.loc.ResetTracking()
+			}
 			g.pendingResetXY = nil
 		}
 
@@ -467,7 +482,13 @@ func (g *Gateway) scorePoseLocked(scan *sensorv1.Scan, yaw float64) {
 		prior = trackmodel.Waypoint{}
 	}
 
-	est := g.localizer(g.walls).EstimatePosition(prior, yaw, lidar.RangesM, lidar.AnglesRad, nil)
+	if g.loc == nil {
+		g.loc = localization.New(g.walls, g.locCfg)
+	}
+	// nowS lets the localizer's speed bound run: a held candidate needs the
+	// elapsed time between estimates, and nil would skip the guard entirely.
+	nowS := float64(g.clock().UnixNano()) * nanosecondsPerSecond
+	est := g.loc.EstimatePosition(prior, yaw, lidar.RangesM, lidar.AnglesRad, &nowS)
 	g.pose = trackmodel.Pose{X: est.X, Y: est.Y, Yaw: yaw}
 	g.havePose = true
 }

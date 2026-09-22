@@ -109,8 +109,15 @@ func TestNew_RefusesNonPositiveStaleTimeout(t *testing.T) {
 	t.Cleanup(conn.Close)
 	walls := trackmodel.NewTrackWalls(trackmodel.CorridorGeometry{}, -1.5, 1.5)
 
-	if _, err = New(conn, walls, localization.DefaultConfig(), 0.03, testStaleTimeout); err != nil {
+	gw, err := New(conn, walls, localization.DefaultConfig(), 0.03, testStaleTimeout)
+	if err != nil {
 		t.Fatalf("New with a valid stale timeout: %v", err)
+	}
+	// Global relocalization is off by decision (ADR 0084): the gateway keeps
+	// the localizer alive for the two cheaper guards, not the global rescue.
+	if gw.locCfg.RelocalizeAfterScans != localization.RelocalizationOff {
+		t.Errorf("RelocalizeAfterScans = %d, want RelocalizationOff",
+			gw.locCfg.RelocalizeAfterScans)
 	}
 	for _, d := range []time.Duration{0, -time.Second} {
 		if _, err = New(conn, walls, localization.DefaultConfig(), 0.03, d); err == nil {
@@ -154,5 +161,38 @@ func TestStaleIMU_WithdrawsPose(t *testing.T) {
 	receiveIMU(g)
 	if _, ok := g.GetCurrentPose(); !ok {
 		t.Error("IMU after recovery: GetCurrentPose ok=false")
+	}
+}
+
+// The localizer must persist across scans. Rebuilt per scan (as the gateway
+// used to do), it forgets the elapsed-time baseline and the pending jump, so
+// its speed bound and jump confirmation never fire, and it rebuilds the
+// free-space grid every tick.
+func TestScanLoop_KeepsOneLocalizer(t *testing.T) {
+	t.Parallel()
+
+	clk := &fakeClock{t: time.Unix(1000, 0)}
+	walls := trackmodel.NewTrackWalls(trackmodel.CorridorGeometry{}, -1.5, 1.5)
+	g := &Gateway{
+		locCfg:       localization.DefaultConfig(),
+		walls:        walls,
+		staleTimeout: testStaleTimeout,
+		now:          clk.now,
+	}
+	g.loc = localization.New(walls, g.locCfg)
+	g.pose = trackmodel.Pose{X: 0.5, Y: 0.5}
+	g.havePose = true
+	scan := &sensorv1.Scan{AngleIncrement: 0.1, Ranges: []float32{1, 1, 1}}
+
+	g.scorePoseLocked(scan, 0)
+	first := g.loc
+	if first == nil {
+		t.Fatal("no localizer after scoring")
+	}
+
+	clk.t = clk.t.Add(100 * time.Millisecond)
+	g.scorePoseLocked(scan, 0)
+	if g.loc != first {
+		t.Fatal("localizer rebuilt between scans; its tracking state is lost")
 	}
 }

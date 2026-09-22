@@ -188,7 +188,7 @@ func (l *LidarLocalizer) EstimatePosition(
 	// once that answer is wrong. This preempts everything below: it can
 	// return a rescued position even when off-track was also true this
 	// tick, or when the speed guard would otherwise have held the prior.
-	if l.badFitStreak >= l.cfg.RelocalizeAfterScans {
+	if l.cfg.RelocalizeAfterScans > 0 && l.badFitStreak >= l.cfg.RelocalizeAfterScans {
 		if rescued, ok := l.relocalizeGlobally(yaw, rangesM, bestCost); ok {
 			return rescued
 		}
