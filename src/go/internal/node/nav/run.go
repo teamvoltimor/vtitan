@@ -321,12 +321,6 @@ func Run(ctx context.Context, logger *slog.Logger, cfg Config) error {
 	if err != nil {
 		return err //nolint:wrapcheck // main-level wiring; the cmd prints and exits
 	}
-	defer func() {
-		if closeErr := gw.Close(); closeErr != nil {
-			logger.Error("track-navigator: closing gateway", "error", closeErr)
-		}
-	}()
-
 	// Built regardless of --challenge: the camera/mount constants
 	// signrouter.Config carries are meaningful for VisionGateway either way,
 	// and building them once here means the SignRouter constructed below (on

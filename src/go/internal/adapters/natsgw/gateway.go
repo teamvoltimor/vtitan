@@ -284,15 +284,6 @@ func (g *Gateway) Run(
 	return err
 }
 
-// Close releases the NATS connection the gateway was built over.
-func (g *Gateway) Close() error {
-	if g.conn == nil {
-		return nil
-	}
-	g.conn.Close()
-	return nil
-}
-
 // localizer builds a fresh LidarLocalizer over walls. Rebuilt (not mutated) on
 // SetBelievedWalls so the gateway owns the localizer lifecycle cleanly.
 func (g *Gateway) localizer(walls *trackmodel.TrackWalls) *localization.LidarLocalizer {
