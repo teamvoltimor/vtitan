@@ -7,8 +7,6 @@ vars:
   WINDOWS_ETHERNET_IP: 192.168.251.1
   RPI_DIRECT_IP: 192.168.251.2
   RPI_LOCAL_IP: 192.168.0.50
-  RPI_PING_RETRIES: 30
-  RPI_PING_INTERVAL: 2
   ZERO_WIFI_IP: 192.168.0.51
   # Pi Zero's usb0 gadget address (Zero=.1, Pi5=.2) — see other/deploy/ansible/roles/pi_zero
   RPI_ZERO_GADGET_IP: 192.168.250.1
@@ -52,8 +50,12 @@ tasks:
         - PASSWORD
     vars:
       SSH_HOST: '{{.SSH_HOST | default "rpi-5-direct"}}'
+    # shellQuote, not '...': a quote in the SSID or password closed the
+    # literal early, and $ or ` was expanded by the Pi 5's shell.
     cmds:
-      - ssh {{.SSH_HOST}} "cd ~/vtitan && task rpi:set-wifi SSID='{{.SSID}}' PASSWORD='{{.PASSWORD}}'"
+      - >-
+        ssh {{.SSH_HOST}} {{shellQuote (printf "cd ~/vtitan && task rpi:set-wifi SSID=%s PASSWORD=%s"
+        (shellQuote .SSID) (shellQuote .PASSWORD))}}
 
   windows:set-wifi:zero:
     desc: "Set the Pi Zero's WiFi credentials from Windows, hopping through the Pi 5 over the USB gadget link -- works even with no WiFi on the Zero at all (usage: task windows:set-wifi:zero SSID=name PASSWORD=pass [SSH_HOST=alias])"
@@ -63,8 +65,14 @@ tasks:
         - PASSWORD
     vars:
       SSH_HOST: '{{.SSH_HOST | default "rpi-5-direct"}}'
+    # Two shells parse this, the Pi 5's and then the Zero's, so the inner
+    # command is quoted once per hop: shellQuote around the values for the
+    # Zero, then around the whole Zero command for the Pi 5.
     cmds:
-      - ssh {{.SSH_HOST}} "ssh ralvarezdev@{{.RPI_ZERO_GADGET_IP}} \"cd ~/vtitan && task rpi:set-wifi SSID='{{.SSID}}' PASSWORD='{{.PASSWORD}}'\""
+      - >-
+        ssh {{.SSH_HOST}} {{shellQuote (printf "ssh %s@%s %s" .FLEET_USER .RPI_ZERO_GADGET_IP
+        (shellQuote (printf "cd ~/vtitan && task rpi:set-wifi SSID=%s PASSWORD=%s"
+        (shellQuote .SSID) (shellQuote .PASSWORD))))}}
 
   windows:audit:pi5:
     desc: "Pull latest + run the Pi 5 provisioning audit (usage: task windows:audit:pi5 [SSH_HOST=alias])"
@@ -434,7 +442,7 @@ tasks:
   rpi:set-wifi:
     desc: "Set WiFi credentials (usage: task rpi:set-wifi SSID=name PASSWORD=pass)"
     cmds:
-      - sudo nmcli device wifi connect '{{.SSID}}' password '{{.PASSWORD}}'
+      - sudo nmcli device wifi connect {{shellQuote .SSID}} password {{shellQuote .PASSWORD}}
     requires:
       vars:
         - SSID
