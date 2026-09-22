@@ -181,5 +181,5 @@ bubbles v0.21.0.
 ## Cross-references
 
 - 0094: `vt` lives in `internal/vtcli`, not `pkg/`; it is not public surface.
-- The working plan is `other/docs/development/plan-cli-unificada.md`; it holds
-  the phases and is deleted once it no longer describes pending work.
+- The working plan that held the phases has been deleted, now that all of them
+  have closed and it no longer described pending work.

@@ -1,6 +1,6 @@
 // Command vt is the development-machine CLI over the repository Taskfiles. It
-// wraps `task` rather than replacing it, so `task X` keeps working throughout
-// every phase; see other/docs/development/plan-cli-unificada.md.
+// wraps `task` rather than replacing it, so `task X` keeps working; the design
+// and history are in other/docs/adr/0096-vt-cli-wraps-the-taskfiles.md.
 package main
 
 import (

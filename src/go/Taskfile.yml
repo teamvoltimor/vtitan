@@ -271,7 +271,7 @@ tasks:
       - '"{{.BASH}}" scripts/provisioning/build-go.sh'
 
   # vt is the development-machine CLI over the repo Taskfiles (cobra tree,
-  # see other/docs/development/plan-cli-unificada.md). It wraps `task`; the
+  # see other/docs/adr/0096-vt-cli-wraps-the-taskfiles.md). It wraps `task`; the
   # Taskfiles stay the single source of truth for how each thing runs.
 
   cli:build:
