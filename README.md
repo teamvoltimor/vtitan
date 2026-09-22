@@ -304,7 +304,11 @@ task test             # Python + Go, todos los módulos (ver Pruebas, más abajo
 
 ### CLI de desarrollo `vt` (opcional)
 
-`vt` es una capa sobre los mismos Taskfiles: organiza las tareas en subcomandos agrupados (dominios `sim`, `robot`, `go`, `fleet`, `gen`; transversales `setup`, `test`, `lint`, `clean`), les da flags tipados y ejecuta `task` por debajo, devolviendo su mismo código de salida. `task X` sigue funcionando exactamente igual y es lo que usa CI; `vt` solo existe en el computador de desarrollo, las placas siguen con `task`. Los comandos que solo existen en Windows (enlace Ethernet directo, rutas) se ocultan en Linux y macOS.
+`vt` es una capa sobre los mismos Taskfiles: organiza las tareas en subcomandos agrupados, les da flags tipados y ejecuta `task` por debajo, devolviendo su mismo código de salida. `task X` sigue funcionando exactamente igual y es lo que usa CI; `vt` solo existe en el computador de desarrollo, las placas siguen con `task`. Los comandos que solo existen en Windows (enlace Ethernet directo, rutas) se ocultan en Linux y macOS.
+
+La regla de reparto es **los Taskfiles deciden qué se ejecuta, `vt` decide cómo se escribe**: un cambio que altere lo que hace una tarea va en el Taskfile (y así lo heredan `task` y CI); uno que cambie cómo se descubre, se parametriza o se confirma va en `vt`. Hoy son ~160 comandos tipados sobre 14 dominios, y cualquier tarea sigue alcanzable por `vt task`.
+
+Dominios (`vt --help` los agrupa): `sim`, `robot`, `go`, `fleet`, `gen`, `simgen`; las apps `frontend`, `backend`, `annotator`, `hailo`; los contratos `config`, `proto`, `openapi`, `models`; y `docs`, `docker`. Transversales: `setup`, `test`, `lint`, `clean`; y sobre el propio `vt`: `cli`.
 
 ```bash
 task cli:build                      # Compila src/go/bin/vt (recomendado)
@@ -318,6 +322,9 @@ src/go/bin/vt lint --fix            # Las variantes de una tarea son flags, no s
 src/go/bin/vt --dry-run robot deploy   # Muestra la línea de task que ejecutaría, sin ejecutar nada
 src/go/bin/vt task                  # Todas las tareas con su descripción
 src/go/bin/vt task gen:track        # Cualquier tarea, con o sin flags tipados
+src/go/bin/vt cli test              # vt se prueba a sí mismo (los checks anti-drift)
+src/go/bin/vt annotator ml test     # Suite del servicio de ML del auto-annotator
+src/go/bin/vt docs check            # Falla si la prosa apunta a rutas que ya no existen
 source <(src/go/bin/vt completion bash)   # Autocompletado (también zsh y fish)
 ```
 

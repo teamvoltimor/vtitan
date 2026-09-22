@@ -224,17 +224,24 @@ func (m *pickerModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 			return m, tea.Quit
 		case "q":
-			if !m.canPop() {
-				m.cancelled = true
+			// Quit from any level. Inside a submenu there is no way to type
+			// into the picker, so q cannot be mistaken for input; the back
+			// row and esc are the ways up.
+			m.cancelled = true
 
-				return m, tea.Quit
-			}
+			return m, tea.Quit
 		case "esc":
+			// Back out one level, and quit from the root: a single key that
+			// widens as you leave, so it never traps you at the top.
 			if m.canPop() {
 				m.pop()
 
 				return m, nil
 			}
+
+			m.cancelled = true
+
+			return m, tea.Quit
 		case "enter":
 			if item, selected := m.list.SelectedItem().(pickItem); selected {
 				return m.choose(item)

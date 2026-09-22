@@ -1,5 +1,34 @@
 version: "3"
 
+# Vars the root owns because more than one included Taskfile needs them.
+# Task does not share vars between included Taskfiles, so a definition that
+# lives in one include is only visible to the others by the accident of
+# flatten order: src/python/Taskfile.yml uses {{.BASH}} nine times and has
+# never defined it, and worked only because other/tasks/platform.yml, which is
+# flattened first, did. That is invisible coupling -- reorder the includes, or
+# un-flatten platform, and nine robot tasks break with "BASH: not found".
+# Defining them here, where every include can see them, removes the ordering
+# dependency. Both are written as their own default so a CLI override still
+# wins (a plain global would beat `task X BASH=...`).
+vars:
+  # EXE resolves to ".exe" on Windows and "" on Linux/macOS so binary
+  # references work cross-platform. Falls back to "" when Go isn't installed
+  # (e.g. on the robot/Pi) so non-Go tasks still run.
+  EXE:
+    sh: go env GOEXE 2>/dev/null || true
+  # Shell scripts must run under Git Bash on Windows, never plain "bash".
+  # C:\Windows\System32\bash.exe is the WSL launcher and usually wins on PATH
+  # from PowerShell, which puts the script inside a Linux distro that has its
+  # own $HOME -- so ~/.ssh/config is absent, SSH host aliases resolve as
+  # literal hostnames, and .local mDNS does not work at all. The failure
+  # surfaces as "Could not resolve hostname rpi-5-local", naming the alias
+  # rather than the host it should have expanded to.
+  # Override with BASH=... if Git is installed somewhere else.
+  BASH: '{{.BASH | default .OS_BASH}}'
+  # The OS-aware fallback BASH defaults to. It is a separate var rather than an
+  # inline expression because Task rejects `if` inside a default pipeline.
+  OS_BASH: '{{if eq OS "windows"}}C:/Program Files/Git/bin/bash.exe{{else}}bash{{end}}'
+
 includes:
   platform:
     taskfile: ./other/tasks/platform.yml

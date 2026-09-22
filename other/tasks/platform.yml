@@ -37,19 +37,8 @@ vars:
   LAPS: 3
   PARAMS: ./other/apps/gazebo/runtime/scripts/navigator_params.json
   GRPC_ADDR: localhost:9010
-  # EXE resolves to ".exe" on Windows and "" on Linux/macOS so binary references work cross-platform.
-  # Falls back to "" when Go isn't installed (e.g. on the robot/Pi) so non-Go tasks still run.
-  EXE:
-    sh: go env GOEXE 2>/dev/null || true
-  # Shell scripts must run under Git Bash on Windows, never plain "bash".
-  # C:\Windows\System32\bash.exe is the WSL launcher and usually wins on PATH
-  # from PowerShell, which puts the script inside a Linux distro that has its
-  # own $HOME -- so ~/.ssh/config is absent, SSH host aliases resolve as literal
-  # hostnames, and .local mDNS does not work at all. The failure surfaces as
-  # "Could not resolve hostname rpi-5-local", naming the alias rather than the
-  # host it should have expanded to.
-  # Override with BASH=... if Git is installed somewhere else.
-  BASH: '{{if eq OS "windows"}}C:/Program Files/Git/bin/bash.exe{{else}}bash{{end}}'
+  # EXE and BASH live in the root Taskfile: more than one include needs them
+  # and Task does not share vars between included Taskfiles.
   SIMGEN: ./src/go/bin/simgen{{.EXE}}
   # Statistical corpus for the navigation sweeps. The committed fixture set
   # (16 obstacles, 28 open) is the unit-test battery and has to stay fast, so
@@ -61,6 +50,7 @@ vars:
   CORPUS_SIZE: '{{.CORPUS_SIZE | default "256"}}'
   CORPUS_SEED: '{{.CORPUS_SEED | default "2026"}}'
   CORPUS_DIR: ./src/python/.corpus
+  MANIFEST_PATH: ../../../../src/python/pixi.toml
 
 tasks:
   install:
@@ -303,7 +293,7 @@ tasks:
     cmds:
       # `gz sim`, not `gazebo` — the ros-gz packages ship no binary by that
       # name, so the previous `pixi run gazebo` could only ever fail.
-      - pixi run --manifest-path ../../../src/python/pixi.toml -e sim gz sim --verbose {{.SDF}}
+      - pixi run --manifest-path {{.MANIFEST_PATH}} -e sim gz sim --verbose {{.SDF}}
 
   sim:rviz:
     desc: >-
@@ -320,7 +310,7 @@ tasks:
       # corrects that impression.
       - 'echo "NOTE: this RViz is bare — no saved config, so it loads no displays at all. If you meant to watch task sim:navigate:visualize, stop this and run task sim:navigate:rviz (or task sim:navigate:visualize:all for both in one command)."'
       - 'echo "Global Options, Fixed Frame - use odom or map if Gazebo/nav publishes one. If RViz reports a missing Fixed Frame, or Message Filter drops messages for a frame, that frame is not being published yet."'
-      - pixi run --manifest-path ../../../src/python/pixi.toml -e sim rviz2
+      - pixi run --manifest-path {{.MANIFEST_PATH}} -e sim rviz2
 
   sim:navigate:
     desc: Run closed-loop simulation with real navigator (runs test_open_challenge_sim)
@@ -346,6 +336,18 @@ tasks:
     dir: src/python
     env:
       VTITAN_HARDWARE_PROFILE: '{{.PROFILE}}'
+      # Windows has no reliable default DDS discovery between two separate
+      # `pixi run` processes on the same machine -- it depends on whichever
+      # network interface CycloneDDS picks as primary (Wi-Fi, a VPN adapter,
+      # a Docker/WSL virtual NIC, ...), and with no such interface up (e.g.
+      # offline / mobile-data-only) same-machine nodes can fail to discover
+      # each other at all, even though the sim itself runs fine standalone.
+      # ROS_LOCALHOST_ONLY forces loopback instead, which needs no real
+      # network. RMW_IMPLEMENTATION matches the win-64 pin already used by
+      # `pixi run -e dev test` (see adr:0087-test-methodology) -- the default
+      # RMW is the one flagged there as unreliable on Windows.
+      ROS_LOCALHOST_ONLY: '1'
+      RMW_IMPLEMENTATION: rmw_cyclonedds_cpp
     cmds:
       - 'echo "Hardware profile: {{.PROFILE}} (override with PROFILE=...)"'
       - pixi run -e dev visualize-scenario -- {{.CLI_ARGS}}
@@ -422,6 +424,13 @@ tasks:
   sim:navigate:rviz:
     desc: Launch RViz pre-configured (TF, LaserScan, Odometry, track, robot model) for sim:navigate:visualize
     dir: src/python
+    # Same DDS pin as sim:navigate:visualize -- both sides of the pair need
+    # the identical ROS_LOCALHOST_ONLY/RMW_IMPLEMENTATION values, or they
+    # simply can't discover each other (a mismatch here is silent: this
+    # process starts fine, shows no error, and just never receives anything).
+    env:
+      ROS_LOCALHOST_ONLY: '1'
+      RMW_IMPLEMENTATION: rmw_cyclonedds_cpp
     cmds:
       - 'echo "Global Options, Fixed Frame defaults to map in the saved config, which does not exist without SLAM/odometry publishing it. For real-hardware topic testing with no map, change it to base_link. Symptom if left on map: MessageFilter dropping message ... discarding message because the queue is full."'
       - 'echo "Blind runs publish the plan and sign estimates in the belief frame, which map->belief rotates onto the real track (blind always guesses a SOUTH start). If the plan looks square to the layout, that transform is missing, not the planner."'

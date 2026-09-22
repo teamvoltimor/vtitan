@@ -135,6 +135,18 @@ var fleetSpec = []Command{
 		Short: "One-off: move a pre-relayout ~/vtitan/data tree on a board",
 		Flags: []Flag{sshHostFlag},
 	},
+	{
+		Path:  []string{"fleet", "vpn"},
+		Task:  "vpn",
+		Short: "Windscribe VPN on this machine",
+		Args:  []Arg{{Name: "action", Var: "ACTION", Required: true, Usage: "connect|disconnect|status"}},
+	},
+	{
+		Path:  []string{"fleet", "cloudflare"},
+		Task:  "cloudflare",
+		Short: "Cloudflare tunnel service on this machine",
+		Args:  []Arg{{Name: "action", Var: "ACTION", Required: true, Usage: "status|restart|logs"}},
+	},
 }
 
 // boardArg picks the pi5 or zero variant of a fleet task.

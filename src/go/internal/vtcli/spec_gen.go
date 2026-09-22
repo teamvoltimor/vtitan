@@ -60,4 +60,31 @@ var genSpec = []Command{
 		Task:  "gen:robot-command-client",
 		Short: "Regenerate src/go's telemetry command gRPC client stubs",
 	},
+	{
+		Path:  []string{"gen", "record"},
+		Task:  "record:run",
+		Short: "Record scenario videos from Gazebo (needs the sim running)",
+		Heavy: true,
+		Flags: []Flag{challengeFlag, outputDirFlag},
+	},
+	{
+		Path:  []string{"gen", "record", "convert"},
+		Task:  "record:convert",
+		Short: "Convert the recorded ROS2 bags to MP4",
+		Flags: []Flag{challengeFlag, outputDirFlag},
+	},
+	{
+		Path:  []string{"gen", "record", "frames"},
+		Task:  "record:frames",
+		Short: "Extract and annotate frames from the recorded bags",
+		Flags: []Flag{challengeFlag, outputDirFlag},
+	},
+}
+
+// outputDirFlag overrides where the recording tasks read and write.
+var outputDirFlag = Flag{
+	Name:    "output-dir",
+	Var:     "OUTPUT_DIR",
+	Default: "./src/go/training_data",
+	Usage:   "recording directory",
 }

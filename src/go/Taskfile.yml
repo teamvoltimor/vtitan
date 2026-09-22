@@ -5,15 +5,8 @@ vars:
   # Falls back to "" when Go isn't installed (e.g. on the robot/Pi) so non-Go tasks still run.
   EXE:
     sh: go env GOEXE 2>/dev/null || true
-  # Shell scripts must run under Git Bash on Windows, never plain "bash".
-  # C:\Windows\System32\bash.exe is the WSL launcher and usually wins on PATH
-  # from PowerShell, which puts the script inside a Linux distro that has its
-  # own $HOME -- so ~/.ssh/config is absent, SSH host aliases resolve as literal
-  # hostnames, and .local mDNS does not work at all. The failure surfaces as
-  # "Could not resolve hostname rpi-5-local", naming the alias rather than the
-  # host it should have expanded to.
-  # Override with BASH=... if Git is installed somewhere else.
-  BASH: '{{if eq OS "windows"}}C:/Program Files/Git/bin/bash.exe{{else}}bash{{end}}'
+  # BASH lives in the root Taskfile: more than one include needs it and Task
+  # does not share vars between included Taskfiles.
 
 tasks:
   # Two build paths:
@@ -91,11 +84,11 @@ tasks:
             || echo "  none"
         silent: true
 
-  go:test:hw:
+  go:hw:build:
     desc: >-
       Cross-compile the //go:build hw hardware tests for linux/arm64 so each
       driver can be scp'd to a real Pi and run independently (no nats-server,
-      no other board). Usage: task go:test:hw [PKG=button|ssd1306|imu|lidar|motor]
+      no other board). Usage: task go:hw:build [PKG=button|ssd1306|imu|lidar|motor]
       (omit PKG to build all five). Output binaries land in src/go/dist/hw/.
       On the Pi, run e.g. `./dist/hw/btn -test.v`; env overrides per test:
       BUTTON_GPIO_LINE, SSD1306_I2C_BUS/ADDR, IMU_TTY, LIDAR_TTY,
@@ -132,13 +125,13 @@ tasks:
           fi
           echo "hw test binaries written to {{.OUT}}/"
 
-  go:test:hw:interactive:
+  go:hw:build:interactive:
     desc: >-
       Cross-compile the INTERACTIVE //go:build hw && hwinteractive hardware
       tests (dynamic, operator-gated: motor spin, servo sweep, IMU rotate,
       OLED eyeball, lidar object) for linux/arm64. These need a TTY + a human
-      at the bench, so they are kept out of the unattended go:test:hw
-      binaries. Usage: task go:test:hw:interactive [PKG=motor|imu|lidar|ssd1306]
+      at the bench, so they are kept out of the unattended go:hw:build
+      binaries. Usage: task go:hw:build:interactive [PKG=motor|imu|lidar|ssd1306]
       (omit PKG to build all four). Output binaries land in src/go/dist/hw-interactive/.
       On the Pi, run e.g. `./dist/hw-interactive/motor -test.v -test.run TestHW`
       and answer the on-screen prompts.
@@ -198,7 +191,7 @@ tasks:
   go:hw:run:
     desc: >-
       Full interactive-hw-test flow for ONE package: build the linux/arm64
-      binary (task go:test:hw:interactive), ship it to a Pi (mkdir +
+      binary (task go:hw:build:interactive), ship it to a Pi (mkdir +
       scp + chmod +x so scp does not drop the exec bit), and run it over a TTY
       (operator-ack prompts need it). Stops services first via
       go:hw:stop. Usage:
@@ -214,7 +207,7 @@ tasks:
       lidar, SCAN_MODE=dense selects the DenseSerialDriver (8-bearing test +
       range decode expected to read correctly, unlike classic); omit for
       classic. The auto-pass dense test (TestHW_LIDAR_Dense_UART) is built by
-      go:test:hw PKG=lidar and run with -test.run TestHW_LIDAR_Dense_UART.
+      go:hw:build PKG=lidar and run with -test.run TestHW_LIDAR_Dense_UART.
       DUMP_SCAN=1 makes TestHW_LIDAR_Object_Dynamic print every valid point
       sorted by angle, not just the closest-per-45deg-sector summary.
       ssh/scp run via powershell.exe so the user's ~/.ssh/config + keys
@@ -230,7 +223,7 @@ tasks:
     shell: '{{.BASH}}'
     cmds:
       - task: go:hw:stop
-      - task: go:test:hw:interactive
+      - task: go:hw:build:interactive
         vars: { PKG: '{{.PKG}}', OUT: '{{.OUT}}' }
       - cmd: |
           HOST="{{.HOST}}"; PKG="{{.PKG}}"; OUT="{{.OUT}}"

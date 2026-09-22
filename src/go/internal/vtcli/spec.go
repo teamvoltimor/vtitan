@@ -113,6 +113,20 @@ var curatedDomains = []Domain{
 	{ID: "fleet", Title: "boards over SSH", TaskPrefix: "windows:"},
 	{ID: "sim", Title: "simulation", TaskPrefix: "sim:"},
 	{ID: "gen", Title: "generators", TaskPrefix: "gen:"},
+	{ID: "frontend", Title: "web frontend", TaskPrefix: "frontend:"},
+	{ID: "backend", Title: "telemetry backend", TaskPrefix: "backend:"},
+	{ID: "config", Title: "config schemas", TaskPrefix: "config:"},
+	{ID: "workflow", Title: "pipelines", TaskPrefix: "workflow:"},
+	{ID: "cli", Title: "the vt CLI itself", TaskPrefix: "cli:"},
+	{ID: "annotator", Title: "auto-annotator app", TaskPrefix: "auto-annotator:"},
+	{ID: "hailo", Title: "Hailo model toolchain", TaskPrefix: "hailo:"},
+	{ID: "simgen", Title: "scenario generator", TaskPrefix: "simgen:"},
+	{ID: "docs", Title: "prose and diagrams", TaskPrefix: "docs:"},
+	{ID: "shared", Title: "shared Python", TaskPrefix: "shared:"},
+	{ID: "openapi", Title: "OpenAPI contract", TaskPrefix: "openapi:"},
+	{ID: "proto", Title: "proto contract", TaskPrefix: "proto:"},
+	{ID: "docker", Title: "docker compose", TaskPrefix: "docker:"},
+	{ID: "models", Title: "tracked models", TaskPrefix: "models:"},
 	{ID: "robot", Title: "Python/ROS2 runtime", TaskPrefix: "robot:"},
 	{ID: "rpi", Title: "on-board Pi tasks", TaskPrefix: "rpi:"},
 	{ID: "install", Title: "umbrella install", TaskPrefix: "install:"},
@@ -125,12 +139,18 @@ var curatedDomains = []Domain{
 // curatedSpec is the single declarative table the tree is built from, one
 // table per domain. One entry per wrapped command; nothing here duplicates how
 // a task runs. Within a table a command precedes its children.
-var curatedSpec = slices.Concat(simSpec, robotSpec, goSpec, fleetSpec, genSpec, umbrellaSpec)
+var curatedSpec = slices.Concat(simSpec, robotSpec, goSpec, fleetSpec, genSpec,
+	frontendSpec, backendSpec, configSpec, workflowSpec, cliSpec,
+	autoAnnotatorSpec, hailoSpec,
+	simgenSpec, docsSpec, sharedSpec, contractsSpec, modelsSpec, dockerSpec,
+	umbrellaSpec)
 
 // exclusions records the tasks deliberately left out of the typed tree and
 // why. Adding a task to a curated domain without deciding anything here fails
 // the build (see spec_test.go).
-var exclusions = mergeExclusions(goExclusions, simExclusions, robotExclusions, rpiExclusions)
+var exclusions = mergeExclusions(
+	goExclusions, simExclusions, robotExclusions, rpiExclusions,
+	autoAnnotatorExclusions, hailoExclusions, simgenExclusions)
 
 // mergeExclusions joins the per-domain exclusion tables.
 func mergeExclusions(tables ...map[string]string) map[string]string {

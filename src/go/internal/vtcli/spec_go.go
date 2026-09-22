@@ -38,10 +38,10 @@ var goSpec = []Command{
 	},
 	{
 		Path:  []string{"go", "hw", "build"},
-		Task:  "go:test:hw",
+		Task:  "go:hw:build",
 		Short: "Cross-compile the hardware tests for linux/arm64 (builds, does not run)",
 		Variants: []Variant{{
-			Flag: "interactive", Task: "go:test:hw:interactive", Usage: "the interactive tests instead",
+			Flag: "interactive", Task: "go:hw:build:interactive", Usage: "the interactive tests instead",
 		}},
 		Flags: []Flag{
 			{

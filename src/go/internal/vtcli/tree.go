@@ -46,29 +46,55 @@ type rootGroup struct {
 }
 
 // rootGroups orders the first level: the domains people work in, the verbs
-// that span every module, then the escape hatch.
+// that span every module, then the escape hatch. The members list is also the
+// help order, so a new domain belongs in exactly one group here.
 var rootGroups = []rootGroup{
-	{id: "domains", title: "Domains:", members: []string{"sim", "robot", "go", "fleet", "gen"}},
+	{
+		id:    "domains",
+		title: "Domains:",
+		members: []string{
+			"sim", "robot", "go", "fleet", "gen", "simgen",
+			"frontend", "backend", "annotator", "hailo",
+			"config", "models", "openapi", "proto", "docs", "docker",
+		},
+	},
 	{id: "repo", title: "Across modules:", members: []string{"setup", "test", "lint", "clean"}},
+	{id: "self", title: "vt and the shared code:", members: []string{"cli", "shared", "workflow"}},
 	{id: "any", title: "Any task:", members: []string{catchAllName}},
 }
 
 // rootDomainShort gives each first-level namespace its one-line description.
+// A namespace missing here renders with an empty description, so this map and
+// rootGroups are updated together.
 var rootDomainShort = map[string]string{
-	"sim":   "Simulation: headless sim + RViz, Gazebo, sim tests",
-	"robot": "The robot, from the dev machine: deploy, runs, vision, ROS2",
-	"go":    "Go module: build, deploy, hardware tests",
-	"fleet": "Boards over SSH and network",
-	"gen":   "Generate tracks, scenarios and the sweep corpus",
-	"setup": "Install and one-time setup",
-	"lint":  "Lint every module",
-	"clean": "Clean generated data",
+	"sim":       "Simulation: headless sim + RViz, Gazebo, sim tests",
+	"robot":     "The robot, from the dev machine: deploy, runs, vision, ROS2",
+	"go":        "Go module: build, deploy, hardware tests",
+	"fleet":     "Boards over SSH and network",
+	"gen":       "Generate tracks, scenarios, recordings and the sweep corpus",
+	"frontend":  "The web frontend: dev server, build, lint",
+	"backend":   "The Go telemetry backend: build, dev, sqlc, OpenAPI",
+	"config":    "The shared config schemas: generate, verify, validate",
+	"workflow":  "Multi-step pipelines that chain the domains",
+	"cli":       "vt itself: build, run, test, lint, completions",
+	"annotator": "The auto-annotator app: ML service, API, frontend",
+	"hailo":     "The Hailo model toolchain: export, compile, evaluate",
+	"simgen":    "The Go scenario generator: build, test, lint",
+	"docs":      "Prose and diagrams: the drift checks and the renders",
+	"shared":    "The shared Python platform code",
+	"openapi":   "The aggregated OpenAPI contract",
+	"proto":     "The shared proto contract (buf)",
+	"docker":    "The repo's docker compose stack",
+	"models":    "Tracked model versions: promote, deploy",
+	"setup":     "Install and one-time setup",
+	"lint":      "Lint every module",
+	"clean":     "Clean generated data",
 }
 
 // segmentHelp gives the intermediate tree nodes a one-line description.
 var segmentHelp = map[string]string{
 	"build":      "Build",
-	"hw":         "Hardware tests on a Pi",
+	"hw":         "Cross-compile a hardware test for a Pi (does not run it)",
 	"view":       "Watch a run in RViz",
 	"parts":      "The two halves of view, for separate terminals",
 	"vision":     "Detections from the Pi 5 camera",

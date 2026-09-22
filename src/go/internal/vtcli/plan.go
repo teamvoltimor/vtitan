@@ -36,6 +36,12 @@ var shellSafe = regexp.MustCompile(`^[A-Za-z0-9_./:=@,+%^-]+$`)
 // planInvocation resolves command against values, keyed by argument, flag or
 // variant name. A flag whose value is empty or equal to its declared default
 // is not forwarded, so Task's own default stays authoritative.
+//
+// This is a deliberate standing decision, not an oversight: vt shows every
+// default in --help and prefills it in the form, but forwarding it would pin a
+// copy of the Taskfile's default here and silently stop Taskfile changes from
+// applying. A bug causes a wrong value; a stale default causes a value that
+// was right yesterday. Task remains the one place a default is written.
 func planInvocation(command Command, values map[string]string, passthrough []string) (invocation, error) {
 	inv := invocation{task: command.Task}
 

@@ -115,8 +115,8 @@ a lo largo de una pared**, y el LIDAR simulado es mucho más limpio que el C1
 real. Por eso hay pruebas que solo existen contra el robot.
 
 ```bash
-task go:test:hw                # compila cruzado las pruebas //go:build hw para linux/arm64
-task go:test:hw:interactive    # las que mueven el robot: giro de motor, barrido de servo
+task go:hw:build                # compila cruzado las pruebas //go:build hw para linux/arm64
+task go:hw:build:interactive    # las que mueven el robot: giro de motor, barrido de servo
 task go:hw:run                 # compila, envía a la Pi y ejecuta un paquete completo
 task robot:test-motors         # prueba de humo del nodo de motores, se corre EN la Pi 5
 task robot:calibrate-encoder   # calibración de counts_per_rev contra distancia medida con cinta

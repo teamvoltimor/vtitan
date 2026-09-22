@@ -48,7 +48,7 @@ And, for the first cut:
 
 `src/go/cmd/vt` is a development-machine tool (the boards are not assumed to
 have Go and keep using `task`). Task's `module:verb` naming maps to nested
-subcommands (`task go:test:hw` is `vt go test hw`). Each wrapped leaf runs
+subcommands (`task go:hw:build` is `vt go hw build`). Each wrapped leaf runs
 `task <name> VAR=... -- <args>` as a child process with stdin/stdout/stderr
 attached and **propagates the exit code untouched**; the Taskfiles stay the
 only source of truth on *how* something runs. Domains may be renamed where the
@@ -177,6 +177,33 @@ bubbles v0.21.0.
   renamed `task`; `fleet setup`, `sim view`, `setup`, `go hw`, `robot vision`
   and a curated `gen` domain; the last five picks at the top of the picker,
   and the equivalent `vt` command printed after a form run.
+
+- 2026-09-22, this session: the curated surface grew from 64 to 161 commands
+  and the boundary rule was made explicit. The domains `frontend`, `backend`,
+  `config`, `workflow`, `cli`, `annotator`, `hailo`, `simgen`, `docs`,
+  `shared`, `openapi`, `proto`, `docker` and `models` joined `sim`, `robot`,
+  `go`, `fleet` and `gen`. The two specialist apps (`auto-annotator`, `hailo`)
+  expose only their daily verbs; their container, contract and pipeline trees
+  are excluded by name with a reason, because they are long Docker-bound
+  workflows that `vt task` already reaches. Two domains were reallocated
+  rather than invented: `record:*` moved under `gen record` (it generates the
+  training videos) and `vpn`/`cloudflare` under `fleet` (they are board and
+  network ops, and they live in `other/tasks/infra.yml`).
+  `BASH` and `EXE` moved to the root Taskfile, which made `BASH=...` override
+  work for the first time: it was defined in `platform.yml` and in
+  `src/go/Taskfile.yml`, and used but never defined in `src/python`, where it
+  only resolved because `platform.yml` is flattened first. `go:test:hw`
+  became `go:hw:build`, since it cross-compiles with `-c -o` and never runs
+  anything. Check 7 (`TestNoTaskNameCollisions`) was added: Task's namespace
+  is flat, so two includes defining `lint` collide and include order decides
+  the winner -- invisible today only because the four colliding files happen
+  to be included without `flatten: true`.
+- The boundary rule, now written down: **Taskfiles own what runs, `vt` owns
+  how it is spelled.** A change that alters what a task does belongs in the
+  Taskfile, so `task` and CI get it too; a change to discovery, flags or
+  confirmation belongs in `vt`. Phase 3 is why this is a rule and not a
+  preference: the WiFi quoting bug was fixed once, in the Taskfile, and
+  `task`, CI and `vt` all got the fix.
 
 ## Cross-references
 
