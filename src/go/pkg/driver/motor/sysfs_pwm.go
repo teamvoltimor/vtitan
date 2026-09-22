@@ -14,24 +14,9 @@ package motor
 
 import (
 	"context"
-	"errors"
 	"fmt"
-	"os"
-	"path/filepath"
-	"strconv"
-	"time"
-)
 
-const (
-	sysfsPWMRoot = "/sys/class/pwm"
-
-	// pwmExportTimeout is how long to wait for the kernel + udev to create
-	// and chgrp the channel directory after export -- exporting a channel
-	// is asynchronous, matching pwm_sysfs.py's EXPORT_TIMEOUT_S.
-	pwmExportTimeout = 2 * time.Second
-	pwmPollInterval  = 50 * time.Millisecond
-
-	pwmFilePerm = 0o200 // write-only: matches the sysfs files' own permissions
+	"github.com/teamvoltimor/vtitan/src/go/pkg/driver/internal/sysfspwm"
 )
 
 // sysfsPWMChannel is the real dutyWriter (controller.go) for RPWM
@@ -39,95 +24,46 @@ const (
 // the kernel's /sys/class/pwm sysfs interface (export/period/duty_cycle/
 // enable files) rather than a library, per
 // adr:0068-go-parallel-track-single-cutover's stated preference for this pin.
+//
+// The sysfs mechanics (export-wait, init order) live in
+// pkg/driver/internal/sysfspwm, shared with pkg/driver/servo; this type only
+// adapts them to dutyWriter's duty-fraction contract.
 type sysfsPWMChannel struct {
-	chipDir    string
-	channelDir string
-	periodNS   int64
-	channel    int
+	ch *sysfspwm.Channel
 }
+
+const (
+	sysfsPWMRoot = sysfspwm.DefaultRoot
+
+	// pwmOverlayHint is the config.txt line Export names when pwmchip is
+	// missing: RPWM shares the two-channel overlay with the steering servo.
+	pwmOverlayHint = "'dtoverlay=pwm-2chan,pin=12,func=4,pin2=13,func2=4'"
+)
 
 var _ dutyWriter = (*sysfsPWMChannel)(nil)
 
 // newSysfsPWMChannel describes (without touching the filesystem) the PWM
 // channel at root/pwmchip<chip>/pwm<channel>, running at frequencyHz.
 func newSysfsPWMChannel(root string, chip, channel, frequencyHz int) *sysfsPWMChannel {
-	chipDir := filepath.Join(root, fmt.Sprintf("pwmchip%d", chip))
-	return &sysfsPWMChannel{
-		chipDir:    chipDir,
-		channelDir: filepath.Join(chipDir, fmt.Sprintf("pwm%d", channel)),
-		periodNS:   time.Second.Nanoseconds() / int64(frequencyHz),
-		channel:    channel,
-	}
+	return &sysfsPWMChannel{ch: sysfspwm.New(root, chip, channel, frequencyHz, pwmOverlayHint)}
 }
 
 // Export claims the channel from the kernel (writing to the chip's "export"
 // file, tolerating EBUSY if some earlier process already exported it) and
 // waits for its files to become writable.
 func (c *sysfsPWMChannel) Export(ctx context.Context) error {
-	if _, err := os.Stat(c.chipDir); err != nil {
-		return fmt.Errorf(
-			"motor: %s not present -- add 'dtoverlay=pwm-2chan,pin=12,func=4,pin2=13,func2=4' "+
-				"to /boot/firmware/config.txt and reboot: %w: %w",
-			c.chipDir, errPWMOverlayMissing, err,
-		)
+	if err := c.ch.Export(ctx); err != nil {
+		return fmt.Errorf("motor: %w", err)
 	}
-
-	if _, err := os.Stat(c.channelDir); err != nil {
-		exportPath := filepath.Join(c.chipDir, "export")
-		if writeErr := os.WriteFile(exportPath, []byte(strconv.Itoa(c.channel)), pwmFilePerm); writeErr != nil {
-			if _, statErr := os.Stat(c.channelDir); statErr != nil {
-				return fmt.Errorf("motor: exporting PWM channel via %s: %w", exportPath, writeErr)
-			}
-		}
-	}
-
-	return c.waitWritable(ctx)
-}
-
-func (c *sysfsPWMChannel) waitWritable(ctx context.Context) error {
-	dutyPath := filepath.Join(c.channelDir, "duty_cycle")
-	deadline := time.Now().Add(pwmExportTimeout)
-	for time.Now().Before(deadline) {
-		if writable(dutyPath) {
-			return nil
-		}
-		select {
-		case <-ctx.Done():
-			return fmt.Errorf("motor: waiting for %s to become writable: %w", dutyPath, ctx.Err())
-		case <-time.After(pwmPollInterval):
-		}
-	}
-	return fmt.Errorf(
-		"motor: %s did not become writable within %s (is the service user in the 'gpio' group?)",
-		dutyPath, pwmExportTimeout,
-	)
-}
-
-// writable reports whether path can be opened for writing, mirroring
-// pwm_sysfs.py's os.access(path, os.W_OK) check.
-func writable(path string) bool {
-	f, err := os.OpenFile(path, os.O_WRONLY, 0)
-	if err != nil {
-		return false
-	}
-	_ = f.Close()
-	return true
+	return nil
 }
 
 // Init zeroes the channel's duty, sets its period, and enables the PWM
-// output -- in that order. Order matters: duty_cycle may never exceed
-// period, so a stale larger duty left over from a previous run would make
-// the period write fail if it happened first. This mirrors the Python
-// driver's connect() comment on the same three writes.
+// output -- in that order (see sysfspwm.Channel.Init for why the order is
+// load-bearing).
 func (c *sysfsPWMChannel) Init(_ context.Context) error {
-	if err := c.writeFile("duty_cycle", "0"); err != nil {
-		return fmt.Errorf("motor: zeroing PWM duty on init: %w", err)
-	}
-	if err := c.writeFile("period", strconv.FormatInt(c.periodNS, 10)); err != nil {
-		return fmt.Errorf("motor: setting PWM period on init: %w", err)
-	}
-	if err := c.writeFile("enable", "1"); err != nil {
-		return fmt.Errorf("motor: enabling PWM channel on init: %w", err)
+	if err := c.ch.Init(); err != nil {
+		return fmt.Errorf("motor: %w", err)
 	}
 	return nil
 }
@@ -135,9 +71,9 @@ func (c *sysfsPWMChannel) Init(_ context.Context) error {
 // SetDuty writes a duty fraction in [0, 1], converted to nanoseconds
 // against the channel's configured period.
 func (c *sysfsPWMChannel) SetDuty(_ context.Context, fraction float64) error {
-	dutyNS := int64(fraction * float64(c.periodNS))
-	if err := c.writeFile("duty_cycle", strconv.FormatInt(dutyNS, 10)); err != nil {
-		return fmt.Errorf("motor: writing PWM duty_cycle: %w", err)
+	dutyNS := int64(fraction * float64(c.ch.PeriodNS()))
+	if err := c.ch.WriteDutyNS(dutyNS); err != nil {
+		return fmt.Errorf("motor: %w", err)
 	}
 	return nil
 }
@@ -146,20 +82,8 @@ func (c *sysfsPWMChannel) SetDuty(_ context.Context, fraction float64) error {
 // channel -- matching the Python driver, which leaves the channel exported
 // across reconnects.
 func (c *sysfsPWMChannel) Disable() error {
-	if err := c.writeFile("enable", "0"); err != nil {
-		return fmt.Errorf("motor: disabling PWM channel: %w", err)
+	if err := c.ch.Disable(); err != nil {
+		return fmt.Errorf("motor: %w", err)
 	}
 	return nil
 }
-
-func (c *sysfsPWMChannel) writeFile(name, value string) error {
-	if err := os.WriteFile(filepath.Join(c.channelDir, name), []byte(value), pwmFilePerm); err != nil {
-		return fmt.Errorf("motor: writing %s/%s: %w", c.channelDir, name, err)
-	}
-	return nil
-}
-
-// errPWMOverlayMissing documents the config.txt fix for the most common
-// Export failure -- kept as a sentinel so callers/tests can errors.Is
-// against "overlay missing" specifically if that ever becomes necessary.
-var errPWMOverlayMissing = errors.New("motor: hardware PWM overlay missing")

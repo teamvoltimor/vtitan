@@ -5,6 +5,7 @@ package motor
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"math"
 	"time"
@@ -33,7 +34,7 @@ type CommandReader interface {
 	Read(ctx context.Context) (*actuationv1.AckermannCmd, error)
 }
 
-// Loop holds the running control loop's state: the driver/transport it was
+// Loop holds the running control loop's state: the drivers/transport it was
 // wired to by NewLoop, plus the mutable state each Run iteration updates
 // (last-command time, currently-applied duty, whether the watchdog has
 // already safety-stopped).
@@ -42,6 +43,7 @@ type Loop struct {
 	drv                     SpeedSetter
 	pub                     StatusPublisher
 	speedScalePercentPerMPS float64
+	steering                Steering
 
 	lastCmdAt   time.Time
 	currentDuty float64
@@ -114,18 +116,21 @@ func StatusFor(dutyFraction float64, commandAge time.Duration, setSpeedErr error
 
 // NewLoop builds a Loop over an already-connected drv and pub, converting
 // commanded speeds using speedScalePercentPerMPS (see
-// DefaultSpeedScalePercentPerMPS).
+// DefaultSpeedScalePercentPerMPS) and steering through steering (whose
+// servo, if any, is already connected and centered).
 func NewLoop(
 	logger *slog.Logger,
 	drv SpeedSetter,
 	pub StatusPublisher,
 	speedScalePercentPerMPS float64,
+	steering Steering,
 ) *Loop {
 	return &Loop{
 		logger:                  logger,
 		drv:                     drv,
 		pub:                     pub,
 		speedScalePercentPerMPS: speedScalePercentPerMPS,
+		steering:                steering,
 		lastCmdAt:               time.Now(),
 		stopped:                 true,
 	}
@@ -134,10 +139,11 @@ func NewLoop(
 // Run applies each incoming AckermannCmd and enforces the command-deadline
 // watchdog until ctx is done.
 //
-// Whatever way Run returns, it stops the drive first. The watchdog only runs
-// while Run does, and under supervise a failed Run is restarted after a
-// backoff of 1 s, then 2 s, 4 s...: without this stop the motor would hold
-// its last duty, unsupervised, for the whole of that wait.
+// Whatever way Run returns, it stops the drive and centers the steering
+// first. The watchdog only runs while Run does, and under supervise a failed
+// Run is restarted after a backoff of 1 s, then 2 s, 4 s...: without this
+// stop the motor would hold its last duty, and the servo its last angle,
+// unsupervised, for the whole of that wait.
 func (l *Loop) Run(
 	ctx context.Context,
 	sub CommandReader,
@@ -182,16 +188,21 @@ func (l *Loop) Run(
 	}
 }
 
-// applyCommand drives cmd's speed and publishes the resulting MotorStatus.
+// applyCommand steers and drives per cmd and publishes the resulting
+// MotorStatus. Steering goes first, as in ackermann_motor_node.py:597.
 //
-// A non-finite speed is rejected and treated as a missing command: it does
-// not refresh the watchdog, so a stream of them stops the drive exactly as
-// silence would. Acting on it is not an option - +Inf clamps to full
-// forward, and NaN survives Go's min/max into the PWM layer.
+// A non-finite speed or steering angle rejects the whole command, which is
+// treated as missing: it does not refresh the watchdog, so a stream of them
+// stops the drive and centers the steering exactly as silence would. Acting
+// on it is not an option - +Inf clamps to full forward or full lock, and NaN
+// survives Go's min/max into the PWM layer. Half-applying it (the finite
+// field only) would act on a command its sender got wrong.
 func (l *Loop) applyCommand(ctx context.Context, cmd *actuationv1.AckermannCmd) {
 	speed := float64(cmd.GetSpeed())
-	if math.IsNaN(speed) || math.IsInf(speed, 0) {
-		l.logger.Warn("node/motor: rejecting non-finite speed, treating as missing", "speed", speed)
+	steer := float64(cmd.GetSteeringAngle())
+	if !finite(speed) || !finite(steer) {
+		l.logger.Warn("node/motor: rejecting non-finite command, treating as missing",
+			"speed", speed, "steering_angle", steer)
 		return
 	}
 
@@ -199,19 +210,56 @@ func (l *Loop) applyCommand(ctx context.Context, cmd *actuationv1.AckermannCmd) 
 	l.currentDuty = SpeedToNormalized(cmd.GetSpeed(), l.speedScalePercentPerMPS)
 	l.stopped = false
 
+	steerErr := l.steer(cmd.GetSteeringAngle())
 	setErr := l.drv.SetSpeed(ctx, l.currentDuty)
 	if setErr != nil {
 		l.logger.Error("node/motor: SetSpeed", "error", setErr)
 	}
-	if pubErr := l.pub.Publish(StatusFor(l.currentDuty, 0, setErr)); pubErr != nil {
+	if pubErr := l.pub.Publish(StatusFor(l.currentDuty, 0, errors.Join(steerErr, setErr))); pubErr != nil {
 		l.logger.Error("node/motor: publishing MotorStatus", "error", pubErr)
 	}
 }
 
-// checkWatchdog safety-stops the drive if no AckermannCmd has arrived within
-// commandTimeout, and is a no-op otherwise (including once it has already
-// stopped for this staleness episode, so it doesn't republish FAULT/IDLE
-// status on every single poll tick).
+// steer converts a wheel angle [rad] to a servo angle and applies it. It is
+// a no-op without a servo (motor-node).
+func (l *Loop) steer(steeringAngleRad float32) error {
+	if l.steering.Servo == nil {
+		return nil
+	}
+	servoDeg, clamped := SteeringToServoDeg(steeringAngleRad, l.steering.Config)
+	if clamped {
+		// Debug, not Python's per-command warning (ackermann_motor_node.py:562):
+		// full lock is routine in escapes, and at the command rate a warning
+		// per command would flood the Zero's log.
+		l.logger.Debug("node/motor: servo angle clamped to travel limit",
+			"wheel_angle_rad", steeringAngleRad, "servo_deg", servoDeg,
+			"limit_deg", l.steering.Config.ServoMaxAngleDeg)
+	}
+	if err := l.steering.Servo.SetAngle(servoDeg); err != nil {
+		l.logger.Error("node/motor: SetAngle", "error", err)
+		return fmt.Errorf("steering: %w", err)
+	}
+	return nil
+}
+
+// center commands the servo to SteeringCenterDeg; a no-op without a servo.
+func (l *Loop) center(why string) {
+	if l.steering.Servo == nil {
+		return
+	}
+	if err := l.steering.Servo.SetAngle(SteeringCenterDeg); err != nil {
+		l.logger.Error("node/motor: centering steering", "on", why, "error", err)
+	}
+}
+
+// checkWatchdog safety-stops the drive and centers the steering if no
+// AckermannCmd has arrived within commandTimeout, and is a no-op otherwise
+// (including once it has already stopped for this staleness episode, so it
+// doesn't republish FAULT/IDLE status on every single poll tick).
+//
+// Centering follows go-future.md 2.5 contract row 1 ("steering to center,
+// drive to neutral"). Python's _watchdog_check only stops the drive
+// (ackermann_motor_node.py:770-790) and leaves the servo at its last angle.
 func (l *Loop) checkWatchdog(ctx context.Context, commandTimeout time.Duration) {
 	age := time.Since(l.lastCmdAt)
 	if age < commandTimeout || l.stopped {
@@ -224,15 +272,18 @@ func (l *Loop) checkWatchdog(ctx context.Context, commandTimeout time.Duration) 
 	if setErr != nil {
 		l.logger.Error("node/motor: safety-stop SetSpeed", "error", setErr)
 	}
-	l.logger.Warn("node/motor: command timeout, safety-stopping drive", "age", age)
+	l.center("command timeout")
+	l.logger.Warn("node/motor: command timeout, safety-stopping drive and centering steering", "age", age)
 	if pubErr := l.pub.Publish(StatusFor(l.currentDuty, age, setErr)); pubErr != nil {
 		l.logger.Error("node/motor: publishing MotorStatus", "error", pubErr)
 	}
 }
 
-// stopOnExit zeroes the drive when Run returns, unless the watchdog already
-// has. It publishes no status: on shutdown the connection may be gone, and
-// the next Run (if any) reports state from its first command.
+// stopOnExit zeroes the drive and centers the steering when Run returns,
+// unless the watchdog already has (ackermann_motor_node.py:489-500
+// _stop_motors_safely does both). It publishes no status: on shutdown the
+// connection may be gone, and the next Run (if any) reports state from its
+// first command.
 func (l *Loop) stopOnExit(runCtx context.Context) {
 	if l.stopped {
 		return
@@ -245,4 +296,9 @@ func (l *Loop) stopOnExit(runCtx context.Context) {
 	if err := l.drv.SetSpeed(ctx, l.currentDuty); err != nil {
 		l.logger.Error("node/motor: safety-stop on exit", "error", err)
 	}
+	l.center("exit")
+}
+
+func finite(v float64) bool {
+	return !math.IsNaN(v) && !math.IsInf(v, 0)
 }

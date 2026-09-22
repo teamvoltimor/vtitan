@@ -142,7 +142,12 @@ func run(ctx context.Context, logger *slog.Logger, cfg cliConfig) error {
 	}
 	defer stopFeedback()
 
-	loop := nodemotor.NewLoop(logger, drv, pub, nodemotor.SpeedScaleFor(logger, cfg.ConfigRoot))
+	// Drive only, on purpose: this is the bench binary for isolating the
+	// H-bridge, and must not need the servo overlay or a servo profile.
+	// Steering on the robot is cmd/pi-zero's.
+	loop := nodemotor.NewLoop(
+		logger, drv, pub, nodemotor.SpeedScaleFor(logger, cfg.ConfigRoot), nodemotor.Steering{},
+	)
 	if err = loop.Run(ctx, sub, cfg.commandTimeout); err != nil {
 		return fmt.Errorf("motor-node: %w", err)
 	}

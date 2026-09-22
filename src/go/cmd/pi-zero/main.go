@@ -1,7 +1,8 @@
 //go:build linux
 
 // Command pi-zero is the production combined board binary for the Pi Zero:
-// motor + button + OLED, run as supervised goroutines in a single process.
+// motor + steering servo + button + OLED, run as supervised goroutines in a
+// single process.
 // See adr:0068-go-parallel-track-single-cutover ("Process
 // model").
 //
@@ -30,6 +31,7 @@ import (
 	"github.com/teamvoltimor/vtitan/src/go/pkg/driver/display/ssd1306"
 	"github.com/teamvoltimor/vtitan/src/go/pkg/driver/encoder"
 	"github.com/teamvoltimor/vtitan/src/go/pkg/driver/motor"
+	"github.com/teamvoltimor/vtitan/src/go/pkg/driver/servo"
 	"github.com/teamvoltimor/vtitan/src/go/pkg/supervise"
 
 	actuationv1 "github.com/teamvoltimor/vtitan/src/go/internal/schema/pb/vtitan/actuation/v1"
@@ -115,7 +117,7 @@ func newRootCmd(cfg *cliConfig, logger *slog.Logger) *cobra.Command {
 		"flip SetSpeed's sign convention, matching motors.toml's drive.reversed")
 	cfg.RegisterConfigRoot(flags,
 		"repo root to load the hardware profile (VTITAN_HARDWARE_PROFILE) from; "+
-			"empty uses nodemotor.DefaultSpeedScalePercentPerMPS")
+			"required, because the steering servo and its linkage have no shipped default")
 
 	flags.IntVar(&cfg.buttonLine, "button-line", defaultButtonLine, "button GPIO line offset")
 	flags.BoolVar(&cfg.buttonPullUp, "button-pull-up", defaultButtonPullUp,
@@ -255,6 +257,14 @@ func run(ctx context.Context, logger *slog.Logger, cfg cliConfig) error {
 	}
 	motorCfg.Invert = cfg.motorInvert
 
+	// Steering connects first, as in ackermann_motor_node.py's on_configure,
+	// so a missing profile fails before the H-bridge is ever enabled.
+	steering, servoDrv, err := connectSteering(ctx, cfg.ConfigRoot)
+	if err != nil {
+		return err
+	}
+	defer closeLogged(logger, "steering servo", servoDrv.Close)
+
 	motorDrv, err := motor.New(motorCfg)
 	if err != nil {
 		return err //nolint:wrapcheck // motor.New already wraps with "motor: ..." context
@@ -322,6 +332,7 @@ func run(ctx context.Context, logger *slog.Logger, cfg cliConfig) error {
 		motorDrv,
 		motorStatusPub,
 		nodemotor.SpeedScaleFor(logger, cfg.ConfigRoot),
+		steering,
 	)
 
 	// The encoder is optional: a Zero with no encoder wired (or no motor
@@ -378,6 +389,36 @@ func run(ctx context.Context, logger *slog.Logger, cfg cliConfig) error {
 		return fmt.Errorf("pi-zero: %w", err)
 	}
 	return nil
+}
+
+// connectSteering loads the servo and the wheel-to-servo conversion, then
+// connects (and so centers) the servo.
+//
+// Unlike the encoder, steering is not optional: a Zero that drives but
+// cannot steer is worse than one that refuses to start, and neither the
+// servo's range nor the linkage ratio has a default that is safe to guess.
+// A connect failure is fatal, as it is for the motor driver: on a dev
+// machine with no /sys/class/pwm/pwmchipN both fail with the overlay hint.
+func connectSteering(
+	ctx context.Context,
+	configRoot string,
+) (nodemotor.Steering, *servo.Driver, error) {
+	steerCfg, err := nodemotor.SteeringFor(configRoot)
+	if err != nil {
+		return nodemotor.Steering{}, nil, fmt.Errorf("pi-zero: %w", err)
+	}
+	servoCfg, err := hwconfig.Servo(configRoot)
+	if err != nil {
+		return nodemotor.Steering{}, nil, fmt.Errorf("pi-zero: %w", err)
+	}
+	drv, err := servo.New(servoCfg)
+	if err != nil {
+		return nodemotor.Steering{}, nil, fmt.Errorf("pi-zero: %w", err)
+	}
+	if err = drv.Connect(ctx); err != nil {
+		return nodemotor.Steering{}, nil, fmt.Errorf("pi-zero: %w", err)
+	}
+	return nodemotor.Steering{Servo: drv, Config: steerCfg}, drv, nil
 }
 
 // closeLogged calls closeFn and logs a failure under label rather than
