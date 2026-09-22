@@ -1,9 +1,9 @@
-package encoder_test
+package quadrature_test
 
 import (
 	"testing"
 
-	"github.com/teamvoltimor/vtitan/src/go/pkg/driver/encoder"
+	"github.com/teamvoltimor/vtitan/src/go/pkg/portable/quadrature"
 )
 
 // abStates walks the quadrature Gray sequence 00 -> 01 -> 11 -> 10, the
@@ -17,7 +17,7 @@ var abStates = [4][2]bool{
 
 // sampleCycles feeds n full cycles through d, forward when forward is true
 // and backward otherwise, and returns the resulting count.
-func sampleCycles(d *encoder.Decoder, cycles int, forward bool) int64 {
+func sampleCycles(d *quadrature.Decoder, cycles int, forward bool) int64 {
 	var counts int64
 	for range cycles {
 		for step := range abStates {
@@ -34,7 +34,7 @@ func sampleCycles(d *encoder.Decoder, cycles int, forward bool) int64 {
 func TestDecoder_ForwardCycleCountsFourEdges(t *testing.T) {
 	t.Parallel()
 
-	var d encoder.Decoder
+	var d quadrature.Decoder
 	// Seed on 10, the state a forward cycle ENDS on, so the walk's opening
 	// 00 is a real transition rather than a repeat of the seed and all 12
 	// transitions across 3 cycles are counted.
@@ -48,7 +48,7 @@ func TestDecoder_ForwardCycleCountsFourEdges(t *testing.T) {
 func TestDecoder_ReverseCountsNegative(t *testing.T) {
 	t.Parallel()
 
-	var d encoder.Decoder
+	var d quadrature.Decoder
 	d.Sample(false, false)
 
 	if got := sampleCycles(&d, 3, false); got != -12 {
@@ -59,7 +59,7 @@ func TestDecoder_ReverseCountsNegative(t *testing.T) {
 func TestDecoder_ForwardThenReverseReturnsToZero(t *testing.T) {
 	t.Parallel()
 
-	var d encoder.Decoder
+	var d quadrature.Decoder
 	d.Sample(false, false)
 
 	sampleCycles(&d, 5, true)
@@ -71,7 +71,7 @@ func TestDecoder_ForwardThenReverseReturnsToZero(t *testing.T) {
 func TestDecoder_FirstSampleOnlySeedsState(t *testing.T) {
 	t.Parallel()
 
-	var d encoder.Decoder
+	var d quadrature.Decoder
 	// Without the seeding rule, an opening sample of 11 against a zeroed
 	// reference state would be read as a two-bit jump and, worse, a
 	// naive decoder could invent a direction for it.
@@ -83,7 +83,7 @@ func TestDecoder_FirstSampleOnlySeedsState(t *testing.T) {
 func TestDecoder_SkippedStateContributesNothing(t *testing.T) {
 	t.Parallel()
 
-	var d encoder.Decoder
+	var d quadrature.Decoder
 	d.Sample(false, false)
 	// 00 -> 11 is two bits at once: a missed edge or bounce. It carries no
 	// reliable direction, so it must not become phantom travel.
@@ -99,7 +99,7 @@ func TestDecoder_SkippedStateContributesNothing(t *testing.T) {
 func TestDecoder_RepeatedSampleIsNoOp(t *testing.T) {
 	t.Parallel()
 
-	var d encoder.Decoder
+	var d quadrature.Decoder
 	d.Sample(false, false)
 	d.Sample(false, true)
 	before := d.Counts()
@@ -113,7 +113,7 @@ func TestDecoder_RepeatedSampleIsNoOp(t *testing.T) {
 func TestDecoder_ResetZeroesAndReseeds(t *testing.T) {
 	t.Parallel()
 
-	var d encoder.Decoder
+	var d quadrature.Decoder
 	d.Sample(false, false)
 	sampleCycles(&d, 2, true)
 

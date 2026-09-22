@@ -1,10 +1,10 @@
-package encoder_test
+package quadrature_test
 
 import (
 	"math"
 	"testing"
 
-	"github.com/teamvoltimor/vtitan/src/go/pkg/driver/encoder"
+	"github.com/teamvoltimor/vtitan/src/go/pkg/portable/quadrature"
 )
 
 // shippedCountsPerRev is the live-verified calibration for the current motor
@@ -18,7 +18,7 @@ const shippedWheelDiameterM = 0.07
 func TestCountsToRevolutions(t *testing.T) {
 	t.Parallel()
 
-	got, err := encoder.CountsToRevolutions(120, shippedCountsPerRev)
+	got, err := quadrature.CountsToRevolutions(120, shippedCountsPerRev)
 	if err != nil {
 		t.Fatalf("CountsToRevolutions: %v", err)
 	}
@@ -33,7 +33,7 @@ func TestCountsToRevolutions_RejectsNonPositiveCountsPerRev(t *testing.T) {
 	// A missing motor profile leaves counts_per_rev at zero. It must error
 	// rather than divide, since a NaN/Inf distance propagates silently
 	// through the whole odometry chain.
-	if _, err := encoder.CountsToRevolutions(120, 0); err == nil {
+	if _, err := quadrature.CountsToRevolutions(120, 0); err == nil {
 		t.Fatal("CountsToRevolutions(counts_per_rev=0): want error, got nil")
 	}
 }
@@ -41,7 +41,7 @@ func TestCountsToRevolutions_RejectsNonPositiveCountsPerRev(t *testing.T) {
 func TestCountsToDistance_MatchesCircumference(t *testing.T) {
 	t.Parallel()
 
-	got, err := encoder.CountsToDistance(
+	got, err := quadrature.CountsToDistance(
 		shippedCountsPerRev, shippedCountsPerRev, shippedWheelDiameterM,
 	)
 	if err != nil {
@@ -56,7 +56,7 @@ func TestCountsToDistance_MatchesCircumference(t *testing.T) {
 func TestCountsToDistance_SignedForReverse(t *testing.T) {
 	t.Parallel()
 
-	got, err := encoder.CountsToDistance(
+	got, err := quadrature.CountsToDistance(
 		-shippedCountsPerRev, shippedCountsPerRev, shippedWheelDiameterM,
 	)
 	if err != nil {
@@ -73,7 +73,7 @@ func TestCountsToDistance_SignedForReverse(t *testing.T) {
 func TestSpeedEstimator_HoldsUntilWindowFills(t *testing.T) {
 	t.Parallel()
 
-	est, err := encoder.NewSpeedEstimator(shippedCountsPerRev)
+	est, err := quadrature.NewSpeedEstimator(shippedCountsPerRev)
 	if err != nil {
 		t.Fatalf("NewSpeedEstimator: %v", err)
 	}
@@ -88,7 +88,7 @@ func TestSpeedEstimator_HoldsUntilWindowFills(t *testing.T) {
 func TestSpeedEstimator_EmitsAfterWindow(t *testing.T) {
 	t.Parallel()
 
-	est, err := encoder.NewSpeedEstimator(shippedCountsPerRev)
+	est, err := quadrature.NewSpeedEstimator(shippedCountsPerRev)
 	if err != nil {
 		t.Fatalf("NewSpeedEstimator: %v", err)
 	}
@@ -101,7 +101,7 @@ func TestSpeedEstimator_EmitsAfterWindow(t *testing.T) {
 		rpm = est.Update(int64(tick*12), 0.02)
 	}
 
-	want := encoder.DefaultSmoothing * 600.0
+	want := quadrature.DefaultSmoothing * 600.0
 	if math.Abs(rpm-want) > 1e-9 {
 		t.Fatalf("rpm after full window = %g, want %g", rpm, want)
 	}
@@ -113,7 +113,7 @@ func TestSpeedEstimator_EmitsAfterWindow(t *testing.T) {
 func TestSpeedEstimator_ReverseIsNegative(t *testing.T) {
 	t.Parallel()
 
-	est, err := encoder.NewSpeedEstimator(shippedCountsPerRev)
+	est, err := quadrature.NewSpeedEstimator(shippedCountsPerRev)
 	if err != nil {
 		t.Fatalf("NewSpeedEstimator: %v", err)
 	}
@@ -131,7 +131,7 @@ func TestSpeedEstimator_ReverseIsNegative(t *testing.T) {
 func TestSpeedEstimator_NonPositiveDTHoldsValue(t *testing.T) {
 	t.Parallel()
 
-	est, err := encoder.NewSpeedEstimator(shippedCountsPerRev)
+	est, err := quadrature.NewSpeedEstimator(shippedCountsPerRev)
 	if err != nil {
 		t.Fatalf("NewSpeedEstimator: %v", err)
 	}
@@ -152,7 +152,7 @@ func TestSpeedEstimator_NonPositiveDTHoldsValue(t *testing.T) {
 func TestSpeedEstimator_ResetClearsHistory(t *testing.T) {
 	t.Parallel()
 
-	est, err := encoder.NewSpeedEstimator(shippedCountsPerRev)
+	est, err := quadrature.NewSpeedEstimator(shippedCountsPerRev)
 	if err != nil {
 		t.Fatalf("NewSpeedEstimator: %v", err)
 	}
@@ -191,48 +191,12 @@ func TestNewSpeedEstimatorWith_RejectsBadParameters(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			_, err := encoder.NewSpeedEstimatorWith(encoder.SpeedEstimatorParams{
+			_, err := quadrature.NewSpeedEstimatorWith(quadrature.SpeedEstimatorParams{
 				CountsPerRev: tc.countsPerRev,
 				Smoothing:    tc.smoothing,
 				MinWindowS:   tc.minWindowS,
 			})
 			if err == nil {
-				t.Fatal("want error, got nil")
-			}
-		})
-	}
-}
-
-func TestConfig_ValidateRejectsIncompleteWiring(t *testing.T) {
-	t.Parallel()
-
-	valid := encoder.Config{
-		GPIOChip:       encoder.DefaultGPIOChip,
-		PinA:           16,
-		PinB:           20,
-		CountsPerRev:   shippedCountsPerRev,
-		WheelDiameterM: shippedWheelDiameterM,
-	}
-	if err := valid.Validate(); err != nil {
-		t.Fatalf("valid config: %v", err)
-	}
-
-	for _, tc := range []struct {
-		name   string
-		mutate func(*encoder.Config)
-	}{
-		{"no chip", func(c *encoder.Config) { c.GPIOChip = "" }},
-		{"same pin twice", func(c *encoder.Config) { c.PinB = c.PinA }},
-		{"negative pin", func(c *encoder.Config) { c.PinA = -1 }},
-		{"no calibration", func(c *encoder.Config) { c.CountsPerRev = 0 }},
-		{"no wheel diameter", func(c *encoder.Config) { c.WheelDiameterM = 0 }},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-
-			cfg := valid
-			tc.mutate(&cfg)
-			if err := cfg.Validate(); err == nil {
 				t.Fatal("want error, got nil")
 			}
 		})

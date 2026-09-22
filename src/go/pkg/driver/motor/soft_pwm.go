@@ -9,9 +9,11 @@ import (
 	"time"
 
 	"github.com/warthog618/go-gpiocdev"
+
+	"github.com/teamvoltimor/vtitan/src/go/pkg/portable/hbridge"
 )
 
-// softPWM is the real dutyWriter (controller.go) for LPWM (reverse):
+// softPWM is the real hbridge.DutyWriter for LPWM (reverse):
 // software-bit-banged PWM over a go-gpiocdev output line, since the Pi's
 // two hardware PWM engines are both already claimed (one by the steering
 // servo, one by RPWM/forward — see docs/bts7960-ibt2-wiring.md). Reverse is
@@ -28,7 +30,7 @@ type softPWM struct {
 	doneCh   chan struct{}
 }
 
-var _ dutyWriter = (*softPWM)(nil)
+var _ hbridge.DutyWriter = (*softPWM)(nil)
 
 // newSoftPWM builds a softPWM driving line at frequencyHz, initially at 0
 // duty. Call start to begin toggling the line.

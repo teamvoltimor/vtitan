@@ -1,16 +1,16 @@
-package motor_test
+package hbridge_test
 
 import (
 	"context"
 	"testing"
 
-	"github.com/teamvoltimor/vtitan/src/go/pkg/driver/motor"
+	"github.com/teamvoltimor/vtitan/src/go/pkg/portable/hbridge"
 )
 
 // testHarness bundles a Controller with the fakes wired into it, so tests
 // don't have to juggle five separate return values from a constructor.
 type testHarness struct {
-	ctrl *motor.Controller
+	ctrl *hbridge.Controller
 	rpwm *fakeDutyWriter
 	lpwm *fakeDutyWriter
 	rEn  *fakeEnableWriter
@@ -25,7 +25,7 @@ func newTestHarness(invert bool) *testHarness {
 	rEn := newFakeEnableWriter("rEn", log)
 	lEn := newFakeEnableWriter("lEn", log)
 	return &testHarness{
-		ctrl: motor.NewController(rpwm, lpwm, rEn, lEn, invert),
+		ctrl: hbridge.NewController(rpwm, lpwm, rEn, lEn, invert),
 		rpwm: rpwm,
 		lpwm: lpwm,
 		rEn:  rEn,

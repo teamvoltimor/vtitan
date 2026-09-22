@@ -4,7 +4,7 @@ import (
 	"math"
 	"testing"
 
-	"github.com/teamvoltimor/vtitan/src/go/pkg/driver/imu"
+	"github.com/teamvoltimor/vtitan/src/go/pkg/portable/bno085rvc"
 )
 
 const quaternionTolerance = 1e-9
@@ -12,10 +12,10 @@ const quaternionTolerance = 1e-9
 func TestImuMessageFor(t *testing.T) {
 	t.Parallel()
 
-	reading := imu.Reading{Yaw: 90, Pitch: 0, Roll: 0, XAccel: 1, YAccel: 2, ZAccel: 3}
+	reading := bno085rvc.Reading{Yaw: 90, Pitch: 0, Roll: 0, XAccel: 1, YAccel: 2, ZAccel: 3}
 	got := MessageFor(reading)
 
-	want := imu.QuaternionFromEuler(reading.Yaw, reading.Pitch, reading.Roll)
+	want := bno085rvc.QuaternionFromEuler(reading.Yaw, reading.Pitch, reading.Roll)
 	if math.Abs(float64(got.GetOrientation().GetX())-want.X) > quaternionTolerance ||
 		math.Abs(float64(got.GetOrientation().GetY())-want.Y) > quaternionTolerance ||
 		math.Abs(float64(got.GetOrientation().GetZ())-want.Z) > quaternionTolerance ||

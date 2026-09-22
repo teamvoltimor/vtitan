@@ -14,6 +14,10 @@
 // clamp) is the motor node's job - see internal/node/motor - exactly as the
 // Python split between ackermann_motor_node.py and servo/driver.py.
 //
+// The angle-to-pulse mapping and the 1 us write dedupe live in
+// pkg/portable/servo, shared with the Pico 2 firmware; this package keeps
+// the config, its validation and the sysfs carrier.
+//
 // Like pkg/driver/motor, this is an actuator, so it does not implement the
 // sensor-shaped driver.Driver[T]; it exposes Connect/SetAngle/Close.
 package servo

@@ -1,4 +1,4 @@
-package imu
+package bno085rvc
 
 import "math"
 

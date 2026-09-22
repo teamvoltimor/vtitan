@@ -7,6 +7,8 @@ import (
 	"fmt"
 
 	"github.com/warthog618/go-gpiocdev"
+
+	"github.com/teamvoltimor/vtitan/src/go/pkg/portable/hbridge"
 )
 
 const (
@@ -16,20 +18,20 @@ const (
 	gpioHigh = 1
 )
 
-// gpioEnableLine is the real enableWriter (controller.go) backed by a
+// gpioEnableLine is the real hbridge.EnableWriter backed by a
 // go-gpiocdev output line. Used for both R_EN and L_EN — see
 // docs/bts7960-ibt2-wiring.md for why both are held permanently HIGH once
-// Controller.Connect enables them.
+// hbridge.Controller.Connect enables them.
 type gpioEnableLine struct {
 	line *gpiocdev.Line
 }
 
-var _ enableWriter = (*gpioEnableLine)(nil)
+var _ hbridge.EnableWriter = (*gpioEnableLine)(nil)
 
 // newGPIOEnableLine requests offset on chip as a digital output, initially
-// driven LOW. The line is requested LOW deliberately — Controller.Connect
+// driven LOW. The line is requested LOW deliberately - hbridge.Controller.Connect
 // is what raises it HIGH, once (and only once) both PWM channels are
-// confirmed at 0 duty; see controller.go's Connect doc comment.
+// confirmed at 0 duty; see that method's doc comment.
 func newGPIOEnableLine(chip string, offset int) (*gpioEnableLine, error) {
 	line, err := gpiocdev.RequestLine(chip, offset, gpiocdev.AsOutput(gpioLow))
 	if err != nil {

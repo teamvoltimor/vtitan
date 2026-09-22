@@ -11,6 +11,9 @@ biome = "2.5.3"
 "aqua:tamasfe/taplo" = "0.10.0"
 sqlc = "1.31.1"
 golangci-lint = "2.12.2"
+# Pico 2 firmware and the pkg/portable cores it shares (adr:0098). 0.42 is the
+# first checked against this module: it builds on Go 1.26.
+tinygo = "0.42.0"
 "go:golang.org/x/tools/cmd/goimports" = "0.48.0"
 "go:github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen" = "2.7.1"
 "go:google.golang.org/protobuf/cmd/protoc-gen-go" = "1.36.12"

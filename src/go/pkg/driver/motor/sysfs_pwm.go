@@ -5,7 +5,7 @@
 // Linux-kernel-specific interface, and github.com/warthog618/go-gpiocdev
 // (imported by the other three) wraps the Linux GPIO character-device ABI,
 // which has no Windows equivalent. This is a real platform boundary, not an
-// oversight: the pure logic layer (duty.go, controller.go) has no such
+// oversight: the pure logic layer (pkg/portable/hbridge) has no such
 // constraint and builds/tests on every platform, including the Windows dev
 // machine this was written on -- see doc.go. Build/vet/test/lint this
 // package's hardware layer with GOOS=linux GOARCH=arm64 (the actual
@@ -17,9 +17,10 @@ import (
 	"fmt"
 
 	"github.com/teamvoltimor/vtitan/src/go/pkg/driver/internal/sysfspwm"
+	"github.com/teamvoltimor/vtitan/src/go/pkg/portable/hbridge"
 )
 
-// sysfsPWMChannel is the real dutyWriter (controller.go) for RPWM
+// sysfsPWMChannel is the real hbridge.DutyWriter for RPWM
 // (forward): the Pi's one free hardware PWM engine, driven directly through
 // the kernel's /sys/class/pwm sysfs interface (export/period/duty_cycle/
 // enable files) rather than a library, per
@@ -27,7 +28,7 @@ import (
 //
 // The sysfs mechanics (export-wait, init order) live in
 // pkg/driver/internal/sysfspwm, shared with pkg/driver/servo; this type only
-// adapts them to dutyWriter's duty-fraction contract.
+// adapts them to hbridge.DutyWriter's duty-fraction contract.
 type sysfsPWMChannel struct {
 	ch *sysfspwm.Channel
 }
@@ -40,7 +41,7 @@ const (
 	pwmOverlayHint = "'dtoverlay=pwm-2chan,pin=12,func=4,pin2=13,func2=4'"
 )
 
-var _ dutyWriter = (*sysfsPWMChannel)(nil)
+var _ hbridge.DutyWriter = (*sysfsPWMChannel)(nil)
 
 // newSysfsPWMChannel describes (without touching the filesystem) the PWM
 // channel at root/pwmchip<chip>/pwm<channel>, running at frequencyHz.

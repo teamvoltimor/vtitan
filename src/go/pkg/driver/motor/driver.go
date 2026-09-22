@@ -12,6 +12,8 @@ import (
 
 	"github.com/go-playground/validator/v10"
 	"github.com/warthog618/go-gpiocdev"
+
+	"github.com/teamvoltimor/vtitan/src/go/pkg/portable/hbridge"
 )
 
 // Config configures a Driver's hardware wiring. Field defaults mirror
@@ -30,12 +32,12 @@ type Config struct {
 
 // Driver is the hardware BTS7960/IBT-2 drive-motor driver: RPWM on the Pi's
 // hardware PWM engine via /sys/class/pwm, LPWM via software PWM, R_EN/L_EN
-// as plain GPIO outputs. It implements Actuator (controller.go); it does
+// as plain GPIO outputs. It implements Actuator (actuator.go); it does
 // not implement driver.Driver[T] -- see doc.go.
 //
 // All safety-critical sequencing (zero both PWM channels before enabling
 // R_EN/L_EN, never drive both RPWM and LPWM nonzero at once) lives in
-// Controller, not here -- Driver's job is only to wire real hardware
+// hbridge.Controller, not here -- Driver's job is only to wire real hardware
 // adapters to it.
 type Driver struct {
 	cfg Config
@@ -45,7 +47,7 @@ type Driver struct {
 	lpwmLine *gpiocdev.Line
 	rEn      *gpioEnableLine
 	lEn      *gpioEnableLine
-	ctrl     *Controller
+	ctrl     *hbridge.Controller
 }
 
 const (
@@ -70,6 +72,10 @@ const (
 	DefaultREnLine = 6
 	DefaultLEnLine = 5
 )
+
+// errNotConnected is returned by SetSpeed when called before Connect has
+// completed successfully.
+var errNotConnected = errors.New("motor: SetSpeed called before Connect")
 
 var _ Actuator = (*Driver)(nil)
 
@@ -97,7 +103,7 @@ func New(cfg Config) (*Driver, error) {
 
 // Connect claims the RPWM hardware-PWM channel and the LPWM/R_EN/L_EN GPIO
 // lines, then delegates the safety-critical enable sequencing to
-// Controller.Connect. See Controller.Connect's doc comment for why that
+// hbridge.Controller.Connect. See that method's doc comment for why that
 // ordering is load-bearing, not stylistic.
 func (d *Driver) Connect(ctx context.Context) error {
 	rpwm := newSysfsPWMChannel(sysfsPWMRoot, d.cfg.PWMChip, d.cfg.PWMChannel, d.cfg.FrequencyHz)
@@ -128,9 +134,12 @@ func (d *Driver) Connect(ctx context.Context) error {
 		return errors.Join(err, rEn.Close(), lpwm.Stop(), lpwmLine.Close())
 	}
 
-	ctrl := NewController(rpwm, lpwm, rEn, lEn, d.cfg.Invert)
+	ctrl := hbridge.NewController(rpwm, lpwm, rEn, lEn, d.cfg.Invert)
 	if err := ctrl.Connect(ctx); err != nil {
-		return errors.Join(err, rEn.Close(), lEn.Close(), lpwm.Stop(), lpwmLine.Close())
+		return errors.Join(
+			fmt.Errorf("motor: %w", err),
+			rEn.Close(), lEn.Close(), lpwm.Stop(), lpwmLine.Close(),
+		)
 	}
 
 	d.rpwm, d.lpwm, d.lpwmLine, d.rEn, d.lEn, d.ctrl = rpwm, lpwm, lpwmLine, rEn, lEn, ctrl
@@ -143,7 +152,10 @@ func (d *Driver) SetSpeed(ctx context.Context, normalizedSpeed float64) error {
 	if d.ctrl == nil {
 		return errNotConnected
 	}
-	return d.ctrl.SetSpeed(ctx, normalizedSpeed)
+	if err := d.ctrl.SetSpeed(ctx, normalizedSpeed); err != nil {
+		return fmt.Errorf("motor: %w", err)
+	}
+	return nil
 }
 
 // Close stops the drive, releases the RPWM/LPWM/R_EN/L_EN resources, and
@@ -164,7 +176,7 @@ func (d *Driver) Close() error {
 
 	if d.ctrl != nil {
 		if err := d.ctrl.Close(ctx); err != nil {
-			errs = append(errs, err)
+			errs = append(errs, fmt.Errorf("motor: %w", err))
 		}
 	}
 	if d.rpwm != nil {

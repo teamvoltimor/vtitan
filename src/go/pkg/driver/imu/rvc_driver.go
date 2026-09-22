@@ -10,6 +10,7 @@ import (
 	"go.bug.st/serial"
 
 	"github.com/teamvoltimor/vtitan/src/go/pkg/driver"
+	"github.com/teamvoltimor/vtitan/src/go/pkg/portable/bno085rvc"
 )
 
 // Config configures an RVCDriver's serial connection. Matches the fields
@@ -82,7 +83,10 @@ func (d *RVCDriver) Read(ctx context.Context) (Reading, error) {
 
 	resultCh := make(chan readResult, 1)
 	go func() {
-		reading, err := readFrame(d.reader)
+		reading, err := bno085rvc.ReadFrame(d.reader)
+		if err != nil {
+			err = fmt.Errorf("imu: %w", err)
+		}
 		resultCh <- readResult{reading: reading, err: err}
 	}()
 

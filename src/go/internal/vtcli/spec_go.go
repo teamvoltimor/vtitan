@@ -29,6 +29,11 @@ var goSpec = []Command{
 	},
 	{Path: []string{"go", "test"}, Task: "go:test", Short: "Run the Go module tests"},
 	{
+		Path:  []string{"go", "tinygo-check"},
+		Task:  "go:tinygo-check",
+		Short: "Build pkg/portable for the Pico 2 under TinyGo",
+	},
+	{
 		Path:  []string{"go", "test", "hw"},
 		Task:  "go:test:hw",
 		Short: "Cross-compile the hardware tests (linux/arm64)",

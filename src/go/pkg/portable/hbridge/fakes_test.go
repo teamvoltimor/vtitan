@@ -1,4 +1,4 @@
-package motor_test
+package hbridge_test
 
 import (
 	"context"
@@ -15,7 +15,7 @@ type callLog struct {
 	calls []string
 }
 
-// fakeDutyWriter is a fake dutyWriter (motor.Controller's rpwm/lpwm
+// fakeDutyWriter is a fake DutyWriter (hbridge.Controller's rpwm/lpwm
 // dependency) that records every write and the last duty it was set to, so
 // tests can assert on both order and end state without any real
 // /sys/class/pwm or GPIO access.
@@ -27,7 +27,7 @@ type fakeDutyWriter struct {
 	duty float64
 }
 
-// fakeEnableWriter is a fake enableWriter (motor.Controller's rEn/lEn
+// fakeEnableWriter is a fake EnableWriter (hbridge.Controller's rEn/lEn
 // dependency).
 type fakeEnableWriter struct {
 	name string

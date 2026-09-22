@@ -1,8 +1,9 @@
-package encoder
+package quadrature
 
 // Decoder is the pure A/B quadrature state machine: feed it successive
 // channel levels and it accumulates a signed count. It is deliberately
-// separate from the GPIO plumbing in quadrature.go so the decode logic is
+// separate from the GPIO plumbing (pkg/driver/encoder's quadrature.go on the
+// Pi Zero, pin interrupts on the Pico 2) so the decode logic is
 // testable on any platform, the same split button.Evaluator draws against
 // button.Driver.
 //

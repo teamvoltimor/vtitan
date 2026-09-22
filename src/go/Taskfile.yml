@@ -69,6 +69,11 @@ tasks:
     cmds:
       - go test ./...
 
+  go:tinygo-check:
+    desc: "Build every pkg/portable package (and any firmware/) for the Pico 2 and run their tests under TinyGo (ADR 0098)."
+    cmds:
+      - bash scripts/tinygo-check.sh
+
   go:todo:
     desc: "Print the open Go-migration markers, derived from the tree at run time (TODO/FIXME and unimplemented stubs)."
     # This task used to print a hand-written punch list dated 2026-09-04. By

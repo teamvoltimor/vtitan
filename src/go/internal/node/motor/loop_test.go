@@ -10,6 +10,7 @@ import (
 
 	"github.com/teamvoltimor/vtitan/src/go/internal/node/motor"
 	actuationv1 "github.com/teamvoltimor/vtitan/src/go/internal/schema/pb/vtitan/actuation/v1"
+	"github.com/teamvoltimor/vtitan/src/go/pkg/portable/actuation"
 )
 
 const speedTolerance = 1e-9
@@ -33,7 +34,7 @@ func TestSpeedToNormalized(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			got := motor.SpeedToNormalized(tt.in, motor.DefaultSpeedScalePercentPerMPS)
+			got := actuation.SpeedToNormalized(tt.in, actuation.DefaultSpeedScalePercentPerMPS)
 			if math.Abs(got-tt.want) > speedTolerance {
 				t.Errorf("SpeedToNormalized(%v) = %v, want %v", tt.in, got, tt.want)
 			}
@@ -44,7 +45,7 @@ func TestSpeedToNormalized(t *testing.T) {
 func TestSpeedToNormalized_CustomScale(t *testing.T) {
 	t.Parallel()
 
-	got := motor.SpeedToNormalized(2.0, 10.0)
+	got := actuation.SpeedToNormalized(2.0, 10.0)
 	want := 0.2
 	if math.Abs(got-want) > speedTolerance {
 		t.Errorf("SpeedToNormalized(2.0, 10.0) = %v, want %v", got, want)

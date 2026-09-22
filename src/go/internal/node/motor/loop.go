@@ -7,12 +7,12 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"math"
 	"time"
 
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	actuationv1 "github.com/teamvoltimor/vtitan/src/go/internal/schema/pb/vtitan/actuation/v1"
+	"github.com/teamvoltimor/vtitan/src/go/pkg/portable/actuation"
 )
 
 // SpeedSetter is the one driver call the loop makes; *motor.Driver
@@ -36,8 +36,8 @@ type CommandReader interface {
 
 // Loop holds the running control loop's state: the drivers/transport it was
 // wired to by NewLoop, plus the mutable state each Run iteration updates
-// (last-command time, currently-applied duty, whether the watchdog has
-// already safety-stopped).
+// (the currently-applied duty, and the watchdog, which holds the
+// last-command time and whether it has already safety-stopped).
 type Loop struct {
 	logger                  *slog.Logger
 	drv                     SpeedSetter
@@ -45,26 +45,12 @@ type Loop struct {
 	speedScalePercentPerMPS float64
 	steering                Steering
 
-	lastCmdAt   time.Time
+	watchdog    actuation.Watchdog
 	currentDuty float64
-	stopped     bool
 }
 
 // FrameID is the frame_id every MotorStatus this package publishes carries.
 const FrameID = "base_link"
-
-// DefaultSpeedScalePercentPerMPS converts a commanded AckermannCmd.speed
-// [m/s] into a motor duty percentage, matching motors.toml's
-// `drive.speed_scale` (motor_speed = velocity_m_s * scale) - see
-// src/config/hardware/motors/motors.toml. A caller with real
-// hardware-profile data should load motors.HardwareMotorsMotors instead
-// (internal/config/profile) and pass its Drive.SpeedScale to NewLoop; this
-// is the fallback for callers that don't.
-const DefaultSpeedScalePercentPerMPS = 30.0
-
-// MaxDutyPercent is motors.toml's `drive.max_speed`/`min_speed` magnitude:
-// motor duty percentage is clamped to [-100, 100].
-const MaxDutyPercent = 100.0
 
 // DefaultCommandTimeout is the motor loop's own deadline watchdog: how long
 // it will keep driving the last commanded speed after the most recent
@@ -81,15 +67,6 @@ const watchdogPollInterval = 50 * time.Millisecond
 // exitStopTimeout bounds the safety-stop Run performs on its way out. Run's
 // own ctx may already be done by then, so the stop drops its cancellation.
 const exitStopTimeout = 250 * time.Millisecond
-
-// SpeedToNormalized converts an AckermannCmd's speed [m/s] into the signed
-// duty fraction [-1, 1] motor.Actuator.SetSpeed expects, per
-// scalePercentPerMPS (see DefaultSpeedScalePercentPerMPS).
-func SpeedToNormalized(speedMPS float32, scalePercentPerMPS float64) float64 {
-	percent := float64(speedMPS) * scalePercentPerMPS
-	clamped := min(max(percent, -MaxDutyPercent), MaxDutyPercent)
-	return clamped / MaxDutyPercent
-}
 
 // StatusFor builds the MotorStatus to publish after applying a command or a
 // watchdog safety-stop.
@@ -116,8 +93,8 @@ func StatusFor(dutyFraction float64, commandAge time.Duration, setSpeedErr error
 
 // NewLoop builds a Loop over an already-connected drv and pub, converting
 // commanded speeds using speedScalePercentPerMPS (see
-// DefaultSpeedScalePercentPerMPS) and steering through steering (whose
-// servo, if any, is already connected and centered).
+// actuation.DefaultSpeedScalePercentPerMPS) and steering through steering
+// (whose servo, if any, is already connected and centered).
 func NewLoop(
 	logger *slog.Logger,
 	drv SpeedSetter,
@@ -131,8 +108,7 @@ func NewLoop(
 		pub:                     pub,
 		speedScalePercentPerMPS: speedScalePercentPerMPS,
 		steering:                steering,
-		lastCmdAt:               time.Now(),
-		stopped:                 true,
+		watchdog:                actuation.NewWatchdog(time.Now()),
 	}
 }
 
@@ -193,22 +169,20 @@ func (l *Loop) Run(
 //
 // A non-finite speed or steering angle rejects the whole command, which is
 // treated as missing: it does not refresh the watchdog, so a stream of them
-// stops the drive and centers the steering exactly as silence would. Acting
-// on it is not an option - +Inf clamps to full forward or full lock, and NaN
-// survives Go's min/max into the PWM layer. Half-applying it (the finite
-// field only) would act on a command its sender got wrong.
+// stops the drive and centers the steering exactly as silence would - see
+// actuation.FiniteCommand for why acting on it, or half-applying it, is not
+// an option.
 func (l *Loop) applyCommand(ctx context.Context, cmd *actuationv1.AckermannCmd) {
 	speed := float64(cmd.GetSpeed())
 	steer := float64(cmd.GetSteeringAngle())
-	if !finite(speed) || !finite(steer) {
+	if !actuation.FiniteCommand(speed, steer) {
 		l.logger.Warn("node/motor: rejecting non-finite command, treating as missing",
 			"speed", speed, "steering_angle", steer)
 		return
 	}
 
-	l.lastCmdAt = time.Now()
-	l.currentDuty = SpeedToNormalized(cmd.GetSpeed(), l.speedScalePercentPerMPS)
-	l.stopped = false
+	l.watchdog.Accept(time.Now())
+	l.currentDuty = actuation.SpeedToNormalized(cmd.GetSpeed(), l.speedScalePercentPerMPS)
 
 	steerErr := l.steer(cmd.GetSteeringAngle())
 	setErr := l.drv.SetSpeed(ctx, l.currentDuty)
@@ -226,7 +200,7 @@ func (l *Loop) steer(steeringAngleRad float32) error {
 	if l.steering.Servo == nil {
 		return nil
 	}
-	servoDeg, clamped := SteeringToServoDeg(steeringAngleRad, l.steering.Config)
+	servoDeg, clamped := actuation.SteeringToServoDeg(steeringAngleRad, l.steering.Config)
 	if clamped {
 		// Debug, not Python's per-command warning (ackermann_motor_node.py:562):
 		// full lock is routine in escapes, and at the command rate a warning
@@ -242,12 +216,13 @@ func (l *Loop) steer(steeringAngleRad float32) error {
 	return nil
 }
 
-// center commands the servo to SteeringCenterDeg; a no-op without a servo.
+// center commands the servo to actuation.SteeringCenterDeg; a no-op without
+// a servo.
 func (l *Loop) center(why string) {
 	if l.steering.Servo == nil {
 		return
 	}
-	if err := l.steering.Servo.SetAngle(SteeringCenterDeg); err != nil {
+	if err := l.steering.Servo.SetAngle(actuation.SteeringCenterDeg); err != nil {
 		l.logger.Error("node/motor: centering steering", "on", why, "error", err)
 	}
 }
@@ -255,18 +230,18 @@ func (l *Loop) center(why string) {
 // checkWatchdog safety-stops the drive and centers the steering if no
 // AckermannCmd has arrived within commandTimeout, and is a no-op otherwise
 // (including once it has already stopped for this staleness episode, so it
-// doesn't republish FAULT/IDLE status on every single poll tick).
+// doesn't republish FAULT/IDLE status on every single poll tick) - the
+// once-per-episode rule is actuation.Watchdog.Expire's.
 //
 // Centering follows go-future.md 2.5 contract row 1 ("steering to center,
 // drive to neutral"). Python's _watchdog_check only stops the drive
 // (ackermann_motor_node.py:770-790) and leaves the servo at its last angle.
 func (l *Loop) checkWatchdog(ctx context.Context, commandTimeout time.Duration) {
-	age := time.Since(l.lastCmdAt)
-	if age < commandTimeout || l.stopped {
+	age, expired := l.watchdog.Expire(time.Now(), commandTimeout)
+	if !expired {
 		return
 	}
 
-	l.stopped = true
 	l.currentDuty = 0
 	setErr := l.drv.SetSpeed(ctx, l.currentDuty)
 	if setErr != nil {
@@ -285,20 +260,16 @@ func (l *Loop) checkWatchdog(ctx context.Context, commandTimeout time.Duration) 
 // connection may be gone, and the next Run (if any) reports state from its
 // first command.
 func (l *Loop) stopOnExit(runCtx context.Context) {
-	if l.stopped {
+	if l.watchdog.Stopped() {
 		return
 	}
 	ctx, cancel := context.WithTimeout(context.WithoutCancel(runCtx), exitStopTimeout)
 	defer cancel()
 
-	l.stopped = true
+	l.watchdog.Stop()
 	l.currentDuty = 0
 	if err := l.drv.SetSpeed(ctx, l.currentDuty); err != nil {
 		l.logger.Error("node/motor: safety-stop on exit", "error", err)
 	}
 	l.center("exit")
-}
-
-func finite(v float64) bool {
-	return !math.IsNaN(v) && !math.IsInf(v, 0)
 }

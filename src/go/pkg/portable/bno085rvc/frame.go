@@ -1,7 +1,6 @@
-package imu
+package bno085rvc
 
 import (
-	"bufio"
 	"encoding/binary"
 	"errors"
 	"fmt"
@@ -16,6 +15,14 @@ import (
 type Reading struct {
 	Yaw, Pitch, Roll       float64
 	XAccel, YAccel, ZAccel float64
+}
+
+// ByteReader is what ReadFrame consumes: a byte-at-a-time source for the
+// sync scan and a bulk read for the body. *bufio.Reader satisfies it, as
+// does TinyGo's machine.UART.
+type ByteReader interface {
+	io.Reader
+	io.ByteReader
 }
 
 const (
@@ -43,24 +50,24 @@ var (
 	// ErrChecksumMismatch means a frame's checksum byte didn't match the
 	// sum of the preceding bytes — the frame is corrupt and must be
 	// discarded, not trusted.
-	ErrChecksumMismatch = errors.New("imu: RVC frame checksum mismatch")
+	ErrChecksumMismatch = errors.New("bno085rvc: RVC frame checksum mismatch")
 	// ErrShortFrame means fewer bytes were available than a full RVC frame
 	// requires (e.g. the serial stream ended mid-frame).
-	ErrShortFrame = errors.New("imu: RVC frame shorter than expected")
+	ErrShortFrame = errors.New("bno085rvc: RVC frame shorter than expected")
 )
 
-// readFrame scans r for the next valid RVC frame, resyncing on the 0xAA 0xAA
+// ReadFrame scans r for the next valid RVC frame, resyncing on the 0xAA 0xAA
 // sync bytes if the stream is misaligned. Unlike the reference Adafruit
 // implementation (which blindly reads 2 bytes at a time and can fail to
 // resync if the stream is ever off by one byte), this scans byte-by-byte
 // for the sync pattern — a deliberate robustness improvement, not a
 // behavioral drift in the decoded values themselves.
-func readFrame(r *bufio.Reader) (Reading, error) {
+func ReadFrame(r ByteReader) (Reading, error) {
 	var prev byte
 	for {
 		b, err := r.ReadByte()
 		if err != nil {
-			return Reading{}, fmt.Errorf("imu: reading sync bytes: %w", err)
+			return Reading{}, fmt.Errorf("bno085rvc: reading sync bytes: %w", err)
 		}
 		if prev == rvcSyncByte && b == rvcSyncByte {
 			break
@@ -70,7 +77,7 @@ func readFrame(r *bufio.Reader) (Reading, error) {
 
 	body := make([]byte, rvcFrameBodyLen)
 	if _, err := io.ReadFull(r, body); err != nil {
-		return Reading{}, fmt.Errorf("imu: reading frame body: %w", err)
+		return Reading{}, fmt.Errorf("bno085rvc: reading frame body: %w", err)
 	}
 	return parseRVCFrame(body)
 }

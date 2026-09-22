@@ -14,6 +14,7 @@ import (
 
 	"github.com/teamvoltimor/vtitan/src/go/internal/node/motor"
 	actuationv1 "github.com/teamvoltimor/vtitan/src/go/internal/schema/pb/vtitan/actuation/v1"
+	"github.com/teamvoltimor/vtitan/src/go/pkg/portable/actuation"
 )
 
 // These tests pin the actuator half of the failsafe contract (go-future.md
@@ -56,7 +57,7 @@ const failsafeSteerRad = 0.3
 
 // failsafeSteering is the 270deg-hiwonder-35kg geometry: 85 deg of wheel at
 // 135 deg of servo.
-var failsafeSteering = motor.SteeringConfig{LinkageRatio: 85.0 / 135.0, ServoMaxAngleDeg: 135}
+var failsafeSteering = actuation.SteeringConfig{LinkageRatio: 85.0 / 135.0, ServoMaxAngleDeg: 135}
 
 func (d *recordingDrive) SetSpeed(_ context.Context, duty float64) error {
 	d.mu.Lock()
@@ -132,7 +133,7 @@ func (s *recordingServo) waitForAngle(t *testing.T, want float64, why string) {
 
 // steeredDeg is the servo angle failsafeSteerRad converts to.
 func steeredDeg() float64 {
-	deg, _ := motor.SteeringToServoDeg(failsafeSteerRad, failsafeSteering)
+	deg, _ := actuation.SteeringToServoDeg(failsafeSteerRad, failsafeSteering)
 	return deg
 }
 
@@ -152,7 +153,7 @@ func (r *chanReader) Read(ctx context.Context) (*actuationv1.AckermannCmd, error
 
 func newFailsafeLoop(drv *recordingDrive, servo *recordingServo) *motor.Loop {
 	logger := slog.New(slog.DiscardHandler)
-	return motor.NewLoop(logger, drv, discardStatus{}, motor.DefaultSpeedScalePercentPerMPS,
+	return motor.NewLoop(logger, drv, discardStatus{}, actuation.DefaultSpeedScalePercentPerMPS,
 		motor.Steering{Servo: servo, Config: failsafeSteering})
 }
 
@@ -176,7 +177,7 @@ func TestFailsafe_SilenceStopsTheDrive(t *testing.T) {
 	done := runLoop(ctx, newFailsafeLoop(drv, &recordingServo{}), reader)
 
 	reader.cmds <- &actuationv1.AckermannCmd{Speed: 1.0}
-	drv.waitForDuty(t, motor.SpeedToNormalized(1.0, motor.DefaultSpeedScalePercentPerMPS), "command applied")
+	drv.waitForDuty(t, actuation.SpeedToNormalized(1.0, actuation.DefaultSpeedScalePercentPerMPS), "command applied")
 
 	drv.waitForDuty(t, 0, "silence past the timeout")
 
@@ -201,7 +202,11 @@ func TestFailsafe_NonFiniteSpeedIsTreatedAsMissing(t *testing.T) {
 		done := runLoop(ctx, newFailsafeLoop(drv, &recordingServo{}), reader)
 
 		reader.cmds <- &actuationv1.AckermannCmd{Speed: 0.5}
-		drv.waitForDuty(t, motor.SpeedToNormalized(0.5, motor.DefaultSpeedScalePercentPerMPS), "command applied")
+		drv.waitForDuty(
+			t,
+			actuation.SpeedToNormalized(0.5, actuation.DefaultSpeedScalePercentPerMPS),
+			"command applied",
+		)
 
 		deadline := time.Now().Add(3 * failsafeTimeout)
 		for time.Now().Before(deadline) {
@@ -242,7 +247,7 @@ func TestFailsafe_RunErrorStopsTheDriveBeforeReturning(t *testing.T) {
 	go func() { done <- l.Run(ctx, reader, time.Hour) }()
 
 	reader.cmds <- &actuationv1.AckermannCmd{Speed: 1.0}
-	drv.waitForDuty(t, motor.SpeedToNormalized(1.0, motor.DefaultSpeedScalePercentPerMPS), "command applied")
+	drv.waitForDuty(t, actuation.SpeedToNormalized(1.0, actuation.DefaultSpeedScalePercentPerMPS), "command applied")
 
 	close(reader.cmds)
 	select {
@@ -273,9 +278,9 @@ func TestFailsafe_SilenceCentersTheSteering(t *testing.T) {
 	reader.cmds <- &actuationv1.AckermannCmd{Speed: 1.0, SteeringAngle: failsafeSteerRad}
 	servo.waitForAngle(t, steeredDeg(), "command applied")
 
-	servo.waitForAngle(t, motor.SteeringCenterDeg, "silence past the timeout")
+	servo.waitForAngle(t, actuation.SteeringCenterDeg, "silence past the timeout")
 	time.Sleep(3 * failsafeTimeout)
-	if got, _ := servo.last(); got != motor.SteeringCenterDeg {
+	if got, _ := servo.last(); got != actuation.SteeringCenterDeg {
 		t.Fatalf("steering left center on its own: %v", got)
 	}
 
@@ -308,14 +313,14 @@ func TestFailsafe_NonFiniteSteeringIsTreatedAsMissing(t *testing.T) {
 			reader.cmds <- &actuationv1.AckermannCmd{Speed: 0.5, SteeringAngle: angle}
 			time.Sleep(failsafeTimeout / 4)
 		}
-		if got, _ := servo.last(); got != motor.SteeringCenterDeg {
+		if got, _ := servo.last(); got != actuation.SteeringCenterDeg {
 			t.Errorf("steering %v: last servo angle %v after a stream of them, want center", angle, got)
 		}
 		if got, _ := drv.last(); got != 0 {
 			t.Errorf("steering %v: last duty %v, want 0: the finite speed was acted on", angle, got)
 		}
 		for _, deg := range servo.all() {
-			if deg != steeredDeg() && deg != motor.SteeringCenterDeg {
+			if deg != steeredDeg() && deg != actuation.SteeringCenterDeg {
 				t.Errorf("steering %v: the servo was handed %v", angle, deg)
 			}
 		}
@@ -354,7 +359,7 @@ func TestFailsafe_RunErrorCentersTheSteeringBeforeReturning(t *testing.T) {
 	case <-time.After(failsafeWait):
 		t.Fatal("Run did not return after its reader failed")
 	}
-	if got, _ := servo.last(); got != motor.SteeringCenterDeg {
+	if got, _ := servo.last(); got != actuation.SteeringCenterDeg {
 		t.Fatalf("Run returned with the servo at %v, want center", got)
 	}
 }

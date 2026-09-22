@@ -1,4 +1,4 @@
-package encoder
+package quadrature
 
 import (
 	"errors"
@@ -10,8 +10,8 @@ import (
 // accumulate-a-window-then-smooth shape; see DefaultMinWindowS for why the
 // window exists at all.
 //
-// Not safe for concurrent use -- Quadrature owns one and serializes access
-// under its own mutex.
+// Not safe for concurrent use -- encoder.Quadrature owns one and serializes
+// access under its own mutex.
 type SpeedEstimator struct {
 	countsPerRev float64
 	smoothing    float64
@@ -57,16 +57,16 @@ const DefaultSmoothing = 0.3
 // change. See adr:0076-drivetrain-and-steering-hardware.
 const DefaultMinWindowS = 0.1
 
-// errCountsPerRevPositive mirrors control.py's _CPR_POSITIVE guard: every
+// ErrCountsPerRevPositive mirrors control.py's _CPR_POSITIVE guard: every
 // conversion divides by counts_per_rev, so a zero or negative value is a
 // configuration error rather than something to clamp silently.
-var errCountsPerRevPositive = errors.New("encoder: counts_per_rev must be positive")
+var ErrCountsPerRevPositive = errors.New("quadrature: counts_per_rev must be positive")
 
 // CountsToRevolutions returns output-shaft revolutions for a raw quadrature
 // count. Errors when countsPerRev is not positive.
 func CountsToRevolutions(counts int64, countsPerRev float64) (float64, error) {
 	if countsPerRev <= 0 {
-		return 0, errCountsPerRevPositive
+		return 0, ErrCountsPerRevPositive
 	}
 	return float64(counts) / countsPerRev, nil
 }
@@ -101,13 +101,13 @@ func NewSpeedEstimator(countsPerRev float64) (*SpeedEstimator, error) {
 // window, for callers tuning against a different operating point.
 func NewSpeedEstimatorWith(p SpeedEstimatorParams) (*SpeedEstimator, error) {
 	if p.CountsPerRev <= 0 {
-		return nil, errCountsPerRevPositive
+		return nil, ErrCountsPerRevPositive
 	}
 	if p.Smoothing <= 0 || p.Smoothing > 1 {
-		return nil, errors.New("encoder: smoothing must be in (0, 1]")
+		return nil, errors.New("quadrature: smoothing must be in (0, 1]")
 	}
 	if p.MinWindowS < 0 {
-		return nil, errors.New("encoder: min_window_s must be >= 0")
+		return nil, errors.New("quadrature: min_window_s must be >= 0")
 	}
 	return &SpeedEstimator{
 		countsPerRev: p.CountsPerRev,

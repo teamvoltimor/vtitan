@@ -169,6 +169,43 @@ linters:
           deny:
             - pkg: "github.com/teamvoltimor/vtitan/src/go/internal"
               desc: "pkg/ is importable outside this module; internal/ is not, so this dependency cannot be honoured by any consumer"
+        # pkg/portable/** is shared by the Linux drivers and the Pico 2
+        # firmware, so it must compile under TinyGo (ADR 0098). The rule
+        # denies what TinyGo cannot build or a microcontroller cannot host;
+        # the CI tinygo job is the other half, building every package for
+        # the pico2 target. Tests are exempt: they run on the host.
+        portable-must-build-on-tinygo:
+          files:
+            # Both forms, as in the rule above: the "**/" glob alone does not
+            # match a relative path like pkg/portable/x.go.
+            - "pkg/portable/**"
+            - "**/pkg/portable/**"
+            - "!$test"
+          deny:
+            - pkg: "os"
+              desc: "no filesystem or process on a microcontroller"
+            - pkg: "syscall"
+              desc: "no syscalls on a microcontroller"
+            - pkg: "net"
+              desc: "the Pico link is framed serial, not sockets"
+            - pkg: "reflect"
+              desc: "TinyGo's reflect is partial; keep portable code reflection-free"
+            - pkg: "unsafe"
+              desc: "portable code must not depend on memory layout"
+            - pkg: "log/slog"
+              desc: "return errors; logging belongs to the platform backend"
+            - pkg: "github.com/warthog618/go-gpiocdev"
+              desc: "Linux GPIO belongs in the pkg/driver backend"
+            - pkg: "go.bug.st/serial"
+              desc: "serial ports belong in the pkg/driver backend"
+            - pkg: "periph.io"
+              desc: "Linux peripherals belong in the pkg/driver backend"
+            - pkg: "github.com/nats-io"
+              desc: "transport belongs above the board, not in shared cores"
+            - pkg: "google.golang.org/protobuf"
+              desc: "protobuf-go needs reflection; the Pico link has its own framing"
+            - pkg: "github.com/teamvoltimor/vtitan/src/go/internal"
+              desc: "pkg/ may not import internal/ (ADR 0094)"
 
     govet:
       enable:

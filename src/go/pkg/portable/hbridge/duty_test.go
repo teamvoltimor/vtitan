@@ -1,6 +1,6 @@
-package motor
+package hbridge
 
-// White-box (package motor, not motor_test): splitDuty/clampDuty are
+// White-box (package hbridge, not hbridge_test): splitDuty/clampDuty are
 // unexported pure functions — this is the actual boundary the Fast-Brake
 // invariant lives at, deliberately tested directly rather than only through
 // Controller.

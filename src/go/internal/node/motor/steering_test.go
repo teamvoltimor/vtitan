@@ -4,7 +4,7 @@ import (
 	"math"
 	"testing"
 
-	"github.com/teamvoltimor/vtitan/src/go/internal/node/motor"
+	"github.com/teamvoltimor/vtitan/src/go/pkg/portable/actuation"
 )
 
 const servoDegTolerance = 1e-4
@@ -14,13 +14,13 @@ const servoDegTolerance = 1e-4
 func TestSteeringToServoDeg(t *testing.T) {
 	t.Parallel()
 
-	hiwonder := motor.SteeringConfig{LinkageRatio: 85.0 / 135.0, ServoMaxAngleDeg: 135}
+	hiwonder := actuation.SteeringConfig{LinkageRatio: 85.0 / 135.0, ServoMaxAngleDeg: 135}
 	trimmed := hiwonder
 	trimmed.OffsetDeg = 2
 
 	tests := []struct {
 		name        string
-		cfg         motor.SteeringConfig
+		cfg         actuation.SteeringConfig
 		rad         float32
 		want        float64
 		wantClamped bool
@@ -39,7 +39,7 @@ func TestSteeringToServoDeg(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			got, clamped := motor.SteeringToServoDeg(tt.rad, tt.cfg)
+			got, clamped := actuation.SteeringToServoDeg(tt.rad, tt.cfg)
 			if math.Abs(got-tt.want) > servoDegTolerance {
 				t.Errorf("SteeringToServoDeg(%v) = %v, want %v", tt.rad, got, tt.want)
 			}
@@ -53,11 +53,11 @@ func TestSteeringToServoDeg(t *testing.T) {
 func TestSteeringConfig_Validate(t *testing.T) {
 	t.Parallel()
 
-	good := motor.SteeringConfig{LinkageRatio: 85.0 / 135.0, ServoMaxAngleDeg: 135}
+	good := actuation.SteeringConfig{LinkageRatio: 85.0 / 135.0, ServoMaxAngleDeg: 135}
 	if err := good.Validate(); err != nil {
 		t.Fatalf("Validate(%+v) = %v", good, err)
 	}
-	for name, cfg := range map[string]motor.SteeringConfig{
+	for name, cfg := range map[string]actuation.SteeringConfig{
 		"zero linkage (no profile)": {ServoMaxAngleDeg: 135},
 		"NaN linkage (0/0)":         {LinkageRatio: math.NaN(), ServoMaxAngleDeg: 135},
 		"zero travel":               {LinkageRatio: 1},

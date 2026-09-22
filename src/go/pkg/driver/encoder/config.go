@@ -16,7 +16,7 @@ type Config struct {
 	PinA int
 	PinB int
 	// CountsPerRev is bench-calibrated for the specific motor, from
-	// encoder.toml's active motor profile overlay. See Decoder.CountsPerEdge
+	// encoder.toml's active motor profile overlay. See quadrature.CountsPerEdge
 	// for why it must be re-measured against THIS decoder.
 	CountsPerRev float64
 	// WheelDiameterM derives from robot.toml's wheel radius, matching
@@ -34,6 +34,11 @@ type Config struct {
 // driver's own chip. There are deliberately no default pins, CountsPerRev
 // or WheelDiameterM -- see Config.
 const DefaultGPIOChip = "gpiochip0"
+
+// errCountsPerRevPositive mirrors control.py's _CPR_POSITIVE guard for the
+// wiring config; quadrature.ErrCountsPerRevPositive is the same rule inside
+// the conversions themselves.
+var errCountsPerRevPositive = errors.New("encoder: counts_per_rev must be positive")
 
 // Validate rejects a Config that cannot produce meaningful odometry.
 func (c Config) Validate() error {

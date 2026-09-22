@@ -10,6 +10,8 @@ import (
 	"time"
 
 	"github.com/warthog618/go-gpiocdev"
+
+	"github.com/teamvoltimor/vtitan/src/go/pkg/portable/quadrature"
 )
 
 // gpioLineHigh is the raw line-value integer go-gpiocdev's Values returns
@@ -39,7 +41,7 @@ const (
 //
 // Python gets this from gpiozero's RotaryEncoder, whose own counting is
 // likewise edge-driven; what is NOT inherited is gpiozero's counts-per-cycle
-// convention -- see Decoder.CountsPerEdge before trusting DistanceM on
+// convention -- see quadrature.CountsPerEdge before trusting DistanceM on
 // hardware.
 //
 // Safe for concurrent use: the event handler runs on go-gpiocdev's own
@@ -49,8 +51,8 @@ type Quadrature struct {
 	lines *gpiocdev.Lines
 
 	mu        sync.Mutex
-	decoder   Decoder
-	estimator *SpeedEstimator
+	decoder   quadrature.Decoder
+	estimator *quadrature.SpeedEstimator
 	// levels caches each channel's last known level, indexed by the same
 	// order as Config.PinA/PinB. An edge event reports only the line that
 	// changed, and quadrature decoding needs both.
@@ -64,9 +66,9 @@ func New(cfg Config) (*Quadrature, error) {
 	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}
-	estimator, err := NewSpeedEstimator(cfg.CountsPerRev)
+	estimator, err := quadrature.NewSpeedEstimator(cfg.CountsPerRev)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("encoder: %w", err)
 	}
 	return &Quadrature{cfg: cfg, estimator: estimator}, nil
 }
@@ -76,9 +78,9 @@ func New(cfg Config) (*Quadrature, error) {
 //
 // The initial read matters: without it the first edge would be decoded
 // against a zeroed reference state and could fabricate a count in the wrong
-// direction. Decoder.Sample tolerates that by design (its first call only
-// establishes state), and seeding here means that throwaway sample is spent
-// at startup rather than on the first real motion.
+// direction. quadrature.Decoder.Sample tolerates that by design (its first
+// call only establishes state), and seeding here means that throwaway
+// sample is spent at startup rather than on the first real motion.
 func (q *Quadrature) Connect(_ context.Context) error {
 	lines, err := gpiocdev.RequestLines(
 		q.cfg.GPIOChip,
@@ -153,7 +155,7 @@ func (q *Quadrature) countsLocked() int64 {
 // RPM samples the counter and returns the smoothed output-shaft RPM,
 // measuring its own interval since the previous RPM call (bounded by
 // minDTS/maxDTS). Returns the held value until a full estimator window has
-// accumulated -- see DefaultMinWindowS.
+// accumulated -- see quadrature.DefaultMinWindowS.
 func (q *Quadrature) RPM() (float64, error) {
 	q.mu.Lock()
 	defer q.mu.Unlock()
@@ -190,15 +192,15 @@ func (q *Quadrature) Odometry() (Odometry, error) {
 	}
 
 	counts := q.countsLocked()
-	revolutions, err := CountsToRevolutions(counts, q.cfg.CountsPerRev)
+	revolutions, err := quadrature.CountsToRevolutions(counts, q.cfg.CountsPerRev)
 	if err != nil {
-		return Odometry{}, err
+		return Odometry{}, fmt.Errorf("encoder: %w", err)
 	}
 	return Odometry{
 		Counts:      counts,
 		Revolutions: revolutions,
 		RPM:         q.estimator.RPM(),
-		DistanceM:   RevolutionsToDistance(revolutions, q.cfg.WheelDiameterM),
+		DistanceM:   quadrature.RevolutionsToDistance(revolutions, q.cfg.WheelDiameterM),
 	}, nil
 }
 

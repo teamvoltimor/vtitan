@@ -9,6 +9,7 @@ import (
 	"github.com/go-playground/validator/v10"
 
 	"github.com/teamvoltimor/vtitan/src/go/pkg/driver/internal/sysfspwm"
+	"github.com/teamvoltimor/vtitan/src/go/pkg/portable/servo"
 )
 
 // Config is the servo's wiring and pulse calibration. Every field except
@@ -69,12 +70,6 @@ const (
 	// steering offset trim is NOT applied, as in Python's center_steering.
 	CenterDeg = 0.0
 
-	// pulseEpsilonUS is the smallest pulse change worth writing
-	// (servo/driver.py:63 _PULSE_EPSILON_US). A controller holding a
-	// heading resends the same angle every tick; 1 us is well under a hobby
-	// servo's own 2-10 us deadband, so this cannot swallow a real move.
-	pulseEpsilonUS = 1.0
-
 	// nsPerUS converts the pulse width to the duty_cycle attribute's unit.
 	nsPerUS = 1000
 )
@@ -133,7 +128,7 @@ func (d *Driver) SetAngle(angleDeg float64) error {
 	}
 
 	pulseUS := PulseUS(d.cfg, angleDeg)
-	if !d.hasPulse || math.Abs(pulseUS-d.pulseUS) >= pulseEpsilonUS {
+	if servo.NeedsWrite(d.pulseUS, d.hasPulse, pulseUS) {
 		// int(pulse_us * NS_PER_US): truncation toward zero, as Python's int().
 		if err := d.ch.WriteDutyNS(int64(pulseUS * nsPerUS)); err != nil {
 			return fmt.Errorf("servo: PWM duty_cycle write failed: %w", err)
@@ -183,16 +178,23 @@ func (d *Driver) connectChannel(ch channel) error {
 	return d.Center()
 }
 
+// Pulse is the pulse-calibration half of c, the part
+// pkg/portable/servo maps angles with.
+func (c Config) Pulse() servo.Pulse {
+	return servo.Pulse{
+		MinPulseUS:    c.MinPulseUS,
+		MaxPulseUS:    c.MaxPulseUS,
+		CenterPulseUS: c.CenterPulseUS,
+		RangeDeg:      c.RangeDeg,
+		Reversed:      c.Reversed,
+	}
+}
+
 // PulseUS maps a servo angle (deg, 0 = center) to a pulse width in
 // microseconds: center + (angle / range) * (max - min), sign flipped when
 // Reversed, clamped to [min, max]. servo/driver.py:149-155
-// _position_to_pulse_us. The caller keeps angleDeg finite.
+// _position_to_pulse_us. The caller keeps angleDeg finite. It delegates to
+// pkg/portable/servo, which the Pico 2 firmware shares.
 func PulseUS(cfg Config, angleDeg float64) float64 {
-	signed := angleDeg
-	if cfg.Reversed {
-		signed = -angleDeg
-	}
-	spanUS := cfg.MaxPulseUS - cfg.MinPulseUS
-	pulseUS := cfg.CenterPulseUS + (signed/cfg.RangeDeg)*spanUS
-	return max(cfg.MinPulseUS, min(cfg.MaxPulseUS, pulseUS))
+	return servo.PulseUS(cfg.Pulse(), angleDeg)
 }

@@ -87,6 +87,31 @@ jobs:
           working-directory: src/go
           args: --new-from-rev=a28a0cf63fef10231a0c6b2b9abc72f61894673b
 
+  # pkg/portable is shared with the Pico 2 firmware, so it must build under
+  # TinyGo (ADR 0098). The depguard rule catches forbidden imports; this job
+  # catches everything else TinyGo cannot compile, per package, for the real
+  # target. Versions match mise.toml.
+  robot-go-tinygo:
+    name: Robot Go - TinyGo build of pkg/portable (pico2)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: src/go
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: src/go/go.mod
+          cache-dependency-path: src/go/go.sum
+
+      - uses: acifani/setup-tinygo@v2
+        with:
+          tinygo-version: "0.42.0"
+
+      - name: TinyGo check
+        run: bash scripts/tinygo-check.sh
+
   robot-go-proto:
     name: Robot Go - buf lint + breaking (proto)
     runs-on: ubuntu-latest

@@ -1,7 +1,9 @@
 // Package encoder provides the quadrature-encoder driver bolted to the
-// drive motor shaft, plus the pure count->distance/RPM primitives both the
-// real driver and its tests are built on. It ports
-// src/python/src/hardware/motors/encoder/{driver,control}.py.
+// drive motor shaft. It ports
+// src/python/src/hardware/motors/encoder/{driver,control}.py; the pure
+// count->distance/RPM primitives the driver is built on (the decoder, the
+// speed estimator, Odometry) live in pkg/portable/quadrature, shared with
+// the Pico 2 firmware.
 //
 // The encoder is a plain sensor, independent of whichever H-bridge is
 // turning the shaft it reads -- the same separation Python's base.py

@@ -39,7 +39,7 @@
 // the navigator holds (publishes zero drive) rather than run the exit
 // blind, exactly as the Python node does when its gateway returns None.
 //
-// CAUTION: encoder.Decoder counts every quadrature edge, while
+// CAUTION: quadrature.Decoder counts every quadrature edge, while
 // counts_per_rev was bench-calibrated against gpiozero's RotaryEncoder. If
 // the two conventions differ, travelledM is off by that exact ratio and
 // every exit leg is correspondingly short or long. Re-run

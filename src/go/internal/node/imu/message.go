@@ -4,7 +4,7 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	sensorv1 "github.com/teamvoltimor/vtitan/src/go/internal/schema/pb/vtitan/sensor/v1"
-	"github.com/teamvoltimor/vtitan/src/go/pkg/driver/imu"
+	"github.com/teamvoltimor/vtitan/src/go/pkg/portable/bno085rvc"
 )
 
 // FrameID is this sensor's TF frame, matching
@@ -34,8 +34,8 @@ func vec3(x, y, z float64) *sensorv1.Vector3 {
 }
 
 // MessageFor builds the Imu message to publish for one decoded RVC reading.
-func MessageFor(reading imu.Reading) *sensorv1.Imu {
-	q := imu.QuaternionFromEuler(reading.Yaw, reading.Pitch, reading.Roll)
+func MessageFor(reading bno085rvc.Reading) *sensorv1.Imu {
+	q := bno085rvc.QuaternionFromEuler(reading.Yaw, reading.Pitch, reading.Roll)
 
 	return &sensorv1.Imu{
 		Stamp:   timestamppb.Now(),

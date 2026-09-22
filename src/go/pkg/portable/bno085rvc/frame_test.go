@@ -1,9 +1,9 @@
-package imu
+package bno085rvc
 
-// White-box (package imu, not imu_test): these tests exercise readFrame and
-// parseRVCFrame directly by their unexported names, deliberately — exporting
-// them solely so a black-box test could reach them would be worse than
-// testing the real internal parsing boundary directly.
+// White-box (package bno085rvc, not bno085rvc_test): these tests exercise
+// ReadFrame alongside the unexported scale constants, deliberately:
+// exporting those solely so a black-box test could reach them would be worse
+// than testing the real internal parsing boundary directly.
 
 import (
 	"bufio"
@@ -31,9 +31,9 @@ func TestReadFrame_AdafruitExample(t *testing.T) {
 	t.Parallel()
 
 	r := bufio.NewReader(bytes.NewReader(adafruitExampleFrame))
-	got, err := readFrame(r)
+	got, err := ReadFrame(r)
 	if err != nil {
-		t.Fatalf("readFrame() error = %v, want nil", err)
+		t.Fatalf("ReadFrame() error = %v, want nil", err)
 	}
 
 	// index=0xDE, yaw raw=0x0001=1 -> 0.01 deg, pitch raw=0xFF92=-110 ->
@@ -51,7 +51,7 @@ func TestReadFrame_AdafruitExample(t *testing.T) {
 	}
 
 	if !closeReading(got, want, readingTolerance) {
-		t.Errorf("readFrame() = %+v, want %+v", got, want)
+		t.Errorf("ReadFrame() = %+v, want %+v", got, want)
 	}
 }
 
@@ -61,8 +61,8 @@ func TestReadFrame_ResyncsOnLeadingGarbage(t *testing.T) {
 	garbage := append([]byte{0x00, 0xFF, 0xAA, 0x00}, adafruitExampleFrame...)
 	r := bufio.NewReader(bytes.NewReader(garbage))
 
-	if _, err := readFrame(r); err != nil {
-		t.Fatalf("readFrame() with leading garbage error = %v, want nil", err)
+	if _, err := ReadFrame(r); err != nil {
+		t.Fatalf("ReadFrame() with leading garbage error = %v, want nil", err)
 	}
 }
 
@@ -74,8 +74,8 @@ func TestReadFrame_ChecksumMismatch(t *testing.T) {
 	corrupt[len(corrupt)-1] ^= 0xFF // flip the checksum byte
 
 	r := bufio.NewReader(bytes.NewReader(corrupt))
-	if _, err := readFrame(r); err == nil {
-		t.Fatal("readFrame() with corrupted checksum: got nil error, want ErrChecksumMismatch")
+	if _, err := ReadFrame(r); err == nil {
+		t.Fatal("ReadFrame() with corrupted checksum: got nil error, want ErrChecksumMismatch")
 	}
 }
 
@@ -85,8 +85,8 @@ func TestReadFrame_TruncatedStreamDoesNotHang(t *testing.T) {
 	truncated := adafruitExampleFrame[:10]
 	r := bufio.NewReader(bytes.NewReader(truncated))
 
-	if _, err := readFrame(r); err == nil {
-		t.Fatal("readFrame() on truncated stream: got nil error, want an error")
+	if _, err := ReadFrame(r); err == nil {
+		t.Fatal("ReadFrame() on truncated stream: got nil error, want an error")
 	}
 }
 
@@ -103,7 +103,7 @@ func FuzzReadFrame(f *testing.F) {
 
 	f.Fuzz(func(t *testing.T, data []byte) {
 		r := bufio.NewReader(bytes.NewReader(data))
-		_, _ = readFrame(r) // must not panic; error is fine
+		_, _ = ReadFrame(r) // must not panic; error is fine
 	})
 }
 
