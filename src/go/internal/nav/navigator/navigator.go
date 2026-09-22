@@ -89,18 +89,15 @@ type Params struct {
 	// case handleFinish holds position once NumLaps is reached, matching
 	// _handle_finish's `pc is None` branch.
 	ParkController *parking.ParkController
-	// LapDetector supplies the ApproachingFinish geometric test the speed
-	// ladder uses to slow for the finish section on the last lap, matching
-	// CoreNavigator's `self._lap_detector`. Nil is the common case (no
-	// caller-supplied detector, e.g. blind runs where the start pose/
-	// section/direction triple ApproachingFinish needs is not yet resolved
-	// at construction time): the finish-approach speed cap in selectSpeed
-	// then simply never fires, exactly as Python's own
-	// `self._lap_detector is not None` guard reads for a caller that never
-	// built one. Deliberately used for ApproachingFinish ONLY -- Update and
-	// NotifyWaypointWrapped are never called, so lap COUNTING stays the
-	// waypoint-wrap fallback described above; wiring those two would
-	// resurrect the geometric lap-confirmation doc.go says is out of scope.
+	// LapDetector supplies both the ApproachingFinish geometric test the
+	// speed ladder uses to slow for the finish section on the last lap, and
+	// the geometric lap-counting confirmation, matching CoreNavigator's
+	// `self._lap_detector`. Nil keeps the waypoint-only fallback (a wrap
+	// counts the lap directly); with one, a wrap only arms the detector and
+	// the lap lands when the robot crosses the start/finish line, as in
+	// Python. A blind round has no start pose/section/direction triple at
+	// construction time, so it builds one when the direction settles (see
+	// SetLapDetector).
 	LapDetector *racetracker.LapDetector
 	// CorridorFollowerConfig tunes the BLIND_CREEP corridor follower.
 	// Nil takes corridorfollower.DefaultConfig(). These four blind-phase
@@ -561,6 +558,7 @@ func (n *Navigator) Step() {
 	if n.handleWaypointWrap(pose) {
 		return
 	}
+	n.confirmGeometricLap(pose)
 
 	// Re-plan the path onto its pass-side lanes if the routed sign layout
 	// has changed since the last rebuild. Deliberately at the top of the
@@ -623,6 +621,13 @@ func (n *Navigator) ApplyBelievedStart(measured, pose trackmodel.Pose) {
 	if math.Abs(offset) > yawOffsetEpsilonRad {
 		n.gateway.CorrectHeadingForDirectionChange(offset)
 	}
+}
+
+// SetLapDetector installs or replaces the geometric lap detector, for a
+// round whose start pose/section/direction only resolve after construction
+// (the blind bootstrap). Matches Python's replace_lap_detector.
+func (n *Navigator) SetLapDetector(det *racetracker.LapDetector) {
+	n.lapDetector = det
 }
 
 // BelievedCreepWidthM is the mean of the creep-phase width readings, and

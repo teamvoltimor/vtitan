@@ -48,7 +48,7 @@ func TestNewBlindLayout(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(testWriter{t}, nil))
 	base := waypoints.PlannerInput{MaxCoordM: 3.0, ChassisWidthM: 0.194}
 
-	path, geometry, layout, err := newBlindLayout(
+	path, geometry, layout, _, err := newBlindLayout(
 		logger,
 		base,
 		trackmodel.Clockwise,
@@ -79,7 +79,7 @@ func TestNewBlindLayout_Obstacles(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(testWriter{t}, nil))
 	base := waypoints.PlannerInput{MaxCoordM: 3.0, ChassisWidthM: 0.194}
 
-	path, geometry, layout, err := newBlindLayout(
+	path, geometry, layout, _, err := newBlindLayout(
 		logger,
 		base,
 		trackmodel.Clockwise,

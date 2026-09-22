@@ -171,6 +171,14 @@ func (n *Navigator) adoptDirection(
 				trackmodel.Pose{X: measured.X, Y: measured.Y, Yaw: startYaw},
 				pose,
 			)
+			// The start pose, section and direction a LapDetector needs are
+			// now known: install one so lap counting is geometrically confirmed
+			// from here on, matching Python's replace_lap_detector call.
+			if det, detErr := racetracker.NewLapDetector(
+				trackmodel.Waypoint{X: measured.X, Y: measured.Y}, trackmodel.South, dir,
+			); detErr == nil {
+				n.SetLapDetector(det)
+			}
 		}
 	}
 	// Resync the path to where the chassis actually is, UNCONDITIONALLY --

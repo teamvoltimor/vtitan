@@ -239,14 +239,13 @@ func (n *Navigator) shouldEngageParking(pose trackmodel.Pose) bool {
 	return math.Hypot(staging.X-pose.X, staging.Y-pose.Y) < n.cfg.ParkEngageDistM
 }
 
-// handleWaypointWrap detects the index running off the end of the lap and
-// counts the lap, matching step()'s waypoint-wrap branch. Returns true when
-// the tick is finished.
+// handleWaypointWrap detects the index running off the end of the lap,
+// matching step()'s waypoint-wrap branch. Returns true when the tick is
+// finished.
 //
-// This is the ONLY lap-counting mechanism in this port. Python prefers a
-// LapDetector's geometric confirmation and falls back to counting wraps
-// directly; LapDetector has no Go equivalent (see doc.go), so the fallback
-// branch is always the one taken.
+// With a LapDetector, the wrap only ARMS the geometric confirmation (see
+// confirmGeometricLap) and the tick continues, matching Python; without
+// one, the wrap counts the lap directly (the waypoint-only fallback).
 func (n *Navigator) handleWaypointWrap(pose trackmodel.Pose) bool {
 	if n.waypointIndex < len(n.waypoints) {
 		return false
@@ -259,18 +258,45 @@ func (n *Navigator) handleWaypointWrap(pose trackmodel.Pose) bool {
 		return false
 	}
 
-	n.lapsCompleted++
+	if n.lapDetector != nil {
+		n.lapDetector.NotifyWaypointWrapped()
+		return false
+	}
+
+	n.countLap()
 	n.logger.Info("lap complete (waypoint-only fallback)", "laps_completed", n.lapsCompleted)
+	debug := n.baseDebug(pose)
+	debug.Phase = PhaseWaypointWrapFallback
+	n.debug = debug
+	return true
+}
+
+// confirmGeometricLap counts a lap when the LapDetector reports a geometric
+// start/finish crossing that a waypoint wrap has armed, matching step()'s
+// geometric branch. Without a LapDetector this is never reached:
+// handleWaypointWrap counts the wrap directly.
+func (n *Navigator) confirmGeometricLap(pose trackmodel.Pose) {
+	if n.lapDetector == nil || n.currentCorridor == nil {
+		return
+	}
+	if !n.lapDetector.Update(trackmodel.Waypoint{X: pose.X, Y: pose.Y}, *n.currentCorridor) {
+		return
+	}
+	n.countLap()
+	n.logger.Info("lap complete (geometric + waypoint confirmed)", "laps_completed", n.lapsCompleted)
+}
+
+// countLap records a completed lap and resets the per-lap state, shared by
+// the waypoint-only fallback and the geometric confirmation. The caller logs
+// which branch it was (sloglint wants a literal message at the call site).
+func (n *Navigator) countLap() {
+	n.lapsCompleted++
 	if n.signRouter != nil {
 		n.signRouter.ResetForNewLap()
 	}
 	if n.discovery != nil {
 		n.discovery.ResetForNewLap()
 	}
-	debug := n.baseDebug(pose)
-	debug.Phase = PhaseWaypointWrapFallback
-	n.debug = debug
-	return true
 }
 
 // advancePastPassedWaypoints walks the index past any waypoint the robot

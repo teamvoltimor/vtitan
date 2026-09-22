@@ -21,6 +21,7 @@ import (
 	"github.com/teamvoltimor/vtitan/src/go/internal/nav/corridorestimator"
 	"github.com/teamvoltimor/vtitan/src/go/internal/nav/localization"
 	"github.com/teamvoltimor/vtitan/src/go/internal/nav/navigator"
+	"github.com/teamvoltimor/vtitan/src/go/internal/nav/racetracker"
 	"github.com/teamvoltimor/vtitan/src/go/internal/nav/signrouter"
 	"github.com/teamvoltimor/vtitan/src/go/internal/nav/startconditions"
 	"github.com/teamvoltimor/vtitan/src/go/internal/nav/stateestimator"
@@ -203,7 +204,13 @@ func newBlindLayout(
 	wpCfg waypoints.Config,
 	startCfg startconditions.Config,
 	estCfg corridorestimator.Config,
-) (path []trackmodel.Waypoint, priorGeometry trackmodel.CorridorGeometry, layout *widthbelief.Layout, err error) {
+) (
+	path []trackmodel.Waypoint,
+	priorGeometry trackmodel.CorridorGeometry,
+	layout *widthbelief.Layout,
+	assumed startconditions.StartingConditions,
+	err error,
+) {
 	priorWidthM := blindNarrowWidthM
 	if isObstacles {
 		priorWidthM = obstaclesCorridorWidthM
@@ -229,7 +236,7 @@ func newBlindLayout(
 		provisional, prior, startconditions.CanonicalSection, startCfg, assumedBiasM,
 	)
 	if !ok {
-		return nil, trackmodel.CorridorGeometry{}, nil, fmt.Errorf(
+		return nil, trackmodel.CorridorGeometry{}, nil, startconditions.StartingConditions{}, fmt.Errorf(
 			"track-navigator: no assumed start pose for %v from the canonical section", provisional,
 		)
 	}
@@ -242,7 +249,7 @@ func newBlindLayout(
 	)
 	path, err = waypoints.CalculateWaypoints(planned, 1, wpCfg, centerBiasM, waypoints.AllUnconfirmed())
 	if err != nil {
-		return nil, trackmodel.CorridorGeometry{}, nil, fmt.Errorf(
+		return nil, trackmodel.CorridorGeometry{}, nil, startconditions.StartingConditions{}, fmt.Errorf(
 			"track-navigator: planning the prior layout: %w", err,
 		)
 	}
@@ -264,7 +271,7 @@ func newBlindLayout(
 		CenterBiasM: centerBiasM,
 		MaxCoordM:   base.MaxCoordM,
 	})
-	return path, priorGeometry, layout, nil
+	return path, priorGeometry, layout, assumed, nil
 }
 
 // blindCenterBiasM is the planning bias for a blind round, matching
@@ -303,7 +310,7 @@ func Run(ctx context.Context, logger *slog.Logger, cfg Config) error {
 
 	rt := loadRuntimeConfig(logger, cfg, profiles)
 
-	path, priorGeometry, layout, err := newBlindLayout(
+	path, priorGeometry, layout, assumed, err := newBlindLayout(
 		logger,
 		waypoints.PlannerInput{MaxCoordM: rt.trackMaxCoordM, ChassisWidthM: rt.chassisWidthM},
 		provisionalDirection,
@@ -314,6 +321,20 @@ func Run(ctx context.Context, logger *slog.Logger, cfg Config) error {
 	)
 	if err != nil {
 		return err
+	}
+
+	// A sighted round knows its start section, position and direction now,
+	// so it counts laps geometrically from the first crossing. A blind round
+	// has no triple yet; the navigator installs a detector when its
+	// direction settles (navigator.SetLapDetector).
+	var lapDetector *racetracker.LapDetector
+	if knownDirection != nil {
+		lapDetector, err = racetracker.NewLapDetector(
+			trackmodel.Waypoint{X: assumed.X, Y: assumed.Y}, assumed.Section, *knownDirection,
+		)
+		if err != nil {
+			return err //nolint:wrapcheck // NewLapDetector already wraps with "racetracker: ..." context
+		}
 	}
 
 	gw, err := natsgw.New(
@@ -379,6 +400,7 @@ func Run(ctx context.Context, logger *slog.Logger, cfg Config) error {
 		SignDiscoveryConfig:     discCfg,
 		BayExitConfig:           &bxCfg,
 		CorridorEstimatorConfig: &rt.estCfg,
+		LapDetector:             lapDetector,
 		Logger:                  logger,
 	})
 	if err != nil {

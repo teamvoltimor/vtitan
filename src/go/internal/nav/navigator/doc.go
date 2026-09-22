@@ -21,17 +21,15 @@
 // stubbed: the corresponding parameters are absent from Params, so a caller
 // cannot ask for behavior that is not here.
 //
-//   - LapDetector (race_tracker.py) is not ported for lap COUNTING. Lap
-//     counting is therefore always Python's waypoint-wrap fallback branch --
-//     the index running off the end of the canonical lap IS the lap -- with
-//     no geometric finish-line confirmation. internal/nav/racetracker.
-//     LapDetector's ApproachingFinish test IS ported and, when a caller
-//     supplies one via Params.LapDetector, IS consumed by selectSpeed
-//     (drive.go) to cap speed to SlowSpeedMPS on the final lap while short of
-//     the finish line -- matching navigator.py's FINISH_APPROACH_M block
-//     exactly, but through a detector never wired into Update/
-//     NotifyWaypointWrapped, so this does not resurrect geometric lap
-//     confirmation.
+//   - LapDetector (race_tracker.py) is ported and wired. With one supplied
+//     via Params.LapDetector, a waypoint wrap only ARMS the detector
+//     (handleWaypointWrap) and the lap is counted when the robot crosses the
+//     start/finish line traveling forward in the start section
+//     (confirmGeometricLap); the ApproachingFinish test also caps speed to
+//     SlowSpeedMPS on the final lap while short of the line. Without one,
+//     lap counting stays Python's waypoint-wrap fallback branch: the index
+//     running off the end of the canonical lap IS the lap. A blind round
+//     builds a detector once the direction settles (SetLapDetector).
 //   - ParkController (internal/nav/parking) IS ported and wired: once
 //     LapsCompleted reaches NumLaps, handleFinish (path.go) mirrors
 //     _handle_finish faithfully -- a nil ParkController (Open Challenge)
