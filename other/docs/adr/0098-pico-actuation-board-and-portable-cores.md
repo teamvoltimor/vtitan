@@ -89,6 +89,17 @@ which discovers every package under `pkg/portable`, runs its tests under TinyGo
 and builds it for `pico2`. Discovery rather than a list means a package added
 later is covered without editing either.
 
+**Richer code for regular Go only.** A portable package may add files named
+`*_std.go` carrying `//go:build !tinygo`. They compile into the Linux binaries,
+never into firmware, and are exempt from the depguard rule, so they may use
+`log/slog`, full `fmt`, reflection-based libraries and the like. The core must
+not depend on them: the TinyGo build proves that, since it cannot see them.
+Anything that needs protobuf, NATS or this repo's config is not a `*_std.go`
+file but a wrapper in `internal/` (the host side of the link is
+`internal/node/picolink`), because `pkg/` may not import `internal/` at all.
+`pkg/portable/boardlink`'s `log_std.go` is the first: slog rendering of
+packets for the host.
+
 ## Consequences
 
 - `pkg/portable` is the first part of `pkg/` with a real second consumer, which
@@ -97,10 +108,17 @@ later is covered without editing either.
 - Firmware is not linted by golangci-lint (its `machine` import only exists
   under TinyGo). The shared logic is, which is why the logic lives in
   `pkg/portable` and the firmware stays thin.
-- The link protocol (framing, integrity check, sequence numbers, version
-  handshake, and the timestamp echo that yields the cross-board clock offset of
-  `go-future.md` section 4.6) needs its own decision when it is built. This ADR
-  fixes only that it exists and what it must carry.
+- The link protocol is specified where it is implemented, in
+  `src/go/pkg/portable/boardlink/doc.go`: COBS framing with a 0x00
+  delimiter, CRC-16/CCITT-FALSE, a version byte, sequence numbers, and a
+  board-driven session (Hello until configured, Config from the host's
+  profile, Ping/Pong for the clock offset). The board side is
+  `pkg/portable/boardloop`, the host side `internal/node/picolink`.
+- The board is selected by `cmd/pi5`'s `--pico-port` flag for now, not yet by
+  a hardware-profile axis as decided above. Running it alongside the Zero's
+  motor loop double-publishes MotorStatus; the flag's help says so.
+- The button and OLED are not on the link yet, so a Pico build has no start
+  button: `button_event` still needs a message.
 - TinyGo becomes a pinned tool (`mise.toml`), and its version moves in step with
   the module's Go version.
 - Raw gyro over SPI (the reason section 18 wanted a Pico) becomes an
@@ -112,6 +130,11 @@ later is covered without editing either.
 ## History
 
 - 2026-09-22: spike on TinyGo 0.42.0, then the extraction and its enforcement.
+- 2026-09-22: `boardlink` (eba5a261) and the `*_std.go` convention.
+- 2026-09-22: `boardloop`, the `firmware/pico2` build (78.6 KB flash), and
+  `internal/node/picolink`. Nothing has run on a Pico: the pin map is
+  provisional and the hardware watchdog's tick and load values are set
+  around two TinyGo 0.42 gaps that need a bench check.
 
 ## Cross-references
 

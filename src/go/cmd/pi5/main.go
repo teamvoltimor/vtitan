@@ -17,6 +17,14 @@
 // keeps it in Python behind a sidecar, so this board's side of it is the
 // detections subscription the nav loop already opens, not a driver loop of its
 // own.
+//
+// With --pico-port, a Pico 2 actuation board on that serial port is served by
+// the picolink target (internal/node/picolink, adr:0098-pico-actuation-board-and-portable-cores):
+// it answers ackermann_cmd and publishes motor_status and joint_states on the
+// Pico's behalf, exactly as the Zero's motor loop does for itself. Pick one
+// board: running picolink while the Zero's motor loop is also up would
+// double-publish MotorStatus and JointStates. The default (empty) leaves the
+// actuation subjects to the Zero.
 package main
 
 import (
@@ -38,6 +46,7 @@ import (
 	nodeimu "github.com/teamvoltimor/vtitan/src/go/internal/node/imu"
 	nodelidar "github.com/teamvoltimor/vtitan/src/go/internal/node/lidar"
 	nodenav "github.com/teamvoltimor/vtitan/src/go/internal/node/nav"
+	"github.com/teamvoltimor/vtitan/src/go/internal/node/picolink"
 	nodestatemachine "github.com/teamvoltimor/vtitan/src/go/internal/node/statemachine"
 	nodetelemetry "github.com/teamvoltimor/vtitan/src/go/internal/node/telemetry"
 	"github.com/teamvoltimor/vtitan/src/go/pkg/driver/camera"
@@ -61,6 +70,10 @@ type cliConfig struct {
 	challenge string
 	navRateHz float64
 	record    bool
+
+	picoPort           string
+	picoCommandTimeout time.Duration
+	picoMotorInvert    bool
 }
 
 // Capture defaults, matching cmd/capture-node's flags so a pi5 run behaves
@@ -133,6 +146,22 @@ func runMain() int {
 	)
 	fs.Float64Var(&cfg.navRateHz, "nav-rate-hz", nodenav.DefaultRateHz, "navigator Step rate")
 	fs.BoolVar(&cfg.record, "record", false, "record the run as an MCAP bag under the runs root")
+	fs.StringVar(
+		&cfg.picoPort,
+		"pico-port",
+		"",
+		"serial port of a Pico 2 actuation board (e.g. /dev/ttyACM1); empty (default) leaves actuation "+
+			"to the Zero. Do not set it while the Zero's motor loop runs: both would publish motor_status",
+	)
+	fs.DurationVar(
+		&cfg.picoCommandTimeout,
+		"pico-command-timeout",
+		picolink.DefaultCommandTimeout,
+		"Pico board: safety-stop the drive if no AckermannCmd arrives within this duration "+
+			"(the Zero's --motor-command-timeout)",
+	)
+	fs.BoolVar(&cfg.picoMotorInvert, "pico-motor-invert", false,
+		"Pico board: flip the drive's sign convention (the Zero's --motor-invert)")
 	if err := fs.Parse(os.Args[1:]); err != nil {
 		return 1
 	}
@@ -215,10 +244,31 @@ func runMain() int {
 		{Name: "telemetry", Fn: func(ctx context.Context) error {
 			return nodetelemetry.Run(ctx, telemetryCfg, logger)
 		}},
-		{Name: "nav", Fn: func(ctx context.Context) error {
-			return nodenav.Run(ctx, logger, navCfg)
-		}},
 	}
+
+	// The Pico link joins only when a port is given, and before nav, since it
+	// is what carries nav's commands to the actuators. The profile is resolved
+	// inside the target, so a missing one is retried with backoff like an
+	// absent serial port rather than taking the board process down.
+	if cfg.picoPort != "" {
+		targets = append(targets, supervise.Target{Name: "picolink", Fn: func(ctx context.Context) error {
+			sessionCfg, cfgErr := picolink.SessionConfigFor(
+				logger, cfg.ConfigRoot, cfg.picoMotorInvert, cfg.picoCommandTimeout,
+			)
+			if cfgErr != nil {
+				return cfgErr //nolint:wrapcheck // already wrapped with "picolink: ..." context
+			}
+			return picolink.Run(ctx, picolink.Config{
+				Port:    cfg.picoPort,
+				NATS:    nats.DefaultConfig(cfg.NATSURL, cfg.NodeName),
+				Session: sessionCfg,
+			}, logger)
+		}})
+	}
+
+	targets = append(targets, supervise.Target{Name: "nav", Fn: func(ctx context.Context) error {
+		return nodenav.Run(ctx, logger, navCfg)
+	}})
 
 	// The backend command channel is optional: it is how an operator starts and
 	// stops a round remotely, and a race can run without it. Registering it with
