@@ -307,6 +307,7 @@ linters:
         - honoured
         - cancelled
         - honouring
+        - recognises
 
     nolintlint:
       allow-leading-space: false
@@ -477,7 +478,7 @@ linters:
 
       # bubbletea's tea.Model interface forces Init/Update/View to
       # return tea.Model; there is no concrete-return option.
-      - path: 'internal/vtcli/interactive\.go$'
+      - path: 'internal/vtcli/(interactive|picker)\.go$'
         linters:
           - ireturn
 

@@ -7,27 +7,10 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/charmbracelet/bubbles/list"
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/spf13/cobra"
 )
-
-// leafItem is one selectable row in the interactive picker.
-type leafItem struct {
-	title  string
-	desc   string
-	spec   Command
-	escape bool
-}
-
-// pickerModel drives the command list. Selecting an item quits with selected
-// set; q/ctrl+c sets cancelled.
-type pickerModel struct {
-	list      list.Model
-	selected  *leafItem
-	cancelled bool
-}
 
 // formModel drives the argument form after a command is chosen, ending in a
 // confirmation step so a stray enter never launches anything heavy.
@@ -64,6 +47,13 @@ const (
 	defaultPickerHeight = 24
 )
 
+// backRowTitle labels the row that returns to the parent level, and
+// backSegment is the sentinel choose() recognises for it.
+const (
+	backRowTitle = ".. volver"
+	backSegment  = "\x00back"
+)
+
 // canPick reports whether an interactive picker is appropriate: both ends are
 // a terminal and the user has not opted out.
 func (a *App) canPick() bool {
@@ -93,31 +83,10 @@ func (a *App) printHome(cmd *cobra.Command) error {
 	return nil
 }
 
-// pickerItems flattens the curated leaves into pickable rows, plus one escape
-// hatch entry for any Task.
-func (a *App) pickerItems() []leafItem {
-	items := make([]leafItem, 0, len(a.spec)+1)
-	for _, command := range a.spec {
-		items = append(items, leafItem{
-			title: strings.Join(command.Path, " "),
-			desc:  command.Short,
-			spec:  command,
-		})
-	}
-
-	items = append(items, leafItem{
-		title:  "run <tarea>",
-		desc:   "Escape hatch: cualquier tarea de Task, con sus argumentos",
-		escape: true,
-	})
-
-	return items
-}
-
 // pickAndRun opens the picker, then the argument form, then runs the task.
 func (a *App) pickAndRun(cmd *cobra.Command) error {
 	program := tea.NewProgram(
-		newPickerModel(a.pickerItems()),
+		newPickerModel(a.buildPickerRoot(), a.childLevel),
 		tea.WithAltScreen(),
 		tea.WithInput(os.Stdin),
 		tea.WithOutput(cmd.OutOrStdout()),
@@ -128,7 +97,7 @@ func (a *App) pickAndRun(cmd *cobra.Command) error {
 		return fmt.Errorf("selector: %w", err)
 	}
 
-	result, ok := final.(pickerModel)
+	result, ok := final.(*pickerModel)
 	if !ok || result.cancelled || result.selected == nil {
 		return nil
 	}
@@ -137,7 +106,11 @@ func (a *App) pickAndRun(cmd *cobra.Command) error {
 		return a.promptEscape(cmd.Context())
 	}
 
-	values, submitted, err := a.promptFields(result.selected.spec)
+	if result.selected.spec == nil {
+		return nil
+	}
+
+	values, submitted, err := a.promptFields(*result.selected.spec)
 	if err != nil || !submitted {
 		return err
 	}
@@ -145,7 +118,7 @@ func (a *App) pickAndRun(cmd *cobra.Command) error {
 	passthrough := values["args"]
 	delete(values, "args")
 
-	return a.invoke(cmd.Context(), result.selected.spec, values, passthrough)
+	return a.invoke(cmd.Context(), *result.selected.spec, values, passthrough)
 }
 
 // promptEscape asks for a raw task name and its arguments.
@@ -319,70 +292,6 @@ func splitArgs(raw string) []string {
 
 	return args
 }
-
-// Title implements list.Item.
-func (i leafItem) Title() string { return i.title }
-
-// Description implements list.Item.
-func (i leafItem) Description() string { return i.desc }
-
-// FilterValue implements list.Item.
-func (i leafItem) FilterValue() string { return i.title }
-
-// newPickerModel builds the list model for the picker.
-func newPickerModel(items []leafItem) pickerModel {
-	entries := make([]list.Item, 0, len(items))
-	for index := range items {
-		entries = append(entries, items[index])
-	}
-
-	model := list.New(entries, list.NewDefaultDelegate(), defaultPickerWidth, defaultPickerHeight)
-	model.Title = "vt — elige un comando"
-	model.SetFilteringEnabled(true)
-	model.SetShowHelp(true)
-	model.SetShowStatusBar(true)
-	model.SetShowPagination(true)
-
-	return pickerModel{list: model}
-}
-
-// Init implements tea.Model.
-func (m pickerModel) Init() tea.Cmd { return nil }
-
-// Update implements tea.Model. Keys are always delegated to the list first:
-// inside the filter input, enter applies the filter rather than choosing, and
-// that distinction is the list's to make, not ours.
-func (m pickerModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	if size, isResize := msg.(tea.WindowSizeMsg); isResize {
-		m.list.SetSize(size.Width, size.Height)
-
-		return m, nil
-	}
-
-	key, isKey := msg.(tea.KeyMsg)
-	if isKey && m.list.FilterState() != list.Filtering {
-		switch key.String() {
-		case "ctrl+c", "q":
-			m.cancelled = true
-
-			return m, tea.Quit
-		case "enter":
-			if item, selected := m.list.SelectedItem().(leafItem); selected {
-				m.selected = &item
-
-				return m, tea.Quit
-			}
-		}
-	}
-
-	var cmd tea.Cmd
-	m.list, cmd = m.list.Update(msg)
-
-	return m, cmd
-}
-
-// View implements tea.Model.
-func (m pickerModel) View() string { return m.list.View() }
 
 // Init implements tea.Model.
 func (m *formModel) Init() tea.Cmd { return textinput.Blink }
