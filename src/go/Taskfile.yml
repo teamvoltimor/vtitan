@@ -317,6 +317,37 @@ tasks:
     cmds:
       - '"{{.BASH}}" scripts/provisioning/build-go.sh'
 
+  # vt is the development-machine CLI over the repo Taskfiles (cobra tree,
+  # see other/docs/development/plan-cli-unificada.md). It wraps `task`; the
+  # Taskfiles stay the single source of truth for how each thing runs.
+
+  cli:build:
+    desc: Compile the vt dev CLI to src/go/bin/vt[.exe]
+    cmds:
+      - go build -o bin/vt{{.EXE}} ./cmd/vt
+
+  cli:test:
+    desc: Run the vt CLI tests, including the three anti-drift checks against task --list-all --json
+    cmds:
+      - go test ./cmd/vt/... ./internal/vtcli/...
+
+  cli:lint:
+    desc: Run golangci-lint on the vt CLI
+    cmds:
+      - golangci-lint run ./cmd/vt/... ./internal/vtcli/...
+
+  cli:completions:
+    desc: "Print the vt tab-completion script for a shell (usage: task cli:completions SHELL=bash|zsh|fish; redirect to your completions dir)"
+    vars:
+      SHELL: '{{.SHELL | default "bash"}}'
+    cmds:
+      - go run ./cmd/vt completion {{.SHELL}}
+
+  cli:run:
+    desc: "Run the vt CLI from source, without building (usage: task cli:run -- [args])"
+    cmds:
+      - go run ./cmd/vt {{.CLI_ARGS}}
+
   simgen:install:
     desc: Build simgen binary (Go compilation — no external deps required)
     cmds:

@@ -305,6 +305,8 @@ linters:
         - materialises
         - travelling
         - honoured
+        - cancelled
+        - honouring
 
     nolintlint:
       allow-leading-space: false
@@ -463,6 +465,21 @@ linters:
       - path: 'internal/sim/visionsim/visionsim\.go$'
         linters:
           - mnd
+
+      # The vt CLI's spec table and its domain/segment vocabulary are data:
+      # the repeated literals are Task/domain/flag names restated once as the
+      # CLI tree, not magic values. Same reasoning as the config-default
+      # literals above: a named const would only duplicate the field it
+      # initializes.
+      - path: 'internal/vtcli/'
+        linters:
+          - goconst
+
+      # bubbletea's tea.Model interface forces Init/Update/View to
+      # return tea.Model; there is no concrete-return option.
+      - path: 'internal/vtcli/interactive\.go$'
+        linters:
+          - ireturn
 
       # go:generate directives are routinely long
       - linters:
