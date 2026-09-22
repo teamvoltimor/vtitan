@@ -304,16 +304,20 @@ task test             # Python + Go, todos los módulos (ver Pruebas, más abajo
 
 ### CLI de desarrollo `vt` (opcional)
 
-`vt` es una capa sobre los mismos Taskfiles: organiza las tareas en subcomandos (`task go:test:hw` es `vt go test hw`), da flags tipados a los flujos diarios (`sim`, `robot`, `go`, `fleet` y los paraguas `test`, `lint`, `clean`, `install`) y ejecuta `task` por debajo, devolviendo su mismo código de salida. `task X` sigue funcionando exactamente igual y es lo que usa CI; `vt` solo existe en el computador de desarrollo, las placas siguen con `task`.
+`vt` es una capa sobre los mismos Taskfiles: organiza las tareas en subcomandos agrupados (dominios `sim`, `robot`, `go`, `fleet`, `gen`; transversales `setup`, `test`, `lint`, `clean`), les da flags tipados y ejecuta `task` por debajo, devolviendo su mismo código de salida. `task X` sigue funcionando exactamente igual y es lo que usa CI; `vt` solo existe en el computador de desarrollo, las placas siguen con `task`. Los comandos que solo existen en Windows (enlace Ethernet directo, rutas) se ocultan en Linux y macOS.
 
 ```bash
 task cli:build                      # Compila src/go/bin/vt (recomendado)
 task cli:run -- sim --help          # O sin compilar, vía go run
 
-src/go/bin/vt                       # En una terminal: selector interactivo con confirmación previa
-src/go/bin/vt sim --help            # Comandos de un dominio, con sus flags y valores por defecto
-src/go/bin/vt run                   # Todas las tareas con su descripción
-src/go/bin/vt run gen:corpus:all    # Cualquier tarea, con o sin flags tipados
+src/go/bin/vt                       # En una terminal: selector con los últimos comandos arriba y confirmación previa
+src/go/bin/vt sim view -- --challenge open --interactive   # Simulador + RViz en un solo comando
+src/go/bin/vt gen corpus --both     # Corpus de barrido de ambos desafíos (semilla fija)
+src/go/bin/vt fleet set-wifi zero --ssid Casa --password '...'
+src/go/bin/vt lint --fix            # Las variantes de una tarea son flags, no subcomandos
+src/go/bin/vt --dry-run robot deploy   # Muestra la línea de task que ejecutaría, sin ejecutar nada
+src/go/bin/vt task                  # Todas las tareas con su descripción
+src/go/bin/vt task gen:track        # Cualquier tarea, con o sin flags tipados
 source <(src/go/bin/vt completion bash)   # Autocompletado (también zsh y fish)
 ```
 

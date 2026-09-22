@@ -54,8 +54,9 @@ attached and **propagates the exit code untouched**; the Taskfiles stay the
 only source of truth on *how* something runs. Domains may be renamed where the
 Task name reads badly (`windows:*` is `vt fleet ...`), which is why the curated
 layer is a declarative table in `internal/vtcli/spec.go` and not a generator.
-Every other task is reachable through `vt run <task> [VAR=value ...]`,
-validated against the live inventory.
+Every other task is reachable through `vt task <name> [VAR=value ...]`
+(`vt run` was its first name and stays an alias), validated against the live
+inventory.
 
 (c) lost on cost and on the `platforms:` variants. (a) lost because it adds
 nothing `task --list` does not already give, and (d) for the same reason: the
@@ -114,8 +115,19 @@ bubbles v0.21.0.
   `task cli:run -- <args>`. `go:build:static` cross-compiles it along with the
   rest of `./cmd/...`, which is harmless.
 - The hand-written `help` task in `other/tasks/platform.yml` is retired: `vt
-  run` lists the full inventory and the picker filters it. There is one menu,
+  task` lists the full inventory and the picker filters it. There is one menu,
   and it is generated.
+- vt depends on a Task rule nobody had written down: a global var of an
+  INCLUDED Taskfile beats a CLI `VAR=x` unless it is written as its own
+  default (`'{{.VAR | default "x"}}'`); the root Taskfile's globals do yield.
+  Before this was found, `--profile` did nothing on every run, and
+  `task gen:corpus CHALLENGE=obstacles` regenerated the open corpus. Anti-drift
+  check 4 now fails on any var vt forwards, or any `NAME=` a task description
+  advertises, that is a plain global in an included file.
+- Commands limited to some OSes are hidden elsewhere, because Task skips
+  their commands and exits 0, which reads as success. Check 5 derives each
+  task's platforms from the Taskfile YAML (following calls and deps) and fails
+  if the spec disagrees.
 
 ## History
 
@@ -151,6 +163,20 @@ bubbles v0.21.0.
   command and `$` was expanded on the Pi 5, setting a wrong password silently.
   Task's `shellQuote` fixes it in the Taskfile, for `task` and CI as well,
   which a Go rewrite would not have. Phase 4 therefore does not apply.
+- `467c5edb`, `f4f4aecb` 2026-09-22: the Task var rule above. PROFILE,
+  OUTPUT_DIR, CHALLENGE, SCENARIOS, METADATA, CORPUS_SIZE and CORPUS_SEED are
+  written as their own default; measured with `--dry`, the overrides went from
+  ignored 12 of 12 to honoured 6 of 6. `robot:deploy` exports HEF only when it
+  was passed, so `HEF=` (code only) finally reaches the script.
+- `9b96fee2` 2026-09-22: usability pass. One resolver (`planInvocation`)
+  behind the CLI, the form preview, `--dry-run` and the echoed `vt` line;
+  variant switches (`lint --fix`, `clean --cache|--all`, `gen corpus
+  --both`...) and task-picking arguments (`fleet set-wifi|audit
+  <pi5|zero>`) replace one-child subcommands; secret flags; platform hiding
+  with check 5; root groups instead of alphabetical order; the catch-all
+  renamed `task`; `fleet setup`, `sim view`, `setup`, `go hw`, `robot vision`
+  and a curated `gen` domain; the last five picks at the top of the picker,
+  and the equivalent `vt` command printed after a form run.
 
 ## Cross-references
 
