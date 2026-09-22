@@ -28,6 +28,9 @@ func TestClampDuty(t *testing.T) {
 		{name: "exactly max", in: 1.0, want: 1.0},
 		{name: "exactly min", in: -1.0, want: -1.0},
 		{name: "zero", in: 0.0, want: 0.0},
+		{name: "NaN is off", in: math.NaN(), want: 0.0},
+		{name: "+Inf clamps to max", in: math.Inf(1), want: 1.0},
+		{name: "-Inf clamps to min", in: math.Inf(-1), want: -1.0},
 	}
 
 	for _, tt := range tests {
@@ -67,6 +70,18 @@ func TestSplitDuty_NeverBothNonzero(t *testing.T) {
 		if lpwm < 0 || lpwm > 1 {
 			t.Fatalf("splitDuty(%v) lpwm = %v, want in [0, 1]", signed, lpwm)
 		}
+	}
+}
+
+// TestSplitDuty_NaNDrivesNeitherChannel pins the case the range sweep above
+// cannot reach. Before clampDuty mapped NaN to off, NaN failed the ">= 0"
+// test and came back as an LPWM duty of NaN, handed to the software PWM.
+func TestSplitDuty_NaNDrivesNeitherChannel(t *testing.T) {
+	t.Parallel()
+
+	rpwm, lpwm := splitDuty(math.NaN())
+	if rpwm != 0 || lpwm != 0 {
+		t.Fatalf("splitDuty(NaN) = (rpwm=%v, lpwm=%v), want (0, 0)", rpwm, lpwm)
 	}
 }
 

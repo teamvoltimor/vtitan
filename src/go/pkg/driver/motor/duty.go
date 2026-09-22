@@ -1,13 +1,24 @@
 package motor
 
+import "math"
+
 const (
 	dutyMin = -1.0
 	dutyMax = 1.0
 	dutyOff = 0.0
 )
 
-// clampDuty clamps a signed duty fraction to [-1, 1].
+// clampDuty clamps a signed duty fraction to [-1, 1], and maps NaN to off.
+//
+// Go's min and max return NaN if either argument is NaN, so without the
+// guard NaN would pass straight through to a PWM channel, where the
+// float-to-int conversion of its pulse width is architecture-defined.
+// Infinities already clamp to the rails, which is correct arithmetic but a
+// full-throttle command: rejecting those is the caller's job.
 func clampDuty(duty float64) float64 {
+	if math.IsNaN(duty) {
+		return dutyOff
+	}
 	return min(max(duty, dutyMin), dutyMax)
 }
 
