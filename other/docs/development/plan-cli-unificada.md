@@ -1,6 +1,7 @@
 # Plan: CLI unificada sobre los Taskfiles (cobra + lipgloss)
 
-- Estado: fase 0 implementada (`59a7caab`..`98cbf8c2`); decision registrada en
+- Estado: fases 0 y 2 hechas, fase 1 en curso (`go`, `fleet` y `sim`
+  curados); decision registrada en
   [ADR 0096](../adr/0096-vt-cli-wraps-the-taskfiles.md)
 - Fecha: 2026-09-22
 - Alcance: superficie de comandos de desarrollo, no el runtime del robot
@@ -159,6 +160,10 @@ sin argumentos. Reglas duras:
 La tarea `help` escrita a mano en `other/tasks/platform.yml` se borra en cuanto
 `vt` cubra su contenido. Es el menu curado que el arbol de cobra genera solo.
 
+**Hecho.** La cubren `vt run` sin argumentos (todas las tareas con la primera
+linea de su `desc`) y la entrada `run` del picker (el mismo inventario,
+filtrable).
+
 ## 4. Fases
 
 **Fase 0: esqueleto.** `cmd/vt`, spec vacia, catch-all generado desde el JSON
@@ -169,10 +174,12 @@ todavia.
 **Fase 1: dominios curados.** Flags tipados para los flujos diarios, dominio
 por dominio, empezando por el que mas se usa. Cada dominio cerrado anade su
 entrada en la lista de exclusiones para que el test 2 empiece a morder.
+Curados: `go`, `fleet` (`windows:*`) y `sim`. Quedan `robot`, `rpi` y los
+paraguas (`test`, `lint`, `format`, `clean`).
 
 **Fase 2: acabado.** Borrar el `help` manual, generar completions
 (`bash`/`zsh`/`fish`, gratis con cobra), documentar en README el nuevo camino
-y dejar escrito que `task X` sigue funcionando igual.
+y dejar escrito que `task X` sigue funcionando igual. **Hecha.**
 
 **Fase 3: migracion nativa selectiva.** Criterio para migrar una tarea a Go
 nativo, tienen que cumplirse los tres:
@@ -216,11 +223,8 @@ Resueltas en la fase 0 (ADR 0096): el binario es `vt`, vive en
 `src/go/cmd/vt` con el codigo en `internal/vtcli`, lipgloss v1.1.0, y el
 catch-all es `vt run <nombre>`.
 
-Sigue abierta:
-
-- Distribucion: hoy conviven `task cli:build` (binario en `src/go/bin/vt`) y
-  `task cli:run -- <args>` (sin compilar). Falta decidir cual se documenta como
-  camino por defecto en el README.
+Resuelta en la fase 2: el README documenta `task cli:build` como camino
+recomendado y `task cli:run -- <args>` como alternativa sin compilar.
 
 ## Paso final: ADR
 

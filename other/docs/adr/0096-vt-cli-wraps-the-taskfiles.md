@@ -86,10 +86,10 @@ Choices made along the way:
   TTY, `vt` with no arguments opens a bubbletea drill-down picker (domains, then
   their commands) and a form per leaf with its args and flags. The form ends
   on a confirmation screen showing the exact `task` invocation, with a warning
-  for commands marked `Heavy` (simulator launches, the sim test suite). The
+  for commands marked `Heavy` (those that launch a simulator or a GUI). The
   confirmation was added after a filtered selection in a test session launched
-  `sim test`, which starts Gazebo and RViz. Without a TTY, or with
-  `VT_NO_PICKER=1`, `vt` prints the static menu instead.
+  `sim test` unintentionally. Without a TTY, or with `VT_NO_PICKER=1`, `vt`
+  prints the static menu instead.
 - **All user-facing text is in English**, matching the Taskfiles.
 
 Fixed versions: cobra v1.10.2, lipgloss v1.1.0, bubbletea v1.3.10,
@@ -108,9 +108,9 @@ bubbles v0.21.0.
 - `vt` has to be built (`task cli:build`, to `src/go/bin/vt`) or run with
   `task cli:run -- <args>`. `go:build:static` cross-compiles it along with the
   rest of `./cmd/...`, which is harmless.
-- The hand-written `help` task in `other/tasks/platform.yml` is retired once
-  `vt` covers it. Until it is deleted, two menus exist and the work is not
-  finished.
+- The hand-written `help` task in `other/tasks/platform.yml` is retired: `vt
+  run` lists the full inventory and the picker filters it. There is one menu,
+  and it is generated.
 
 ## History
 
@@ -125,6 +125,16 @@ bubbles v0.21.0.
 - `495970df` 2026-09-22: `sim` curated, all 14 `sim:*` tasks decided (13
   leaves, one exclusion: the `sim:rviz:navigate:visualize:all` alias). The
   spec is now 29 commands across three curated domains.
+- `14f36931` 2026-09-22: `vt run` with no task lists the inventory, and the
+  picker's escape hatch browses it instead of asking for a typed name. The
+  confirmation screen showed flag names (`host=`) where Task receives the
+  variable (`HOST=`); it now renders what is forwarded.
+- `5b02bf79` 2026-09-22: `sim test` and `sim navigate` lose `Heavy`. Both are
+  headless pytest runs; the first version of this ADR said `sim test` starts
+  Gazebo and RViz, which was wrong.
+- `docs(cli): close phase 2` 2026-09-22: phase 2 closed. The `help` task is deleted and the
+  README documents `vt`, with `task cli:build` as the recommended path and
+  `task cli:run` as the no-build alternative.
 
 ## Cross-references
 

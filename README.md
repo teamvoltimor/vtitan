@@ -276,7 +276,7 @@ Además de las carpetas obligatorias, el repositorio contiene:
 
 ## Arranque rápido y reproducibilidad
 
-Todo el ciclo de vida del proyecto, desde la simulación y las pruebas hasta el despliegue al robot y la operación en pista, está automatizado con [Task](https://taskfile.dev) (Taskfile) y [Pixi](https://pixi.sh) / [uv](https://docs.astral.sh/uv/). Todo se invoca con `task`, y `task --list` enumera los comandos disponibles. Nada de lo que hacemos depende de pasos manuales no documentados: otra persona puede clonar el repositorio y llegar del código al robot con estos comandos.
+Todo el ciclo de vida del proyecto, desde la simulación y las pruebas hasta el despliegue al robot y la operación en pista, está automatizado con [Task](https://taskfile.dev) (Taskfile) y [Pixi](https://pixi.sh) / [uv](https://docs.astral.sh/uv/). Todo se invoca con `task`; la CLI `vt` (ver más abajo) ayuda a descubrir y lanzar esos mismos comandos. Nada de lo que hacemos depende de pasos manuales no documentados: otra persona puede clonar el repositorio y llegar del código al robot con estos comandos.
 
 ### Requisitos previos (una sola vez)
 
@@ -300,6 +300,21 @@ task sim:navigate:visualize:all -- --challenge open --interactive
 
 # Pruebas: todas, o por subsistema
 task test             # Python + Go, todos los módulos (ver Pruebas, más abajo)
+```
+
+### CLI de desarrollo `vt` (opcional)
+
+`vt` es una capa sobre los mismos Taskfiles: organiza las tareas en subcomandos (`task go:test:hw` es `vt go test hw`), da flags tipados a los flujos diarios (`go`, `fleet`, `sim`) y ejecuta `task` por debajo, devolviendo su mismo código de salida. `task X` sigue funcionando exactamente igual y es lo que usa CI; `vt` solo existe en el computador de desarrollo, las placas siguen con `task`.
+
+```bash
+task cli:build                      # Compila src/go/bin/vt (recomendado)
+task cli:run -- sim --help          # O sin compilar, vía go run
+
+src/go/bin/vt                       # En una terminal: selector interactivo con confirmación previa
+src/go/bin/vt sim --help            # Comandos de un dominio, con sus flags y valores por defecto
+src/go/bin/vt run                   # Todas las tareas con su descripción
+src/go/bin/vt run gen:corpus:all    # Cualquier tarea, con o sin flags tipados
+source <(src/go/bin/vt completion bash)   # Autocompletado (también zsh y fish)
 ```
 
 ### Despliegue al robot (desde el computador, por SSH)
