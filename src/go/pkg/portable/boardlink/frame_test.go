@@ -32,6 +32,7 @@ func samplePackets() []Packet {
 			CommandAgeMS:  17,
 		}},
 		{Seq: 0xFFFF, Type: TypeOdometry, Odometry: Odometry{BoardTimeUS: 99, Counts: -123456}},
+		{Seq: 8, Type: TypeButton, Button: Button{BoardTimeUS: 7, Pressed: true}},
 	}
 }
 

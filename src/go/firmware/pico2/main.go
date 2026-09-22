@@ -58,6 +58,7 @@ func main() {
 		Drive:   setupDrive(),
 		Servo:   setupServo(),
 		Encoder: nil, // TODO(encoder): see pinEncoderA in board.go.
+		Button:  setupButton(),
 	}, boardloop.Options{BootID: bootID(), BootFaults: bootFaults})
 	if err != nil {
 		// Unreachable: every Hardware field above is non-nil. Stop feeding
@@ -124,6 +125,14 @@ func setupServo() boardloop.Servo {
 		return brokenServo{err: err}
 	}
 	return &servoPWM{slice: servoSlice, channel: ch}
+}
+
+// setupButton brings the start button up as a pulled-up input. Pressing it
+// shorts the line to ground; boardloop reports the raw edges and the host
+// applies the debounce and hold thresholds.
+func setupButton() boardloop.Button {
+	pinButton.Configure(machine.PinConfig{Mode: machine.PinInputPullup})
+	return buttonPin{pin: pinButton}
 }
 
 // startWatchdogTick sets the RP2350 watchdog tick to 1 us. TinyGo enables

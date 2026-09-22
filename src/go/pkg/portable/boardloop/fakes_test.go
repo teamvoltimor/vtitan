@@ -47,6 +47,11 @@ type fakeEncoder struct {
 	counts int64
 }
 
+// fakeButton is a Button with a settable raw state.
+type fakeButton struct {
+	pressed bool
+}
+
 // nopLink, nopDrive and nopServo allocate nothing, so AllocsPerRun measures
 // only the Loop.
 type nopLink struct {
@@ -135,6 +140,8 @@ func (s *fakeServo) SetPulseUS(pulseUS float64) error {
 }
 
 func (e *fakeEncoder) Counts() int64 { return e.counts }
+
+func (b *fakeButton) Pressed() bool { return b.pressed }
 
 func validConfig() boardlink.Config {
 	return boardlink.Config{

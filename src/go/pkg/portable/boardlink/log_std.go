@@ -29,6 +29,8 @@ func (t Type) String() string {
 		return "status"
 	case TypeOdometry:
 		return "odometry"
+	case TypeButton:
+		return "button"
 	}
 	return fmt.Sprintf("type(0x%02x)", uint8(t))
 }
@@ -67,6 +69,8 @@ func (p *Packet) LogValue() slog.Value {
 		attrs = append(attrs, slog.String("state", p.Status.State.String()), slog.Any("status", p.Status))
 	case TypeOdometry:
 		attrs = append(attrs, slog.Any("odometry", p.Odometry))
+	case TypeButton:
+		attrs = append(attrs, slog.Bool("pressed", p.Button.Pressed))
 	}
 	return slog.GroupValue(attrs...)
 }

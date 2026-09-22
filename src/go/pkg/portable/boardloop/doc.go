@@ -63,6 +63,13 @@
 // Odometry goes out every OdometryIntervalMS when the board has an encoder
 // and the interval is nonzero.
 //
+// # Button
+//
+// A board with a Button sends a boardlink.Button message whenever the raw
+// reading changes, and once at boot so the host knows the initial state. No
+// debounce or hold threshold runs on the board: the host evaluates the
+// edges with the Zero's own evaluator, so the timing policy has one home.
+//
 // # Drive inversion
 //
 // Config.InvertDrive is applied here, by negating the signed duty before

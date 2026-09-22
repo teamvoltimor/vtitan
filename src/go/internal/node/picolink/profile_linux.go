@@ -39,6 +39,8 @@ func LoadProfile(logger *slog.Logger, configRoot string) (Profile, error) {
 		SpeedScalePercentPerMPS: nodemotor.SpeedScaleFor(logger, configRoot),
 	}
 
+	p.Button = &ButtonParams{Thresholds: hwconfig.Button(logger, configRoot).Thresholds}
+
 	encCfg, encErr := hwconfig.Encoder(configRoot)
 	if encErr != nil {
 		logger.Warn("picolink: no wheel encoder configured, not publishing joint_states", "error", encErr)

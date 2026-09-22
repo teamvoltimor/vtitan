@@ -10,6 +10,7 @@ import (
 	"go.bug.st/serial"
 
 	actuationv1 "github.com/teamvoltimor/vtitan/src/go/internal/schema/pb/vtitan/actuation/v1"
+	uiv1 "github.com/teamvoltimor/vtitan/src/go/internal/schema/pb/vtitan/ui/v1"
 	"github.com/teamvoltimor/vtitan/src/go/pkg/transport/nats"
 )
 
@@ -49,7 +50,7 @@ func SessionConfigFor(
 	if err != nil {
 		return SessionConfig{}, err
 	}
-	return SessionConfig{Board: board, Encoder: p.Encoder}, nil
+	return SessionConfig{Board: board, Encoder: p.Encoder, Button: p.Button}, nil
 }
 
 // Run opens the serial port and serves the link until ctx is done or the
@@ -114,11 +115,16 @@ func Serve(ctx context.Context, cfg Config, logger *slog.Logger, link io.ReadWri
 	if cfg.Session.Encoder != nil {
 		joints = nats.NewPublisher[*actuationv1.JointStates](conn, actuationv1.JointStatesSubject)
 	}
+	var button ButtonPublisher
+	if cfg.Session.Button != nil {
+		button = nats.NewPublisher[*uiv1.ButtonEvent](conn, uiv1.ButtonEventSubject)
+	}
 	session, err := NewSession(
 		logger,
 		cfg.Session,
 		nats.NewPublisher[*actuationv1.MotorStatus](conn, actuationv1.MotorStatusSubject),
 		joints,
+		button,
 	)
 	if err != nil {
 		return err

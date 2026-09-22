@@ -86,6 +86,15 @@ type Odometry struct {
 	Counts      int64
 }
 
+// Button is one raw button edge, as the board reads it (Pressed true = the
+// button is down). The board sends the raw state and no timing policy
+// crosses the link: the host runs the debounce and hold-threshold evaluator
+// (pkg/driver/button.Evaluator), exactly as it does for the Zero's button.
+type Button struct {
+	BoardTimeUS uint64
+	Pressed     bool
+}
+
 // Packet is one decoded or to-be-encoded message. Exactly the field named by
 // Type is meaningful. It is a struct of values rather than an interface so
 // that decoding boxes nothing and allocates nothing.
@@ -99,6 +108,7 @@ type Packet struct {
 	Pong     Pong
 	Status   Status
 	Odometry Odometry
+	Button   Button
 }
 
 // writer appends little-endian fields to a fixed buffer.
@@ -123,6 +133,7 @@ const (
 	TypePong     Type = 0x05
 	TypeStatus   Type = 0x06
 	TypeOdometry Type = 0x07
+	TypeButton   Type = 0x08
 )
 
 // Board states.
@@ -154,6 +165,7 @@ const (
 	pongLen     = 8 + 8
 	statusLen   = 8 + 1 + 1 + 4 + 4 + 4
 	odometryLen = 8 + 8
+	buttonLen   = 8 + 1
 	maxBodyLen  = configLen
 )
 
@@ -173,6 +185,8 @@ func bodyLen(t Type) (int, bool) {
 		return statusLen, true
 	case TypeOdometry:
 		return odometryLen, true
+	case TypeButton:
+		return buttonLen, true
 	}
 	return 0, false
 }
@@ -259,6 +273,9 @@ func appendBody(w *writer, p *Packet) {
 	case TypeOdometry:
 		w.u64(p.Odometry.BoardTimeUS)
 		w.u64(uint64(p.Odometry.Counts))
+	case TypeButton:
+		w.u64(p.Button.BoardTimeUS)
+		w.flag(p.Button.Pressed)
 	}
 }
 
@@ -300,5 +317,7 @@ func readBody(r *reader, p *Packet) {
 		}
 	case TypeOdometry:
 		p.Odometry = Odometry{BoardTimeUS: r.u64(), Counts: int64(r.u64())}
+	case TypeButton:
+		p.Button = Button{BoardTimeUS: r.u64(), Pressed: r.flag()}
 	}
 }

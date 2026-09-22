@@ -19,6 +19,10 @@
 //   - republishes Status as MotorStatus (MotorStatusFor) and Odometry as
 //     JointStates, the latter converted with pkg/portable/quadrature, the code
 //     the Zero's encoder runs;
+//   - evaluates the board's raw button edges with the Zero's own evaluator
+//     (pkg/driver/button) and publishes each resulting ButtonEvent on
+//     vtitan.ui.v1.button_event, so a start button on the Pico reaches the
+//     state machine exactly as the Zero's button does;
 //   - pings once a second and keeps the latest round trip and clock offset
 //     (Session.Clock), which is the Pico half of go-future.md section 4.6:
 //     the board has no RTC and counts from boot, so its offset from the host
@@ -31,6 +35,6 @@
 // keeps listening.
 //
 // Running this loop and the Zero's motor loop at once would double-publish
-// MotorStatus and JointStates. cmd/pi5 enables it only when a port is given,
-// and the deployment picks one board.
+// MotorStatus, JointStates and ButtonEvent. cmd/pi5 enables it only when a
+// port is given, and the deployment picks one board.
 package picolink

@@ -25,6 +25,10 @@ const (
 	// low until the drive connects.
 	pinREN = machine.GP20
 	pinLEN = machine.GP21
+	// pinButton is the start/stop button: GP17, pulled up, pressed shorts it
+	// to ground. PROVISIONAL like the rest of the map. The board reports the
+	// raw edges; the host runs the debounce and hold evaluator.
+	pinButton = machine.GP17
 
 	// Reserved for the wheel encoder's A and B channels, not yet used.
 	// TODO(encoder): count quadrature on a PIO state machine (the RP2350's

@@ -15,6 +15,7 @@ import (
 
 	"github.com/teamvoltimor/vtitan/src/go/internal/node/picolink"
 	actuationv1 "github.com/teamvoltimor/vtitan/src/go/internal/schema/pb/vtitan/actuation/v1"
+	uiv1 "github.com/teamvoltimor/vtitan/src/go/internal/schema/pb/vtitan/ui/v1"
 	"github.com/teamvoltimor/vtitan/src/go/pkg/portable/boardlink"
 )
 
@@ -43,6 +44,8 @@ type jointSink chan *actuationv1.JointStates
 
 type commandSource chan *actuationv1.AckermannCmd
 
+type buttonSink chan *uiv1.ButtonEvent
+
 // harness is one running Session over a pipe to a fakeBoard.
 type harness struct {
 	board   *fakeBoard
@@ -50,6 +53,7 @@ type harness struct {
 	status  statusSink
 	joints  jointSink
 	cmds    commandSource
+	button  buttonSink
 	logs    *logBuffer
 	cancel  context.CancelFunc
 	done    chan error
@@ -68,6 +72,11 @@ func (s statusSink) Publish(msg *actuationv1.MotorStatus) error {
 
 func (j jointSink) Publish(msg *actuationv1.JointStates) error {
 	j <- msg
+	return nil
+}
+
+func (b buttonSink) Publish(msg *uiv1.ButtonEvent) error {
+	b <- msg
 	return nil
 }
 
@@ -206,6 +215,7 @@ func startSessionRaw(t *testing.T, cfg picolink.SessionConfig) *harness {
 		status: make(statusSink, sinkDepth),
 		joints: make(jointSink, sinkDepth),
 		cmds:   make(commandSource),
+		button: make(buttonSink, sinkDepth),
 		logs:   logs,
 		done:   make(chan error, 1),
 	}
@@ -213,7 +223,11 @@ func startSessionRaw(t *testing.T, cfg picolink.SessionConfig) *harness {
 	if cfg.Encoder != nil {
 		joints = h.joints
 	}
-	session, err := picolink.NewSession(logger, cfg, h.status, joints)
+	var button picolink.ButtonPublisher
+	if cfg.Button != nil {
+		button = h.button
+	}
+	session, err := picolink.NewSession(logger, cfg, h.status, joints, button)
 	if err != nil {
 		t.Fatalf("NewSession: %v", err)
 	}

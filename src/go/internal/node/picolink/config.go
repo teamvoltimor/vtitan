@@ -5,6 +5,7 @@ import (
 	"math"
 	"time"
 
+	driverbutton "github.com/teamvoltimor/vtitan/src/go/pkg/driver/button"
 	"github.com/teamvoltimor/vtitan/src/go/pkg/driver/servo"
 	"github.com/teamvoltimor/vtitan/src/go/pkg/portable/actuation"
 	"github.com/teamvoltimor/vtitan/src/go/pkg/portable/boardlink"
@@ -27,6 +28,16 @@ type Profile struct {
 	// Encoder is nil when no encoder profile resolves (hwconfig.Encoder
 	// failed). Odometry is then not published, as on the Zero.
 	Encoder *EncoderParams
+	// Button is the host-side button evaluator's tuning, from button.toml
+	// (the same thresholds the Zero's button driver uses). The board sends
+	// only raw edges, so no timing policy crosses the link.
+	Button *ButtonParams
+}
+
+// ButtonParams is what the host needs to evaluate the board's raw button
+// edges: the same pkg/driver/button.Evaluator the Zero runs.
+type ButtonParams struct {
+	Thresholds driverbutton.Thresholds
 }
 
 // EncoderParams is the part of the encoder profile the host needs to turn

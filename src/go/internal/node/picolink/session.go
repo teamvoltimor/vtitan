@@ -10,7 +10,10 @@ import (
 	"sync/atomic"
 	"time"
 
+	nodebutton "github.com/teamvoltimor/vtitan/src/go/internal/node/button"
 	actuationv1 "github.com/teamvoltimor/vtitan/src/go/internal/schema/pb/vtitan/actuation/v1"
+	uiv1 "github.com/teamvoltimor/vtitan/src/go/internal/schema/pb/vtitan/ui/v1"
+	driverbutton "github.com/teamvoltimor/vtitan/src/go/pkg/driver/button"
 	"github.com/teamvoltimor/vtitan/src/go/pkg/portable/boardlink"
 	"github.com/teamvoltimor/vtitan/src/go/pkg/portable/boardloop"
 	"github.com/teamvoltimor/vtitan/src/go/pkg/portable/quadrature"
@@ -34,6 +37,12 @@ type CommandReader interface {
 	Read(ctx context.Context) (*actuationv1.AckermannCmd, error)
 }
 
+// ButtonPublisher is the transport call Session makes for an evaluated
+// button event; *nats.Publisher[*uiv1.ButtonEvent] satisfies it.
+type ButtonPublisher interface {
+	Publish(msg *uiv1.ButtonEvent) error
+}
+
 // SessionConfig is what a Session needs besides its transport.
 type SessionConfig struct {
 	// Board is the Config sent on every Hello (see BoardConfig).
@@ -47,6 +56,9 @@ type SessionConfig struct {
 	// LinkTimeout is the silence after which the link is reported lost;
 	// DefaultLinkTimeout when not positive.
 	LinkTimeout time.Duration
+	// Button is the host-side button evaluator's tuning; nil publishes no
+	// ButtonEvent, for a board with no button.
+	Button *ButtonParams
 }
 
 // ClockSync is the latest clock estimate from a Ping/Pong round trip.
@@ -105,6 +117,12 @@ type Session struct {
 	lastFrameAt   time.Time
 	linkLost      bool
 
+	// buttonEval runs on the host clock, exactly as the Zero's button
+	// driver does; buttonPressed is the last raw edge the board sent.
+	buttonEval    *driverbutton.Evaluator
+	buttonPressed bool
+	buttonPub     ButtonPublisher
+
 	clockMu   sync.Mutex
 	clock     ClockSync
 	haveClock bool
@@ -126,6 +144,9 @@ const (
 	DefaultPingInterval = time.Second
 	// DefaultLinkTimeout is twenty Status intervals of silence.
 	DefaultLinkTimeout = time.Second
+	// buttonPollInterval is how often the host samples the button evaluator:
+	// 20 Hz, button_node.toml's POLL_HZ, matching the Zero's button driver.
+	buttonPollInterval = 50 * time.Millisecond
 )
 
 const (
@@ -156,6 +177,7 @@ func NewSession(
 	cfg SessionConfig,
 	status StatusPublisher,
 	joints JointStatesPublisher,
+	button ButtonPublisher,
 ) (*Session, error) {
 	if status == nil {
 		return nil, errors.New("picolink: a MotorStatus publisher is required")
@@ -188,6 +210,13 @@ func NewSession(
 			return nil, fmt.Errorf("picolink: %w", err)
 		}
 		s.estimator = est
+	}
+	if cfg.Button != nil {
+		if button == nil {
+			return nil, errors.New("picolink: button thresholds are configured but no ButtonEvent publisher was given")
+		}
+		s.buttonEval = driverbutton.NewEvaluator(cfg.Button.Thresholds)
+		s.buttonPub = button
 	}
 	return s, nil
 }
@@ -243,6 +272,8 @@ func (s *Session) Run(ctx context.Context, link io.ReadWriter, cmds CommandReade
 	defer ping.Stop()
 	watch := time.NewTicker(s.linkTimeout / linkChecksPerTimeout)
 	defer watch.Stop()
+	button := time.NewTicker(buttonPollInterval)
+	defer button.Stop()
 
 	w := &linkWriter{w: link}
 	s.lastFrameAt = time.Now()
@@ -283,6 +314,8 @@ func (s *Session) Run(ctx context.Context, link io.ReadWriter, cmds CommandReade
 			}
 		case now := <-watch.C:
 			s.checkLink(now)
+		case now := <-button.C:
+			s.pollButton(now)
 		}
 	}
 }
@@ -370,6 +403,8 @@ func (s *Session) handle(w *linkWriter, pkt *boardlink.Packet) error {
 		s.onOdometry(pkt.Odometry)
 	case boardlink.TypePong:
 		s.onPong(pkt.Pong, now)
+	case boardlink.TypeButton:
+		s.buttonPressed = pkt.Button.Pressed
 	default:
 		s.logger.Debug("picolink: ignoring a host-to-board message from the board", "type", pkt.Type.String())
 	}
@@ -535,6 +570,23 @@ func (s *Session) checkLink(now time.Time) {
 		"silence", silence, "dropped_frames", s.dropped.Load())
 	if err := s.status.Publish(linkLostStatus(silence)); err != nil {
 		s.logger.Error("picolink: publishing MotorStatus", "error", err)
+	}
+}
+
+// pollButton samples the button evaluator on the host clock, as the Zero's
+// button driver polls its GPIO. The board sent only the raw state; the
+// debounce and hold thresholds are applied here, and a stalled link cannot
+// advance a hold because the sample time is the host's, not the board's.
+func (s *Session) pollButton(now time.Time) {
+	if s.buttonEval == nil {
+		return
+	}
+	event := s.buttonEval.Sample(s.buttonPressed, now)
+	if event == nil {
+		return
+	}
+	if err := s.buttonPub.Publish(nodebutton.EventMessageFor(*event)); err != nil {
+		s.logger.Error("picolink: publishing ButtonEvent", "error", err)
 	}
 }
 

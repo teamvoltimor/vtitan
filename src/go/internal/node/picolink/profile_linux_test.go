@@ -54,6 +54,9 @@ func TestHello_ConfigMatchesShippedProfile(t *testing.T) {
 	}
 	// Inverted: motors.toml drive.encoder_reversed = true, which Python
 	// applies and hwconfig.Encoder now does too (it used to be ignored).
+	if cfg.Button == nil {
+		t.Error("Button = nil, want the thresholds resolved from button.toml")
+	}
 	if cfg.Encoder == nil || cfg.Encoder.CountsPerRev != 60 || !cfg.Encoder.Invert {
 		t.Errorf("Encoder = %+v, want counts_per_rev 60 from the motor profile, inverted by encoder_reversed",
 			cfg.Encoder)

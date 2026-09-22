@@ -35,6 +35,16 @@ type servoPWM struct {
 	channel uint8
 }
 
+// buttonPin is the start button as a boardloop.Button. The line is pulled up
+// and the switch shorts it to ground, so a low reading is a press.
+type buttonPin struct {
+	pin machine.Pin
+}
+
+// Pressed reports the raw button state, true while it is down. The host
+// debounces it, so this is deliberately the un-filtered reading.
+func (b buttonPin) Pressed() bool { return !b.pin.Get() }
+
 // usbLink is USB CDC serial as a boardloop.Link.
 type usbLink struct {
 	serial machine.Serialer

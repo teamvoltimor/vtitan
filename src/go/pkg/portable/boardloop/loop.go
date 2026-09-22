@@ -47,13 +47,22 @@ type Encoder interface {
 	Counts() int64
 }
 
+// Button is the board's start/stop button. Pressed is the raw, un-debounced
+// reading, true while the button is down; the host runs the debounce and
+// hold-threshold evaluator, so no timing policy lives on the board.
+type Button interface {
+	Pressed() bool
+}
+
 // Hardware is what the Loop drives. Link, Drive and Servo are required;
-// Encoder may be nil, and then no Odometry is sent.
+// Encoder and Button may be nil, and then no Odometry or Button message is
+// sent.
 type Hardware struct {
 	Link    Link
 	Drive   Drive
 	Servo   Servo
 	Encoder Encoder
+	Button  Button
 }
 
 // Options are the boot facts the firmware knows and the Loop reports.
@@ -110,6 +119,9 @@ type Loop struct {
 	connectFault  bool
 	rejected      bool
 
+	buttonPressed bool
+	haveButton    bool
+
 	nextHello    time.Duration
 	nextStatus   time.Duration
 	nextOdometry time.Duration
@@ -143,6 +155,7 @@ func New(hw Hardware, opts Options) (*Loop, error) {
 // is due. now must not go backwards.
 func (l *Loop) Step(now time.Duration) {
 	l.receive(now)
+	l.pollButton(now)
 	if l.configured {
 		l.checkWatchdog(now)
 	}
@@ -319,6 +332,23 @@ func (l *Loop) drive(duty float64) error {
 		return fmt.Errorf("boardloop: drive: %w", err)
 	}
 	return nil
+}
+
+// pollButton sends a Button message whenever the raw reading changes (and
+// once at boot, so the host knows the initial state). The host's evaluator
+// samples on its own ticker, so a stable state needs no further messages.
+func (l *Loop) pollButton(now time.Duration) {
+	if l.hw.Button == nil {
+		return
+	}
+	pressed := l.hw.Button.Pressed()
+	if l.haveButton && pressed == l.buttonPressed {
+		return
+	}
+	l.buttonPressed, l.haveButton = pressed, true
+	l.tx.Type = boardlink.TypeButton
+	l.tx.Button = boardlink.Button{BoardTimeUS: micros(now), Pressed: pressed}
+	l.send()
 }
 
 // sendDue sends Hello while unconfigured, and Status and Odometry once
