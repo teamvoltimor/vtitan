@@ -70,6 +70,13 @@ const DefaultLidarLaunchTOMLPath = "src/config/hardware/lidar.toml"
 // root. The file's shape is the generated motors.HardwareMotorsMotors DTO.
 const DefaultMotorsTOMLPath = "src/config/hardware/motors/motors.toml"
 
+// DefaultServoTOMLPath is
+// src/config/hardware/motors/servo.toml, relative to the repo root. A flat
+// top-level table whose shape is the generated motors.HardwareMotorsServo
+// DTO. The servo profile overlays it (range_deg = 270.0 for the
+// 270deg-hiwonder-35kg servo), so load it with the active profiles.
+const DefaultServoTOMLPath = "src/config/hardware/motors/servo.toml"
+
 // DefaultSSD1306TOMLPath is
 // src/config/hardware/display/ssd1306.toml, relative to the
 // repo root. The file's shape is the generated
@@ -181,6 +188,13 @@ const DefaultStartMeasurementTOMLPath = "src/config/navigation/sensors/start_mea
 // sensors.NavigationSensorsWallHeading DTO, the parameters for
 // internal/nav/wallheading's absolute-heading estimate.
 const DefaultWallHeadingTOMLPath = "src/config/navigation/sensors/wall_heading.toml"
+
+// DefaultSensorTOMLPath is src/config/navigation/sensors/sensor.toml,
+// relative to the repo root. No per-component profile overlays -- pass nil
+// profileNames to Load. The file's shape is the generated
+// sensors.NavigationSensorsSensor DTO: the staleness gate the nav gateway
+// applies to the LIDAR feed.
+const DefaultSensorTOMLPath = "src/config/navigation/sensors/sensor.toml"
 
 // Navigation: signs.
 

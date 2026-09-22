@@ -32,6 +32,7 @@ import (
 	"math"
 	"slices"
 	"sync"
+	"time"
 
 	"github.com/nats-io/nats.go"
 
@@ -83,12 +84,30 @@ type Gateway struct {
 	// RobotSpecs.WHEEL_RADIUS.
 	wheelRadiusM float64
 
+	// scanAt is when the latest scan was RECEIVED, by this process's clock,
+	// not the scan's own stamp: the question is whether the feed is still
+	// alive here, and the two boards' clock offset is unmeasured.
+	scanAt time.Time
+	// staleTimeout is how old scanAt may get before GetLidarScan and
+	// GetCurrentPose report ok=false. Zero disables the gate; only a
+	// struct literal can produce that, since New refuses it.
+	staleTimeout time.Duration
+	// now is the clock scanAt and the gate read; nil means time.Now.
+	now func() time.Time
+
 	mu                sync.RWMutex
 	havePose          bool
 	captureHeadingRef bool
 
 	haveWheel bool
 }
+
+// DefaultStaleTimeout is sensors/sensor.toml's stale_timeout_sec: five LIDAR
+// scan periods, the widest the gate can be while still reacting to a sensor
+// that died (src/python/shared/src/shared/config/navigation_tuning/sensors.py,
+// STALE_TIMEOUT_SCAN_PERIODS). Callers with a config root load the file
+// instead; this is the fallback when they cannot.
+const DefaultStaleTimeout = 500 * time.Millisecond
 
 // maxSteeringWheelAngleRad is the road-wheel angle at full lock, mapping
 // DriveCommand.SteeringNorm ([-1,1], + = left) onto AckermannCmd.steering_angle
@@ -120,12 +139,15 @@ var _ controllers.HardwareGateway = (*Gateway)(nil)
 // localizer seeds from. locCfg tunes the in-process localizer; the zero value
 // is NOT usable -- pass localization.DefaultConfig(). wheelRadiusM is
 // robot.toml's [wheel] radius, used to turn the drive joint's angle into
-// linear travel; it must be positive.
+// linear travel; it must be positive. staleTimeout is how old the latest scan
+// may get before the gateway reports no scan and no pose (see
+// DefaultStaleTimeout); it must be positive too.
 func New(
 	conn *nats.Conn,
 	initialWalls *trackmodel.TrackWalls,
 	locCfg localization.Config,
 	wheelRadiusM float64,
+	staleTimeout time.Duration,
 ) (*Gateway, error) {
 	if conn == nil {
 		return nil, errors.New("natsgw: nil NATS connection")
@@ -136,6 +158,9 @@ func New(
 	if wheelRadiusM <= 0 {
 		return nil, errors.New("natsgw: wheel radius must be positive")
 	}
+	if staleTimeout <= 0 {
+		return nil, errors.New("natsgw: stale timeout must be positive")
+	}
 	return &Gateway{
 		conn: conn,
 		drivePub: natsx.NewPublisher[*actuationv1.AckermannCmd](
@@ -145,6 +170,7 @@ func New(
 		locCfg:       locCfg,
 		walls:        initialWalls,
 		wheelRadiusM: wheelRadiusM,
+		staleTimeout: staleTimeout,
 	}, nil
 }
 
@@ -164,20 +190,32 @@ func (g *Gateway) PublishDrive(command controllers.DriveCommand) {
 // GetCurrentPose returns the latest in-process localizer estimate, ok=false
 // until the first scan has been scored. The localizer runs inside the scan
 // watch loop (see Run), so this is a cache read.
+//
+// Once scans have been seen, a stale feed also reports ok=false: LIDAR is
+// the position source, so a pose scored from a frozen scan is a frozen
+// pose, and the navigator stops on ok=false rather than steering on it.
+// This mirrors ros2_hardware_gateway.py's get_current_pose.
 func (g *Gateway) GetCurrentPose() (trackmodel.Pose, bool) {
 	g.mu.RLock()
 	defer g.mu.RUnlock()
+	if g.scanStaleLocked() {
+		return trackmodel.Pose{}, false
+	}
 	return g.pose, g.havePose
 }
 
 // GetLidarScan returns the latest Scan, reconstituted into the controller's
 // LidarScan shape (ranges + per-ray angles derived from the proto's min/increment
-// fields). ok=false until the first scan arrives.
+// fields). ok=false until the first scan arrives, and again whenever the
+// latest is older than staleTimeout: without that, a LIDAR that died would
+// leave the navigator steering on its last scan while still publishing, so
+// the motor node's command watchdog would never fire.
 func (g *Gateway) GetLidarScan() (controllers.LidarScan, bool) {
 	g.mu.RLock()
 	scan := g.scan
+	stale := g.scanStaleLocked()
 	g.mu.RUnlock()
-	if scan == nil {
+	if scan == nil || stale {
 		return controllers.LidarScan{}, false
 	}
 	return scanToLidarScan(scan), true
@@ -341,6 +379,7 @@ func (g *Gateway) scanLoop(ctx context.Context, sub *natsx.Subscriber[*sensorv1.
 
 		g.mu.Lock()
 		g.scan = scan
+		g.scanAt = g.clock()
 
 		// Drain a pending wall swap / position re-seed before scoring.
 		if g.pendingWalls != nil {
@@ -491,4 +530,18 @@ func wheelOdometryFrom(
 		// only that every sample shares one.
 		StampS: float64(stamp.GetSeconds()) + float64(stamp.GetNanos())*nanosecondsPerSecond,
 	}, true
+}
+
+// clock returns the gateway's notion of now.
+func (g *Gateway) clock() time.Time {
+	if g.now == nil {
+		return time.Now()
+	}
+	return g.now()
+}
+
+// scanStaleLocked reports whether scans have been seen and the latest is
+// older than staleTimeout. Callers hold g.mu.
+func (g *Gateway) scanStaleLocked() bool {
+	return g.staleTimeout > 0 && !g.scanAt.IsZero() && g.clock().Sub(g.scanAt) > g.staleTimeout
 }

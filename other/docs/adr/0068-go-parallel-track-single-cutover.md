@@ -40,12 +40,18 @@ real maintenance cost.
 ## Consequences
 
 - There is never a half-migrated system.
-- Go lags Python in config coverage. `sensor.toml` and `state_estimator.toml`
-  have generated Go DTOs but no consumer anywhere in `src/go`, and
-  `navigation-challenges/` has no Go reference at all: these are unported
-  features rather than divergent values, so no parity pin can catch an edit to
-  them. A Go loader can also succeed without reading a key (a missing
-  `mapstructure` tag), which is a known drift hazard.
+- Go lags Python in config coverage. `state_estimator.toml`
+  (`yaw_correction_gain`, read by the Python state machine's estimator) has a
+  generated Go DTO and no consumer in `src/go`: an unported feature rather
+  than a divergent value, so no parity pin can catch an edit to it. A Go
+  loader can also succeed without reading a key (a missing `mapstructure`
+  tag), which is a known drift hazard.
+  CORRECTED 2026-09-22: this list also named `sensor.toml` and
+  `navigation-challenges/`. `sensor.toml` is `stale_timeout_sec`, the gate that
+  withdraws a frozen LIDAR feed, and it was a safety gap rather than config
+  lag: the Go gateway served the last scan forever. The nav node now reads it,
+  pinned against a root holding a non-default value. `navigation-challenges/`
+  holds two READMEs and no TOML, so there was nothing to port.
   CORRECTED 2026-09-21: this list also named `sign_discovery.toml`, which Go
   DOES read, through `signrouter.DiscoveryConfigFor`. What was missing was the
   pin test, added in ab92809d asserting the shipped 1.5 against Go's own 2.0

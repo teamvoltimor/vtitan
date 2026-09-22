@@ -14,6 +14,7 @@ import (
 	"github.com/teamvoltimor/vtitan/src/go/internal/adapters/natsgw"
 	"github.com/teamvoltimor/vtitan/src/go/internal/adapters/natsvision"
 	"github.com/teamvoltimor/vtitan/src/go/internal/config/generated"
+	"github.com/teamvoltimor/vtitan/src/go/internal/config/generated/navigation/sensors"
 	"github.com/teamvoltimor/vtitan/src/go/internal/config/profile"
 	"github.com/teamvoltimor/vtitan/src/go/internal/nav/bayexit"
 	"github.com/teamvoltimor/vtitan/src/go/internal/nav/controllers"
@@ -69,6 +70,7 @@ type runtimeConfig struct {
 	wpCfg          waypoints.Config
 	startCfg       startconditions.Config
 	estCfg         corridorestimator.Config
+	staleTimeout   time.Duration
 }
 
 // blindNarrowWidthM is the corridor width assumed before anything has been
@@ -317,6 +319,7 @@ func Run(ctx context.Context, logger *slog.Logger, cfg Config) error {
 		trackmodel.NewTrackWalls(priorGeometry, -rt.trackMaxCoordM, rt.trackMaxCoordM),
 		localization.DefaultConfig(),
 		rt.wheelRadiusM,
+		rt.staleTimeout,
 	)
 	if err != nil {
 		return err //nolint:wrapcheck // main-level wiring; the cmd prints and exits
@@ -493,7 +496,27 @@ func loadRuntimeConfig(logger *slog.Logger, cfg Config, profiles []string) runti
 	rt.wpCfg = waypoints.ConfigFor(logger, cfg.ConfigRoot)
 	rt.startCfg = startconditions.ConfigFor(logger, cfg.ConfigRoot)
 	rt.estCfg = corridorestimator.ConfigFor(logger, cfg.ConfigRoot)
+	rt.staleTimeout = loadStaleTimeout(logger, cfg.ConfigRoot)
 	return rt
+}
+
+// loadStaleTimeout reads sensors/sensor.toml's stale_timeout_sec, falling
+// back to natsgw.DefaultStaleTimeout when there is no config root or the
+// file does not load. A non-positive value in the file also falls back:
+// New refuses it, and a gate that never fires is not a setting.
+func loadStaleTimeout(logger *slog.Logger, configRoot string) time.Duration {
+	if configRoot == "" {
+		return natsgw.DefaultStaleTimeout
+	}
+	loaded, err := profile.Load[sensors.NavigationSensorsSensor](
+		filepath.Join(configRoot, profile.DefaultSensorTOMLPath), nil,
+	)
+	if err != nil || loaded.StaleTimeoutSec <= 0 {
+		logger.Warn("track-navigator: loading sensor.toml, using default",
+			"error", err, "stale_timeout", natsgw.DefaultStaleTimeout)
+		return natsgw.DefaultStaleTimeout
+	}
+	return time.Duration(loaded.StaleTimeoutSec * float64(time.Second))
 }
 
 // startRecording opens a run recorder when --record is set, returning the
