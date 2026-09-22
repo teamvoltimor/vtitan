@@ -23,6 +23,8 @@ set -u
 # any machine. It used to be an absolute path to one Windows working copy.
 ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../../.." && pwd)
 cd "$ROOT" || exit 1
+# shellcheck source=_results.sh
+source "$ROOT/src/python/scripts/sim/sweeps/_results.sh"
 
 LOC=src/config/navigation/blind_nav/localization.toml
 OUT=/tmp/an/reloc
@@ -59,6 +61,7 @@ for arm in "${ARMS[@]}"; do
     echo "    ABORT: ${TAG} produced no test result"; tail -3 "$OUT/$TAG.raw"; exit 1
   fi
   echo "    $(tail -1 "$OUT/$TAG.raw")"
+  record_arm "$(basename "$0" .sh)" "$TAG" "$KVS" "$OUT/$TAG.raw"
   cd "$ROOT" || exit 1
 done
 

@@ -38,6 +38,8 @@ set -u
 # any machine. It used to be an absolute path to one Windows working copy.
 ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../../.." && pwd)
 cd "$ROOT" || exit 1
+# shellcheck source=_results.sh
+source "$ROOT/src/python/scripts/sim/sweeps/_results.sh"
 
 E=src/config/navigation/escape/escape.toml
 S=src/config/navigation/simulation/simulation.toml
@@ -83,6 +85,7 @@ else:
     echo "    ABORT: ${TAG} produced no test result -- config or import error"; tail -3 "$OUT/$TAG.raw"; exit 1
   fi
   echo "    $(tail -1 "$OUT/$TAG.raw")"
+  record_arm "$(basename "$0" .sh)" "$TAG" "${KEY:+${FILE}:${KEY}=${VAL}}" "$OUT/$TAG.raw"
   cd "$ROOT" || exit 1
 done
 
