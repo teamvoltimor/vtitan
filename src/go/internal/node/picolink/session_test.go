@@ -127,7 +127,7 @@ func TestHello_BootIDChangeIsLoggedAsReset(t *testing.T) {
 	t.Parallel()
 
 	h := startSession(t, picolink.SessionConfig{Board: sampleBoard})
-	hello := func(bootID uint32, faults uint8) {
+	hello := func(bootID uint32, faults boardlink.Faults) {
 		h.board.send(t, boardlink.Packet{Type: boardlink.TypeHello, Hello: boardlink.Hello{
 			ProtocolVersion: boardlink.Version, BootID: bootID, Faults: faults,
 		}})
@@ -195,7 +195,7 @@ func TestMotorStatusFor(t *testing.T) {
 	for _, tc := range []struct {
 		name       string
 		state      boardlink.State
-		faults     uint8
+		faults     boardlink.Faults
 		wantState  actuationv1.MotorStatus_State
 		wantDetail string
 	}{

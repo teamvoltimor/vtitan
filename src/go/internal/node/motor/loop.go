@@ -52,14 +52,6 @@ type Loop struct {
 // FrameID is the frame_id every MotorStatus this package publishes carries.
 const FrameID = "base_link"
 
-// DefaultCommandTimeout is the motor loop's own deadline watchdog: how long
-// it will keep driving the last commanded speed after the most recent
-// AckermannCmd before treating the command stream as stale and safety-
-// stopping. It is a first-derived value for the Go port, exposed as a
-// caller-supplied duration rather than hardcoded so it can be tuned on real
-// hardware. adr:0068-go-parallel-track-single-cutover
-const DefaultCommandTimeout = 500 * time.Millisecond
-
 // watchdogPollInterval is how often Run checks command staleness while no
 // new AckermannCmd has arrived.
 const watchdogPollInterval = 50 * time.Millisecond

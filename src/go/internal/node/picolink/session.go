@@ -98,7 +98,7 @@ type Session struct {
 	configPending bool
 	refusals      int
 	retryAfter    time.Time
-	lastFaults    uint8
+	lastFaults    boardlink.Faults
 	estimator     *quadrature.SpeedEstimator
 	lastOdoUS     uint64
 	haveOdo       bool
@@ -139,8 +139,6 @@ const (
 	// linkChecksPerTimeout sets the link watchdog's poll rate relative to
 	// LinkTimeout, bounding how late a loss is noticed.
 	linkChecksPerTimeout = 4
-	// readChunk is the link read size. Frames are under 64 bytes.
-	readChunk = 64
 	// microsPerSecond converts board microseconds into the seconds
 	// quadrature.SpeedEstimator takes.
 	microsPerSecond = 1e6
@@ -303,7 +301,7 @@ func (s *Session) readLink(
 		dec boardlink.Decoder
 		pkt boardlink.Packet
 	)
-	buf := make([]byte, readChunk)
+	buf := make([]byte, boardlink.ReadChunkSize)
 	for {
 		n, err := link.Read(buf)
 		for _, b := range buf[:n] {

@@ -2,13 +2,13 @@ package picolink
 
 import (
 	"fmt"
-	"math"
 	"strings"
 
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	actuationv1 "github.com/teamvoltimor/vtitan/src/go/internal/schema/pb/vtitan/actuation/v1"
 	"github.com/teamvoltimor/vtitan/src/go/pkg/portable/boardlink"
+	"github.com/teamvoltimor/vtitan/src/go/pkg/portable/quadrature"
 )
 
 // FrameID is the frame_id on every message this package publishes: the
@@ -19,18 +19,10 @@ const FrameID = "base_link"
 // a Config yet.
 const DetailUnconfigured = "unconfigured"
 
-// radiansPerRevolution and secondsPerMinute convert revolutions and RPM into
-// the SI units JointStates carries, as internal/node/motor.JointStatesFor
-// does.
-const (
-	radiansPerRevolution = 2 * math.Pi
-	secondsPerMinute     = 60.0
-)
-
 // faultNames are the boardlink fault bits in the words MotorStatus.Detail
 // uses, lowest bit first.
 var faultNames = [...]struct {
-	bit  uint8
+	bit  boardlink.Faults
 	name string
 }{
 	{boardlink.FaultWatchdogReset, "watchdog_reset"},
@@ -95,12 +87,12 @@ func MotorStatusFor(st boardlink.Status) *actuationv1.MotorStatus {
 	}
 }
 
-// FaultString names the set bits of a boardlink fault byte, comma-separated,
+// FaultString names the set bits of a boardlink fault bit set, comma-separated,
 // lowest bit first. Unknown bits are rendered in hex so a newer firmware's
 // fault is visible rather than dropped. It is empty when faults is zero.
-func FaultString(faults uint8) string {
+func FaultString(faults boardlink.Faults) string {
 	var parts []string
-	known := uint8(0)
+	known := boardlink.Faults(0)
 	for _, f := range faultNames {
 		known |= f.bit
 		if faults&f.bit != 0 {
@@ -132,7 +124,7 @@ func jointStatesFor(revolutions, rpm float64) *actuationv1.JointStates {
 		Stamp:    timestamppb.Now(),
 		FrameId:  FrameID,
 		Name:     []string{actuationv1.DriveJoint},
-		Position: []float64{revolutions * radiansPerRevolution},
-		Velocity: []float64{rpm * radiansPerRevolution / secondsPerMinute},
+		Position: []float64{revolutions * quadrature.RadiansPerRevolution},
+		Velocity: []float64{rpm * quadrature.RadiansPerRevolution / quadrature.SecondsPerMinute},
 	}
 }

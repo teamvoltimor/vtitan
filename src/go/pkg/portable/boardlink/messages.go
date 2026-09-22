@@ -13,6 +13,11 @@ type Type uint8
 // MotorStatus.State on the host, plus Unconfigured, which the Zero never has.
 type State uint8
 
+// Faults is the set of fault conditions a board reports, as a bit set (see
+// the Fault* constants). Typed, so it cannot be confused with the header's
+// other uint8 fields, and so FaultString's author gets an exhaustive switch.
+type Faults uint8
+
 // Hello is sent by the board at boot and repeatedly until configured.
 type Hello struct {
 	// ProtocolVersion is the Version the firmware was built with.
@@ -22,7 +27,7 @@ type Hello struct {
 	BootID uint32
 	// Faults carries FaultWatchdogReset when the boot followed a watchdog
 	// reset.
-	Faults uint8
+	Faults Faults
 }
 
 // Config is everything the board needs to turn a Command into actuator
@@ -67,7 +72,7 @@ type Pong struct {
 type Status struct {
 	BoardTimeUS   uint64
 	State         State
-	Faults        uint8
+	Faults        Faults
 	Duty          float32
 	ServoAngleDeg float32
 	CommandAgeMS  uint32
@@ -131,12 +136,12 @@ const (
 // Fault bits, reported in Status.Faults.
 const (
 	// FaultWatchdogReset: the board's last reset was its hardware watchdog.
-	FaultWatchdogReset uint8 = 1 << 0
+	FaultWatchdogReset Faults = 1 << 0
 	// FaultActuator: the last servo or H-bridge write failed.
-	FaultActuator uint8 = 1 << 1
+	FaultActuator Faults = 1 << 1
 	// FaultRejectedCommand: a non-finite command was dropped since the last
 	// Status.
-	FaultRejectedCommand uint8 = 1 << 2
+	FaultRejectedCommand Faults = 1 << 2
 )
 
 // Body sizes on the wire. Fixed per type: a length mismatch is a corrupt or
@@ -218,7 +223,7 @@ func appendBody(w *writer, p *Packet) {
 	case TypeHello:
 		w.u8(p.Hello.ProtocolVersion)
 		w.u32(p.Hello.BootID)
-		w.u8(p.Hello.Faults)
+		w.u8(uint8(p.Hello.Faults))
 	case TypeConfig:
 		c := &p.Config
 		w.u16(c.CommandTimeoutMS)
@@ -247,7 +252,7 @@ func appendBody(w *writer, p *Packet) {
 		s := &p.Status
 		w.u64(s.BoardTimeUS)
 		w.u8(uint8(s.State))
-		w.u8(s.Faults)
+		w.u8(uint8(s.Faults))
 		w.f32(s.Duty)
 		w.f32(s.ServoAngleDeg)
 		w.u32(s.CommandAgeMS)
@@ -260,7 +265,7 @@ func appendBody(w *writer, p *Packet) {
 func readBody(r *reader, p *Packet) {
 	switch p.Type {
 	case TypeHello:
-		p.Hello = Hello{ProtocolVersion: r.u8(), BootID: r.u32(), Faults: r.u8()}
+		p.Hello = Hello{ProtocolVersion: r.u8(), BootID: r.u32(), Faults: Faults(r.u8())}
 	case TypeConfig:
 		p.Config = Config{
 			CommandTimeoutMS:    r.u16(),
@@ -288,7 +293,7 @@ func readBody(r *reader, p *Packet) {
 		p.Status = Status{
 			BoardTimeUS:   r.u64(),
 			State:         State(r.u8()),
-			Faults:        r.u8(),
+			Faults:        Faults(r.u8()),
 			Duty:          r.f32(),
 			ServoAngleDeg: r.f32(),
 			CommandAgeMS:  r.u32(),

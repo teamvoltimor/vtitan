@@ -20,10 +20,20 @@ type Decoder struct {
 // new Type does not need a bump.
 const Version uint8 = 1
 
-// Frame layout sizes.
+// Frame layout: version:u8 | type:u8 | seq:u16 | body | crc16:u16. The
+// header offsets are stated once here; decodeFrame reads through them, and
+// Append writes the fields in the same order.
 const (
-	headerLen = 1 + 1 + 2 // version, type, seq
-	crcLen    = 2
+	versionLen = 1
+	typeLen    = 1
+	seqLen     = 2
+
+	versionOffset = 0
+	typeOffset    = versionOffset + versionLen
+	seqOffset     = typeOffset + typeLen
+	headerLen     = seqOffset + seqLen
+
+	crcLen = 2
 	// maxRawLen is the largest frame before COBS.
 	maxRawLen = headerLen + maxBodyLen + crcLen
 	// MaxEncodedLen is the largest frame on the wire, delimiter included:
@@ -31,6 +41,11 @@ const (
 	// shorter than 254.
 	MaxEncodedLen = maxRawLen + 2 + 1
 )
+
+// ReadChunkSize is the buffer size a link reader asks for. A frame is well
+// under it, so one read normally holds a whole frame; the per-byte decoder
+// handles one split across reads either way.
+const ReadChunkSize = 64
 
 // CRC-16/CCITT-FALSE parameters, and COBS's longest run marker.
 const (
@@ -110,10 +125,10 @@ func decodeFrame(encoded []byte, p *Packet) (bool, error) {
 	if crc16(body) != sum {
 		return false, ErrCRC
 	}
-	if body[0] != Version {
+	if body[versionOffset] != Version {
 		return false, ErrVersion
 	}
-	t := Type(body[1])
+	t := Type(body[typeOffset])
 	want, known := bodyLen(t)
 	if !known {
 		return false, ErrUnknownType
@@ -123,7 +138,7 @@ func decodeFrame(encoded []byte, p *Packet) (bool, error) {
 	}
 
 	p.Type = t
-	p.Seq = binary.LittleEndian.Uint16(body[2:])
+	p.Seq = binary.LittleEndian.Uint16(body[seqOffset:])
 	readBody(&reader{b: body[headerLen:]}, p)
 	return true, nil
 }

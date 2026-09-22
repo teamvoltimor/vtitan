@@ -45,7 +45,7 @@ func (s brokenServo) SetPulseUS(float64) error                { return s.err }
 func main() {
 	// Read before anything can reset it: the reset cause decides
 	// FaultWatchdogReset for the whole boot.
-	var bootFaults uint8
+	var bootFaults boardlink.Faults
 	if rp.WATCHDOG.GetREASON_TIMER() != 0 {
 		bootFaults |= boardlink.FaultWatchdogReset
 	}

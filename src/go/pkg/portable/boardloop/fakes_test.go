@@ -155,7 +155,7 @@ func validConfig() boardlink.Config {
 	}
 }
 
-func newHarness(t *testing.T, bootFaults uint8, withEncoder bool) *harness {
+func newHarness(t *testing.T, bootFaults boardlink.Faults, withEncoder bool) *harness {
 	t.Helper()
 
 	ev := &events{}

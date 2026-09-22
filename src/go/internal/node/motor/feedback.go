@@ -5,13 +5,13 @@ package motor
 import (
 	"context"
 	"log/slog"
-	"math"
 	"time"
 
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	actuationv1 "github.com/teamvoltimor/vtitan/src/go/internal/schema/pb/vtitan/actuation/v1"
 	"github.com/teamvoltimor/vtitan/src/go/pkg/driver/encoder"
+	"github.com/teamvoltimor/vtitan/src/go/pkg/portable/quadrature"
 	"github.com/teamvoltimor/vtitan/src/go/pkg/transport/nats"
 )
 
@@ -32,10 +32,6 @@ type OdometrySource interface {
 // distances (internal/nav/bayexit) never has to wait more than one nav tick
 // for a fresh sample.
 const DefaultFeedbackInterval = 20 * time.Millisecond
-
-// radiansPerRevolution converts the encoder's revolution count into the
-// accumulating wheel ANGLE that JointStates.position carries.
-const radiansPerRevolution = 2 * math.Pi
 
 // Feedback publishes wheel odometry as JointStates on
 // vtitan.actuation.v1.joint_states, the subject
@@ -82,14 +78,10 @@ func JointStatesFor(odometry encoder.Odometry) *actuationv1.JointStates {
 		Stamp:    timestamppb.Now(),
 		FrameId:  FrameID,
 		Name:     []string{actuationv1.DriveJoint},
-		Position: []float64{odometry.Revolutions * radiansPerRevolution},
-		Velocity: []float64{odometry.RPM * radiansPerRevolution / secondsPerMinute},
+		Position: []float64{odometry.Revolutions * quadrature.RadiansPerRevolution},
+		Velocity: []float64{odometry.RPM * quadrature.RadiansPerRevolution / quadrature.SecondsPerMinute},
 	}
 }
-
-// secondsPerMinute converts the encoder's RPM into the rad/s
-// JointStates.velocity carries.
-const secondsPerMinute = 60.0
 
 // Run samples the encoder and publishes JointStates until ctx is done.
 //

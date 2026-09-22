@@ -35,11 +35,6 @@ type SpeedEstimatorParams struct {
 	MinWindowS float64
 }
 
-// secondsPerMinute converts the estimator's revs/second into the RPM the
-// rest of the drivetrain speaks (motors.toml, the feedforward calibration,
-// and the Python oracle all work in rpm).
-const secondsPerMinute = 60.0
-
 // DefaultSmoothing is SpeedEstimator's exponential-smoothing factor,
 // matching control.py's SpeedEstimator(smoothing=0.3) default.
 const DefaultSmoothing = 0.3
@@ -148,7 +143,7 @@ func (e *SpeedEstimator) Update(counts int64, dtS float64) float64 {
 	}
 
 	revolutions := float64(e.windowCounts) / e.countsPerRev
-	rpmRaw := revolutions / e.windowDTS * secondsPerMinute
+	rpmRaw := revolutions / e.windowDTS * SecondsPerMinute
 	e.rpm = e.smoothing*rpmRaw + (1.0-e.smoothing)*e.rpm
 	e.windowCounts = 0
 	e.windowDTS = 0

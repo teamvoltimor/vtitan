@@ -63,7 +63,7 @@ type Options struct {
 	// BootFaults are fault bits that hold for the whole boot, reported in
 	// every Hello and Status: boardlink.FaultWatchdogReset when the boot
 	// followed a hardware watchdog reset.
-	BootFaults uint8
+	BootFaults boardlink.Faults
 }
 
 // Counters count what the Loop dropped or failed to do, for the firmware's
@@ -92,7 +92,7 @@ type Loop struct {
 	dec   boardlink.Decoder
 	rx    boardlink.Packet
 	tx    boardlink.Packet
-	rxBuf [readChunk]byte
+	rxBuf [boardlink.ReadChunkSize]byte
 	txBuf [boardlink.MaxEncodedLen]byte
 	seq   uint16
 
@@ -121,9 +121,6 @@ type Loop struct {
 const HelloInterval = 250 * time.Millisecond
 
 const (
-	// readChunk is how many bytes one Link.Read may return: a little over
-	// one of the largest frames.
-	readChunk = 64
 	// maxReadsPerStep bounds the bytes one Step consumes, so a flooded
 	// link cannot starve the watchdog check behind it.
 	maxReadsPerStep = 8
