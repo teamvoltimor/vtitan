@@ -23,7 +23,9 @@ import (
 	"github.com/teamvoltimor/vtitan/src/go/internal/nav/navigator"
 	"github.com/teamvoltimor/vtitan/src/go/internal/nav/signrouter"
 	"github.com/teamvoltimor/vtitan/src/go/internal/nav/startconditions"
+	"github.com/teamvoltimor/vtitan/src/go/internal/nav/stateestimator"
 	"github.com/teamvoltimor/vtitan/src/go/internal/nav/trackmodel"
+	"github.com/teamvoltimor/vtitan/src/go/internal/nav/wallheading"
 	"github.com/teamvoltimor/vtitan/src/go/internal/nav/waypoints"
 	"github.com/teamvoltimor/vtitan/src/go/internal/nav/widthbelief"
 	actuationv1 "github.com/teamvoltimor/vtitan/src/go/internal/schema/pb/vtitan/actuation/v1"
@@ -320,6 +322,8 @@ func Run(ctx context.Context, logger *slog.Logger, cfg Config) error {
 		localization.DefaultConfig(),
 		rt.wheelRadiusM,
 		rt.staleTimeout,
+		stateestimator.ConfigFor(logger, cfg.ConfigRoot).YawCorrectionGain,
+		wallheading.ConfigFor(logger, cfg.ConfigRoot),
 	)
 	if err != nil {
 		return err //nolint:wrapcheck // main-level wiring; the cmd prints and exits

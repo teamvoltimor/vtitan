@@ -196,6 +196,16 @@ const DefaultWallHeadingTOMLPath = "src/config/navigation/sensors/wall_heading.t
 // applies to the LIDAR feed.
 const DefaultSensorTOMLPath = "src/config/navigation/sensors/sensor.toml"
 
+// Navigation: blind nav.
+
+// DefaultStateEstimatorTOMLPath is
+// src/config/navigation/blind_nav/state_estimator.toml, relative to the
+// repo root. No per-component profile overlays -- pass nil profileNames to
+// Load. The file's shape is the generated
+// blind_nav.NavigationBlindNavStateEstimator DTO: the heading-fusion gain
+// the nav gateway applies to the IMU yaw.
+const DefaultStateEstimatorTOMLPath = "src/config/navigation/blind_nav/state_estimator.toml"
+
 // Navigation: signs.
 
 // DefaultSignDiscoveryTOMLPath is where sign_discovery.toml lives, relative to

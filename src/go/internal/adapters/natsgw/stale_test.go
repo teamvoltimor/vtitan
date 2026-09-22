@@ -9,6 +9,7 @@ import (
 
 	"github.com/teamvoltimor/vtitan/src/go/internal/nav/localization"
 	"github.com/teamvoltimor/vtitan/src/go/internal/nav/trackmodel"
+	"github.com/teamvoltimor/vtitan/src/go/internal/nav/wallheading"
 	sensorv1 "github.com/teamvoltimor/vtitan/src/go/internal/schema/pb/vtitan/sensor/v1"
 )
 
@@ -109,7 +110,9 @@ func TestNew_RefusesNonPositiveStaleTimeout(t *testing.T) {
 	t.Cleanup(conn.Close)
 	walls := trackmodel.NewTrackWalls(trackmodel.CorridorGeometry{}, -1.5, 1.5)
 
-	gw, err := New(conn, walls, localization.DefaultConfig(), 0.03, testStaleTimeout)
+	gw, err := New(
+		conn, walls, localization.DefaultConfig(), 0.03, testStaleTimeout, 0, wallheading.DefaultConfig(),
+	)
 	if err != nil {
 		t.Fatalf("New with a valid stale timeout: %v", err)
 	}
@@ -120,7 +123,9 @@ func TestNew_RefusesNonPositiveStaleTimeout(t *testing.T) {
 			gw.locCfg.RelocalizeAfterScans)
 	}
 	for _, d := range []time.Duration{0, -time.Second} {
-		if _, err = New(conn, walls, localization.DefaultConfig(), 0.03, d); err == nil {
+		if _, err = New(
+			conn, walls, localization.DefaultConfig(), 0.03, d, 0, wallheading.DefaultConfig(),
+		); err == nil {
 			t.Errorf("New with stale timeout %v: no error", d)
 		}
 	}

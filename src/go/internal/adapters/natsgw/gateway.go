@@ -39,8 +39,10 @@ import (
 	"github.com/teamvoltimor/vtitan/src/go/internal/nav/controllers"
 	"github.com/teamvoltimor/vtitan/src/go/internal/nav/localization"
 	"github.com/teamvoltimor/vtitan/src/go/internal/nav/trackmodel"
+	"github.com/teamvoltimor/vtitan/src/go/internal/nav/wallheading"
 	actuationv1 "github.com/teamvoltimor/vtitan/src/go/internal/schema/pb/vtitan/actuation/v1"
 	sensorv1 "github.com/teamvoltimor/vtitan/src/go/internal/schema/pb/vtitan/sensor/v1"
+	"github.com/teamvoltimor/vtitan/src/go/pkg/geom"
 	natsx "github.com/teamvoltimor/vtitan/src/go/pkg/transport/nats"
 )
 
@@ -87,6 +89,13 @@ type Gateway struct {
 	// estimator's heading without a round-trip to a (nonexistent) localizer
 	// node. zero means "trust the IMU as-is".
 	headingOffsetRad float64
+	// yawCorrectionGain is state_estimator.toml's yaw_correction_gain: the
+	// fraction of the wall-heading error folded into headingOffsetRad per
+	// scan, the complementary filter estimator.py applies. Zero disables the
+	// fusion, leaving the raw IMU heading.
+	yawCorrectionGain float64
+	// wallCfg tunes EstimateYawFromWalls, from wall_heading.toml.
+	wallCfg wallheading.Config
 
 	// wheelRadiusM scales the drive joint's ANGLE into linear travel. It is
 	// a construction-time fact rather than something read per message: the
@@ -153,13 +162,17 @@ var _ controllers.HardwareGateway = (*Gateway)(nil)
 // robot.toml's [wheel] radius, used to turn the drive joint's angle into
 // linear travel; it must be positive. staleTimeout is how old the latest scan
 // may get before the gateway reports no scan and no pose (see
-// DefaultStaleTimeout); it must be positive too.
+// DefaultStaleTimeout); it must be positive too. yawCorrectionGain is
+// state_estimator.toml's heading-fusion gain in [0, 1] (0 disables it) and
+// wallCfg tunes the wall-heading estimate it uses.
 func New(
 	conn *nats.Conn,
 	initialWalls *trackmodel.TrackWalls,
 	locCfg localization.Config,
 	wheelRadiusM float64,
 	staleTimeout time.Duration,
+	yawCorrectionGain float64,
+	wallCfg wallheading.Config,
 ) (*Gateway, error) {
 	if conn == nil {
 		return nil, errors.New("natsgw: nil NATS connection")
@@ -172,6 +185,9 @@ func New(
 	}
 	if staleTimeout <= 0 {
 		return nil, errors.New("natsgw: stale timeout must be positive")
+	}
+	if yawCorrectionGain < 0 || yawCorrectionGain > 1 {
+		return nil, errors.New("natsgw: yaw correction gain must be in [0, 1]")
 	}
 	// Relocalization is disabled here (adr:0084-localizer-divergence-and-
 	// relocalization): the global search can teleport the pose to the track's
@@ -186,11 +202,13 @@ func New(
 			conn,
 			actuationv1.AckermannCmdSubject,
 		),
-		locCfg:       locCfg,
-		walls:        initialWalls,
-		loc:          localization.New(initialWalls, locCfg),
-		wheelRadiusM: wheelRadiusM,
-		staleTimeout: staleTimeout,
+		locCfg:            locCfg,
+		walls:             initialWalls,
+		loc:               localization.New(initialWalls, locCfg),
+		wheelRadiusM:      wheelRadiusM,
+		staleTimeout:      staleTimeout,
+		yawCorrectionGain: yawCorrectionGain,
+		wallCfg:           wallCfg,
 	}, nil
 }
 
@@ -417,6 +435,13 @@ func (g *Gateway) scanLoop(ctx context.Context, sub *natsx.Subscriber[*sensorv1.
 
 		yaw, haveYaw := g.currentYawLocked()
 		if haveYaw {
+			// Pull the IMU heading toward the wall-derived one before scoring,
+			// the complementary filter estimator.py applies; the corrected yaw
+			// is what this tick's match uses.
+			g.correctHeadingLocked(scan, yaw)
+			if corrected, ok := g.currentYawLocked(); ok {
+				yaw = corrected
+			}
 			g.scorePoseLocked(scan, yaw)
 		}
 		g.mu.Unlock()
@@ -464,6 +489,29 @@ func (g *Gateway) currentYawLocked() (float64, bool) {
 		return 0, false
 	}
 	return yaw + g.headingOffsetRad, true
+}
+
+// correctHeadingLocked folds a fraction of the wall-derived heading error
+// into the gateway's heading offset, the complementary filter Python's
+// StateEstimator.correct_yaw applies: the IMU supplies the fast, smooth
+// heading, the walls the bounded one, and neither alone is enough.
+// yawCorrectionGain is deliberately small so per-scan wall noise is not
+// injected straight into steering. Caller must hold g.mu.
+func (g *Gateway) correctHeadingLocked(scan *sensorv1.Scan, yaw float64) {
+	if g.yawCorrectionGain <= 0 {
+		return
+	}
+	lidar := scanToLidarScan(scan)
+	if len(lidar.RangesM) == 0 || len(lidar.RangesM) != len(lidar.AnglesRad) {
+		return
+	}
+	measured, ok := wallheading.EstimateYawFromWalls(lidar.RangesM, lidar.AnglesRad, yaw, g.wallCfg)
+	if !ok {
+		return
+	}
+	g.headingOffsetRad = geom.WrapAngle(
+		g.headingOffsetRad + g.yawCorrectionGain*wallheading.HeadingError(measured, yaw),
+	)
 }
 
 // scorePoseLocked estimates (x, y) from the cached prior pose and the given
