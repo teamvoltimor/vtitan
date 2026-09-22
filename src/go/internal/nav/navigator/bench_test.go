@@ -12,6 +12,11 @@ import (
 // fake controllers.HardwareGateway returning a fixed pose + scan) for N
 // iterations, reporting ns/op. The fake gateway implements the full
 // controllers.HardwareGateway interface (see testutil_test.go).
+//
+// The fake scenario reaches finished_hold after roughly 250 steps, so at an
+// ordinary -benchtime most iterations time the idle post-race state: 5
+// allocations a step there against 20 while driving. The driving cost is
+// what TestStepAllocationCeilingWhileDriving gates (alloc_test.go).
 func BenchmarkNavigatorStep(b *testing.B) {
 	gateway := &fakeGateway{}
 	gateway.setPose(1.5, 1.0, 0.0)
