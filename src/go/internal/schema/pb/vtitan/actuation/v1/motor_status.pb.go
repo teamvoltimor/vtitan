@@ -93,7 +93,7 @@ type MotorStatus struct {
 	// Measured wheel speed from the encoder [m/s].
 	MeasuredSpeed float32 `protobuf:"fixed32,6,opt,name=measured_speed,json=measuredSpeed,proto3" json:"measured_speed,omitempty"`
 	// Milliseconds since the last accepted AckermannCmd — mirrors the
-	// deadline watchdog described in go-migration-plan.md.
+	// deadline watchdog in internal/node/motor (DefaultCommandTimeout).
 	CommandAgeMs  uint32 `protobuf:"varint,7,opt,name=command_age_ms,json=commandAgeMs,proto3" json:"command_age_ms,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -229,9 +229,7 @@ var file_vtitan_actuation_v1_motor_status_proto_depIdxs = []int32{
 	0, // [0:2] is the sub-list for field type_name
 }
 
-func init() {
-	file_vtitan_actuation_v1_motor_status_proto_init()
-}
+func init() { file_vtitan_actuation_v1_motor_status_proto_init() }
 func file_vtitan_actuation_v1_motor_status_proto_init() {
 	if File_vtitan_actuation_v1_motor_status_proto != nil {
 		return

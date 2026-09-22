@@ -22,7 +22,7 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
-// Kind mirrors internal/driver/button.Kind exactly (see that type's doc
+// Kind mirrors pkg/driver/button.Kind exactly (see that type's doc
 // comment for what triggers each value).
 type ButtonEvent_Kind int32
 
@@ -83,8 +83,8 @@ func (ButtonEvent_Kind) EnumDescriptor() ([]byte, []int) {
 }
 
 // ButtonEvent is one debounced button transition, matching
-// internal/driver/button.Event (the Go analog of
-// src/python/src/hardware/button/event.py's ButtonEvent). Published on
+// pkg/driver/button.Event (the Go analog of
+// platform/robot/src/hardware/button/event.py's ButtonEvent). Published on
 // the `vtitan.ui.v1.button_event` NATS subject by cmd/pi-zero's physical
 // button driver, and by anything (e.g. a future backend-command dispatcher)
 // synthesizing a button press remotely -- both producers publish to the
@@ -200,9 +200,7 @@ var file_vtitan_ui_v1_button_event_proto_depIdxs = []int32{
 	0, // [0:2] is the sub-list for field type_name
 }
 
-func init() {
-	file_vtitan_ui_v1_button_event_proto_init()
-}
+func init() { file_vtitan_ui_v1_button_event_proto_init() }
 func file_vtitan_ui_v1_button_event_proto_init() {
 	if File_vtitan_ui_v1_button_event_proto != nil {
 		return

@@ -121,7 +121,7 @@ jobs:
           buf breaking --against "../../.git#ref=${BASE},subdir=src/go"
 
   config:
-    name: Config - schema coverage + x-journal refs
+    name: Config and docs - schema coverage, x-journal refs, doc drift
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -133,8 +133,14 @@ jobs:
       # Every model TOML key described, every x-journal ref resolving. This is
       # the repo's only drift check, and until now nothing ran it but a person.
       # configgen's check mode is stdlib-only, so no install step.
-      - name: Check
+      - name: Config check
         run: python src/tools/configgen.py check
+
+      # The prose equivalent (ADR 0097): accepted ADRs' Decision/Consequences
+      # paths, golangci exclusion scopes, and citations of missing or ignored
+      # docs, the last against a baseline that may only shrink.
+      - name: Docs check
+        run: python src/tools/doc_audit.py check
 
   backend:
     name: Backend — build + test (Go)

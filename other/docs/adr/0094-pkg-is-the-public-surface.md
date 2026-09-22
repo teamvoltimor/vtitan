@@ -54,9 +54,10 @@ Driver profile resolution moves to `internal/hwconfig` (`IMU`, `LIDAR`,
 `internal/config`. Each function keeps its driver's previous fallback
 behaviour.
 
-`internal/driver/camera` did not move. Its NATS-backed source is wired into
-`camera.New`'s own factory switch, so extracting it is a restructure rather
-than a file move, and it is the one driver needing cgo via gocv.
+The camera moved last, and not as a file move: its NATS-backed source was
+wired into `camera.New`'s own factory switch, so it first had to leave for
+`internal/adapters/natscamera`. It is now `pkg/driver/camera`, and the one
+driver in `pkg/` needing cgo via gocv.
 
 ## Consequences
 
@@ -66,10 +67,9 @@ than a file move, and it is the one driver needing cgo via gocv.
   boundary and should be explained rather than "fixed".
 - Changing a driver `Config` field is no longer a free refactor: `pkg/` is
   public API in intent even while it has one consumer.
-- The depguard rule only bites where golangci-lint runs. It is not yet in the
-  `robot-go` CI job, which is gated on a decision about the pre-existing
-  findings, so until then the boundary is enforced on demand rather than on
-  every push.
+- The depguard rule only bites where golangci-lint runs. The `robot-go` CI job
+  runs it on every push, with the findings that predate it grandfathered by a
+  pinned `--new-from-rev`; the rule was confirmed to still fire in that mode.
 - Nothing is extracted to a separate repository. 0068 refused that and still
   does; if a driver ever leaves, upstream (periph.io, `tinygo.org/x/drivers`)
   beats a directory in a competition monorepo.
@@ -82,6 +82,12 @@ than a file move, and it is the one driver needing cgo via gocv.
   `pkg/geom` + `pkg/control`, and the depguard rule lands. The rule's first
   version matched nothing (its glob missed relative paths) and was caught by
   planting a violating import, not by reading it.
+- bc183bc1 2026-09-21: the camera's NATS source moves to
+  `internal/adapters/natscamera`, and the camera follows the other drivers.
+  This ADR's Decision kept saying the camera "did not move" for a day after
+  it had, until the docs check (0097) flagged the dead path.
+- d67946e1 2026-09-22: golangci-lint joins the `robot-go` CI job, so the
+  depguard rule runs on every push.
 
 ## Cross-references
 

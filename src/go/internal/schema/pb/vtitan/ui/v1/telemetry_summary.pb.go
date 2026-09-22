@@ -25,7 +25,7 @@ const (
 // TelemetrySummary is the low-rate LIDAR/yaw/detection readout the OLED
 // needs, field-for-field matching internal/telemetry/diag.TelemetrySummary
 // (which itself matches TelemetrySummaryWire,
-// src/python/src/ros2/wire_models.py, and telemetry_bridge_node.py's
+// platform/robot/src/ros2/wire_models.py, and telemetry_bridge_node.py's
 // `_publish_ui_summary`). Published on the `vtitan.ui.v1.telemetry_summary`
 // NATS subject.
 type TelemetrySummary struct {
@@ -180,9 +180,7 @@ var file_vtitan_ui_v1_telemetry_summary_proto_depIdxs = []int32{
 	0, // [0:1] is the sub-list for field type_name
 }
 
-func init() {
-	file_vtitan_ui_v1_telemetry_summary_proto_init()
-}
+func init() { file_vtitan_ui_v1_telemetry_summary_proto_init() }
 func file_vtitan_ui_v1_telemetry_summary_proto_init() {
 	if File_vtitan_ui_v1_telemetry_summary_proto != nil {
 		return

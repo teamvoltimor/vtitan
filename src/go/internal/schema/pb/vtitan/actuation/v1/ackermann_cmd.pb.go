@@ -26,7 +26,7 @@ const (
 // AckermannCmd mirrors ackermann_msgs/AckermannDriveStamped. Published on
 // the `vtitan.actuation.v1.ackermann_cmd` NATS subject. The motor node
 // enforces its own deadline watchdog on this topic (no DDS DEADLINE QoS
-// equivalent in NATS) — see go-migration-plan.md.
+// equivalent in NATS) - see DefaultCommandTimeout in internal/node/motor.
 //
 // protovalidate constraints here are deliberately structural (required,
 // finite) rather than hardware-specific numeric bounds — the actual
@@ -177,9 +177,7 @@ var file_vtitan_actuation_v1_ackermann_cmd_proto_depIdxs = []int32{
 	0, // [0:1] is the sub-list for field type_name
 }
 
-func init() {
-	file_vtitan_actuation_v1_ackermann_cmd_proto_init()
-}
+func init() { file_vtitan_actuation_v1_ackermann_cmd_proto_init() }
 func file_vtitan_actuation_v1_ackermann_cmd_proto_init() {
 	if File_vtitan_actuation_v1_ackermann_cmd_proto != nil {
 		return

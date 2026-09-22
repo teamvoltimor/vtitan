@@ -70,72 +70,20 @@ tasks:
       - go test ./...
 
   go:todo:
-    desc: "Print the Go-migration punch list: what's still stubbed/missing, verified against the tree on 2026-09-04."
+    desc: "Print the open Go-migration markers, derived from the tree at run time (TODO/FIXME and unimplemented stubs)."
+    # This task used to print a hand-written punch list dated 2026-09-04. By
+    # 2026-09-22 half of it was false and several of its paths no longer
+    # existed, while it still printed with full confidence. Status is derived
+    # here now, never written: the tracked plan of record is ADR 0068 (its
+    # cutover criterion) and adr:0097-doc-ownership-and-drift-checks says why.
     cmds:
       - cmd: |
-          cat <<'EOF'
-          robot-go (Python/ROS2 -> Go/NATS) migration -- remaining work, 2026-09-04
-          ===========================================================================
-          Stage 6 (nav stack) is otherwise essentially ported and tested; these are
-          the real gaps left, verified against the tree (not the stale plan doc's
-          checkboxes, see src/go/docs/internal/2026-07-21-go-migration-plan.md).
-
-          1. cmd/pi5 only supervises "capture" (camera). IMU/LIDAR/vision/nav/
-             state-machine each still run as their OWN separate binaries
-             (cmd/imu-node, cmd/lidar-node, cmd/track-navigator, cmd/state-machine)
-             and are not yet combined into one production Pi 5 process.
-
-          2. internal/nav/navigator is only exercised end-to-end via
-             cmd/track-navigator (the bag-replay/parity harness) -- never run as
-             part of a full race loop on cmd/pi5.
-
-          3. internal/sim/harness: LIDAR-based relocalization is NOT implemented
-             (Localize=true unsupported, see gateway.go TODO) -- sim runner is
-             perfect-odometry only.
-
-          4. internal/statemachine/robotcmd/convert.go: pause/resume/
-             return_to_start/reboot/shutdown all map to KindUnimplemented.
-
-          5. internal/node/statemachine/channel_sink.go: SetVisionDebug/
-             ToggleTelemetryChannel/DisableCommandChannel are a deliberate
-             UnimplementedChannelSink -- vision debug has no Go-side NATS subject
-             yet, and telemetry-channel toggling needs cross-process signaling to
-             cmd/telemetry-node that doesn't exist yet.
-
-          6. internal/driver/lidar: only the legacy Dense-mode request is
-             implemented; GET_LIDAR_CONF-selected named scan modes are not.
-
-          7. internal/transport/nats is still a thin/one-line stub in places --
-             blocks internal/driver/display/ssd1306 (OLED page rendering) and
-             internal/telemetry/diag from actually publishing over NATS.
-
-          8. internal/nav/signrouter/discovery.go: a couple of hardcoded
-             constants (e.g. CameraHFOVRad) are flagged "TODO: confirm against
-             robot.toml / navigation_tuning.toml" -- not blocking, just unverified
-             defaults inherited from the port.
-
-          NATS-to-Foxglove topic mapping (separate from the above, see
-          cmd/foxglove-bridge and internal/recording/roscdr.go):
-            - The sim-runner's MCAP recorder hand-encodes 5 topics to real ROS2
-              CDR (LaserScan/Imu/TFMessage/AckermannDriveStamped/Float32) so
-              Foxglove Studio's 3D panel renders them natively; everything else
-              is raw vtitan.* protobuf, Raw-Messages-panel only.
-            - cmd/foxglove-bridge (the LIVE NATS websocket bridge) does NOT do
-              this conversion -- every subject is advertised as protobuf, so live
-              3D rendering doesn't work today, only offline bag playback does.
-            - There is no shared abstraction/config table for this mapping by
-              design (see feedback_go_code_style_maps_config_constants): both
-              bridgeAllSubjects() in cmd/foxglove-bridge/main.go and the encoder
-              calls in internal/sim/scenario/record.go are explicit, hand-written
-              per-topic call sites, not a dynamic registry. Porting CDR rendering
-              to the live bridge, or centralizing the mapping into one static
-              typed table, is still an open design decision, not started.
-
-          Corrected vs. older notes: cmd/foxglove-bridge itself IS a real
-          implementation now (connects NATS, bridges every declared subject,
-          serves the Foxglove WebSocket protocol) -- it is not a stub, only its
-          schema encoding is limited to protobuf (see above).
-          EOF
+          echo "Cutover criterion: other/docs/adr/0068-go-parallel-track-single-cutover.md"
+          echo
+          echo "Open markers in cmd/ internal/ pkg/ (excluding tests and generated code):"
+          git grep -n -E '\b(TODO|FIXME)\b|KindUnimplemented|Unimplemented[A-Z][A-Za-z]*Sink' \
+            -- 'cmd/*.go' 'internal/*.go' 'pkg/*.go' ':!*_test.go' ':!*.pb.go' ':!*/generated/*' \
+            || echo "  none"
         silent: true
 
   go:test:hw:

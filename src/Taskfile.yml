@@ -40,6 +40,11 @@ tasks:
     cmds:
       - taplo fmt "src/config/**/*.toml"
 
+  docs:check:
+    desc: Fail if tracked prose points at paths, lint scopes or docs that no longer exist
+    cmds:
+      - python src/tools/doc_audit.py check
+
   docs:adr-refs:
     desc: Fail if code records a measurement but has no adr:NNNN reference
     cmds:
