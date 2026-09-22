@@ -30,7 +30,10 @@ type flagBinding struct {
 // rootDomainShort gives each first-level domain its one-line description.
 var rootDomainShort = map[string]string{
 	"sim":   "Simulation (Gazebo + navigation)",
-	"robot": "Python/ROS2 runtime",
+	"robot": "Robot from the dev machine: deploy, sync runs, vision, ROS2",
+	"init":  "One-time setup",
+	"lint":  "Lint every module",
+	"clean": "Clean generated data",
 	"rpi":   "Raspberry Pi (local config)",
 	"fleet": "Boards over SSH and network",
 	"go":    "Go module",
@@ -61,6 +64,12 @@ var segmentHelp = map[string]string{
 	"deploy":      "Deploy",
 	"ping":        "Ping",
 	"ssh":         "SSH",
+	"ssh-config":  "~/.ssh/config entries",
+	"ethernet":    "Direct Ethernet link (Windows, admin)",
+	"route":       "Persistent routes (Windows, admin)",
+	"pull":        "Pull from the Pi 5",
+	"push":        "Push to the Pi 5",
+	"bench-hud":   "Bench vision/HUD session",
 	"lint":        "Lint",
 }
 

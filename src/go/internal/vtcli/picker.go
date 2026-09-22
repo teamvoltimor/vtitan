@@ -38,25 +38,9 @@ type pickerModel struct {
 // buildPickerRoot turns the curated spec into the root level: first-level
 // domains, with the leaf commands directly under the root kept at that level.
 func (a *App) buildPickerRoot() []pickItem {
-	items := make([]pickItem, 0)
-
-	for i := range a.spec {
-		command := &a.spec[i]
-		if len(command.Path) == 1 {
-			items = append(items, pickItem{title: command.Path[0], desc: command.Short, spec: command})
-
-			continue
-		}
-
-		segment := command.Path[0]
-		if !hasPickItem(items, segment) {
-			items = append(items, pickItem{
-				title:   segment,
-				desc:    rootDomainShort[segment],
-				segment: segment,
-			})
-		}
-	}
+	// childLevel already separates leaves from namespaces (a root command with
+	// children, such as lint, must open rather than run); drop its back row.
+	items := a.childLevel(nil)[1:]
 
 	items = append(items, pickItem{
 		title:  "run",
@@ -109,7 +93,7 @@ func (a *App) childLevel(segments []string) []pickItem {
 		seen[child] = struct{}{}
 
 		if _, isNamespace := hasChildren[child]; isNamespace {
-			items = append(items, pickItem{title: child, desc: segmentHelp[child], segment: child})
+			items = append(items, pickItem{title: child, desc: segmentDesc(segments, child), segment: child})
 
 			continue
 		}
@@ -133,20 +117,19 @@ func (a *App) taskLevel() []pickItem {
 	return items
 }
 
+// segmentDesc describes a namespace row: first-level domains have their own
+// table, deeper segments share segmentHelp.
+func segmentDesc(parent []string, segment string) string {
+	if len(parent) == 0 {
+		return rootDomainShort[segment]
+	}
+
+	return segmentHelp[segment]
+}
+
 // backRow is the row that returns to the parent level.
 func backRow() pickItem {
 	return pickItem{title: backRowTitle, desc: "back to the previous level", segment: backSegment}
-}
-
-// hasPickItem reports whether a row with the given title already exists.
-func hasPickItem(items []pickItem, title string) bool {
-	for _, item := range items {
-		if item.title == title {
-			return true
-		}
-	}
-
-	return false
 }
 
 // hasPrefixPath reports whether path starts with prefix.

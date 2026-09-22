@@ -74,3 +74,17 @@ func TestCommandLineMatchesInvocation(t *testing.T) {
 		t.Errorf("invocation = %q, want %q", got, want)
 	}
 }
+
+// TestOwnerDomainMatchesBareUmbrella checks that an umbrella domain owns its
+// bare verb and its children, but not a task that merely shares the letters.
+func TestOwnerDomainMatchesBareUmbrella(t *testing.T) {
+	t.Parallel()
+
+	domains := []Domain{{ID: "lint", TaskPrefix: "lint:"}}
+
+	for name, want := range map[string]bool{"lint": true, "lint:fix": true, "linter": false, "robot:lint": false} {
+		if _, got := ownerDomain(name, domains); got != want {
+			t.Errorf("ownerDomain(%q) owned = %v, want %v", name, got, want)
+		}
+	}
+}

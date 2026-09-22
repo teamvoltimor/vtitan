@@ -110,7 +110,7 @@ func KnownTask(tasks []TaskInfo, name string) bool {
 // ownerDomain returns the curated domain a task name belongs to, if any.
 func ownerDomain(name string, domains []Domain) (string, bool) {
 	for _, domain := range domains {
-		if strings.HasPrefix(name, domain.TaskPrefix) {
+		if strings.HasPrefix(name, domain.TaskPrefix) || name == strings.TrimSuffix(domain.TaskPrefix, ":") {
 			return domain.ID, true
 		}
 	}
