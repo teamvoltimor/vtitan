@@ -61,6 +61,7 @@ var segmentHelp = map[string]string{
 	"deploy":      "Deploy",
 	"ping":        "Ping",
 	"ssh":         "SSH",
+	"lint":        "Lint",
 }
 
 // NewApp attaches the curated spec and the generated catch-all to root.
