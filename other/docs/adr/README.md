@@ -139,3 +139,4 @@ story in its `## History` section rather than spawning a micro-ADR per attempt.
 | [0093](0093-marker-serialization-and-cube-markers.md) | Marker geometry is float-typed at the model boundary and solid markers use CUBE | accepted |
 | [0094](0094-pkg-is-the-public-surface.md) | `pkg/` is the Go module's public surface and may not import `internal/` | accepted |
 | [0095](0095-pi5-board-composition-root.md) | `cmd/pi5` composes the Pi 5 board, and each subsystem's loop is shared | accepted |
+| [0096](0096-vt-cli-wraps-the-taskfiles.md) | `vt` wraps the Taskfiles, and migrates to Go only what has real logic | accepted |

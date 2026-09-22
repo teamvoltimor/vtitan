@@ -1,6 +1,7 @@
 # Plan: CLI unificada sobre los Taskfiles (cobra + lipgloss)
 
-- Estado: propuesto, sin implementar
+- Estado: fase 0 implementada (`59a7caab`..`98cbf8c2`); decision registrada en
+  [ADR 0096](../adr/0096-vt-cli-wraps-the-taskfiles.md)
 - Fecha: 2026-09-22
 - Alcance: superficie de comandos de desarrollo, no el runtime del robot
 
@@ -147,7 +148,11 @@ sin argumentos. Reglas duras:
   logs se leen en texto plano.
 - Nada de estilo en salida pensada para pipe. Si un comando emite datos, van
   limpios; el adorno va a stderr o no va.
-- Sin TUI interactiva por ahora: nada de bubbletea en este plan.
+- ~~Sin TUI interactiva por ahora: nada de bubbletea en este plan.~~
+  **Enmendado:** hay picker bubbletea (drill-down por dominio, formulario por
+  hoja y confirmacion con la invocacion exacta de `task`, con aviso en los
+  comandos `Heavy`). Sin TTY o con `VT_NO_PICKER=1` se imprime el menu
+  estatico. Ver ADR 0096.
 
 ### 3.7 Lo que se retira
 
@@ -192,7 +197,7 @@ compartan implementacion en vez de duplicarla.
 - No reescribe envoltorios de herramientas externas.
 - No rompe nada: `task X` sigue funcionando exactamente igual durante todas las
   fases, y CI sigue llamando a `task`. Los dos caminos conviven a proposito.
-- No introduce TUI interactiva.
+- ~~No introduce TUI interactiva.~~ Enmendado: ver 3.6 y ADR 0096.
 - No toca el runtime del robot ni los binarios de `cmd/*` existentes.
 
 ## 6. Riesgos
@@ -207,17 +212,18 @@ compartan implementacion en vez de duplicarla.
 
 ## 7. Preguntas abiertas
 
-- Nombre del binario: `vt` (corto, se teclea a diario) o `vtitan` (explicito).
-- Ubicacion: `src/go/cmd/vt` junto a los binarios del robot, o separado por ser
-  herramienta de desarrollo y no artefacto desplegable.
-- Version de lipgloss a fijar al anadir la dependencia.
-- Distribucion: binario compilado por `cli:build`, o `go run` documentado.
-- Si el catch-all se llama `vt task <nombre>` o `vt run <nombre>`.
+Resueltas en la fase 0 (ADR 0096): el binario es `vt`, vive en
+`src/go/cmd/vt` con el codigo en `internal/vtcli`, lipgloss v1.1.0, y el
+catch-all es `vt run <nombre>`.
+
+Sigue abierta:
+
+- Distribucion: hoy conviven `task cli:build` (binario en `src/go/bin/vt`) y
+  `task cli:run -- <args>` (sin compilar). Falta decidir cual se documenta como
+  camino por defecto en el README.
 
 ## Paso final: ADR
 
-Cuando la fase 0 aterrice, registrar la decision como ADR siguiendo
-`other/docs/adr/0000-template.md`: contexto (303 tareas, `help` manual, cobra ya
-presente), opciones (envoltorio / hibrido / migracion completa), decision
-(hibrido, con el criterio de migracion de la fase 3) y consecuencias (dos
-caminos conviviendo, tests anti-deriva como precio de entrada).
+Hecho: [ADR 0096](../adr/0096-vt-cli-wraps-the-taskfiles.md). Cuando una fase
+posterior cambie una decision (curar un dominio no la cambia; migrar a nativo o
+retirar el `help` si), se anota en su seccion History.
