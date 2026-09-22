@@ -5,6 +5,7 @@ import (
 
 	"github.com/charmbracelet/bubbles/list"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 )
 
 // pickItem is one selectable row in the interactive picker: either a domain to
@@ -29,6 +30,11 @@ type pickerModel struct {
 	tasks     []pickItem
 	selected  *pickItem
 	cancelled bool
+
+	// header draws the banner above the list for a given terminal size; the
+	// list gets whatever height is left.
+	header        func(width, height int) string
+	width, height int
 
 	// resolve maps a trail of segments to the rows shown at that level. It is
 	// injected by App because the level data lives in the spec.
@@ -157,17 +163,26 @@ func (i pickItem) Description() string { return i.desc }
 func (i pickItem) FilterValue() string { return i.title }
 
 // newPickerModel builds the picker rooted at the first-level domains.
-func newPickerModel(root []pickItem, resolve func([]string) []pickItem, tasks []pickItem) *pickerModel {
-	model := newPickerList(root)
-	model.Title = "vt — pick a command"
-
-	return &pickerModel{
+func newPickerModel(
+	root []pickItem,
+	resolve func([]string) []pickItem,
+	tasks []pickItem,
+	header func(width, height int) string,
+) *pickerModel {
+	model := &pickerModel{
 		root:    root,
-		list:    model,
+		list:    newPickerList(root),
 		levels:  [][]pickItem{root},
 		tasks:   tasks,
 		resolve: resolve,
+		header:  header,
+		width:   defaultPickerWidth,
+		height:  defaultPickerHeight,
 	}
+	model.fit()
+	model.updateTitle()
+
+	return model
 }
 
 // newPickerList builds a sized list model from one level of rows.
@@ -194,7 +209,8 @@ func (m *pickerModel) Init() tea.Cmd { return nil }
 // that distinction is the list's to make, not ours.
 func (m *pickerModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	if size, isResize := msg.(tea.WindowSizeMsg); isResize {
-		m.list.SetSize(size.Width, size.Height)
+		m.width, m.height = size.Width, size.Height
+		m.fit()
 
 		return m, nil
 	}
@@ -232,7 +248,24 @@ func (m *pickerModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 // View implements tea.Model.
-func (m *pickerModel) View() string { return m.list.View() }
+func (m *pickerModel) View() string {
+	if m.header == nil {
+		return m.list.View()
+	}
+
+	return m.header(m.width, m.height) + "\n" + m.list.View()
+}
+
+// fit sizes the list to the terminal minus the header. Every level change
+// builds a new list, so it has to be re-applied there too, not only on resize.
+func (m *pickerModel) fit() {
+	used := 0
+	if m.header != nil {
+		used = lipgloss.Height(m.header(m.width, m.height)) + 1
+	}
+
+	m.list.SetSize(m.width, max(m.height-used, minPickerListHeight))
+}
 
 // choose descends into a domain or quits with a leaf/escape selection.
 func (m *pickerModel) choose(item pickItem) (tea.Model, tea.Cmd) {
@@ -268,6 +301,7 @@ func (m *pickerModel) push(segment string, level []pickItem) {
 	m.trail = append(m.trail, segment)
 	m.levels = append(m.levels, level)
 	m.list = newPickerList(level)
+	m.fit()
 	m.updateTitle()
 }
 
@@ -280,6 +314,7 @@ func (m *pickerModel) pop() {
 	m.levels = m.levels[:len(m.levels)-1]
 	m.trail = m.trail[:len(m.trail)-1]
 	m.list = newPickerList(m.levels[len(m.levels)-1])
+	m.fit()
 	m.updateTitle()
 }
 
@@ -289,7 +324,7 @@ func (m *pickerModel) canPop() bool { return len(m.levels) > 1 }
 // updateTitle refreshes the list title with the breadcrumb.
 func (m *pickerModel) updateTitle() {
 	if len(m.trail) == 0 {
-		m.list.Title = "vt — pick a command"
+		m.list.Title = "pick a command"
 
 		return
 	}

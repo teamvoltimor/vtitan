@@ -69,6 +69,8 @@ const (
 const (
 	defaultPickerWidth  = 80
 	defaultPickerHeight = 24
+	// minPickerListHeight keeps a few rows of list even in a tiny terminal.
+	minPickerListHeight = 6
 )
 
 // backRowTitle labels the row that returns to the parent level, and
@@ -110,7 +112,7 @@ func (a *App) printHome(cmd *cobra.Command) error {
 // pickAndRun opens the picker, then the argument form, then runs the task.
 func (a *App) pickAndRun(cmd *cobra.Command) error {
 	program := tea.NewProgram(
-		newPickerModel(a.buildPickerRoot(), a.childLevel, a.taskLevel()),
+		newPickerModel(a.buildPickerRoot(), a.childLevel, a.taskLevel(), a.ui.Header),
 		tea.WithAltScreen(),
 		tea.WithInput(os.Stdin),
 		tea.WithOutput(cmd.OutOrStdout()),
@@ -392,7 +394,7 @@ func (m *formModel) View() string {
 		return strings.Join(lines, "\n")
 	}
 
-	lines = append(lines, "", "(tab: next · enter: next · esc: cancel) — untouched defaults stay with Task")
+	lines = append(lines, "", "(tab: next · enter: next · esc: cancel) · untouched defaults stay with Task")
 
 	return strings.Join(lines, "\n")
 }
