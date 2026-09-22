@@ -103,8 +103,8 @@ bubbles v0.21.0.
   price of entry for that copy; defaults are the one part they cannot check,
   hence the don't-pin rule.
 - Each curated domain costs hand-written flags and an exclusion list. At the
-  first cut the spec has 20 wrapped commands and two curated domains (`go`,
-  `fleet`); `sim` is in the spec but not yet under the coverage contract.
+  first cut the spec had 20 wrapped commands and two curated domains (`go`,
+  `fleet`); `sim` joined as the third (see History).
 - `vt` has to be built (`task cli:build`, to `src/go/bin/vt`) or run with
   `task cli:run -- <args>`. `go:build:static` cross-compiles it along with the
   rest of `./cmd/...`, which is harmless.
@@ -122,6 +122,9 @@ bubbles v0.21.0.
 - `c19dafd2` 2026-09-22: all user-facing text in English.
 - `98cbf8c2` 2026-09-22: Task defaults surfaced in help and the form, without
   pinning them.
+- `495970df` 2026-09-22: `sim` curated, all 14 `sim:*` tasks decided (13
+  leaves, one exclusion: the `sim:rviz:navigate:visualize:all` alias). The
+  spec is now 29 commands across three curated domains.
 
 ## Cross-references
 
