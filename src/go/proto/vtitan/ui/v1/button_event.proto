@@ -7,7 +7,7 @@ import "google/protobuf/timestamp.proto";
 option go_package = "github.com/teamvoltimor/vtitan/src/go/internal/schema/pb/uiv1";
 
 // ButtonEvent is one debounced button transition, matching
-// internal/driver/button.Event (the Go analog of
+// pkg/driver/button.Event (the Go analog of
 // platform/robot/src/hardware/button/event.py's ButtonEvent). Published on
 // the `vtitan.ui.v1.button_event` NATS subject by cmd/pi-zero's physical
 // button driver, and by anything (e.g. a future backend-command dispatcher)
@@ -19,7 +19,7 @@ option go_package = "github.com/teamvoltimor/vtitan/src/go/internal/schema/pb/ui
 message ButtonEvent {
   google.protobuf.Timestamp stamp = 1;
 
-  // Kind mirrors internal/driver/button.Kind exactly (see that type's doc
+  // Kind mirrors pkg/driver/button.Kind exactly (see that type's doc
   // comment for what triggers each value).
   enum Kind {
     KIND_UNSPECIFIED = 0;

@@ -78,7 +78,7 @@ tasks:
           ===========================================================================
           Stage 6 (nav stack) is otherwise essentially ported and tested; these are
           the real gaps left, verified against the tree (not the stale plan doc's
-          checkboxes, see src/go/docs/go-migration-plan.md).
+          checkboxes, see src/go/docs/internal/2026-07-21-go-migration-plan.md).
 
           1. cmd/pi5 only supervises "capture" (camera). IMU/LIDAR/vision/nav/
              state-machine each still run as their OWN separate binaries
