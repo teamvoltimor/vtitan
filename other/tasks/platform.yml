@@ -28,11 +28,11 @@ vars:
   # task that runs directly ON a Pi (not on a dev machine, where pixi lives
   # wherever it was installed) should use {{.ROBOT_PIXI}}, not a bare `pixi`.
   ROBOT_PIXI: ~/.pixi/bin/pixi
-  SCENARIOS: 10
-  CHALLENGE: open
+  SCENARIOS: '{{.SCENARIOS | default "10"}}'
+  CHALLENGE: '{{.CHALLENGE | default "open"}}'
   OUTPUT_DIR: '{{.OUTPUT_DIR | default "./src/go/training_data"}}'
   BASE_WORLD: ./other/apps/gazebo/runtime/worlds/wro_track_2026.sdf
-  METADATA: ./src/go/training_data/open/scenarios/scenario_0000_metadata.json
+  METADATA: '{{.METADATA | default "./src/go/training_data/open/scenarios/scenario_0000_metadata.json"}}'
   SCENARIO_SDF: ./src/go/training_data/open/scenarios/scenario_0000.sdf
   LAPS: 3
   PARAMS: ./other/apps/gazebo/runtime/scripts/navigator_params.json
@@ -58,8 +58,8 @@ vars:
   # the 16 were wrong (see src/python/docs/sign-avoidance-investigation.md).
   # Regenerate rather than commit: same generator, pinned seed, identical
   # output every time.
-  CORPUS_SIZE: 256
-  CORPUS_SEED: 2026
+  CORPUS_SIZE: '{{.CORPUS_SIZE | default "256"}}'
+  CORPUS_SEED: '{{.CORPUS_SEED | default "2026"}}'
   CORPUS_DIR: ./src/python/.corpus
 
 tasks:

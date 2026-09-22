@@ -19,9 +19,11 @@ type taskfileDoc struct {
 // TestForwardedVarsAreOverridable is anti-drift check 4. Task lets a global var
 // of an INCLUDED Taskfile beat a CLI `VAR=x` unless the var is written as its
 // own default ('{{.VAR | default "x"}}'). vt forwards every flag as a CLI var,
-// so a plain global there silently turns the flag into a no-op: --profile was
-// ignored on every run until this test existed. The root Taskfile is exempt;
-// its globals do yield to the CLI.
+// and task descriptions tell people to type `VAR=x`, so a plain global there
+// silently turns both into no-ops: --profile was ignored on every run, and
+// `task gen:corpus CHALLENGE=obstacles` regenerated the open corpus, until
+// this test existed. The root Taskfile is exempt; its globals do yield to the
+// CLI.
 func TestForwardedVarsAreOverridable(t *testing.T) {
 	t.Parallel()
 
@@ -30,17 +32,27 @@ func TestForwardedVarsAreOverridable(t *testing.T) {
 		t.Fatalf("find repo root: %v", err)
 	}
 
-	forwarded := make(map[string]string)
+	// overridden maps each var someone is told to set to where they are told.
+	overridden := make(map[string]string)
 	for _, command := range CuratedSpec() {
 		for _, flag := range command.Flags {
 			if flag.Var != "" {
-				forwarded[flag.Var] = command.Task
+				overridden[flag.Var] = "vt's flag on " + command.Task
 			}
 		}
 
 		for _, arg := range command.Args {
 			if arg.Var != "" {
-				forwarded[arg.Var] = command.Task
+				overridden[arg.Var] = "vt's argument on " + command.Task
+			}
+		}
+	}
+
+	documented := regexp.MustCompile(`\b([A-Z][A-Z0-9_]+)=`)
+	for _, task := range loadRealTasks(t) {
+		for _, match := range documented.FindAllStringSubmatch(task.Desc, -1) {
+			if _, known := overridden[match[1]]; !known {
+				overridden[match[1]] = "the description of " + task.Name
 			}
 		}
 	}
@@ -50,8 +62,8 @@ func TestForwardedVarsAreOverridable(t *testing.T) {
 		doc := readTaskfile(t, included)
 
 		for name, value := range doc.Vars {
-			task, isForwarded := forwarded[name]
-			if !isForwarded {
+			where, isOverridden := overridden[name]
+			if !isOverridden {
 				continue
 			}
 
@@ -60,8 +72,8 @@ func TestForwardedVarsAreOverridable(t *testing.T) {
 
 			if !isString || !selfDefault.MatchString(text) {
 				rel, _ := filepath.Rel(root, included)
-				t.Errorf("%s: global var %s shadows the CLI, so vt's flag for it on %s does nothing; "+
-					"write it as '{{.%s | default ...}}'", rel, name, task, name)
+				t.Errorf("%s: global var %s shadows the CLI, so setting it (as %s says) does nothing; "+
+					"write it as '{{.%s | default ...}}'", rel, name, where, name)
 			}
 		}
 	}

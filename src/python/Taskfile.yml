@@ -14,7 +14,7 @@ vars:
   # (src/python), NOT the repo root -- unlike tasks/platform.yml's own
   # METADATA var (used by gen:preview/gen:scenarios), which IS repo-root
   # relative. Override per invocation with METADATA=path.
-  METADATA: ../go/training_data/open/scenarios/scenario_0000_metadata.json
+  METADATA: '{{.METADATA | default "../go/training_data/open/scenarios/scenario_0000_metadata.json"}}'
   # Mirrors tasks/platform.yml's PROFILE var (see its own comment there for
   # why this is a checked-in default rather than a config-loader default) --
   # duplicated here because Task's included-Taskfile vars aren't shared
