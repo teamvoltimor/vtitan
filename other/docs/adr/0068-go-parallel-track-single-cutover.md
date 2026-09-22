@@ -23,7 +23,9 @@ rollback. Go is ported component by component and validated against real bags
 (the harness is MCAP replay plus a native sim harness) and cut over in one move
 with `vtitan-robot@go` when it reaches full verified parity. The criterion is not
 "looks ready": it is verified full parity, and the Go navigator has not yet run a
-full race loop on the robot, which is the missing criterion. A hybrid migration is
+full race loop on the robot, which is the missing criterion. As of 2026-09-21 the Pi 5
+has a board binary to cut over TO (0095) and its composition is verified off
+the robot (`test/smoke`); the missing criterion is unchanged. A hybrid migration is
 explicitly forbidden.
 
 Both stacks read the SAME `src/config` TOML tree; Go has no separate config tree
@@ -38,11 +40,17 @@ real maintenance cost.
 ## Consequences
 
 - There is never a half-migrated system.
-- Go lags Python in config coverage: it does not read `sign_discovery.toml` (its
-  `MaxIngestRangeM` is 2.0 against the TOML's 1.5), has no equivalent for
-  `sensor.toml` or `state_estimator.toml`, and ignores `navigation-challenges/`.
-  A Go loader can also succeed without reading a key (a missing `mapstructure`
-  tag), which is a known drift hazard.
+- Go lags Python in config coverage. `sensor.toml` and `state_estimator.toml`
+  have generated Go DTOs but no consumer anywhere in `src/go`, and
+  `navigation-challenges/` has no Go reference at all: these are unported
+  features rather than divergent values, so no parity pin can catch an edit to
+  them. A Go loader can also succeed without reading a key (a missing
+  `mapstructure` tag), which is a known drift hazard.
+  CORRECTED 2026-09-21: this list also named `sign_discovery.toml`, which Go
+  DOES read, through `signrouter.DiscoveryConfigFor`. What was missing was the
+  pin test, added in ab92809d asserting the shipped 1.5 against Go's own 2.0
+  literal default, so a loader that stopped reading the file fails rather than
+  passing on its fallback.
 - Vision has no Go implementation (no HailoRT Go bindings); the camera and NPU
   stay Python behind a sidecar that publishes detections for the Go navigator.
 
