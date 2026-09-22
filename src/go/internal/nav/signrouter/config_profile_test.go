@@ -8,6 +8,17 @@ import (
 	"github.com/teamvoltimor/vtitan/src/go/internal/nav/signrouter"
 )
 
+// shippedMaxIngestRangeM is sign_discovery.toml's max_ingest_range_m.
+//
+// It is deliberately NOT taken from DefaultMaxIngestRangeM: that literal is
+// 2.0 and the shipped file says 1.5, so comparing against the default would
+// assert the opposite of what ships -- and, worse, would pass if
+// DiscoveryConfigFor silently failed to read the file at all, which is the
+// exact failure adr:0068-go-parallel-track-single-cutover names (a Go loader
+// can succeed without reading a key, through a missing mapstructure tag).
+// The divergence is what gives this assertion its teeth.
+const shippedMaxIngestRangeM = 1.5
+
 // repoRoot walks up from this test file's package directory
 // (src/go/internal/nav/signrouter) to the repo root, so ConfigFor can be
 // exercised against the real checked-in TOML tree, matching the pattern in
@@ -45,5 +56,37 @@ func TestConfigFor_LoadsSlotMapAndSignGrid(t *testing.T) {
 	}
 	if cfg.SlotAcceptRadiusM != signrouter.DefaultSlotAcceptRadiusM {
 		t.Errorf("SlotAcceptRadiusM = %v, want %v", cfg.SlotAcceptRadiusM, signrouter.DefaultSlotAcceptRadiusM)
+	}
+}
+
+// TestDiscoveryConfigFor_LoadsSignDiscoveryTOML confirms every key
+// DiscoveryConfigFor maps out of the shipped sign_discovery.toml actually
+// arrives. The router half of this file already had a pin test; the discovery
+// half did not, which left the five keys below able to drift from the values
+// the Python stack races on without anything saying so.
+func TestDiscoveryConfigFor_LoadsSignDiscoveryTOML(t *testing.T) {
+	t.Parallel()
+
+	logger := slog.New(slog.DiscardHandler)
+	cfg := signrouter.DiscoveryConfigFor(logger, repoRoot(t))
+
+	if cfg.MaxIngestRangeM != shippedMaxIngestRangeM {
+		t.Errorf("sign_discovery.toml wiring: MaxIngestRangeM = %v, want %v (Go's own default is %v, "+
+			"so this value means the file was not read)",
+			cfg.MaxIngestRangeM, shippedMaxIngestRangeM, signrouter.DefaultMaxIngestRangeM)
+	}
+	if cfg.AssociationDistM != 0.25 {
+		t.Errorf("sign_discovery.toml wiring: AssociationDistM = %v, want 0.25", cfg.AssociationDistM)
+	}
+	if cfg.MinHits != 3 {
+		t.Errorf("sign_discovery.toml wiring: MinHits = %v, want 3", cfg.MinHits)
+	}
+	if cfg.MinReliableBBoxHeightPX != 5 {
+		t.Errorf("sign_discovery.toml wiring: MinReliableBBoxHeightPX = %v, want 5",
+			cfg.MinReliableBBoxHeightPX)
+	}
+	if cfg.RobotCorridorFlipTicks != 5 {
+		t.Errorf("sign_discovery.toml wiring: RobotCorridorFlipTicks = %v, want 5",
+			cfg.RobotCorridorFlipTicks)
 	}
 }
