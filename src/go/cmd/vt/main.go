@@ -43,7 +43,7 @@ func run() int {
 
 	root := &cobra.Command{
 		Use:   "vt",
-		Short: "CLI de desarrollo sobre los Taskfiles",
+		Short: "Development CLI over the repository Taskfiles",
 	}
 
 	app, appErr := vtcli.NewApp(repoRoot, root, ui, vtcli.CuratedSpec(), tasks)

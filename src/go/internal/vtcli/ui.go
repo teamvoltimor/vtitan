@@ -61,8 +61,8 @@ func isTerminal(f *os.File) bool {
 
 // Banner is the header shown by a bare `vt`.
 func (u UI) Banner() string {
-	line := "vt — CLI de desarrollo sobre los Taskfiles"
-	hint := "`task <nombre>` sigue funcionando igual; `vt run <nombre>` es la puerta de escape."
+	line := "vt — development CLI over the Taskfiles"
+	hint := "`task <name>` keeps working unchanged; `vt run <name>` is the escape hatch."
 
 	if !u.color {
 		return line + "\n" + hint

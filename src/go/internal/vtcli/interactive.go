@@ -50,7 +50,7 @@ const (
 // backRowTitle labels the row that returns to the parent level, and
 // backSegment is the sentinel choose() recognises for it.
 const (
-	backRowTitle = ".. volver"
+	backRowTitle = ".. back"
 	backSegment  = "\x00back"
 )
 
@@ -74,7 +74,7 @@ func (a *App) home(cmd *cobra.Command) error {
 func (a *App) printHome(cmd *cobra.Command) error {
 	out := cmd.OutOrStdout()
 	home := a.ui.Banner() + "\n\n" + a.ui.Menu(a.menuEntries()) +
-		"\n\nUsa `vt <dominio> --help` para el detalle, o `vt run <tarea>` para el resto."
+		"\n\nUse `vt <domain> --help` for details, or `vt run <task>` for the rest."
 
 	if _, err := fmt.Fprintln(out, home); err != nil {
 		return fmt.Errorf("write home: %w", err)
@@ -124,18 +124,18 @@ func (a *App) pickAndRun(cmd *cobra.Command) error {
 // promptEscape asks for a raw task name and its arguments.
 func (a *App) promptEscape(ctx context.Context) error {
 	fields := []*formField{
-		newTextField("tarea", "nombre exacto, p. ej. go:test:hw", true, FlagString),
+		newTextField("task", "exact name, e.g. go:test:hw", true, FlagString),
 		newTextField("args", "VAR=valor y flags, tal cual", false, FlagString),
 	}
 
-	values, submitted, err := runForm("run <tarea>", "", fields)
+	values, submitted, err := runForm("run <task>", "", fields)
 	if err != nil || !submitted {
 		return err
 	}
 
-	name := values["tarea"]
+	name := values["task"]
 	if !KnownTask(a.tasks, name) {
-		return fmt.Errorf("tarea %q desconocida", name)
+		return fmt.Errorf("unknown task %q", name)
 	}
 
 	return runTask(ctx, a.repoRoot, name, splitArgs(values["args"]))
@@ -162,7 +162,7 @@ func (a *App) promptFields(command Command) (values map[string]string, ok bool, 
 	}
 
 	if command.Passthrough {
-		fields = append(fields, newTextField("args", "argumentos extra tras --", false, FlagString))
+		fields = append(fields, newTextField("args", "extra arguments after --", false, FlagString))
 	}
 
 	if len(fields) == 0 {
@@ -226,7 +226,7 @@ func buildExtra(command Command, values map[string]string, passed string) ([]str
 		value := strings.TrimSpace(values[arg.Name])
 		if value == "" {
 			if arg.Required {
-				return nil, fmt.Errorf("falta el argumento %q", arg.Name)
+				return nil, fmt.Errorf("missing argument %q", arg.Name)
 			}
 
 			continue
@@ -339,18 +339,18 @@ func (m *formModel) View() string {
 	}
 
 	if m.confirm {
-		lines = append(lines, "", "Se ejecutará:  "+m.commandLine())
+		lines = append(lines, "", "Will run:  "+m.commandLine())
 
 		if m.heavy {
-			lines = append(lines, "AVISO: esta tarea lanza procesos de larga duración (simulador/servicio).")
+			lines = append(lines, "WARNING: this task starts long-running processes (simulator/service).")
 		}
 
-		lines = append(lines, "", "(enter: ejecutar · esc: cancelar)")
+		lines = append(lines, "", "(enter: run · esc: cancel)")
 
 		return strings.Join(lines, "\n")
 	}
 
-	lines = append(lines, "", "(tab: siguiente · enter: siguiente · esc: cancelar)")
+	lines = append(lines, "", "(tab: next · enter: next · esc: cancel)")
 
 	return strings.Join(lines, "\n")
 }
@@ -463,12 +463,12 @@ func (m *formModel) validate() error {
 
 		value := strings.TrimSpace(field.input.Value())
 		if field.required && value == "" {
-			return fmt.Errorf("el campo %q es obligatorio", field.label)
+			return fmt.Errorf("field %q is required", field.label)
 		}
 
 		if field.kind == FlagInt && value != "" {
 			if _, err := strconv.Atoi(value); err != nil {
-				return fmt.Errorf("el campo %q debe ser un entero", field.label)
+				return fmt.Errorf("field %q must be an integer", field.label)
 			}
 		}
 	}

@@ -60,7 +60,7 @@ const (
 	argHost     = "host"
 
 	// reasonPhase1 marks tasks deliberately deferred to phase 1.
-	reasonPhase1 = "fase 1"
+	reasonPhase1 = "phase 1"
 )
 
 // curatedDomains are the domains under the anti-drift contract. Everything
@@ -68,16 +68,16 @@ const (
 // Domains such as sim/rpi are present in the spec already but are not promoted
 // to curated until phase 1 closes their exclusion lists.
 var curatedDomains = []Domain{
-	{ID: "go", Title: "go — módulo Go (robot)", TaskPrefix: "go:"},
-	{ID: "fleet", Title: "fleet — placas por SSH", TaskPrefix: "windows:"},
+	{ID: "go", Title: "go — Go module (robot)", TaskPrefix: "go:"},
+	{ID: "fleet", Title: "fleet — boards over SSH", TaskPrefix: "windows:"},
 }
 
 // exclusions records, per curated domain, the tasks deliberately left out of
 // the typed tree and why. Adding a task to a curated domain without deciding
 // anything here fails the build (see spec_test.go).
 var exclusions = map[string]string{
-	"go:todo":                      "volcado informativo de la lista de migración; no es un flujo",
-	"go:hw:stop-notes":             "helper interno de go:hw:stop, no es un comando de usuario",
+	"go:todo":                      "informational dump of the migration punch list; not a flow",
+	"go:hw:stop-notes":             "internal helper for go:hw:stop, not a user command",
 	"windows:ethernet:configure":   reasonPhase1,
 	"windows:ethernet:setup-link":  reasonPhase1,
 	"windows:ethernet:unlink":      reasonPhase1,
@@ -85,7 +85,7 @@ var exclusions = map[string]string{
 	"windows:route:delete":         reasonPhase1,
 	"windows:ssh:print-config":     reasonPhase1,
 	"windows:ssh:setup-config":     reasonPhase1,
-	"windows:stage-windscribe-deb": reasonPhase1 + " (requiere la ruta local del .deb)",
+	"windows:stage-windscribe-deb": reasonPhase1 + " (needs the local .deb path)",
 }
 
 // curatedSpec is the single declarative table the tree is built from. One
@@ -95,148 +95,148 @@ var curatedSpec = []Command{
 	{
 		Path:        []string{"sim", "navigate", "visualize", "all"},
 		Task:        "sim:navigate:visualize:all",
-		Short:       "RViz + escenarios en un solo comando",
+		Short:       "RViz + scenarios in one command",
 		Passthrough: true,
 		Heavy:       true,
 	},
 	{
 		Path:  []string{"sim", "gazebo"},
 		Task:  "sim:gazebo",
-		Short: "Lanza Gazebo con un mundo SDF",
+		Short: "Launch Gazebo with an SDF world",
 		Heavy: true,
-		Flags: []Flag{{Name: "sdf", Var: "SDF", Usage: "ruta al mundo .sdf"}},
+		Flags: []Flag{{Name: "sdf", Var: "SDF", Usage: "path to the .sdf world"}},
 	},
-	{Path: []string{"sim", "test"}, Task: "sim:test", Short: "Tests del simulador", Heavy: true},
-	{Path: []string{"sim", "lint"}, Task: "sim:lint", Short: "Lint del simulador"},
+	{Path: []string{"sim", "test"}, Task: "sim:test", Short: "Simulator tests", Heavy: true},
+	{Path: []string{"sim", "lint"}, Task: "sim:lint", Short: "Lint the simulator"},
 
 	// go (curated).
 	{
 		Path:  []string{"go", "build", "static"},
 		Task:  "go:build:static",
-		Short: "Compila los binarios del robot (linux/arm64, CGO off)",
-		Flags: []Flag{{Name: flagOut, Var: "OUT", Usage: "directorio de salida"}},
+		Short: "Build the robot binaries (linux/arm64, CGO off)",
+		Flags: []Flag{{Name: flagOut, Var: "OUT", Usage: "output directory"}},
 	},
 	{
 		Path:  []string{"go", "build", "capture"},
 		Task:  "go:build:capture",
-		Short: "Compila los binarios con gocv/OpenCV (CGO on)",
+		Short: "Build the camera binaries with gocv/OpenCV (CGO on)",
 		Flags: []Flag{
-			{Name: flagOut, Var: "OUT", Usage: "directorio de salida"},
-			{Name: "cc", Var: "CC", Usage: "cross-compilador C"},
+			{Name: flagOut, Var: "OUT", Usage: "output directory"},
+			{Name: "cc", Var: "CC", Usage: "C cross-compiler"},
 		},
 	},
 	{
 		Path:  []string{"go", "deploy"},
 		Task:  "go:deploy",
-		Short: "Compila y despliega los binarios en un Pi (/opt/vtitan-go)",
+		Short: "Build and ship the binaries to a Pi (/opt/vtitan-go)",
 		Flags: []Flag{
-			{Name: "target-host", Var: "TARGET_HOST", Usage: "user@host de destino"},
-			{Name: "install-dir", Var: "INSTALL_DIR", Usage: "directorio de instalación"},
-			{Name: "skip-restart", Var: "SKIP_RESTART", Usage: "no reiniciar servicios"},
+			{Name: "target-host", Var: "TARGET_HOST", Usage: "destination user@host"},
+			{Name: "install-dir", Var: "INSTALL_DIR", Usage: "install directory"},
+			{Name: "skip-restart", Var: "SKIP_RESTART", Usage: "do not restart services"},
 		},
 	},
-	{Path: []string{"go", "test"}, Task: "go:test", Short: "Tests del módulo Go"},
+	{Path: []string{"go", "test"}, Task: "go:test", Short: "Run the Go module tests"},
 	{
 		Path:  []string{"go", "test", "hw"},
 		Task:  "go:test:hw",
-		Short: "Cross-compila los tests de hardware (linux/arm64)",
+		Short: "Cross-compile the hardware tests (linux/arm64)",
 		Flags: []Flag{
 			{Name: flagPkg, Var: "PKG", Usage: "button|ssd1306|imu|lidar|motor|nats"},
-			{Name: flagOut, Var: "OUT", Usage: "directorio de salida"},
+			{Name: flagOut, Var: "OUT", Usage: "output directory"},
 		},
 	},
 	{
 		Path:  []string{"go", "test", "hw", "interactive"},
 		Task:  "go:test:hw:interactive",
-		Short: "Cross-compila los tests de hardware interactivos",
+		Short: "Cross-compile the interactive hardware tests",
 		Flags: []Flag{
 			{Name: flagPkg, Var: "PKG", Usage: "motor|imu|lidar|ssd1306"},
-			{Name: flagOut, Var: "OUT", Usage: "directorio de salida"},
+			{Name: flagOut, Var: "OUT", Usage: "output directory"},
 		},
 	},
 	{
 		Path:  []string{"go", "hw", "run"},
 		Task:  "go:hw:run",
-		Short: "Compila, envía y ejecuta un test interactivo en un Pi",
+		Short: "Build, ship and run an interactive hardware test on a Pi",
 		Flags: []Flag{
 			{Name: flagPkg, Var: "PKG", Usage: "motor|imu|lidar|ssd1306"},
-			{Name: "host", Var: "HOST", Usage: "alias SSH del Pi"},
-			{Name: "yaw-offset", Var: "YAW_OFFSET", Usage: "desviación de montaje del lidar"},
-			{Name: "inverted", Var: "INVERTED", Kind: FlagBool, Usage: "montaje del lidar invertido"},
-			{Name: "scan-mode", Var: "SCAN_MODE", Usage: "modo de escaneo del lidar"},
-			{Name: "dump-scan", Var: "DUMP_SCAN", Usage: "volcar cada punto válido"},
-			{Name: flagOut, Var: "OUT", Usage: "directorio de salida"},
+			{Name: "host", Var: "HOST", Usage: "SSH alias of the Pi"},
+			{Name: "yaw-offset", Var: "YAW_OFFSET", Usage: "lidar mount yaw offset"},
+			{Name: "inverted", Var: "INVERTED", Kind: FlagBool, Usage: "lidar mounted upside down"},
+			{Name: "scan-mode", Var: "SCAN_MODE", Usage: "lidar scan mode"},
+			{Name: "dump-scan", Var: "DUMP_SCAN", Usage: "print every valid point"},
+			{Name: flagOut, Var: "OUT", Usage: "output directory"},
 		},
 	},
 	{
 		Path:  []string{"go", "hw", "stop"},
 		Task:  "go:hw:stop",
-		Short: "Para los servicios del robot para liberar puertos del Pi",
-		Args:  []Arg{{Name: argHost, Var: "HOST", Required: true, Usage: "alias SSH del Pi"}},
+		Short: "Stop the robot services so the Pi ports are free",
+		Args:  []Arg{{Name: argHost, Var: "HOST", Required: true, Usage: "SSH alias of the Pi"}},
 	},
 
 	// fleet (curated; task prefix windows:).
 	{
 		Path:  []string{"fleet", "ping"},
 		Task:  "windows:ping",
-		Short: "Hace ping a un Pi",
-		Args:  []Arg{{Name: argHost, Var: "PING_HOST", Required: true, Usage: "dirección del Pi"}},
+		Short: "Ping a board",
+		Args:  []Arg{{Name: argHost, Var: "PING_HOST", Required: true, Usage: "board address"}},
 	},
 	{
 		Path:  []string{"fleet", "ssh"},
 		Task:  "windows:ssh",
-		Short: "Entra por SSH en un Pi",
-		Args:  []Arg{{Name: argHost, Var: "SSH_HOST", Required: true, Usage: "alias SSH del Pi"}},
+		Short: "Open an SSH session on a board",
+		Args:  []Arg{{Name: argHost, Var: "SSH_HOST", Required: true, Usage: "SSH alias of the Pi"}},
 	},
 	{
 		Path:  []string{"fleet", "run"},
 		Task:  "windows:run",
-		Short: "Ejecuta un comando en un Pi por SSH",
-		Args:  []Arg{{Name: argHost, Var: "SSH_HOST", Required: true, Usage: "alias SSH del Pi"}},
-		Flags: []Flag{{Name: "cmd", Var: "CMD", Required: true, Usage: "comando a ejecutar"}},
+		Short: "Run a command on a board over SSH",
+		Args:  []Arg{{Name: argHost, Var: "SSH_HOST", Required: true, Usage: "SSH alias of the Pi"}},
+		Flags: []Flag{{Name: "cmd", Var: "CMD", Required: true, Usage: "command to run"}},
 	},
 	{
 		Path:  []string{"fleet", "set-wifi", "pi5"},
 		Task:  "windows:set-wifi:pi5",
-		Short: "Configura el WiFi del Pi 5 desde Windows",
+		Short: "Set the Pi 5 WiFi credentials from Windows",
 		Flags: []Flag{
-			{Name: "ssid", Var: "SSID", Required: true, Usage: "nombre de la red"},
-			{Name: "password", Var: "PASSWORD", Required: true, Usage: "contraseña de la red"},
-			{Name: flagSSHHost, Var: "SSH_HOST", Usage: "alias SSH (default rpi-5-direct)"},
+			{Name: "ssid", Var: "SSID", Required: true, Usage: "network name"},
+			{Name: "password", Var: "PASSWORD", Required: true, Usage: "network password"},
+			{Name: flagSSHHost, Var: "SSH_HOST", Usage: "SSH alias (default rpi-5-direct)"},
 		},
 	},
 	{
 		Path:  []string{"fleet", "set-wifi", "zero"},
 		Task:  "windows:set-wifi:zero",
-		Short: "Configura el WiFi del Pi Zero saltando por el Pi 5",
+		Short: "Set the Pi Zero WiFi credentials, hopping through the Pi 5",
 		Flags: []Flag{
-			{Name: "ssid", Var: "SSID", Required: true, Usage: "nombre de la red"},
-			{Name: "password", Var: "PASSWORD", Required: true, Usage: "contraseña de la red"},
-			{Name: flagSSHHost, Var: "SSH_HOST", Usage: "alias SSH (default rpi-5-direct)"},
+			{Name: "ssid", Var: "SSID", Required: true, Usage: "network name"},
+			{Name: "password", Var: "PASSWORD", Required: true, Usage: "network password"},
+			{Name: flagSSHHost, Var: "SSH_HOST", Usage: "SSH alias (default rpi-5-direct)"},
 		},
 	},
 	{
 		Path:  []string{"fleet", "provision", "pi5"},
 		Task:  "windows:provision:pi5",
-		Short: "Lanza el aprovisionamiento del Pi 5 por SSH",
+		Short: "Kick off Pi 5 provisioning over SSH",
 		Flags: []Flag{
-			{Name: flagSSHHost, Var: "SSH_HOST", Usage: "alias SSH (default rpi-5-direct)"},
-			{Name: "ip", Var: "PI5_IP", Usage: "IP del Pi 5"},
-			{Name: "tags", Var: "TAGS", Usage: "tags de Ansible"},
-			{Name: "skip-tags", Var: "SKIP_TAGS", Usage: "tags de Ansible a omitir"},
+			{Name: flagSSHHost, Var: "SSH_HOST", Usage: "SSH alias (default rpi-5-direct)"},
+			{Name: "ip", Var: "PI5_IP", Usage: "Pi 5 address"},
+			{Name: "tags", Var: "TAGS", Usage: "Ansible tags"},
+			{Name: "skip-tags", Var: "SKIP_TAGS", Usage: "Ansible tags to skip"},
 		},
 	},
 	{
 		Path:  []string{"fleet", "audit", "pi5"},
 		Task:  "windows:audit:pi5",
-		Short: "Audita el aprovisionamiento del Pi 5",
-		Flags: []Flag{{Name: flagSSHHost, Var: "SSH_HOST", Usage: "alias SSH"}},
+		Short: "Audit the Pi 5 provisioning",
+		Flags: []Flag{{Name: flagSSHHost, Var: "SSH_HOST", Usage: "SSH alias"}},
 	},
 	{
 		Path:  []string{"fleet", "audit", "zero"},
 		Task:  "windows:audit:zero",
-		Short: "Audita el aprovisionamiento del Pi Zero",
-		Flags: []Flag{{Name: flagSSHHost, Var: "SSH_HOST", Usage: "alias SSH"}},
+		Short: "Audit the Pi Zero provisioning",
+		Flags: []Flag{{Name: flagSSHHost, Var: "SSH_HOST", Usage: "SSH alias"}},
 	},
 }
 

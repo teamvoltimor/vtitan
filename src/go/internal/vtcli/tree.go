@@ -29,36 +29,36 @@ type flagBinding struct {
 
 // rootDomainShort gives each first-level domain its one-line description.
 var rootDomainShort = map[string]string{
-	"sim":   "Simulación (Gazebo + navegación)",
-	"robot": "Runtime Python/ROS2",
-	"rpi":   "Raspberry Pi (config local)",
-	"fleet": "Placas por SSH y red",
-	"go":    "Módulo Go",
-	"py":    "Módulo Python",
-	"docs":  "Documentación",
-	"apps":  "Aplicaciones",
-	"ml":    "ML y modelos",
-	"infra": "Infraestructura",
-	"run":   "Escape hatch: cualquier tarea de Task",
+	"sim":   "Simulation (Gazebo + navigation)",
+	"robot": "Python/ROS2 runtime",
+	"rpi":   "Raspberry Pi (local config)",
+	"fleet": "Boards over SSH and network",
+	"go":    "Go module",
+	"py":    "Python module",
+	"docs":  "Documentation",
+	"apps":  "Applications",
+	"ml":    "ML and models",
+	"infra": "Infrastructure",
+	"run":   "Escape hatch: any Task task",
 }
 
 // segmentHelp gives the intermediate tree nodes a one-line description.
 var segmentHelp = map[string]string{
-	"build":       "Compilar",
+	"build":       "Build",
 	"test":        "Tests",
 	"hw":          "Hardware",
-	"navigate":    "Navegación",
-	"visualize":   "Visualizar",
-	"provision":   "Aprovisionar",
-	"set-wifi":    "Configurar WiFi",
-	"audit":       "Auditoría",
+	"navigate":    "Navigation",
+	"visualize":   "Visualize",
+	"provision":   "Provision",
+	"set-wifi":    "Set WiFi",
+	"audit":       "Audit",
 	"static":      "CGO off (pure-Go)",
 	"capture":     "CGO on (gocv/OpenCV)",
-	"interactive": "Tests interactivos",
-	"all":         "Todo",
-	"run":         "Ejecutar",
-	"stop":        "Parar",
-	"deploy":      "Desplegar",
+	"interactive": "Interactive tests",
+	"all":         "All",
+	"run":         "Run",
+	"stop":        "Stop",
+	"deploy":      "Deploy",
 	"ping":        "Ping",
 	"ssh":         "SSH",
 }
@@ -83,12 +83,12 @@ func (a *App) build() error {
 	}
 
 	a.Root.AddCommand(a.runCommand())
-	a.Root.Long = "Árbol de comandos sobre los Taskfiles del repositorio."
+	a.Root.Long = "Command tree over the repository Taskfiles."
 	a.Root.SilenceUsage = true
 	a.Root.SilenceErrors = true
 	a.Root.RunE = func(cmd *cobra.Command, args []string) error {
 		if len(args) > 0 {
-			return fmt.Errorf("comando desconocido %q; prueba `vt --help`", args[0])
+			return fmt.Errorf("unknown command %q; try `vt --help`", args[0])
 		}
 
 		return a.home(cmd)
@@ -189,15 +189,15 @@ func (a *App) newLeaf(command Command) (*cobra.Command, error) {
 // runCommand builds the catch-all: any Task name, forwarded verbatim.
 func (a *App) runCommand() *cobra.Command {
 	return &cobra.Command{
-		Use:                "run <tarea> [VAR=valor ...] [-- <args>]",
-		Short:              "Ejecuta cualquier tarea de Task, tenga o no flags tipados",
-		Long:               "Puerta de escape para las tareas que aún no tienen flags tipados. El nombre se valida contra el inventario real antes de ejecutar.",
+		Use:                "run <task> [VAR=value ...] [-- <args>]",
+		Short:              "Run any Task task, with or without typed flags",
+		Long:               "Escape hatch for tasks that have no typed flags yet. The name is validated against the real inventory before running.",
 		Args:               cobra.MinimumNArgs(1),
 		DisableFlagParsing: true,
 		RunE: func(cmd *cobra.Command, raw []string) error {
 			name := raw[0]
 			if !KnownTask(a.tasks, name) {
-				return fmt.Errorf("tarea %q desconocida; prueba `vt --help` o `task --list-all`", name)
+				return fmt.Errorf("unknown task %q; try `vt --help` or `task --list-all`", name)
 			}
 
 			return runTask(cmd.Context(), a.repoRoot, name, raw[1:])

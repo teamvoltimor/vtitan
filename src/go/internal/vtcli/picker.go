@@ -58,7 +58,7 @@ func (a *App) buildPickerRoot() []pickItem {
 
 	items = append(items, pickItem{
 		title:  "run",
-		desc:   "Escape hatch: cualquier tarea de Task, con sus argumentos",
+		desc:   "Escape hatch: any Task task, with its arguments",
 		escape: true,
 	})
 
@@ -96,7 +96,7 @@ func (a *App) childLevel(segments []string) []pickItem {
 		items = append(items, pickItem{title: child, desc: segmentHelp[child], segment: child})
 	}
 
-	return append([]pickItem{{title: backRowTitle, desc: "volver al nivel anterior", segment: backSegment}}, items...)
+	return append([]pickItem{{title: backRowTitle, desc: "back to the previous level", segment: backSegment}}, items...)
 }
 
 // hasPickItem reports whether a row with the given title already exists.
@@ -137,7 +137,7 @@ func (i pickItem) FilterValue() string { return i.title }
 // newPickerModel builds the picker rooted at the first-level domains.
 func newPickerModel(root []pickItem, resolve func([]string) []pickItem) *pickerModel {
 	model := newPickerList(root)
-	model.Title = "vt — elige un comando"
+	model.Title = "vt — pick a command"
 
 	return &pickerModel{
 		root:    root,
@@ -258,7 +258,7 @@ func (m *pickerModel) canPop() bool { return len(m.levels) > 1 }
 // updateTitle refreshes the list title with the breadcrumb.
 func (m *pickerModel) updateTitle() {
 	if len(m.trail) == 0 {
-		m.list.Title = "vt — elige un comando"
+		m.list.Title = "vt — pick a command"
 
 		return
 	}
