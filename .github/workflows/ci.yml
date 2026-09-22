@@ -54,6 +54,10 @@ jobs:
         working-directory: src/go
     steps:
       - uses: actions/checkout@v4
+        with:
+          # The lint step diffs against a pinned revision; a shallow clone
+          # does not contain it.
+          fetch-depth: 0
 
       - uses: actions/setup-go@v5
         with:
@@ -68,6 +72,69 @@ jobs:
 
       - name: Test
         run: go test ./...
+
+      # The 59 findings that existed when lint joined CI are grandfathered by
+      # pinning the revision they were counted at; everything after it must be
+      # clean. A rolling base (the previous commit, the PR base) would let a
+      # finding land in one push and be forgiven by the next. The depguard
+      # rule that keeps pkg/ free of internal/ (ADR 0094) was checked to still
+      # fire under this mode, with a planted import. To pay the debt down,
+      # fix findings and move the pin forward; never move it to hide new ones.
+      - name: Lint (new code only)
+        uses: golangci/golangci-lint-action@v8
+        with:
+          version: v2.12.2
+          working-directory: src/go
+          args: --new-from-rev=a28a0cf63fef10231a0c6b2b9abc72f61894673b
+
+  robot-go-proto:
+    name: Robot Go - buf lint + breaking (proto)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: src/go
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # buf breaking reads the base revision out of the local .git.
+          fetch-depth: 0
+
+      - uses: bufbuild/buf-action@v1
+        with:
+          setup_only: true
+          version: 1.71.0
+
+      - name: Lint
+        run: buf lint
+
+      # Against the PR base, or on push against the commit the push replaced.
+      # A new branch has no replaced commit (all zeros), so there is nothing
+      # to compare and the step says so instead of guessing a base.
+      - name: Breaking
+        env:
+          BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: |
+          if [ -z "$BASE" ] || [ "$BASE" = "0000000000000000000000000000000000000000" ]; then
+            echo "no base revision to compare against; skipping"
+            exit 0
+          fi
+          buf breaking --against "../../.git#ref=${BASE},subdir=src/go"
+
+  config:
+    name: Config - schema coverage + x-journal refs
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      # Every model TOML key described, every x-journal ref resolving. This is
+      # the repo's only drift check, and until now nothing ran it but a person.
+      # configgen's check mode is stdlib-only, so no install step.
+      - name: Check
+        run: python src/tools/configgen.py check
 
   backend:
     name: Backend — build + test (Go)
