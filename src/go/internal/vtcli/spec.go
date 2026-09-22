@@ -3,8 +3,10 @@ package vtcli
 // FlagKind is the value type a typed flag carries into its Task variable.
 type FlagKind string
 
-// Flag maps one CLI flag to one Task variable. A flag is only forwarded when
-// the user sets it, so Task's own default still applies otherwise.
+// Flag maps one CLI flag to one Task variable. Default is display-only: it is
+// shown in --help and prefilled in the interactive form, but never forwarded,
+// so Task's own default stays authoritative and a stale copy cannot change
+// behaviour.
 type Flag struct {
 	Name     string
 	Var      string
@@ -104,7 +106,7 @@ var curatedSpec = []Command{
 		Task:  "sim:gazebo",
 		Short: "Launch Gazebo with an SDF world",
 		Heavy: true,
-		Flags: []Flag{{Name: "sdf", Var: "SDF", Usage: "path to the .sdf world"}},
+		Flags: []Flag{{Name: "sdf", Var: "SDF", Default: "worlds/wro_track_2026.sdf", Usage: "path to the .sdf world"}},
 	},
 	{Path: []string{"sim", "test"}, Task: "sim:test", Short: "Simulator tests", Heavy: true},
 	{Path: []string{"sim", "lint"}, Task: "sim:lint", Short: "Lint the simulator"},
@@ -114,15 +116,15 @@ var curatedSpec = []Command{
 		Path:  []string{"go", "build", "static"},
 		Task:  "go:build:static",
 		Short: "Build the robot binaries (linux/arm64, CGO off)",
-		Flags: []Flag{{Name: flagOut, Var: "OUT", Usage: "output directory"}},
+		Flags: []Flag{{Name: flagOut, Var: "OUT", Default: "dist", Usage: "output directory"}},
 	},
 	{
 		Path:  []string{"go", "build", "capture"},
 		Task:  "go:build:capture",
 		Short: "Build the camera binaries with gocv/OpenCV (CGO on)",
 		Flags: []Flag{
-			{Name: flagOut, Var: "OUT", Usage: "output directory"},
-			{Name: "cc", Var: "CC", Usage: "C cross-compiler"},
+			{Name: flagOut, Var: "OUT", Default: "dist", Usage: "output directory"},
+			{Name: "cc", Var: "CC", Default: "aarch64-linux-gnu-gcc", Usage: "C cross-compiler"},
 		},
 	},
 	{
@@ -142,7 +144,7 @@ var curatedSpec = []Command{
 		Short: "Cross-compile the hardware tests (linux/arm64)",
 		Flags: []Flag{
 			{Name: flagPkg, Var: "PKG", Usage: "button|ssd1306|imu|lidar|motor|nats"},
-			{Name: flagOut, Var: "OUT", Usage: "output directory"},
+			{Name: flagOut, Var: "OUT", Default: "dist/hw", Usage: "output directory"},
 		},
 	},
 	{
@@ -151,7 +153,7 @@ var curatedSpec = []Command{
 		Short: "Cross-compile the interactive hardware tests",
 		Flags: []Flag{
 			{Name: flagPkg, Var: "PKG", Usage: "motor|imu|lidar|ssd1306"},
-			{Name: flagOut, Var: "OUT", Usage: "output directory"},
+			{Name: flagOut, Var: "OUT", Default: "dist/hw-interactive", Usage: "output directory"},
 		},
 	},
 	{
@@ -159,13 +161,13 @@ var curatedSpec = []Command{
 		Task:  "go:hw:run",
 		Short: "Build, ship and run an interactive hardware test on a Pi",
 		Flags: []Flag{
-			{Name: flagPkg, Var: "PKG", Usage: "motor|imu|lidar|ssd1306"},
-			{Name: "host", Var: "HOST", Usage: "SSH alias of the Pi"},
-			{Name: "yaw-offset", Var: "YAW_OFFSET", Usage: "lidar mount yaw offset"},
-			{Name: "inverted", Var: "INVERTED", Kind: FlagBool, Usage: "lidar mounted upside down"},
+			{Name: flagPkg, Var: "PKG", Default: "lidar", Usage: "motor|imu|lidar|ssd1306"},
+			{Name: "host", Var: "HOST", Default: "rpi-5-local", Usage: "SSH alias of the Pi"},
+			{Name: "yaw-offset", Var: "YAW_OFFSET", Default: "0", Usage: "lidar mount yaw offset"},
+			{Name: "inverted", Var: "INVERTED", Kind: FlagBool, Default: "true", Usage: "lidar mounted upside down"},
 			{Name: "scan-mode", Var: "SCAN_MODE", Usage: "lidar scan mode"},
 			{Name: "dump-scan", Var: "DUMP_SCAN", Usage: "print every valid point"},
-			{Name: flagOut, Var: "OUT", Usage: "output directory"},
+			{Name: flagOut, Var: "OUT", Default: "dist/hw-interactive", Usage: "output directory"},
 		},
 	},
 	{
@@ -202,7 +204,7 @@ var curatedSpec = []Command{
 		Flags: []Flag{
 			{Name: "ssid", Var: "SSID", Required: true, Usage: "network name"},
 			{Name: "password", Var: "PASSWORD", Required: true, Usage: "network password"},
-			{Name: flagSSHHost, Var: "SSH_HOST", Usage: "SSH alias (default rpi-5-direct)"},
+			{Name: flagSSHHost, Var: "SSH_HOST", Default: "rpi-5-direct", Usage: "SSH alias"},
 		},
 	},
 	{
@@ -212,7 +214,7 @@ var curatedSpec = []Command{
 		Flags: []Flag{
 			{Name: "ssid", Var: "SSID", Required: true, Usage: "network name"},
 			{Name: "password", Var: "PASSWORD", Required: true, Usage: "network password"},
-			{Name: flagSSHHost, Var: "SSH_HOST", Usage: "SSH alias (default rpi-5-direct)"},
+			{Name: flagSSHHost, Var: "SSH_HOST", Default: "rpi-5-direct", Usage: "SSH alias"},
 		},
 	},
 	{
@@ -220,8 +222,8 @@ var curatedSpec = []Command{
 		Task:  "windows:provision:pi5",
 		Short: "Kick off Pi 5 provisioning over SSH",
 		Flags: []Flag{
-			{Name: flagSSHHost, Var: "SSH_HOST", Usage: "SSH alias (default rpi-5-direct)"},
-			{Name: "ip", Var: "PI5_IP", Usage: "Pi 5 address"},
+			{Name: flagSSHHost, Var: "SSH_HOST", Default: "rpi-5-direct", Usage: "SSH alias"},
+			{Name: "ip", Var: "PI5_IP", Default: "192.168.251.2", Usage: "Pi 5 address"},
 			{Name: "tags", Var: "TAGS", Usage: "Ansible tags"},
 			{Name: "skip-tags", Var: "SKIP_TAGS", Usage: "Ansible tags to skip"},
 		},
@@ -230,13 +232,13 @@ var curatedSpec = []Command{
 		Path:  []string{"fleet", "audit", "pi5"},
 		Task:  "windows:audit:pi5",
 		Short: "Audit the Pi 5 provisioning",
-		Flags: []Flag{{Name: flagSSHHost, Var: "SSH_HOST", Usage: "SSH alias"}},
+		Flags: []Flag{{Name: flagSSHHost, Var: "SSH_HOST", Default: "rpi-5-direct", Usage: "SSH alias"}},
 	},
 	{
 		Path:  []string{"fleet", "audit", "zero"},
 		Task:  "windows:audit:zero",
 		Short: "Audit the Pi Zero provisioning",
-		Flags: []Flag{{Name: flagSSHHost, Var: "SSH_HOST", Usage: "SSH alias"}},
+		Flags: []Flag{{Name: flagSSHHost, Var: "SSH_HOST", Default: "rpi-zero-local", Usage: "SSH alias"}},
 	},
 }
 

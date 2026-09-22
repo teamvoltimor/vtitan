@@ -26,19 +26,29 @@ type formModel struct {
 	taskName  string
 }
 
-// formField is one prompt in the argument form.
+// formField is one prompt in the argument form. defaultValue/defaultBool are
+// the Task defaults: shown (prefilled) but never forwarded unless edited.
 type formField struct {
-	label    string
-	help     string
-	kind     FlagKind
-	required bool
-	isBool   bool
-	boolVal  bool
-	input    textinput.Model
+	label        string
+	help         string
+	kind         FlagKind
+	required     bool
+	isBool       bool
+	boolVal      bool
+	defaultValue string
+	defaultBool  bool
+	input        textinput.Model
 }
 
-// formCharLimit bounds how much a single argument field accepts.
-const formCharLimit = 512
+// formCharLimit bounds how much a single argument field accepts. The width
+// constants size the text inputs; a zero-width input renders only its first
+// placeholder rune, so the default width matters before the first resize.
+const (
+	formCharLimit         = 512
+	defaultFormInputWidth = 40
+	formWidthMargin       = 4
+	minFormInputWidth     = 10
+)
 
 // picker sizing: a default for the first frame, before the terminal reports
 // its real dimensions via tea.WindowSizeMsg.
@@ -154,8 +164,10 @@ func (a *App) promptFields(command Command) (values map[string]string, ok bool, 
 		if flag.Kind == FlagBool {
 			field.isBool = true
 			field.boolVal = boolDefault(flag.Default)
+			field.defaultBool = field.boolVal
 		} else {
 			field.input.SetValue(flag.Default)
+			field.defaultValue = flag.Default
 		}
 
 		fields = append(fields, field)
@@ -177,6 +189,7 @@ func newTextField(name, help string, required bool, kind FlagKind) *formField {
 	input := textinput.New()
 	input.Placeholder = help
 	input.CharLimit = formCharLimit
+	input.Width = defaultFormInputWidth
 
 	return &formField{label: name, help: help, kind: kind, required: required, input: input}
 }
@@ -237,12 +250,22 @@ func buildExtra(command Command, values map[string]string, passed string) ([]str
 
 	for _, flag := range command.Flags {
 		value := strings.TrimSpace(values[flag.Name])
-		if value == "" && flag.Kind != FlagBool {
+		if flag.Kind == FlagBool {
+			if value == "" {
+				value = strconv.FormatBool(false)
+			}
+
+			if value == strconv.FormatBool(boolDefault(flag.Default)) {
+				continue
+			}
+
+			extra = append(extra, flag.Var+"="+value)
+
 			continue
 		}
 
-		if value == "" {
-			value = strconv.FormatBool(false)
+		if value == "" || value == strings.TrimSpace(flag.Default) {
+			continue
 		}
 
 		extra = append(extra, flag.Var+"="+value)
@@ -298,6 +321,12 @@ func (m *formModel) Init() tea.Cmd { return textinput.Blink }
 
 // Update implements tea.Model.
 func (m *formModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	if size, isResize := msg.(tea.WindowSizeMsg); isResize {
+		m.resizeInputs(size.Width)
+
+		return m, nil
+	}
+
 	if key, ok := msg.(tea.KeyMsg); ok {
 		if handled, cmd := m.handleKey(key); handled {
 			return m, cmd
@@ -350,7 +379,7 @@ func (m *formModel) View() string {
 		return strings.Join(lines, "\n")
 	}
 
-	lines = append(lines, "", "(tab: next · enter: next · esc: cancel)")
+	lines = append(lines, "", "(tab: next · enter: next · esc: cancel) — untouched defaults stay with Task")
 
 	return strings.Join(lines, "\n")
 }
@@ -365,18 +394,29 @@ func (m *formModel) commandLine() string {
 	parts := []string{"task", target}
 	for _, field := range m.fields {
 		if field.isBool {
-			parts = append(parts, field.label+"="+strconv.FormatBool(field.boolVal))
+			if field.boolVal != field.defaultBool {
+				parts = append(parts, field.label+"="+strconv.FormatBool(field.boolVal))
+			}
 
 			continue
 		}
 
 		value := strings.TrimSpace(field.input.Value())
-		if value != "" {
+		if value != "" && value != strings.TrimSpace(field.defaultValue) {
 			parts = append(parts, field.label+"="+value)
 		}
 	}
 
 	return strings.Join(parts, " ")
+}
+
+// resizeInputs keeps the text inputs as wide as the terminal allows.
+func (m *formModel) resizeInputs(termWidth int) {
+	width := max(termWidth-formWidthMargin, minFormInputWidth)
+
+	for _, field := range m.fields {
+		field.input.Width = width
+	}
 }
 
 // handleKey processes navigation and toggles. It reports whether the key was

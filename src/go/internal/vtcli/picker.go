@@ -65,21 +65,33 @@ func (a *App) buildPickerRoot() []pickItem {
 	return items
 }
 
-// childLevel returns the rows shown after descending into segment: a back row,
-// then its direct children and the leaf commands that live there.
+// childLevel returns the rows shown after descending into segments: a back
+// row, then the level's own leaf action (if the path itself is a command), its
+// leaf children, and the sub-namespaces to descend into. A name that has both
+// children and its own action is shown as a namespace, with its action as a
+// "(run) ..." row inside it.
 func (a *App) childLevel(segments []string) []pickItem {
+	hasChildren := make(map[string]struct{})
+	for i := range a.spec {
+		path := a.spec[i].Path
+		if hasPrefixPath(path, segments) && len(path) > len(segments)+1 {
+			hasChildren[path[len(segments)]] = struct{}{}
+		}
+	}
+
 	items := make([]pickItem, 0)
 	seen := make(map[string]struct{})
 
 	for i := range a.spec {
 		command := &a.spec[i]
-		if !hasPrefixPath(command.Path, segments) {
+		path := command.Path
+		if !hasPrefixPath(path, segments) {
 			continue
 		}
 
-		if len(command.Path) == len(segments) {
+		if len(path) == len(segments) {
 			items = append(items, pickItem{
-				title: command.Path[len(command.Path)-1],
+				title: "(run) " + path[len(path)-1],
 				desc:  command.Short,
 				spec:  command,
 			})
@@ -87,13 +99,20 @@ func (a *App) childLevel(segments []string) []pickItem {
 			continue
 		}
 
-		child := command.Path[len(segments)]
+		child := path[len(segments)]
 		if _, ok := seen[child]; ok {
 			continue
 		}
 
 		seen[child] = struct{}{}
-		items = append(items, pickItem{title: child, desc: segmentHelp[child], segment: child})
+
+		if _, isNamespace := hasChildren[child]; isNamespace {
+			items = append(items, pickItem{title: child, desc: segmentHelp[child], segment: child})
+
+			continue
+		}
+
+		items = append(items, pickItem{title: child, desc: command.Short, spec: command})
 	}
 
 	return append([]pickItem{{title: backRowTitle, desc: "back to the previous level", segment: backSegment}}, items...)
