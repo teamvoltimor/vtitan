@@ -1,6 +1,7 @@
 # Plan: CLI unificada sobre los Taskfiles (cobra + lipgloss)
 
-- Estado: fases 0, 1 y 2 hechas; la 3 y la 4 son opcionales y no empezadas.
+- Estado: fases 0, 1 y 2 hechas; la 3 evaluada y cerrada sin migrar nada; la
+  4 no aplica. No queda trabajo pendiente.
   Decision registrada en
   [ADR 0096](../adr/0096-vt-cli-wraps-the-taskfiles.md)
 - Fecha: 2026-09-22
@@ -199,7 +200,23 @@ comillas anidadas a tres niveles), la seleccion de host con defaults
 (`SSH_HOST | default "rpi-5-direct"`, repetida en ~15 tareas), y los reintentos
 de ping (`RPI_PING_RETRIES`, `RPI_PING_INTERVAL`).
 
-**Fase 4, opcional y solo si la fase 3 demuestra valor.** Invertir la relacion
+**Resultado de la fase 3 (cerrada sin migrar nada).** Al medir los tres
+candidatos ninguno cumplia el criterio 1:
+
+- Los reintentos de ping no existian: `RPI_PING_RETRIES` y
+  `RPI_PING_INTERVAL` estaban declaradas y ninguna tarea las leia. Se
+  borraron.
+- La "seleccion de host" eran 9 `SSH_HOST | default` (no ~15), cada uno un
+  valor fijo por tarea, sin logica que elegir. `vt` ya los muestra como
+  default de su flag.
+- Los saltos SSH anidados si tenian un defecto real, pero de comillas, no de
+  control: una comilla en el SSID o la contrasena rompia el comando y un `$`
+  se expandia en la Pi 5, cambiando la contrasena sin error. Task ya trae
+  `shellQuote`, asi que se arreglo en el Taskfile (`ee9a9092`): eso lo arregla
+  tambien para `task` y para CI, cosa que una version en Go no habria hecho.
+
+**Fase 4, opcional y solo si la fase 3 demuestra valor.** No aplica: la fase 3
+no migro nada. Invertir la relacion
 donde tenga sentido: la tarea de Task pasa a invocar `vt`, para que CI y la CLI
 compartan implementacion en vez de duplicarla.
 

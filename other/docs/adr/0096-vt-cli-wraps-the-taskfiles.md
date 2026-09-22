@@ -64,9 +64,9 @@ value is in the typed flags, and those cannot be generated.
 A task becomes a candidate for native Go (a later phase) only when all three
 hold: it has real control logic (loops, host selection, retries), it runs from
 the development machine and not on a Pi, and it does not depend on Task's
-`platforms:` variants to exist. The candidates that pass today are the chained
-SSH hops in `other/tasks/fleet.yml`, the `SSH_HOST | default` host selection
-repeated across ~15 tasks, and the ping retries.
+`platforms:` variants to exist. The three candidates first named for it (the
+chained SSH hops, the repeated `SSH_HOST | default`, the ping retries) all
+failed the first test once measured; see History. No task is native today.
 
 Choices made along the way:
 
@@ -144,6 +144,13 @@ bubbles v0.21.0.
   on-board exclusions), `rpi` (all 28 on-board, `rpi:migrate-data` moved to
   `vt fleet migrate-data`), the eight deferred `fleet` tasks, and the
   umbrellas; `ownerDomain` also owns the bare verb (`lint` for `lint:`).
+- `ee9a9092` 2026-09-22: phase 3 closed without migrating anything. The ping
+  retries were two variables nothing read (deleted). The host selection was 9
+  fixed per-task defaults, not ~15 and not a choice. The nested SSH hops had a
+  real bug, but a quoting one: a quote in the WiFi SSID or password broke the
+  command and `$` was expanded on the Pi 5, setting a wrong password silently.
+  Task's `shellQuote` fixes it in the Taskfile, for `task` and CI as well,
+  which a Go rewrite would not have. Phase 4 therefore does not apply.
 
 ## Cross-references
 
