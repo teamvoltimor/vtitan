@@ -181,6 +181,9 @@ linters:
             - "pkg/portable/**"
             - "**/pkg/portable/**"
             - "!$test"
+            # *_std.go files carry //go:build !tinygo: regular Go only, so
+            # they may use what the firmware cannot (ADR 0098).
+            - "!**/*_std.go"
           deny:
             - pkg: "os"
               desc: "no filesystem or process on a microcontroller"
