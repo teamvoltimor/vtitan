@@ -3,11 +3,11 @@ package button
 import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 
-	driverbutton "github.com/teamvoltimor/vtitan/src/go/internal/driver/button"
 	uiv1 "github.com/teamvoltimor/vtitan/src/go/internal/schema/pb/vtitan/ui/v1"
+	driverbutton "github.com/teamvoltimor/vtitan/src/go/pkg/driver/button"
 )
 
-// KindToProto maps internal/driver/button.Kind onto its wire counterpart --
+// KindToProto maps pkg/driver/button.Kind onto its wire counterpart --
 // an explicit switch rather than a numeric cast, since ButtonEvent_Kind's
 // zero value is KIND_UNSPECIFIED (not KIND_PRESSED), so the two enums'
 // ordinals don't line up.

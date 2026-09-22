@@ -11,21 +11,18 @@ package main
 
 import (
 	"context"
-	"errors"
 	"log/slog"
 	"os"
 	"os/signal"
-	"sort"
 	"syscall"
-	"time"
 
 	"github.com/spf13/cobra"
-	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/teamvoltimor/vtitan/src/go/internal/cmdkit"
-	"github.com/teamvoltimor/vtitan/src/go/internal/driver/lidar"
-	sensorv1 "github.com/teamvoltimor/vtitan/src/go/internal/schema/pb/vtitan/sensor/v1"
+	"github.com/teamvoltimor/vtitan/src/go/internal/hwconfig"
+	nodelidar "github.com/teamvoltimor/vtitan/src/go/internal/node/lidar"
 	"github.com/teamvoltimor/vtitan/src/go/internal/transport/nats"
+	"github.com/teamvoltimor/vtitan/src/go/pkg/driver/lidar"
 )
 
 // cliConfig holds every flag lidar-node accepts.
@@ -35,10 +32,6 @@ type cliConfig struct {
 	port     string
 	baudRate int
 }
-
-// scanFrameID is this sensor's TF frame, matching
-// shared.config.constants.identifiers.TfFrames.LIDAR_LINK.
-const scanFrameID = "lidar_link"
 
 // exit codes: 0 means lidar-node ran and shut down cleanly (including via
 // SIGINT/SIGTERM). 1 means it could not start or hit an unrecoverable
@@ -74,116 +67,20 @@ func newRootCmd(cfg *cliConfig, logger *slog.Logger) *cobra.Command {
 	return cmd
 }
 
-// scanMessageFor builds the Scan message to publish for one assembled
-// 360-degree Scan.
-//
-// The classic SCAN protocol streams samples in acquisition order at
-// whatever angular spacing the motor's rotation happened to produce --
-// unlike EXPRESS_SCAN/ULTRA modes (not implemented, see the lidar package's
-// doc.go), it makes no fixed-grid guarantee. sensor_msgs/LaserScan (and
-// this repo's scan.proto, which mirrors it) models a regularly-spaced
-// angle_min..angle_max sweep with one angle_increment step, so this sorts
-// samples by angle and reports their *average* spacing as angle_increment
-// rather than inventing a resampling/binning step -- there is no in-repo or
-// vendor reference for how such a step should behave (see lidar/doc.go),
-// so approximating the real, unevenly-spaced data as-is is preferred over
-// guessing at one.
-func scanMessageFor(scan lidar.Scan, sinceLastScan time.Duration) *sensorv1.Scan {
-	points := append(lidar.Scan(nil), scan...)
-	sort.Slice(points, func(i, j int) bool { return points[i].AngleRad < points[j].AngleRad })
-
-	ranges := make([]float32, len(points))
-	intensities := make([]float32, len(points))
-	for i, pt := range points {
-		ranges[i] = float32(pt.RangeM)
-		intensities[i] = float32(pt.Quality)
-	}
-
-	var angleMin, angleMax, angleIncrement, timeIncrement float32
-	if len(points) > 0 {
-		angleMin = float32(points[0].AngleRad)
-		angleMax = float32(points[len(points)-1].AngleRad)
-	}
-	if len(points) > 1 {
-		angleIncrement = (angleMax - angleMin) / float32(len(points)-1)
-		timeIncrement = float32(sinceLastScan.Seconds()) / float32(len(points)-1)
-	}
-
-	return &sensorv1.Scan{
-		Stamp:   timestamppb.Now(),
-		FrameId: scanFrameID,
-
-		AngleMin:       angleMin,
-		AngleMax:       angleMax,
-		AngleIncrement: angleIncrement,
-		TimeIncrement:  timeIncrement,
-		ScanTime:       float32(sinceLastScan.Seconds()),
-		RangeMin:       lidar.MinRangeM,
-		RangeMax:       lidar.MaxRangeM,
-
-		Ranges:      ranges,
-		Intensities: intensities,
-	}
-}
-
-// run wires the LIDAR driver to NATS and blocks until ctx is done or a
-// non-cancellation error occurs.
+// run builds the driver config this binary was asked for and hands it to the
+// shared publish loop in internal/node/lidar -- the same loop cmd/pi5
+// supervises, so bench runs and board runs cannot drift apart.
 func run(ctx context.Context, logger *slog.Logger, cfg cliConfig) error {
 	drvCfg := lidar.Config{Port: cfg.port, BaudRate: cfg.baudRate}
 	if cfg.ConfigRoot != "" {
-		drvCfg = lidar.ConfigFor(logger, cfg.ConfigRoot)
+		drvCfg = hwconfig.LIDAR(logger, cfg.ConfigRoot)
 	}
 
-	drv, err := lidar.NewClassic(drvCfg)
-	if err != nil {
-		return err //nolint:wrapcheck // lidar.NewClassic already wraps with "lidar: ..." context
-	}
-	if err = drv.Connect(ctx); err != nil {
-		return err //nolint:wrapcheck // Connect already wraps with "lidar: ..." context
-	}
-	defer func() {
-		if closeErr := drv.Close(); closeErr != nil {
-			logger.Error("lidar-node: closing LIDAR driver", "error", closeErr)
-		}
-	}()
-
-	conn, err := nats.Connect(ctx, nats.DefaultConfig(cfg.NATSURL, cfg.NodeName))
-	if err != nil {
-		return err //nolint:wrapcheck // Connect already wraps with "nats: ..." context
-	}
-	defer conn.Close()
-
-	pub := nats.NewPublisher[*sensorv1.Scan](conn, sensorv1.ScanSubject)
-
-	logger.Info("lidar-node: connected", "nats_url", cfg.NATSURL, "port", drvCfg.Port)
-	return publishLoop(ctx, logger, drv, pub)
-}
-
-// publishLoop reads successive Scans from drv and publishes each as a Scan
-// message, until ctx is done or Read returns a non-cancellation error.
-func publishLoop(
-	ctx context.Context,
-	logger *slog.Logger,
-	drv *lidar.ClassicSerialDriver,
-	pub *nats.Publisher[*sensorv1.Scan],
-) error {
-	lastScanAt := time.Now()
-
-	for {
-		scan, err := drv.Read(ctx)
-		if err != nil {
-			if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
-				return nil
-			}
-			return err //nolint:wrapcheck // Read already wraps with "lidar: ..." context
-		}
-
-		now := time.Now()
-		if pubErr := pub.Publish(scanMessageFor(scan, now.Sub(lastScanAt))); pubErr != nil {
-			logger.Error("lidar-node: publishing Scan", "error", pubErr)
-		}
-		lastScanAt = now
-	}
+	//nolint:wrapcheck // nodelidar.Run's errors already carry "lidar: ..."/"nats: ..." context
+	return nodelidar.Run(ctx, nodelidar.Config{
+		Driver: drvCfg,
+		NATS:   nats.DefaultConfig(cfg.NATSURL, cfg.NodeName),
+	}, logger)
 }
 
 func main() {

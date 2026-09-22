@@ -16,7 +16,6 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"log/slog"
 	"os"
 	"os/signal"
@@ -26,9 +25,6 @@ import (
 
 	"github.com/teamvoltimor/vtitan/src/go/internal/cmdkit"
 	"github.com/teamvoltimor/vtitan/src/go/internal/node/statemachine"
-	uiv1 "github.com/teamvoltimor/vtitan/src/go/internal/schema/pb/vtitan/ui/v1"
-	"github.com/teamvoltimor/vtitan/src/go/internal/statemachine/command"
-	"github.com/teamvoltimor/vtitan/src/go/internal/statemachine/robotcmd"
 	"github.com/teamvoltimor/vtitan/src/go/internal/transport/nats"
 )
 
@@ -39,11 +35,6 @@ type cliConfig struct {
 	backendAddr string
 	robotID     string
 }
-
-// defaultBackendAddr matches other/apps/backend/cmd/server's default
-// --grpc-addr for local bench/dev use against a backend running on the
-// same machine.
-const defaultBackendAddr = "127.0.0.1:50051"
 
 // exit codes: 0 means state-machine ran and shut down cleanly (including
 // via SIGINT/SIGTERM). 1 means it could not start or hit an unrecoverable
@@ -76,7 +67,7 @@ func newRootCmd(cfg *cliConfig, logger *slog.Logger) *cobra.Command {
 	flags.StringVar(
 		&cfg.backendAddr,
 		"backend-addr",
-		defaultBackendAddr,
+		statemachine.DefaultBackendAddr,
 		"backend gRPC address (host:port)",
 	)
 	flags.StringVar(
@@ -95,40 +86,16 @@ func newRootCmd(cfg *cliConfig, logger *slog.Logger) *cobra.Command {
 	return cmd
 }
 
-// run wires the robotcmd client to a NATS-backed ButtonSink and blocks
-// until ctx is done or the command channel hits an unrecoverable error.
+// run hands this binary's flags to the shared loop in
+// internal/node/statemachine -- the same loop cmd/pi5 supervises, so bench
+// runs and board runs cannot drift apart.
 func run(ctx context.Context, logger *slog.Logger, cfg cliConfig) error {
-	conn, err := nats.Connect(ctx, nats.DefaultConfig(cfg.NATSURL, cfg.NodeName))
-	if err != nil {
-		return err //nolint:wrapcheck // Connect already wraps with "nats: ..." context
-	}
-	defer conn.Close()
-
-	buttonPub := nats.NewPublisher[*uiv1.ButtonEvent](conn, uiv1.ButtonEventSubject)
-	dispatcher := command.NewDispatcher(
-		statemachine.NewNATSButtonSink(buttonPub),
-		statemachine.UnimplementedChannelSink{},
-	)
-
-	client, err := robotcmd.New(
-		robotcmd.Config{Addr: cfg.backendAddr, RobotID: cfg.robotID},
-		logger,
-	)
-	if err != nil {
-		return err //nolint:wrapcheck // robotcmd.New already wraps with "robotcmd: ..." context
-	}
-	defer func() {
-		if closeErr := client.Close(); closeErr != nil {
-			logger.Error("state-machine: closing backend connection", "error", closeErr)
-		}
-	}()
-
-	logger.Info("state-machine: connected",
-		"nats_url", cfg.NATSURL, "backend_addr", cfg.backendAddr, "robot_id", cfg.robotID)
-	if err = client.Run(ctx, dispatcher); err != nil {
-		return fmt.Errorf("state-machine: %w", err)
-	}
-	return nil
+	//nolint:wrapcheck // statemachine.Run's errors already carry their own package prefix
+	return statemachine.Run(ctx, statemachine.Config{
+		NATS:        nats.DefaultConfig(cfg.NATSURL, cfg.NodeName),
+		BackendAddr: cfg.backendAddr,
+		RobotID:     cfg.robotID,
+	}, logger)
 }
 
 func main() {

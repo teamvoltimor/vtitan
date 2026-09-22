@@ -1,0 +1,64 @@
+package hwconfig
+
+import (
+	"log/slog"
+	"path/filepath"
+
+	"github.com/teamvoltimor/vtitan/src/go/internal/config/generated/hardware"
+	"github.com/teamvoltimor/vtitan/src/go/internal/config/profile"
+	driverlidar "github.com/teamvoltimor/vtitan/src/go/pkg/driver/lidar"
+)
+
+// LIDAR resolves the Config to Connect with: DefaultPort and
+// DefaultBaudRate, overlaid with hardware.HardwareLidar from
+// <configRoot>/profile.DefaultLidarLaunchTOMLPath (overlaid with the
+// profiles named in profile.ActiveNames()) if configRoot is non-empty and
+// loading succeeds; otherwise the literal defaults, logging why on
+// failure.
+//
+// The mount correction (Config.Inverted, Config.YawOffsetDeg) comes from a
+// second file -- robot.toml's [lidar] section, the single source of truth
+// for the physical mount -- because lidar.toml describes the serial link,
+// not where the sensor is bolted. Resolving it here means the driver emits
+// robot-frame bearings and no downstream consumer applies its own
+// correction; publishing raw bearings and leaving each consumer to correct
+// them is what let the nav gateway apply nothing at all while telemetry
+// applied a rotation that the bearing test had already refuted (see
+// adr:0080-lidar-mount-and-scan-plane).
+func LIDAR(logger *slog.Logger, configRoot string) driverlidar.Config {
+	cfg := driverlidar.Config{Port: driverlidar.DefaultPort, BaudRate: driverlidar.DefaultBaudRate}
+	if configRoot == "" {
+		return cfg
+	}
+
+	basePath := filepath.Join(configRoot, profile.DefaultLidarLaunchTOMLPath)
+	profile.Apply(logger, basePath, profile.ActiveNames(), func(loaded hardware.HardwareLidar) {
+		cfg.Port = loaded.SerialPort
+		cfg.BaudRate = loaded.SerialBaudrate
+	})
+	cfg.Inverted, cfg.YawOffsetDeg = mountCorrectionFor(logger, configRoot)
+	return cfg
+}
+
+// mountCorrectionFor resolves robot.toml's [lidar].inverted and
+// [lidar].mount_yaw_offset_deg. A load failure yields the uncorrected
+// (false, 0) pair and a warning rather than an error: an unreadable
+// robot.toml must not stop the LIDAR from streaming, and a wrong frame is
+// visible in the scan where a dead sensor is not.
+//
+// profile.Load, not profile.LoadRobotConfig: the latter also enforces the
+// steering and drivetrain keys that robot.toml deliberately leaves to an
+// active hardware profile, so using it would make the mount correction
+// silently vanish whenever VTITAN_HARDWARE_PROFILE is unset -- a servo spec
+// the LIDAR does not read deciding whether the LIDAR points forward. Both
+// fields live in the base file, so no profile is required to reach them.
+func mountCorrectionFor(logger *slog.Logger, configRoot string) (inverted bool, mountYawOffsetDeg float64) {
+	robotPath := filepath.Join(configRoot, profile.DefaultRobotTOMLPath)
+	robotCfg, err := profile.LoadRobotValues(robotPath, profile.ActiveNames())
+	if err != nil {
+		logger.Warn("hwconfig: loading robot.toml, publishing uncorrected mount frame",
+			"config_root", configRoot, "error", err)
+		return false, 0
+	}
+	return robotCfg.Lidar.Inverted, robotCfg.Lidar.MountYawOffsetDeg
+}

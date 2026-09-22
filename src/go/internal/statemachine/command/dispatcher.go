@@ -3,7 +3,7 @@ package command
 import (
 	"fmt"
 
-	"github.com/teamvoltimor/vtitan/src/go/internal/driver/button"
+	"github.com/teamvoltimor/vtitan/src/go/pkg/driver/button"
 )
 
 // ButtonSink is the one action every start/stop/e-stop Command maps to --
@@ -15,7 +15,7 @@ import (
 type ButtonSink interface {
 	// PublishButtonEvent publishes a synthetic button event, the Go
 	// analog of `_dispatch_button_event` publishing a String onto
-	// /button/event. kind reuses internal/driver/button's Kind rather
+	// /button/event. kind reuses pkg/driver/button's Kind rather
 	// than a duplicate enum, since the wire vocabulary
 	// ("short_press"/"long_press") is exactly the physical button
 	// driver's own.

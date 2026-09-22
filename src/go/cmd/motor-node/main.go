@@ -12,7 +12,7 @@
 // QoS equivalent, so the motor node must detect a stale command itself and
 // stop the drive rather than keep applying the last one it heard).
 //
-// When a wheel encoder is configured (see internal/driver/encoder) it also
+// When a wheel encoder is configured (see pkg/driver/encoder) it also
 // publishes JointStates on `vtitan.actuation.v1.joint_states`, the wheel
 // odometry natsgw.Gateway feeds to bay exit.
 package main
@@ -30,11 +30,12 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/teamvoltimor/vtitan/src/go/internal/cmdkit"
-	"github.com/teamvoltimor/vtitan/src/go/internal/driver/encoder"
-	"github.com/teamvoltimor/vtitan/src/go/internal/driver/motor"
+	"github.com/teamvoltimor/vtitan/src/go/internal/hwconfig"
 	nodemotor "github.com/teamvoltimor/vtitan/src/go/internal/node/motor"
 	actuationv1 "github.com/teamvoltimor/vtitan/src/go/internal/schema/pb/vtitan/actuation/v1"
 	"github.com/teamvoltimor/vtitan/src/go/internal/transport/nats"
+	"github.com/teamvoltimor/vtitan/src/go/pkg/driver/encoder"
+	"github.com/teamvoltimor/vtitan/src/go/pkg/driver/motor"
 )
 
 // cliConfig holds every flag motor-node accepts.
@@ -184,7 +185,7 @@ func startEncoderFeedback(
 	conn *natsconn.Conn,
 	configRoot string,
 ) (func(), error) {
-	encCfg, err := encoder.ConfigFor(configRoot)
+	encCfg, err := hwconfig.Encoder(configRoot)
 	if err != nil {
 		logger.Warn("motor-node: no wheel encoder configured, not publishing joint_states",
 			"error", err)

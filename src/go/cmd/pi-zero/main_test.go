@@ -5,8 +5,8 @@ package main
 import (
 	"testing"
 
-	"github.com/teamvoltimor/vtitan/src/go/internal/driver/display/ssd1306"
 	uiv1 "github.com/teamvoltimor/vtitan/src/go/internal/schema/pb/vtitan/ui/v1"
+	"github.com/teamvoltimor/vtitan/src/go/pkg/driver/display/ssd1306"
 )
 
 func TestRenderSummary(t *testing.T) {

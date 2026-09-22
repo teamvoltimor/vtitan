@@ -23,13 +23,14 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/teamvoltimor/vtitan/src/go/internal/cmdkit"
-	"github.com/teamvoltimor/vtitan/src/go/internal/driver/button"
-	"github.com/teamvoltimor/vtitan/src/go/internal/driver/display/ssd1306"
-	"github.com/teamvoltimor/vtitan/src/go/internal/driver/encoder"
-	"github.com/teamvoltimor/vtitan/src/go/internal/driver/motor"
+	"github.com/teamvoltimor/vtitan/src/go/internal/hwconfig"
 	nodebutton "github.com/teamvoltimor/vtitan/src/go/internal/node/button"
 	nodemotor "github.com/teamvoltimor/vtitan/src/go/internal/node/motor"
 	"github.com/teamvoltimor/vtitan/src/go/internal/supervise"
+	"github.com/teamvoltimor/vtitan/src/go/pkg/driver/button"
+	"github.com/teamvoltimor/vtitan/src/go/pkg/driver/display/ssd1306"
+	"github.com/teamvoltimor/vtitan/src/go/pkg/driver/encoder"
+	"github.com/teamvoltimor/vtitan/src/go/pkg/driver/motor"
 
 	actuationv1 "github.com/teamvoltimor/vtitan/src/go/internal/schema/pb/vtitan/actuation/v1"
 	uiv1 "github.com/teamvoltimor/vtitan/src/go/internal/schema/pb/vtitan/ui/v1"
@@ -163,7 +164,7 @@ func buttonLoop(
 // renderSummary draws summary's fields into a fresh Framebuffer sized to
 // cfg, matching oled_display_node.py's status-line content (LIDAR
 // clearances, yaw, best detection) but not its PIL-based rendering or
-// multi-page layout -- see internal/driver/display/ssd1306/doc.go's scope
+// multi-page layout -- see pkg/driver/display/ssd1306/doc.go's scope
 // note: page-orchestration is deliberately out of scope for this driver
 // port, so this renders one fixed status screen, not oled_display_node.py's
 // full page set.
@@ -248,9 +249,9 @@ func run(ctx context.Context, logger *slog.Logger, cfg cliConfig) error {
 		I2CAddress: cfg.oledI2CAddress, I2CBus: cfg.oledI2CBus,
 	}
 	if cfg.ConfigRoot != "" {
-		motorCfg = motor.ConfigFor(logger, cfg.ConfigRoot)
-		buttonCfg = button.ConfigFor(logger, cfg.ConfigRoot)
-		oledCfg = ssd1306.ConfigFor(logger, cfg.ConfigRoot)
+		motorCfg = hwconfig.Motor(logger, cfg.ConfigRoot)
+		buttonCfg = hwconfig.Button(logger, cfg.ConfigRoot)
+		oledCfg = hwconfig.Display(logger, cfg.ConfigRoot)
 	}
 	motorCfg.Invert = cfg.motorInvert
 
@@ -329,7 +330,7 @@ func run(ctx context.Context, logger *slog.Logger, cfg cliConfig) error {
 	// Fabricating a counts_per_rev to keep the loop alive would produce
 	// confident, wrong distances instead.
 	var feedbackTargets []supervise.Target
-	encCfg, encCfgErr := encoder.ConfigFor(cfg.ConfigRoot)
+	encCfg, encCfgErr := hwconfig.Encoder(cfg.ConfigRoot)
 	switch {
 	case encCfgErr != nil:
 		logger.Warn("pi-zero: no wheel encoder configured, not publishing joint_states",

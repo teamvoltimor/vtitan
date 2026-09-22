@@ -30,7 +30,7 @@
 // Python oracle's heading-projected _wheel_distance_m update). Real
 // hardware (internal/adapters/natsgw) decodes it from
 // vtitan.actuation.v1.joint_states, published by internal/node/motor's
-// encoder feedback loop over internal/driver/encoder -- the Go equivalent
+// encoder feedback loop over pkg/driver/encoder -- the Go equivalent
 // of ackermann_motor_node.py publishing /joint_states and
 // ros2_hardware_gateway.py consuming it.
 //

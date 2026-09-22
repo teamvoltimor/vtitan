@@ -3,11 +3,20 @@
 // supervised goroutines in a single process. See
 // adr:0068-go-parallel-track-single-cutover ("Process model").
 //
-// This revision wires the camera capture loop (internal/node/capture) as a
-// supervised target so the Pi 5 records video + photos from boot, mirroring the
-// Python robot's "record from power-on" behavior. The other subsystems (IMU,
-// LIDAR, vision, nav) are added as further supervised targets as they land; this
-// is the first real (non-stub) incarnation of cmd/pi5.
+// This revision wires two supervised targets: the camera capture loop
+// (internal/node/capture), so the Pi 5 records video + photos from boot
+// mirroring the Python robot's "record from power-on" behavior, plus the IMU
+// and LIDAR publish loops (internal/node/imu, internal/node/lidar) -- the same
+// loops cmd/imu-node and cmd/lidar-node run, the telemetry-summary aggregation
+// that feeds cmd/pi-zero's OLED (internal/node/telemetry), and -- only when a
+// --robot-id is given -- the backend command channel
+// (internal/node/statemachine), and the nav stack itself (internal/node/nav),
+// the same loop cmd/track-navigator runs.
+//
+// Vision is the one subsystem that does not become a target here: ADR 0068
+// keeps it in Python behind a sidecar, so this board's side of it is the
+// detections subscription the nav loop already opens, not a driver loop of its
+// own.
 package main
 
 import (
@@ -25,9 +34,17 @@ import (
 	"github.com/teamvoltimor/vtitan/src/go/internal/cmdkit"
 	"github.com/teamvoltimor/vtitan/src/go/internal/config/profile"
 	"github.com/teamvoltimor/vtitan/src/go/internal/driver/camera"
+	"github.com/teamvoltimor/vtitan/src/go/internal/hwconfig"
 	"github.com/teamvoltimor/vtitan/src/go/internal/node/capture"
+	nodeimu "github.com/teamvoltimor/vtitan/src/go/internal/node/imu"
+	nodelidar "github.com/teamvoltimor/vtitan/src/go/internal/node/lidar"
+	nodenav "github.com/teamvoltimor/vtitan/src/go/internal/node/nav"
+	nodestatemachine "github.com/teamvoltimor/vtitan/src/go/internal/node/statemachine"
+	nodetelemetry "github.com/teamvoltimor/vtitan/src/go/internal/node/telemetry"
 	"github.com/teamvoltimor/vtitan/src/go/internal/supervise"
 	"github.com/teamvoltimor/vtitan/src/go/internal/transport/nats"
+	"github.com/teamvoltimor/vtitan/src/go/pkg/driver/imu"
+	"github.com/teamvoltimor/vtitan/src/go/pkg/driver/lidar"
 )
 
 type cliConfig struct {
@@ -36,6 +53,14 @@ type cliConfig struct {
 	fps        float64
 	video      bool
 	photoEvery time.Duration
+
+	backendAddr string
+	robotID     string
+
+	direction string
+	challenge string
+	navRateHz float64
+	record    bool
 }
 
 // Capture defaults, matching cmd/capture-node's flags so a pi5 run behaves
@@ -82,6 +107,32 @@ func runMain() int {
 	fs.Float64Var(&cfg.fps, "fps", defaultFPS, "capture frame rate")
 	fs.BoolVar(&cfg.video, "video", true, "record the debug video")
 	fs.DurationVar(&cfg.photoEvery, "photo-interval", defaultPhotoInterval, "periodic dataset-photo cadence (0 = off)")
+	fs.StringVar(
+		&cfg.backendAddr,
+		"backend-addr",
+		nodestatemachine.DefaultBackendAddr,
+		"backend gRPC address (host:port)",
+	)
+	fs.StringVar(
+		&cfg.robotID,
+		"robot-id",
+		"",
+		"robot ID on the backend command channel; empty disables the command channel",
+	)
+	fs.StringVar(
+		&cfg.direction,
+		"direction",
+		nodenav.DirectionUndetermined,
+		"travel direction for the round: cw, ccw, or undetermined (default)",
+	)
+	fs.StringVar(
+		&cfg.challenge,
+		"challenge",
+		nodenav.ChallengeOpen,
+		"which challenge this round runs: open (default) or obstacles",
+	)
+	fs.Float64Var(&cfg.navRateHz, "nav-rate-hz", nodenav.DefaultRateHz, "navigator Step rate")
+	fs.BoolVar(&cfg.record, "record", false, "record the run as an MCAP bag under the runs root")
 	if err := fs.Parse(os.Args[1:]); err != nil {
 		return 1
 	}
@@ -97,9 +148,14 @@ func runMain() int {
 		return 1
 	}
 
-	// Capture is the first supervised target; IMU/LIDAR/vision/nav join as they
-	// are ported. Each runs as its own supervised goroutine, sharing one process
-	// and (where relevant) one NATS connection.
+	// Each subsystem runs as its own supervised goroutine: a panic or a failure
+	// in one is restarted with backoff and never takes the process down with it
+	// (internal/supervise). Each opens its own NATS connection, so a restart
+	// reconnects rather than inheriting a half-dead one.
+	//
+	// Nav is last in the slice deliberately: it is the only target that commands
+	// the actuators, so on a clean start the sensors it reads are already
+	// publishing by the time it first steps.
 	captureCfg := capture.Config{
 		Camera:          camCfg,
 		NATS:            nats.DefaultConfig(cfg.NATSURL, cfg.NodeName),
@@ -110,11 +166,79 @@ func runMain() int {
 		PhotoSubdir:     "captures",
 		PhotoRequireDet: false,
 	}
-	if err = supervisor.RunAll(ctx,
-		supervise.Target{Name: "capture", Fn: func(ctx context.Context) error {
+	imuCfg := nodeimu.Config{
+		Driver: imu.Config{Port: imu.DefaultPort, BaudRate: imu.DefaultBaudRate},
+		NATS:   nats.DefaultConfig(cfg.NATSURL, cfg.NodeName),
+	}
+	// The IMU wiring is a hardware fact, so it comes from the active profile
+	// rather than from a pi5 flag: --config-root plus VTITAN_HARDWARE_PROFILE
+	// select which of the four bno08x_* profiles is live, exactly as
+	// cmd/imu-node resolves it. With no config root, the driver defaults apply
+	// so a dev machine still starts (the target then fails to open the port and
+	// is restarted with backoff, which is the intended behavior, not an error).
+	lidarCfg := nodelidar.Config{
+		Driver: lidar.Config{Port: lidar.DefaultPort, BaudRate: lidar.DefaultBaudRate},
+		NATS:   nats.DefaultConfig(cfg.NATSURL, cfg.NodeName),
+	}
+	if cfg.ConfigRoot != "" {
+		imuCfg.Driver = hwconfig.IMU(logger, cfg.ConfigRoot)
+		lidarCfg.Driver = hwconfig.LIDAR(logger, cfg.ConfigRoot)
+	}
+
+	telemetryCfg := nodetelemetry.Config{
+		NATS:   nats.DefaultConfig(cfg.NATSURL, cfg.NodeName),
+		RateHz: nodetelemetry.DefaultRateHz,
+	}
+
+	navCfg := nodenav.Config{
+		NATSURL:    cfg.NATSURL,
+		NodeName:   cfg.NodeName,
+		ConfigRoot: cfg.ConfigRoot,
+		Profiles:   cfg.Profiles,
+		RunsRoot:   cfg.RunsRoot,
+		Direction:  cfg.direction,
+		Challenge:  cfg.challenge,
+		RateHz:     cfg.navRateHz,
+		Record:     cfg.record,
+	}
+
+	targets := []supervise.Target{
+		{Name: "capture", Fn: func(ctx context.Context) error {
 			return capture.Run(ctx, captureCfg, logger)
 		}},
-	); err != nil {
+		{Name: "imu", Fn: func(ctx context.Context) error {
+			return nodeimu.Run(ctx, imuCfg, logger)
+		}},
+		{Name: "lidar", Fn: func(ctx context.Context) error {
+			return nodelidar.Run(ctx, lidarCfg, logger)
+		}},
+		{Name: "telemetry", Fn: func(ctx context.Context) error {
+			return nodetelemetry.Run(ctx, telemetryCfg, logger)
+		}},
+		{Name: "nav", Fn: func(ctx context.Context) error {
+			return nodenav.Run(ctx, logger, navCfg)
+		}},
+	}
+
+	// The backend command channel is optional: it is how an operator starts and
+	// stops a round remotely, and a race can run without it. Registering it with
+	// no robot ID would leave a target redialling a backend that was never
+	// configured, so it joins only when one is given.
+	if cfg.robotID != "" {
+		smCfg := nodestatemachine.Config{
+			NATS:        nats.DefaultConfig(cfg.NATSURL, cfg.NodeName),
+			BackendAddr: cfg.backendAddr,
+			RobotID:     cfg.robotID,
+		}
+		targets = append(targets, supervise.Target{
+			Name: "state-machine",
+			Fn: func(ctx context.Context) error {
+				return nodestatemachine.Run(ctx, smCfg, logger)
+			},
+		})
+	}
+
+	if err = supervisor.RunAll(ctx, targets...); err != nil {
 		if errors.Is(err, context.Canceled) {
 			return 0
 		}

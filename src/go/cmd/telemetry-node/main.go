@@ -17,24 +17,15 @@ package main
 
 import (
 	"context"
-	"errors"
 	"log/slog"
 	"os"
 	"os/signal"
-	"sync"
 	"syscall"
-	"time"
 
 	"github.com/spf13/cobra"
-	"golang.org/x/sync/errgroup"
-	"google.golang.org/protobuf/proto"
-	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/teamvoltimor/vtitan/src/go/internal/cmdkit"
-	"github.com/teamvoltimor/vtitan/src/go/internal/telemetry/diag"
-
-	sensorv1 "github.com/teamvoltimor/vtitan/src/go/internal/schema/pb/vtitan/sensor/v1"
-	uiv1 "github.com/teamvoltimor/vtitan/src/go/internal/schema/pb/vtitan/ui/v1"
+	nodetelemetry "github.com/teamvoltimor/vtitan/src/go/internal/node/telemetry"
 	"github.com/teamvoltimor/vtitan/src/go/internal/transport/nats"
 )
 
@@ -45,21 +36,6 @@ type cliConfig struct {
 	rateHz float64
 }
 
-// natsSource implements diag.Source by caching the latest message received
-// on each subscription -- the Go analog of telemetry_bridge_node.py's
-// `_latest_scan`/`_latest_imu` instance caches, updated by each
-// subscription's own read loop (watchLoop) rather than blocking Summarize
-// on a topic.
-type natsSource struct {
-	mu   sync.RWMutex
-	scan *sensorv1.Scan
-	imu  *sensorv1.Imu
-}
-
-// defaultRateHz matches telemetry_bridge_node.py's ui_summary_rate_hz
-// default (10Hz) -- the rate _publish_ui_summary redraws the OLED at.
-const defaultRateHz = 10.0
-
 // exit codes: 0 means telemetry-node ran and shut down cleanly (including
 // via SIGINT/SIGTERM). 1 means it could not start or hit an unrecoverable
 // runtime error.
@@ -67,8 +43,6 @@ const (
 	exitOK    = 0
 	exitError = 1
 )
-
-var _ diag.Source = (*natsSource)(nil)
 
 func newRootCmd(cfg *cliConfig, logger *slog.Logger) *cobra.Command {
 	cmd := &cobra.Command{
@@ -87,7 +61,7 @@ func newRootCmd(cfg *cliConfig, logger *slog.Logger) *cobra.Command {
 	flags := cmd.Flags()
 	cfg.RegisterNATSURL(flags)
 	cfg.RegisterNodeName(flags, "telemetry-node")
-	flags.Float64Var(&cfg.rateHz, "rate-hz", defaultRateHz, "TelemetrySummary publish rate")
+	flags.Float64Var(&cfg.rateHz, "rate-hz", nodetelemetry.DefaultRateHz, "TelemetrySummary publish rate")
 	cfg.RegisterConfigRoot(flags,
 		"repo root to load the hardware profile (VTITAN_HARDWARE_PROFILE) from; "+
 			"empty uses a zero LIDAR yaw offset")
@@ -95,149 +69,15 @@ func newRootCmd(cfg *cliConfig, logger *slog.Logger) *cobra.Command {
 	return cmd
 }
 
-// LatestScan implements diag.Source.
-func (s *natsSource) LatestScan(_ context.Context) (*sensorv1.Scan, bool) {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	return s.scan, s.scan != nil
-}
-
-// LatestIMU implements diag.Source.
-func (s *natsSource) LatestIMU(_ context.Context) (*sensorv1.Imu, bool) {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	return s.imu, s.imu != nil
-}
-
-// LatestDetections implements diag.Source. Always reports no detection --
-// there is no vision detection wire schema yet (see diag.Detection's doc
-// comment: vision stays Python-only and hasn't been given a proto), and
-// Aggregator's own documented behavior for an input that has never arrived
-// is to omit it from the summary, so this is the correct permanent answer
-// here, not a placeholder to fill in later.
-func (s *natsSource) LatestDetections(_ context.Context) ([]diag.Detection, bool) {
-	return nil, false
-}
-
-func (s *natsSource) setScan(scan *sensorv1.Scan) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.scan = scan
-}
-
-func (s *natsSource) setIMU(imu *sensorv1.Imu) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.imu = imu
-}
-
-// watchLoop reads successive messages from sub and hands each to store,
-// until ctx is done or Read returns a non-cancellation error.
-func watchLoop[T proto.Message](ctx context.Context, sub *nats.Subscriber[T], store func(T)) error {
-	for {
-		msg, err := sub.Read(ctx)
-		if err != nil {
-			if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
-				return nil
-			}
-			return err //nolint:wrapcheck // Read already wraps with "nats: ..." context
-		}
-		store(msg)
-	}
-}
-
-// summaryMessageFor converts a diag.TelemetrySummary into the
-// TelemetrySummary message to publish.
-func summaryMessageFor(summary diag.TelemetrySummary) *uiv1.TelemetrySummary {
-	return &uiv1.TelemetrySummary{
-		Stamp:                   timestamppb.Now(),
-		BestDetectionClassId:    summary.BestDetectionClassID,
-		BestDetectionConfidence: summary.BestDetectionConfidence,
-		HasBestDetection:        summary.HasBestDetection,
-		LidarFrontCm:            summary.LidarFrontCM,
-		LidarLeftCm:             summary.LidarLeftCM,
-		LidarRightCm:            summary.LidarRightCM,
-		GyroYawDeg:              summary.GyroYawDeg,
-	}
-}
-
-// run wires the aggregator to NATS and blocks until ctx is done or a
-// subscription hits a non-cancellation error.
+// run hands this binary's flags to the shared aggregation loop in
+// internal/node/telemetry -- the same loop cmd/pi5 supervises, so bench runs
+// and board runs cannot drift apart.
 func run(ctx context.Context, logger *slog.Logger, cfg cliConfig) error {
-	conn, err := nats.Connect(ctx, nats.DefaultConfig(cfg.NATSURL, cfg.NodeName))
-	if err != nil {
-		return err //nolint:wrapcheck // Connect already wraps with "nats: ..." context
-	}
-	defer conn.Close()
-
-	imuSub, err := nats.NewSubscriber[sensorv1.Imu](
-		conn,
-		sensorv1.ImuSubject,
-	)
-	if err != nil {
-		return err //nolint:wrapcheck // NewSubscriber already wraps with "nats: ..." context
-	}
-	defer func() {
-		if closeErr := imuSub.Close(); closeErr != nil {
-			logger.Error("telemetry-node: closing IMU subscription", "error", closeErr)
-		}
-	}()
-
-	scanSub, err := nats.NewSubscriber[sensorv1.Scan](
-		conn,
-		sensorv1.ScanSubject,
-	)
-	if err != nil {
-		return err //nolint:wrapcheck // NewSubscriber already wraps with "nats: ..." context
-	}
-	defer func() {
-		if closeErr := scanSub.Close(); closeErr != nil {
-			logger.Error("telemetry-node: closing Scan subscription", "error", closeErr)
-		}
-	}()
-
-	pub := nats.NewPublisher[*uiv1.TelemetrySummary](conn, uiv1.TelemetrySummarySubject)
-
-	source := &natsSource{}
-	// No LIDAR mount correction is applied here: lidar-node publishes in the
-	// robot frame already (lidar.ConfigFor). Re-applying it would double it.
-	aggregator := diag.NewAggregator(source, diag.DefaultConfig())
-
-	logger.Info("telemetry-node: connected", "nats_url", cfg.NATSURL, "rate_hz", cfg.rateHz)
-
-	group, gctx := errgroup.WithContext(ctx)
-	group.Go(func() error { return watchLoop(gctx, imuSub, source.setIMU) })
-	group.Go(func() error { return watchLoop(gctx, scanSub, source.setScan) })
-	group.Go(func() error { return publishLoop(gctx, logger, aggregator, pub, cfg.rateHz) })
-
-	if err = group.Wait(); err != nil {
-		return err //nolint:wrapcheck // each goroutine's own error is already package-prefixed
-	}
-	return nil
-}
-
-// publishLoop summarizes and publishes at rateHz until ctx is done.
-func publishLoop(
-	ctx context.Context,
-	logger *slog.Logger,
-	aggregator *diag.Aggregator,
-	pub *nats.Publisher[*uiv1.TelemetrySummary],
-	rateHz float64,
-) error {
-	ticker := time.NewTicker(time.Duration(float64(time.Second) / rateHz))
-	defer ticker.Stop()
-
-	for {
-		select {
-		case <-ctx.Done():
-			return nil
-		case <-ticker.C:
-			summary := aggregator.Summarize(ctx)
-			if pubErr := pub.Publish(summaryMessageFor(summary)); pubErr != nil {
-				logger.Error("telemetry-node: publishing TelemetrySummary", "error", pubErr)
-			}
-		}
-	}
+	//nolint:wrapcheck // nodetelemetry.Run's errors already carry "nats: ..." context
+	return nodetelemetry.Run(ctx, nodetelemetry.Config{
+		NATS:   nats.DefaultConfig(cfg.NATSURL, cfg.NodeName),
+		RateHz: cfg.rateHz,
+	}, logger)
 }
 
 func main() {

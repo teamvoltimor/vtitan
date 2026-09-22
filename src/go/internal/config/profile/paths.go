@@ -51,7 +51,7 @@ const DefaultEncoderTOMLPath = "src/config/hardware/motors/encoder.toml"
 //
 // The file's shape is the generated imu.HardwareImuBno08XUartRvc DTO, whose
 // [quaternion] section is imu.HardwareImuBno08XUartRvcQuaternion. Only
-// DefaultPort and Baudrate have an internal/driver/imu.Config counterpart
+// DefaultPort and Baudrate have an pkg/driver/imu.Config counterpart
 // (Port, BaudRate) today; PollRateHz/SerialTimeout/DataLockTimeout/Quaternion
 // describe driver-internal timing and axis convention the Go port doesn't
 // parameterize yet.
@@ -61,7 +61,7 @@ const DefaultIMUUARTRVCTOMLPath = "src/config/hardware/imu/bno08x_uart_rvc.toml"
 // relative to the repo root. A flat top-level table, not sectioned, whose
 // shape is the generated hardware.HardwareLidar DTO. ScanMode and
 // AngleCompensate are the sllidar_ros2 driver's own launch parameters, with no
-// internal/driver/lidar counterpart (that package reads the classic SCAN
+// pkg/driver/lidar counterpart (that package reads the classic SCAN
 // command directly, not via the ROS2 driver node).
 const DefaultLidarLaunchTOMLPath = "src/config/hardware/lidar.toml"
 
@@ -75,7 +75,7 @@ const DefaultMotorsTOMLPath = "src/config/hardware/motors/motors.toml"
 // repo root. The file's shape is the generated
 // display.HardwareDisplaySsd1306 DTO, whose field is I2CAddress (a
 // "0x.."-formatted string in TOML, not a plain int); see ParseI2CAddress for
-// parsing it into internal/driver/display/ssd1306's uint16 field.
+// parsing it into pkg/driver/display/ssd1306's uint16 field.
 const DefaultSSD1306TOMLPath = "src/config/hardware/display/ssd1306.toml"
 
 // Navigation: blind_nav.

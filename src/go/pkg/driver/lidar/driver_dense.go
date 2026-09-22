@@ -1,0 +1,416 @@
+package lidar
+
+import (
+	"bufio"
+	"context"
+	"errors"
+	"fmt"
+	"io"
+	"time"
+
+	"github.com/go-playground/validator/v10"
+	"go.bug.st/serial"
+
+	"github.com/teamvoltimor/vtitan/src/go/pkg/driver"
+)
+
+// DenseSerialDriver reads 360-degree Scans from an RPLIDAR C1 over its TTL
+// UART interface using the Express Scan "Dense Mode" command (see doc.go
+// for scope, and frame_dense.go's package comment for why this is the
+// preferred mode over ClassicSerialDriver). It implements
+// driver.Driver[Scan] (src/go/pkg/driver). Shares Config,
+// DefaultBaudRate, MinRangeM/MaxRangeM, and the settle-delay/timeout
+// constants with ClassicSerialDriver (driver_classic.go) — those are
+// protocol- and hardware-generic, not scan-mode-specific.
+type DenseSerialDriver struct {
+	cfg    Config
+	port   serial.Port
+	reader *bufio.Reader
+	// packetLen is the exact byte size of one Dense Mode response packet
+	// for this session, taken from the response descriptor's declared
+	// Data Response Length (Figure 2-7) in Connect -- not assumed to be
+	// the documented worked example's 84 bytes, in case this device's
+	// actual legacy-mode packet size differs. Set once by Connect, then
+	// read-only for the life of the connection.
+	packetLen int
+	// prev holds the most recently decoded Dense Mode packet, whose
+	// samples can't be angle-resolved yet — that requires the *next*
+	// packet's start_angle_q6 (see frame_dense.go's package comment).
+	// Carried across Read calls the same way ClassicSerialDriver.first
+	// carries one already-decoded Point.
+	prev *densePacket
+	// pending holds prev's already-resolved Points once the boundary
+	// packet (prev.startOfScan) has been reached but the completed Scan
+	// has already been returned — they belong to the *next* Scan and are
+	// carried over between Read calls instead of being discarded.
+	pending []Point
+}
+
+// denseScanState accumulates the Points of a Dense Mode scan as packets are
+// resolved, tracking whether the stream's S flag has been seen and how far
+// the sweep has advanced since the scan's first packet.
+type denseScanState struct {
+	points        []Point
+	started       bool
+	scanStartDeg  float64
+	haveScanStart bool
+}
+
+var (
+	// Compile-time assertion that DenseSerialDriver satisfies
+	// driver.Driver[Scan].
+	_ driver.Driver[Scan] = (*DenseSerialDriver)(nil)
+)
+
+// NewDense validates cfg and returns a DenseSerialDriver. Call Connect
+// before Read.
+func NewDense(cfg Config) (*DenseSerialDriver, error) {
+	if err := validator.New().Struct(cfg); err != nil {
+		return nil, fmt.Errorf("lidar: invalid config: %w", err)
+	}
+	yawOffsetDeg = cfg.YawOffsetDeg
+	mountInverted = cfg.Inverted
+	return &DenseSerialDriver{cfg: cfg}, nil
+}
+
+// Connect opens the configured serial port, stops any scan already in
+// progress (the device may still be scanning from a previous session that
+// didn't clean up), and issues the legacy Dense Mode Express Scan request
+// so measurement samples start streaming.
+func (d *DenseSerialDriver) Connect(ctx context.Context) error {
+	mode := &serial.Mode{BaudRate: d.cfg.BaudRate}
+	port, err := serial.Open(d.cfg.Port, mode)
+	if err != nil {
+		return fmt.Errorf("lidar: opening serial port %s: %w", d.cfg.Port, err)
+	}
+	d.port = port
+	d.reader = bufio.NewReader(newTimeoutReader(port, scanReadTimeout))
+	// The serial port's per-call read timeout is kept short; the
+	// timeoutReader's maxSilence (scanReadTimeout) bounds a stalled read so a
+	// device that never answers the Express Scan request fails fast instead of
+	// hanging (go.bug.st/serial returns (0, nil) on timeout, which otherwise
+	// loops forever in bufio). scanReadTimeout is set above the C1's
+	// inter-scan gap (see adr:0080-lidar-mount-and-scan-plane) so a healthy
+	// scan assembles across bursts, while a truly dead device still errors.
+	if timeoutErr := d.port.SetReadTimeout(serialPollTimeout); timeoutErr != nil {
+		return fmt.Errorf("lidar: setting read timeout: %w", timeoutErr)
+	}
+
+	// Best-effort: if the device is already scanning from a prior session,
+	// this stops it so the Express Scan request below starts a clean
+	// session. A fresh device that isn't scanning simply ignores it ("This
+	// request will be ignored when RPLIDAR is in the Idle or Protection
+	// Stop state.").
+	if stopErr := d.Stop(ctx); stopErr != nil {
+		return fmt.Errorf("lidar: stopping prior scan session: %w", stopErr)
+	}
+
+	// Reboot the RPLIDAR core to a clean idle state. The sllidar SDK's
+	// connect sequence issues a RESET before starting a scan, and on the C1
+	// the Express Scan request is otherwise sometimes silently ignored (see
+	// adr:0080-lidar-mount-and-scan-plane).
+	if resetErr := d.Reset(ctx); resetErr != nil {
+		return fmt.Errorf("lidar: resetting device: %w", resetErr)
+	}
+
+	// The C1 will not stream scan data unless its motor is spinning, so start
+	// it before requesting the scan (mirrors the sllidar SDK's startMotor()
+	// call inside startScanExpress). Without this the Express Scan request is
+	// silently ignored and the device returns no data (see
+	// adr:0080-lidar-mount-and-scan-plane).
+	if _, writeErr := d.port.Write(startMotorPacket()); writeErr != nil {
+		return fmt.Errorf("lidar: starting motor: %w", writeErr)
+	}
+	// The C1 ignores the Express Scan request until the motor is actually
+	// spinning, so wait for spin-up before issuing it (see motorSpinupDelay).
+	time.Sleep(motorSpinupDelay)
+
+	// Purge any measurement bytes the device already had queued on the wire
+	// before we sent STOP -- otherwise the descriptor read below picks up a
+	// stale sample instead of the real response descriptor (same rationale
+	// as ClassicSerialDriver.Connect).
+	if purgeErr := d.port.ResetInputBuffer(); purgeErr != nil {
+		return fmt.Errorf("lidar: purging stale input: %w", purgeErr)
+	}
+
+	if _, writeErr := d.port.Write(denseRequestPacket()); writeErr != nil {
+		return fmt.Errorf("lidar: sending Express Scan request: %w", writeErr)
+	}
+
+	desc, descErr := d.readDescriptor()
+	if descErr != nil {
+		return fmt.Errorf("lidar: reading Express Scan response descriptor: %w", descErr)
+	}
+	if desc.dataType != dataTypeDenseMeasurement {
+		return fmt.Errorf(
+			"%w: got 0x%02X, want 0x%02X",
+			ErrUnexpectedDataType,
+			desc.dataType,
+			dataTypeDenseMeasurement,
+		)
+	}
+	if desc.length < denseHeaderLen {
+		return fmt.Errorf(
+			"lidar: Express Scan response descriptor declared %d byte packets, too short for a %d byte header",
+			desc.length, denseHeaderLen,
+		)
+	}
+	d.packetLen = int(desc.length)
+
+	return nil
+}
+
+// Read blocks until a full Scan (all samples between two S=1 start-of-scan
+// flags) has been assembled, or until ctx is done. If ctx is canceled
+// while a read is in flight, the underlying goroutine is left blocked on
+// the serial read until Close is called — Close closing the port is what
+// unblocks it, same pattern as ClassicSerialDriver.Read.
+func (d *DenseSerialDriver) Read(ctx context.Context) (Scan, error) {
+	if d.reader == nil {
+		return nil, errReadBeforeConnect
+	}
+
+	resultCh := make(chan scanResult, 1)
+	go func() {
+		scan, err := d.readScan()
+		resultCh <- scanResult{scan: scan, err: err}
+	}()
+
+	select {
+	case <-ctx.Done():
+		return nil, fmt.Errorf("lidar: waiting for scan: %w", ctx.Err())
+	case res := <-resultCh:
+		return res.scan, res.err
+	}
+}
+
+// Close sends a STOP request (best-effort — the port may already be
+// unusable) and closes the underlying serial port. Safe to call even if
+// Connect was never called.
+func (d *DenseSerialDriver) Close() error {
+	if d.port == nil {
+		return nil
+	}
+	if _, writeErr := d.port.Write(requestPacket(cmdStop)); writeErr != nil {
+		// Best-effort: a failed STOP shouldn't block Close from still
+		// closing the port, so this is intentionally not returned.
+		_ = writeErr
+	}
+
+	if err := d.port.Close(); err != nil {
+		return fmt.Errorf("lidar: closing serial port %s: %w", d.cfg.Port, err)
+	}
+	return nil
+}
+
+// Stop sends the STOP request, exiting the scanning state. Shared
+// STOP/RESET/GET_HEALTH command bytes and settle-delay handling with
+// ClassicSerialDriver — those requests aren't scan-mode-specific.
+func (d *DenseSerialDriver) Stop(ctx context.Context) error {
+	if _, err := d.port.Write(requestPacket(cmdStop)); err != nil {
+		return fmt.Errorf("lidar: sending STOP request: %w", err)
+	}
+	return waitSettle(ctx, stopSettleDelay)
+}
+
+// Reset sends the RESET request, rebooting the RPLIDAR core back to the
+// state it's in right after powering up — useful for recovering from the
+// Protection Stop state.
+func (d *DenseSerialDriver) Reset(ctx context.Context) error {
+	if _, err := d.port.Write(requestPacket(cmdReset)); err != nil {
+		return fmt.Errorf("lidar: sending RESET request: %w", err)
+	}
+	return waitSettle(ctx, resetSettleDelay)
+}
+
+// Health sends the GET_HEALTH request and returns the device's reported
+// health state.
+func (d *DenseSerialDriver) Health(_ context.Context) (Health, error) {
+	if _, err := d.port.Write(requestPacket(cmdGetHealth)); err != nil {
+		return Health{}, fmt.Errorf("lidar: sending GET_HEALTH request: %w", err)
+	}
+
+	desc, err := d.readDescriptor()
+	if err != nil {
+		return Health{}, fmt.Errorf("lidar: reading GET_HEALTH response descriptor: %w", err)
+	}
+	if desc.dataType != dataTypeHealth {
+		return Health{}, fmt.Errorf(
+			"%w: got 0x%02X, want 0x%02X",
+			ErrUnexpectedDataType,
+			desc.dataType,
+			dataTypeHealth,
+		)
+	}
+
+	body := make([]byte, healthRespLen)
+	if _, readErr := io.ReadFull(d.reader, body); readErr != nil {
+		return Health{}, fmt.Errorf("lidar: reading GET_HEALTH response body: %w", readErr)
+	}
+
+	health, err := decodeHealth(body)
+	if err != nil {
+		return Health{}, fmt.Errorf("lidar: decoding GET_HEALTH response: %w", err)
+	}
+	return health, nil
+}
+
+// readDescriptor reads and parses the fixed 7-byte response descriptor
+// that precedes every data response. Same resync-on-sync-pair robustness
+// as ClassicSerialDriver.readDescriptor, and for the same reason (a
+// leftover scan or STOP response can leave stray bytes ahead of the real
+// descriptor).
+func (d *DenseSerialDriver) readDescriptor() (descriptor, error) {
+	var prev byte
+	for {
+		b, err := d.reader.ReadByte()
+		if err != nil {
+			return descriptor{}, fmt.Errorf("lidar: reading descriptor sync: %w", err)
+		}
+		if prev == descStartFlag1 && b == descStartFlag2 {
+			break
+		}
+		prev = b
+	}
+
+	rest := make([]byte, descLen-2)
+	if _, err := io.ReadFull(d.reader, rest); err != nil {
+		return descriptor{}, fmt.Errorf("lidar: reading response descriptor: %w", err)
+	}
+
+	raw := make([]byte, 0, descLen)
+	raw = append(raw, descStartFlag1, descStartFlag2)
+	raw = append(raw, rest...)
+	return parseDescriptor(raw)
+}
+
+// readDensePacket reads and decodes one Dense Mode response packet,
+// resyncing on corruption. The C1 streams 84-byte packets continuously at
+// 460800 baud, so a single dropped or corrupted byte both fails the packet
+// it lands in AND misaligns every subsequent fixed-size read -- without
+// resync, one bad byte aborts the whole scan (see
+// adr:0080-lidar-mount-and-scan-plane). On a sync/checksum mismatch it
+// therefore scans byte-by-byte for
+// the next 0xA? 0x5? sync-nibble pair (the same robustness
+// ClassicSerialDriver.readDescriptor applies to the descriptor), reads the
+// rest of the packet from there, and retries. Only a stream that stays
+// misaligned past the timeoutReader's maxSilence fails.
+func (d *DenseSerialDriver) readDensePacket() (densePacket, error) {
+	raw := make([]byte, d.packetLen)
+	if _, err := io.ReadFull(d.reader, raw); err != nil {
+		return densePacket{}, fmt.Errorf("lidar: reading dense packet: %w", err)
+	}
+
+	pkt, err := decodeDensePacket(raw)
+	if err == nil {
+		return pkt, nil
+	}
+	if !errors.Is(err, ErrDenseSyncMismatch) && !errors.Is(err, ErrDenseChecksumMismatch) {
+		return densePacket{}, err
+	}
+
+	// Resync: find the next packet start (two bytes whose upper nibbles are
+	// denseSync1Nibble then denseSync2Nibble). The bytes ahead of the sync
+	// pair are discarded -- they're corruption or the tail of a misread.
+	var prev byte
+	for {
+		b, readErr := d.reader.ReadByte()
+		if readErr != nil {
+			return densePacket{}, fmt.Errorf("lidar: resyncing dense packet: %w", readErr)
+		}
+		if prev>>denseNibbleShift == denseSync1Nibble && b>>denseNibbleShift == denseSync2Nibble {
+			raw[0] = prev
+			raw[1] = b
+			break
+		}
+		prev = b
+	}
+
+	rest := raw[2:]
+	if _, readErr := io.ReadFull(d.reader, rest); readErr != nil {
+		return densePacket{}, fmt.Errorf("lidar: reading resynced dense packet: %w", readErr)
+	}
+
+	pkt, err = decodeDensePacket(raw)
+	if err != nil {
+		return densePacket{}, err
+	}
+	return pkt, nil
+}
+
+// readScan reads Dense Mode packets until a full Scan (all samples between
+// two S=1 start-of-scan flags) has been assembled. Because a packet's own
+// samples can only be angle-resolved once the *next* packet's start angle
+// is known (frame_dense.go's package comment), this carries both an
+// unresolved packet (d.prev) and an already-resolved-but-not-yet-returned
+// point batch (d.pending) across Read calls — the two-field generalization
+// of ClassicSerialDriver.readScan's single d.first carryover.
+func (d *DenseSerialDriver) readScan() (Scan, error) {
+	var st denseScanState
+	if d.pending != nil {
+		st.points = append(st.points, d.pending...)
+		d.pending = nil
+		st.started = true
+	}
+
+	prev := d.prev
+	d.prev = nil
+
+	for {
+		cur, err := d.readDensePacket()
+		if err != nil {
+			return nil, err
+		}
+
+		if prev != nil {
+			resolved := resolveDenseCabins(*prev, cur.startAngleDeg)
+			if st.accumulate(resolved, *prev, cur) {
+				d.prev = &cur
+				d.pending = resolved
+				return st.points, nil
+			}
+		}
+
+		prev = &cur
+	}
+}
+
+// accumulate folds resolved (prev's points, resolved against cur's start
+// angle) into the scan. It reports true when the scan is complete: cur
+// closed a full rotation without the partial-first-scan discard.
+func (st *denseScanState) accumulate(resolved []Point, prev, cur densePacket) bool {
+	if prev.startOfScan {
+		st.started = true
+	}
+	if !st.started {
+		return false
+	}
+	if !st.haveScanStart {
+		st.scanStartDeg = prev.startAngleDeg
+		st.haveScanStart = true
+	}
+	st.points = append(st.points, resolved...)
+
+	// The C1 Express/Dense stream only flags the start of a scan
+	// (S=1) on its first packet; subsequent packets never re-set S, so a
+	// scan can't be closed on a second S flag (see
+	// adr:0080-lidar-mount-and-scan-plane). Instead the scan
+	// ends when the per-packet start angle wraps back toward 0 (i.e.
+	// drops below the previous packet's angle after having increased
+	// monotonically through 360deg).
+	if prev.startAngleDeg <= cur.startAngleDeg+scanWrapAngleDeg {
+		return false
+	}
+
+	covered := cur.startAngleDeg + fullSweepDeg - st.scanStartDeg
+	if covered < fullSweepDeg {
+		// The stream's single S=true packet landed mid-revolution, so
+		// this first scan covered only the tail of a rotation. Discard
+		// it and keep collecting from the wrap packet, which is the true
+		// start of a full revolution.
+		st.points = nil
+		st.haveScanStart = false
+		return false
+	}
+	return true
+}
