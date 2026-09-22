@@ -1,27 +1,29 @@
 #!/usr/bin/env bash
-# Operator's design 2026-09-17: when a committed crossing's arc does not fit the
-# run-up left, back straight BEFORE any contact so the crossing has more room.
-# Budget of k_turn_min_s legs per committed sign; fit judged at the slow tier.
+# Narrow lot keep-out 2026-09-17: hold the pursuit target off the parking fins
+# while driving PAST them, only in the lot corridor and only when no committed
+# sign wants that side. The general keep-out is already refuted at 12 -> 30.
 #
 # Baseline runs IN THIS BATCH. Failure SETS are diffed, not just counts.
 set -u
-cd /d/Dev/active/projects/teamvoltimor/vtitan || exit 1
+# Repo root derived from this script's own location (it lives at
+# src/python/scripts/sim/sweeps/), so the sweep runs from any checkout on
+# any machine. It used to be an absolute path to one Windows working copy.
+ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../../.." && pwd)
+cd "$ROOT" || exit 1
 
-SR=src/config/navigation/signs/sign_router.toml
-OUT=/tmp/an/crossing_reverse
+SR=src/config/navigation/parking/parking.toml
+OUT=/tmp/an/lot_keep_out
 mkdir -p "$OUT"
-cp "$SR" "$OUT/sign_router.toml.orig"
-ROOT=/d/Dev/active/projects/teamvoltimor/vtitan
-restore() { cp "$OUT/sign_router.toml.orig" "$ROOT/$SR"; }
+cp "$SR" "$OUT/parking.toml.orig"
+restore() { cp "$OUT/parking.toml.orig" "$ROOT/$SR"; }
 trap restore EXIT
 
 # tag|key=value[,key=value]
 ARMS=(
   "baseline|"
-  "legs1|sign_crossing_reverse_legs=1"
-  "legs2|sign_crossing_reverse_legs=2"
-  "legs3|sign_crossing_reverse_legs=3"
-  "legs2_fit022|sign_crossing_reverse_legs=2,sign_crossing_reverse_fit_mps=0.22"
+  "keep_002|lot_keep_out_m=0.02"
+  "keep_005|lot_keep_out_m=0.05"
+  "keep_010|lot_keep_out_m=0.10"
 )
 
 for arm in "${ARMS[@]}"; do

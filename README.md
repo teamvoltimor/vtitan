@@ -173,7 +173,6 @@ La raíz del repositorio sigue la estructura que pide la categoría Futuros Inge
 ```text
 vtitan/
 ├── README.md          # Este documento: la documentación completa de ingeniería
-├── tests.md           # Cómo probamos: los cuatro niveles y el protocolo A/B
 ├── CHANGELOG.md       # Notas de versión de v1.0, v1.1 y v1.2
 ├── t-photos/          # Fotos del equipo
 ├── v-photos/          # Fotos de vTitan y de los prototipos anteriores
@@ -213,7 +212,7 @@ vtitan/
 <td align="left">Este documento: la documentación completa de ingeniería de vTitan</td>
 </tr>
 <tr>
-<td align="left"><code>tests.md</code></td>
+<td align="left"><code>other/docs/tests.md</code></td>
 <td align="left">El flujo de pruebas: los cuatro niveles, las métricas y el protocolo de comparación A/B</td>
 </tr>
 <tr>
@@ -261,7 +260,7 @@ Según lo que quieras revisar, esta es la ruta más corta:
 - **Cómo se entrenó el detector**: `other/ml/hailo/` (entrenamiento y compilación), `other/ml/weights/` (pesos publicados), `other/apps/auto-annotator/` (anotación asistida).
 - **Cómo se instala el sistema en las placas**: [`other/docs/pi-setup.md`](other/docs/pi-setup.md) y `other/deploy/ansible/`; automatizado por los comandos `task rpi:provision:*` de [Arranque rápido](#arranque-rápido-y-reproducibilidad).
 - **Las piezas del robot en 3D**: [`models/README.md`](models/README.md). Los `.stl` se abren directamente en el visor 3D de GitHub, sin instalar nada. Los diagramas y el arnés, en [`schemes/README.md`](schemes/README.md); las vistas del robot, en [`v-photos/README.md`](v-photos/README.md).
-- **Cómo verificamos que algo funciona**: [`tests.md`](tests.md), que describe los cuatro niveles de prueba y el protocolo con el que aceptamos o descartamos un cambio.
+- **Cómo verificamos que algo funciona**: [`other/docs/tests.md`](other/docs/tests.md), que describe los cuatro niveles de prueba y el protocolo con el que aceptamos o descartamos un cambio.
 - **El historial del proyecto**: bitácora de ingeniería en [`other/docs/bitacora-ingenieria.md`](other/docs/bitacora-ingenieria.md), prototipos previos en [`other/docs/development/previous-prototypes/`](other/docs/development/previous-prototypes/klevor-v0.1.md), y las etiquetas de git (`v1.0` regional, `v1.1` y `v1.2` posteriores) con mensajes de commit convencionales.
 
 Además de las carpetas obligatorias, el repositorio contiene:
@@ -347,7 +346,7 @@ task config:check              # cada clave de configuración descrita y con su 
 task lint                      # ruff, golangci-lint, ESLint, buf lint
 ```
 
-El **flujo de pruebas completo** está documentado en [`tests.md`](tests.md): los cuatro niveles (unitario, corpus de simulación, banco de hardware, pista), las métricas con las que decidimos, el protocolo de comparación A/B con las cinco trampas que nos costaron conclusiones falsas, y el estado real de la integración continua.
+El **flujo de pruebas completo** está documentado en [`other/docs/tests.md`](other/docs/tests.md): los cuatro niveles (unitario, corpus de simulación, banco de hardware, pista), las métricas con las que decidimos, el protocolo de comparación A/B con las cinco trampas que nos costaron conclusiones falsas, y el estado real de la integración continua.
 
 ### Versionado
 

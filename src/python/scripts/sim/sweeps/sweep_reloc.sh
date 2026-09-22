@@ -1,40 +1,40 @@
 #!/usr/bin/env bash
-# The two knobs that ship OFF for a SIM reason while the BAGS argue for them:
+# Does the long-jump confirmation guard cost the corpus anything?
 #
-# * `tick_router_during_maneuver` -- off and UNVALIDATED, never refuted. Over 105
-#   escape episodes the escape gains a median 9.8 cm and 97% of them are handed
-#   back the SAME target (median movement 0 cm), 62% re-firing within 2 s; 183
-#   manoeuvre episodes cover 22.3% of ticks with the plan frozen for up to 44
-#   ticks. It replays the INGEST half only and drops the deformed waypoint, so it
-#   cannot move the wheel -- it buys a fresh map on the far side of the manoeuvre.
-# * `sign_lane_deform_fallback_m` -- over 129 bags, on FAILED crossing passes the
-#   lane was on the legal side 37.4% of the time against the deform's 47.3%
-#   (chi2 17.0, p=4e-5). It ships off because the simulator's sign map is EXACT,
-#   so the lane always materialises and the branch barely fires: a flat sim A/B
-#   measures the sim, not the knob.
+# `relocalize_confirm_dist_m` holds a global relocalization winner further than
+# 1.00 m from the prior and takes it only when a LATER global search reconverges
+# to it. It exists for run_20260915_160804: believed widths 0.63/0.955/0.958, so
+# the width-spread gate passed, the search ran, and the estimate teleported
+# 2.06 m in 1.26 s to very nearly the mirror of the pose it left -- then 26
+# waypoints of backwards replan and 213 deg of yaw in 4.8 s inside an 8 x 26 cm
+# box, the U-turn on the round that scored 6.
 #
-# So the corpus here is a DAMAGE ruler, not a benefit one. Baseline runs IN THIS
-# BATCH. Failure SETS are diffed, not just counts.
+# The corpus cannot show the BENEFIT: Obstacles fixes all four corridors at
+# 1000 mm, so the spread gate already refuses the search there and this guard is
+# downstream of it. It CAN show damage, which is the whole point of running it --
+# the guard delays a genuine long rescue by relocalize_after_scans (~1.5 s), and
+# if any scenario depends on a prompt one it will fail here.
+#
+# "baseline" is the guard ON, as shipped; "confirm_off" restores the behaviour
+# before it. Failure SETS are diffed, not just counts.
 set -u
-ROOT=/d/Dev/active/projects/teamvoltimor/vtitan
+# Repo root derived from this script's own location (it lives at
+# src/python/scripts/sim/sweeps/), so the sweep runs from any checkout on
+# any machine. It used to be an absolute path to one Windows working copy.
+ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../../.." && pwd)
 cd "$ROOT" || exit 1
 
-ESC=src/config/navigation/escape/escape.toml
-SR=src/config/navigation/signs/sign_router.toml
-OUT=/tmp/an/bag_backed
+LOC=src/config/navigation/blind_nav/localization.toml
+OUT=/tmp/an/reloc
 mkdir -p "$OUT"
-cp "$ESC" "$OUT/escape.toml.orig"
-cp "$SR" "$OUT/sign_router.toml.orig"
-restore() { cp "$OUT/escape.toml.orig" "$ROOT/$ESC"; cp "$OUT/sign_router.toml.orig" "$ROOT/$SR"; }
+cp "$LOC" "$OUT/localization.toml.orig"
+restore() { cp "$OUT/localization.toml.orig" "$ROOT/$LOC"; }
 trap restore EXIT
 
 # tag|file:key=value[,file:key=value]
 ARMS=(
   "baseline|"
-  "tick_router|$ESC:tick_router_during_maneuver=true"
-  "fallback_013|$SR:sign_lane_deform_fallback_m=0.13"
-  "fallback_028|$SR:sign_lane_deform_fallback_m=0.28"
-  "both|$ESC:tick_router_during_maneuver=true,$SR:sign_lane_deform_fallback_m=0.13"
+  "confirm_off|$LOC:relocalize_confirm_dist_m=0.0"
 )
 
 for arm in "${ARMS[@]}"; do

@@ -12,7 +12,10 @@
 #
 # Scored on LAPS COMPLETED with the in-bay start on, not on the corpus suite.
 set -u
-ROOT=/d/Dev/active/projects/teamvoltimor/vtitan
+# Repo root derived from this script's own location (it lives at
+# src/python/scripts/sim/sweeps/), so the sweep runs from any checkout on
+# any machine. It used to be an absolute path to one Windows working copy.
+ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../../.." && pwd)
 cd "$ROOT" || exit 1
 
 CF=src/config/navigation/blind_nav/corridor_follower.toml
