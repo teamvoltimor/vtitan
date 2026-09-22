@@ -1,10 +1,10 @@
 // Command foxglove-bridge is the rviz2 replacement's live-visualization
-// half: a Foxglove WebSocket protocol server (internal/foxglove) that
+// half: a Foxglove WebSocket protocol server (pkg/foxglove) that
 // republishes every known NATS/protobuf subject so Foxglove Studio can
 // connect and render them, matching
 // adr:0068-go-parallel-track-single-cutover's "Visualization" row. The
 // offline half -- recorded .mcap bags Foxglove Studio opens directly, no
-// bridge needed -- already works via internal/recording.
+// bridge needed -- already works via pkg/recording.
 package main
 
 import (
@@ -24,14 +24,14 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	"github.com/teamvoltimor/vtitan/src/go/internal/cmdkit"
-	"github.com/teamvoltimor/vtitan/src/go/internal/foxglove"
 	actuationv1 "github.com/teamvoltimor/vtitan/src/go/internal/schema/pb/vtitan/actuation/v1"
 	navv1 "github.com/teamvoltimor/vtitan/src/go/internal/schema/pb/vtitan/nav/v1"
 	sensorv1 "github.com/teamvoltimor/vtitan/src/go/internal/schema/pb/vtitan/sensor/v1"
 	statev1 "github.com/teamvoltimor/vtitan/src/go/internal/schema/pb/vtitan/state/v1"
 	uiv1 "github.com/teamvoltimor/vtitan/src/go/internal/schema/pb/vtitan/ui/v1"
 	visionv1 "github.com/teamvoltimor/vtitan/src/go/internal/schema/pb/vtitan/vision/v1"
-	"github.com/teamvoltimor/vtitan/src/go/internal/transport/nats"
+	"github.com/teamvoltimor/vtitan/src/go/pkg/foxglove"
+	"github.com/teamvoltimor/vtitan/src/go/pkg/transport/nats"
 )
 
 type cliConfig struct {

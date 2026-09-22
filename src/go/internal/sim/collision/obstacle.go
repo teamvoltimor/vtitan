@@ -3,7 +3,7 @@ package collision
 import (
 	"math"
 
-	"github.com/teamvoltimor/vtitan/src/go/internal/nav/navutil"
+	"github.com/teamvoltimor/vtitan/src/go/pkg/geom"
 )
 
 // ContactSurface identifies which surface the chassis is touching, if any,
@@ -97,8 +97,8 @@ func NewObstacleBoxFromPose(cx, cy, length, width, yaw, axisAlignTolerance float
 // toBox returns the axis-aligned bounds, optionally grown by margin,
 // matching ObstacleBox.to_box.
 func (o ObstacleBox) toBox(margin float64) box {
-	halfX := o.SizeX/navutil.Half + margin
-	halfY := o.SizeY/navutil.Half + margin
+	halfX := o.SizeX/geom.Half + margin
+	halfY := o.SizeY/geom.Half + margin
 	return box{o.CX - halfX, o.CY - halfY, o.CX + halfX, o.CY + halfY}
 }
 

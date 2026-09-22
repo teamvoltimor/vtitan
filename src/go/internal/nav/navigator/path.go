@@ -5,10 +5,10 @@ import (
 	"slices"
 
 	"github.com/teamvoltimor/vtitan/src/go/internal/nav/controllers"
-	"github.com/teamvoltimor/vtitan/src/go/internal/nav/navutil"
 	"github.com/teamvoltimor/vtitan/src/go/internal/nav/parking"
 	"github.com/teamvoltimor/vtitan/src/go/internal/nav/signrouter"
 	"github.com/teamvoltimor/vtitan/src/go/internal/nav/trackmodel"
+	"github.com/teamvoltimor/vtitan/src/go/pkg/geom"
 )
 
 // ReplacePath swaps in a new planned path mid-run, resuming at the nearest
@@ -68,7 +68,7 @@ func (n *Navigator) ReplacePath(
 			if d > margin {
 				continue
 			}
-			headingError := math.Abs(navutil.WrapAngle(outgoingBearing(path, i) - *robotYaw))
+			headingError := math.Abs(geom.WrapAngle(outgoingBearing(path, i) - *robotYaw))
 			if headingError < bestError {
 				best, bestError = i, headingError
 			}

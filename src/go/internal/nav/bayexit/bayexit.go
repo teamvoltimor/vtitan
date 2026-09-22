@@ -6,7 +6,7 @@ import (
 
 	"github.com/teamvoltimor/vtitan/src/go/internal/nav/controllers"
 	"github.com/teamvoltimor/vtitan/src/go/internal/nav/corridorfollower"
-	"github.com/teamvoltimor/vtitan/src/go/internal/nav/navutil"
+	"github.com/teamvoltimor/vtitan/src/go/pkg/geom"
 )
 
 // BayExit drives the reverse-then-swing or cycle exit out of the parking
@@ -142,7 +142,7 @@ func (b *BayExit) ContactRecoveries() int {
 // RotationDeg returns the rotation from the placement heading, in degrees,
 // from measured yaw, matching the rotation_deg property.
 func (b *BayExit) RotationDeg() float64 {
-	return math.Abs(b.rotationRad) * navutil.DegreesPerHalfTurn / math.Pi
+	return math.Abs(b.rotationRad) * geom.DegreesPerHalfTurn / math.Pi
 }
 
 // RotationComplete reports whether the chassis has turned far enough to
@@ -296,7 +296,7 @@ func (b *BayExit) switchExit(travelledM float64) {
 func reverseLegCommand(
 	openIsLeft bool, f corridorfollower.Config, creepSpeedMPS float64,
 ) controllers.DriveCommand {
-	reverseSteer := navutil.Clamp(f.BayExitReverseSteerNorm, 0.0, 1.0)
+	reverseSteer := geom.Clamp(f.BayExitReverseSteerNorm, 0.0, 1.0)
 	reverseNorm := reverseSteer
 	if openIsLeft {
 		reverseNorm = -reverseSteer
@@ -308,7 +308,7 @@ func reverseLegCommand(
 		// BayExitReverseSteerNorm, which applies the INVERTED sign and so
 		// slews even further, to opposite lock. Refuted; see
 		// adr:0060-bay-exit-clearance-guard.
-		mag := navutil.Clamp(f.BayExitSteerNorm, 0.0, 1.0)
+		mag := geom.Clamp(f.BayExitSteerNorm, 0.0, 1.0)
 		reverseNorm = -mag
 		if openIsLeft {
 			reverseNorm = mag
@@ -324,7 +324,7 @@ func reverseLegCommand(
 func forwardLegCommand(
 	openIsLeft bool, f corridorfollower.Config, creepSpeedMPS float64,
 ) controllers.DriveCommand {
-	magnitude := navutil.Clamp(f.BayExitSteerNorm, 0.0, 1.0)
+	magnitude := geom.Clamp(f.BayExitSteerNorm, 0.0, 1.0)
 	steer := -magnitude
 	if openIsLeft {
 		steer = magnitude
@@ -368,7 +368,7 @@ func bicycleYawStep(stepM, wheelRad float64, cfg Config) float64 {
 	curvature := math.Tan(wheelRad) * cfg.YawGain / cfg.EffectiveWheelbaseM()
 	if cfg.MinTurnRadiusM > 0.0 {
 		limit := 1.0 / cfg.MinTurnRadiusM
-		curvature = navutil.Clamp(curvature, -limit, limit)
+		curvature = geom.Clamp(curvature, -limit, limit)
 	}
 	return stepM * curvature
 }
@@ -437,19 +437,19 @@ func (b *BayExit) deadReckon(travelledM, wheelNorm float64, cfg Config) {
 	}
 	step := travelledM - *previous
 	maxRad := cfg.followerMaxSteeringAngleRad()
-	target := navutil.Clamp(wheelNorm, -1.0, 1.0) * maxRad
+	target := geom.Clamp(wheelNorm, -1.0, 1.0) * maxRad
 	slew := cfg.MaxSteeringRateRadPerS / cfg.ControlHz
-	b.drWheelRad += navutil.Clamp(target-b.drWheelRad, -slew, slew)
+	b.drWheelRad += geom.Clamp(target-b.drWheelRad, -slew, slew)
 	b.drYaw += bicycleYawStep(step, b.drWheelRad, cfg)
 	// The wall behind the pocket CLIPS the rotation, and dead reckoning
 	// cannot see it -- unclamped, the guard bounds a pose the chassis can
 	// never reach. Computed from drOut BEFORE this tick's own update.
 	limit := wallFeasibleYawRad(b.drOut, cfg)
-	b.drYaw = navutil.Clamp(b.drYaw, -limit, limit)
+	b.drYaw = geom.Clamp(b.drYaw, -limit, limit)
 	// Bounded for the same reason the yaw is: a modelled pose the pocket
 	// forbids is not one the guard may act on.
 	slack := alongSlackM(cfg)
-	b.drAlong = navutil.Clamp(b.drAlong+step*math.Cos(b.drYaw), -slack, slack)
+	b.drAlong = geom.Clamp(b.drAlong+step*math.Cos(b.drYaw), -slack, slack)
 	b.drOut += step * math.Sin(b.drYaw)
 }
 
@@ -457,16 +457,16 @@ func (b *BayExit) deadReckon(travelledM, wheelNorm float64, cfg Config) {
 // step like this one, matching _predicted_gap.
 func (b *BayExit) predictedGap(stepM, wheelNorm float64, cfg Config) float64 {
 	maxRad := cfg.followerMaxSteeringAngleRad()
-	target := navutil.Clamp(wheelNorm, -1.0, 1.0) * maxRad
+	target := geom.Clamp(wheelNorm, -1.0, 1.0) * maxRad
 	slew := cfg.MaxSteeringRateRadPerS / cfg.ControlHz
-	wheel := b.drWheelRad + navutil.Clamp(target-b.drWheelRad, -slew, slew)
+	wheel := b.drWheelRad + geom.Clamp(target-b.drWheelRad, -slew, slew)
 	yaw := b.drYaw + bicycleYawStep(stepM, wheel, cfg)
 	// Same wall clip as deadReckon, for the same reason: a predicted pose
 	// the pocket forbids is not a prediction the guard may act on.
 	limit := wallFeasibleYawRad(b.drOut, cfg)
-	yaw = navutil.Clamp(yaw, -limit, limit)
+	yaw = geom.Clamp(yaw, -limit, limit)
 	slack := alongSlackM(cfg)
-	along := navutil.Clamp(b.drAlong+stepM*math.Cos(yaw), -slack, slack)
+	along := geom.Clamp(b.drAlong+stepM*math.Cos(yaw), -slack, slack)
 	out := b.drOut + stepM*math.Sin(yaw)
 	corners := rectCorners(along, out, yaw, cfg.ChassisLengthM, cfg.ChassisWidthM)
 	fins := finRects(cfg)
@@ -503,8 +503,8 @@ func (b *BayExit) resetForSwitch(travelledM float64) {
 // the geometry and moves correctly if either constant changes.
 func (b *BayExit) beginLeg(isReverse bool, travelledM float64, cfg Config, fromNorm float64) {
 	f := cfg.Follower
-	arc := navutil.Clamp(f.BayExitArcSteerNorm, 0.0, 1.0)
-	back := navutil.Clamp(f.BayExitCycleReverseSteerNorm, 0.0, 1.0)
+	arc := geom.Clamp(f.BayExitArcSteerNorm, 0.0, 1.0)
+	back := geom.Clamp(f.BayExitCycleReverseSteerNorm, 0.0, 1.0)
 	sign := signForOpenLeft(*b.openIsLeft)
 	toNorm := arc * sign
 	if isReverse {
@@ -567,7 +567,7 @@ func (b *BayExit) guardedCommand(
 	// matching BAY_EXIT_CLEARANCE_TOLERANCE_M.
 	margin := f.BayExitClearanceMarginM - f.BayExitClearanceToleranceM
 	sign := signForOpenLeft(openIsLeft)
-	magnitude := navutil.Clamp(f.BayExitArcSteerNorm, 0.0, 1.0)
+	magnitude := geom.Clamp(f.BayExitArcSteerNorm, 0.0, 1.0)
 	// Both legs hold the SAME lock, and the dead-reckoned frame is signed
 	// so +yaw is toward the open side -- so the guard's geometry never
 	// needs a left/right case split. The caller-facing command is re-signed
@@ -669,8 +669,8 @@ func (b *BayExit) cycleCommand(
 	travelledM, creepSpeedMPS float64, cfg Config, openIsLeft bool,
 ) controllers.DriveCommand {
 	f := cfg.Follower
-	arc := navutil.Clamp(f.BayExitArcSteerNorm, 0.0, 1.0)
-	back := navutil.Clamp(f.BayExitCycleReverseSteerNorm, 0.0, 1.0)
+	arc := geom.Clamp(f.BayExitArcSteerNorm, 0.0, 1.0)
+	back := geom.Clamp(f.BayExitCycleReverseSteerNorm, 0.0, 1.0)
 	sign := signForOpenLeft(openIsLeft)
 	target := arc * sign
 	if b.legIsReverse {
@@ -749,7 +749,7 @@ func (b *BayExit) cycleCommand(
 // pointing at waypoint 0 while the robot has driven out of the bay.
 func IsClear(scan controllers.LidarScan, cfg Config) bool {
 	f := cfg.Follower
-	return navutil.ForwardClearance(scan, f.ForwardArcHalfFovRad, f.MinValidRangeM) >=
+	return geom.ForwardClearance(scan, f.ForwardArcHalfFovRad, f.MinValidRangeM) >=
 		f.MinForwardClearanceM
 }
 
@@ -762,7 +762,7 @@ func IsClear(scan controllers.LidarScan, cfg Config) bool {
 // ForwardClearance drops everything under MinValidRangeM and reports +Inf.
 func noseInContact(scan controllers.LidarScan, cfg Config) bool {
 	f := cfg.Follower
-	clearance := navutil.ForwardClearance(scan, f.ForwardArcHalfFovRad, f.MinValidRangeM)
+	clearance := geom.ForwardClearance(scan, f.ForwardArcHalfFovRad, f.MinValidRangeM)
 	if math.IsInf(clearance, 1) {
 		return true
 	}
@@ -783,7 +783,7 @@ func openSideScore(scan controllers.LidarScan, centerRad, halfWidthRad, lidarMax
 	total := 0
 	valid := make([]float64, 0, len(scan.RangesM))
 	for i, a := range scan.AnglesRad {
-		if math.Abs(navutil.WrapAngle(a-centerRad)) > halfWidthRad {
+		if math.Abs(geom.WrapAngle(a-centerRad)) > halfWidthRad {
 			continue
 		}
 		total++
@@ -816,7 +816,7 @@ func openSideScore(scan controllers.LidarScan, centerRad, halfWidthRad, lidarMax
 // ticks before the latch is taken, rather than deciding on the first scan.
 func (b *BayExit) resolveOpenSide(scan controllers.LidarScan, cfg Config) bool {
 	f := cfg.Follower
-	halfWidth := f.BayExitOpenSideSectorDeg * math.Pi / navutil.DegreesPerHalfTurn
+	halfWidth := f.BayExitOpenSideSectorDeg * math.Pi / geom.DegreesPerHalfTurn
 	left := openSideScore(scan, math.Pi/2, halfWidth, cfg.LidarMaxRangeM)
 	right := openSideScore(scan, -math.Pi/2, halfWidth, cfg.LidarMaxRangeM)
 	openIsLeft := left > right

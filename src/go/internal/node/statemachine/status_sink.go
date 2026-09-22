@@ -8,7 +8,7 @@ import (
 	statev1 "github.com/teamvoltimor/vtitan/src/go/internal/schema/pb/vtitan/state/v1"
 	uiv1 "github.com/teamvoltimor/vtitan/src/go/internal/schema/pb/vtitan/ui/v1"
 	"github.com/teamvoltimor/vtitan/src/go/internal/statemachine/core"
-	"github.com/teamvoltimor/vtitan/src/go/internal/transport/nats"
+	"github.com/teamvoltimor/vtitan/src/go/pkg/transport/nats"
 )
 
 // sensorEntry is one boot-check sensor's fixed key and its live status.

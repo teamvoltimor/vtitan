@@ -4,7 +4,8 @@ import (
 	"math"
 
 	"github.com/teamvoltimor/vtitan/src/go/internal/config/generated/navigation/escape"
-	"github.com/teamvoltimor/vtitan/src/go/internal/nav/navutil"
+	"github.com/teamvoltimor/vtitan/src/go/pkg/control"
+	"github.com/teamvoltimor/vtitan/src/go/pkg/geom"
 )
 
 // RevSteerNorm converts cfg.RevSteerDeg to a normalised actuator command,
@@ -16,8 +17,8 @@ import (
 // It is a free function because the generated DTO it reads carries no
 // methods.
 func RevSteerNorm(cfg escape.NavigationEscapeEscape, maxSteeringAngleRad float64) float64 {
-	return navutil.SteeringNormFromAngleRad(
-		cfg.RevSteerDeg*math.Pi/navutil.DegreesPerHalfTurn,
+	return control.SteeringNormFromAngleRad(
+		cfg.RevSteerDeg*math.Pi/geom.DegreesPerHalfTurn,
 		maxSteeringAngleRad,
 	)
 }
@@ -26,8 +27,8 @@ func RevSteerNorm(cfg escape.NavigationEscapeEscape, maxSteeringAngleRad float64
 // actuator command, matching
 // EscapeManeuverParams.side_correction_steer_norm().
 func SideCorrectionSteerNorm(cfg escape.NavigationEscapeEscape, maxSteeringAngleRad float64) float64 {
-	return navutil.SteeringNormFromAngleRad(
-		cfg.SideCorrectionSteerDeg*math.Pi/navutil.DegreesPerHalfTurn,
+	return control.SteeringNormFromAngleRad(
+		cfg.SideCorrectionSteerDeg*math.Pi/geom.DegreesPerHalfTurn,
 		maxSteeringAngleRad,
 	)
 }

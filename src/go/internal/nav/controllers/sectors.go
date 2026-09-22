@@ -4,9 +4,9 @@ import (
 	"math"
 	"slices"
 
-	"github.com/teamvoltimor/vtitan/src/go/internal/nav/navutil"
 	"github.com/teamvoltimor/vtitan/src/go/internal/nav/trackmodel"
 	"github.com/teamvoltimor/vtitan/src/go/internal/nav/waypoints"
+	"github.com/teamvoltimor/vtitan/src/go/pkg/geom"
 )
 
 // SectorRanges is the aggregated LIDAR measurements over an angular sector,
@@ -93,7 +93,7 @@ func (s SectorRanges) Measured() bool {
 // synthesizeAngles builds a full [-pi, pi) sweep of n angles, matching the
 // Python sector helpers' fallback for lidar_angles=None.
 func synthesizeAngles(n int) []float64 {
-	return navutil.AngleFan(n)
+	return geom.AngleFan(n)
 }
 
 // resolveAngles returns anglesRad unchanged if non-nil, else a synthesized
@@ -136,7 +136,7 @@ func SectorRangeValues(
 	out := make([]float64, 0, len(scan.RangesM))
 	for i, r := range scan.RangesM {
 		a := angles[i]
-		delta := navutil.WrapAngle(a - centerRad)
+		delta := geom.WrapAngle(a - centerRad)
 		if math.Abs(delta) > halfFovRad {
 			continue
 		}

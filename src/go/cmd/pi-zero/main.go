@@ -26,15 +26,15 @@ import (
 	"github.com/teamvoltimor/vtitan/src/go/internal/hwconfig"
 	nodebutton "github.com/teamvoltimor/vtitan/src/go/internal/node/button"
 	nodemotor "github.com/teamvoltimor/vtitan/src/go/internal/node/motor"
-	"github.com/teamvoltimor/vtitan/src/go/internal/supervise"
 	"github.com/teamvoltimor/vtitan/src/go/pkg/driver/button"
 	"github.com/teamvoltimor/vtitan/src/go/pkg/driver/display/ssd1306"
 	"github.com/teamvoltimor/vtitan/src/go/pkg/driver/encoder"
 	"github.com/teamvoltimor/vtitan/src/go/pkg/driver/motor"
+	"github.com/teamvoltimor/vtitan/src/go/pkg/supervise"
 
 	actuationv1 "github.com/teamvoltimor/vtitan/src/go/internal/schema/pb/vtitan/actuation/v1"
 	uiv1 "github.com/teamvoltimor/vtitan/src/go/internal/schema/pb/vtitan/ui/v1"
-	"github.com/teamvoltimor/vtitan/src/go/internal/transport/nats"
+	"github.com/teamvoltimor/vtitan/src/go/pkg/transport/nats"
 )
 
 // cliConfig holds every flag pi-zero accepts.
@@ -92,7 +92,7 @@ func newRootCmd(cfg *cliConfig, logger *slog.Logger) *cobra.Command {
 		Short: "Run the Pi Zero's motor, button, and OLED drivers as supervised NATS-wired goroutines",
 		Long: "pi-zero drives the BTS7960 motor from AckermannCmd, publishes button\n" +
 			"presses, and renders TelemetrySummary to the OLED -- all three run as\n" +
-			"supervised goroutines (internal/supervise) inside one process, sharing a\n" +
+			"supervised goroutines (pkg/supervise) inside one process, sharing a\n" +
 			"single NATS connection.",
 		SilenceUsage:  true,
 		SilenceErrors: true,

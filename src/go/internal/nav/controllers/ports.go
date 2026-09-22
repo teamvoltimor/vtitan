@@ -3,15 +3,15 @@ package controllers
 import (
 	"math"
 
-	"github.com/teamvoltimor/vtitan/src/go/internal/nav/navutil"
 	"github.com/teamvoltimor/vtitan/src/go/internal/nav/trackmodel"
+	"github.com/teamvoltimor/vtitan/src/go/pkg/geom"
 )
 
 // LidarScan is a single LIDAR sweep in the robot frame (0 rad = forward,
-// +pi/2 = left), matching ports.LidarScan. Aliased to navutil.LidarScan, the
+// +pi/2 = left), matching ports.LidarScan. Aliased to geom.LidarScan, the
 // lowest-level navigation package that can own the definition without an
 // import cycle (controllers imports navutil).
-type LidarScan = navutil.LidarScan
+type LidarScan = geom.LidarScan
 
 // DriveCommand is the motor command contract every adapter must decode
 // identically, matching ports.DriveCommand.
@@ -117,7 +117,7 @@ func SanitizeLidarRanges(ranges []float64, lidarMaxRangeM float64) []float64 {
 		} else {
 			out[i] = lidarMaxRangeM
 		}
-		out[i] = navutil.Clamp(out[i], 0.0, lidarMaxRangeM)
+		out[i] = geom.Clamp(out[i], 0.0, lidarMaxRangeM)
 	}
 	return out
 }

@@ -3,7 +3,7 @@ package diag
 import (
 	"math"
 
-	"github.com/teamvoltimor/vtitan/src/go/internal/nav/navutil"
+	"github.com/teamvoltimor/vtitan/src/go/pkg/geom"
 )
 
 // sectorQuery names one angular sector to aggregate a scan over, matching
@@ -65,7 +65,7 @@ func sectorMeanM(ranges []float32, angleMinRad float64, cfg Config, query sector
 	validCount := 0
 	for index, rawRangeM := range ranges {
 		rangeM := float64(rawRangeM)
-		bearingRad := navutil.WrapAngle(angleMinRad + float64(index)*angleStepRad)
+		bearingRad := geom.WrapAngle(angleMinRad + float64(index)*angleStepRad)
 
 		if !isValidRangeM(rangeM, lowerBoundM, cfg.MaxValidRangeM) {
 			continue
@@ -73,7 +73,7 @@ func sectorMeanM(ranges []float32, angleMinRad float64, cfg Config, query sector
 		if inWedge(bearingRad, cfg.BlindWedgeLeft) || inWedge(bearingRad, cfg.BlindWedgeRight) {
 			continue
 		}
-		if math.Abs(navutil.WrapAngle(bearingRad-query.CenterRad)) > query.HalfFOVRad {
+		if math.Abs(geom.WrapAngle(bearingRad-query.CenterRad)) > query.HalfFOVRad {
 			continue
 		}
 

@@ -5,7 +5,8 @@ import (
 	"testing"
 
 	"github.com/teamvoltimor/vtitan/src/go/internal/nav/corridorfollower"
-	"github.com/teamvoltimor/vtitan/src/go/internal/nav/navutil"
+	"github.com/teamvoltimor/vtitan/src/go/pkg/control"
+	"github.com/teamvoltimor/vtitan/src/go/pkg/geom"
 )
 
 // Ports corridor_follower.steer_cap_norm, which has no Python test of its
@@ -20,8 +21,8 @@ func TestSteerCapNormIsTheAnchorAtTheAnchorDistance(t *testing.T) {
 	cfg := corridorfollower.DefaultConfig()
 
 	got := corridorfollower.SteerCapNorm(cfg.TurnClearanceM, cfg)
-	want := navutil.SteeringNormFromAngleRad(
-		cfg.MaxCornerSteerDeg*math.Pi/navutil.DegreesPerHalfTurn, cfg.MaxSteeringAngleRad,
+	want := control.SteeringNormFromAngleRad(
+		cfg.MaxCornerSteerDeg*math.Pi/geom.DegreesPerHalfTurn, cfg.MaxSteeringAngleRad,
 	)
 	if math.Abs(got-want) > steerCapTolerance {
 		t.Errorf("at the anchor distance: got %v, want %v", got, want)
@@ -55,9 +56,9 @@ func TestSteerCapNormFollowsTheRatioForm(t *testing.T) {
 	cfg := corridorfollower.DefaultConfig()
 	const commitM = 0.45
 
-	anchorRad := cfg.MaxCornerSteerDeg * math.Pi / navutil.DegreesPerHalfTurn
+	anchorRad := cfg.MaxCornerSteerDeg * math.Pi / geom.DegreesPerHalfTurn
 	wantRad := math.Atan(math.Tan(anchorRad) * cfg.TurnClearanceM / commitM)
-	want := navutil.SteeringNormFromAngleRad(wantRad, cfg.MaxSteeringAngleRad)
+	want := control.SteeringNormFromAngleRad(wantRad, cfg.MaxSteeringAngleRad)
 
 	if got := corridorfollower.SteerCapNorm(commitM, cfg); math.Abs(got-want) > steerCapTolerance {
 		t.Errorf("got %v, want %v", got, want)
@@ -71,8 +72,8 @@ func TestSteerCapNormDisabledReturnsTheAnchorEverywhere(t *testing.T) {
 	cfg := corridorfollower.DefaultConfig()
 	cfg.SteerCapFromCommitDistance = false
 
-	want := navutil.SteeringNormFromAngleRad(
-		cfg.MaxCornerSteerDeg*math.Pi/navutil.DegreesPerHalfTurn, cfg.MaxSteeringAngleRad,
+	want := control.SteeringNormFromAngleRad(
+		cfg.MaxCornerSteerDeg*math.Pi/geom.DegreesPerHalfTurn, cfg.MaxSteeringAngleRad,
 	)
 	for _, commitM := range []float64{0.30, 0.45, 0.60, 1.20} {
 		if got := corridorfollower.SteerCapNorm(commitM, cfg); math.Abs(got-want) > steerCapTolerance {
@@ -87,8 +88,8 @@ func TestSteerCapNormNonPositiveCommitFallsBackToTheAnchor(t *testing.T) {
 	t.Parallel()
 	cfg := corridorfollower.DefaultConfig()
 
-	want := navutil.SteeringNormFromAngleRad(
-		cfg.MaxCornerSteerDeg*math.Pi/navutil.DegreesPerHalfTurn, cfg.MaxSteeringAngleRad,
+	want := control.SteeringNormFromAngleRad(
+		cfg.MaxCornerSteerDeg*math.Pi/geom.DegreesPerHalfTurn, cfg.MaxSteeringAngleRad,
 	)
 	for _, commitM := range []float64{0.0, -0.5} {
 		if got := corridorfollower.SteerCapNorm(commitM, cfg); math.Abs(got-want) > steerCapTolerance {

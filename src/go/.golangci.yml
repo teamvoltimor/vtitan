@@ -53,6 +53,7 @@ linters:
   enable:
     # Essentials
     - govet
+    - depguard
     - staticcheck
     - unused
     - godoclint
@@ -150,6 +151,25 @@ linters:
     # - exhaustruct
 
   settings:
+    # pkg/ is this module's public surface: it exists so the drivers and the
+    # infrastructure around them stay usable outside vTitan. That property is
+    # only true while nothing under pkg/ reaches back into internal/, and it
+    # was true when the drivers moved there only because it was checked by
+    # hand. This makes it a build failure instead.
+    depguard:
+      rules:
+        pkg-must-not-import-internal:
+          files:
+            - "pkg/**"
+            - "**/pkg/**"
+            # Tests are exempt on purpose: an external consumer never compiles
+            # our _test.go files, so a test reaching into internal/ constrains
+            # nobody. The rule is about what a consumer must be able to honour.
+            - "!$test"
+          deny:
+            - pkg: "github.com/teamvoltimor/vtitan/src/go/internal"
+              desc: "pkg/ is importable outside this module; internal/ is not, so this dependency cannot be honoured by any consumer"
+
     govet:
       enable:
         - shadow
@@ -410,7 +430,7 @@ linters:
       # (supportedEncodings, schemaName, ...), so tagliatelle's snake_case
       # rule cannot apply to the wire types. The external protocol is the
       # source of truth, not the repo naming convention.
-      - path: 'internal/foxglove/'
+      - path: 'pkg/foxglove/'
         linters:
           - tagliatelle
 
@@ -420,7 +440,7 @@ linters:
       - path: 'internal/driver/camera/'
         linters:
           - ireturn
-      - path: 'internal/recording/sink_(dispatch|mjpeg)\.go$'
+      - path: 'pkg/recording/sink_(dispatch|mjpeg)\.go$'
         linters:
           - ireturn
       - path: 'internal/node/capture/capture\.go$'

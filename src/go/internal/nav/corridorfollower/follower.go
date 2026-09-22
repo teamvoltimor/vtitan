@@ -5,6 +5,8 @@ import (
 
 	"github.com/teamvoltimor/vtitan/src/go/internal/nav/controllers"
 	"github.com/teamvoltimor/vtitan/src/go/internal/nav/navutil"
+	"github.com/teamvoltimor/vtitan/src/go/pkg/control"
+	"github.com/teamvoltimor/vtitan/src/go/pkg/geom"
 )
 
 // Params bundles FollowCorridor's optional arguments, which Python passes as
@@ -50,8 +52,8 @@ func FollowCorridor(
 	// normalized exactly once, on the way out. Holding it in normalized units
 	// made every constant a fraction of whatever full lock happened to be, so
 	// recalibrating the servo silently retuned the loop.
-	maxCenteringRad := cfg.MaxCenteringSteerDeg * math.Pi / navutil.DegreesPerHalfTurn
-	centeringGainRadPerM := cfg.CenteringGainDegPerM * math.Pi / navutil.DegreesPerHalfTurn
+	maxCenteringRad := cfg.MaxCenteringSteerDeg * math.Pi / geom.DegreesPerHalfTurn
+	centeringGainRadPerM := cfg.CenteringGainDegPerM * math.Pi / geom.DegreesPerHalfTurn
 	turnClearance := cfg.TurnClearanceM
 	if params.BelievedWidthM != nil && *params.BelievedWidthM < cfg.DecisionBoundaryM {
 		turnClearance = cfg.NarrowTurnClearanceM
@@ -68,13 +70,13 @@ func FollowCorridor(
 	// SteerCapNorm. See adr:0049-corner-arcs-per-corridor-and-commit-distance.
 	maxCorner := SteerCapNorm(turnClearance, cfg)
 
-	forward := navutil.ForwardClearance(
+	forward := geom.ForwardClearance(
 		scan,
 		cfg.ForwardArcHalfFovRad,
 		cfg.MinValidRangeM,
 	)
-	left := navutil.NearestRay(scan, math.Pi/2)
-	right := navutil.NearestRay(scan, -math.Pi/2)
+	left := geom.NearestRay(scan, math.Pi/2)
+	right := geom.NearestRay(scan, -math.Pi/2)
 
 	// Something close ahead is a fact about SAFETY, not about the layout, so
 	// it is answered first and on the forward minimum: whether or not the
@@ -126,11 +128,11 @@ func FollowCorridor(
 	if params.Yaw != nil {
 		demandRad -= cfg.HeadingGain * navutil.AxisOffsetRad(*params.Yaw)
 	}
-	steerRad := navutil.Clamp(demandRad, -maxCenteringRad, maxCenteringRad)
+	steerRad := geom.Clamp(demandRad, -maxCenteringRad, maxCenteringRad)
 
 	return controllers.DriveCommand{
 		SpeedMPS:     params.SpeedMPS,
-		SteeringNorm: navutil.SteeringNormFromAngleRad(steerRad, cfg.MaxSteeringAngleRad),
+		SteeringNorm: control.SteeringNormFromAngleRad(steerRad, cfg.MaxSteeringAngleRad),
 	}
 }
 
@@ -156,12 +158,12 @@ func FollowCorridor(
 // Ports corridor_follower.steer_cap_norm. Returns a normalized steering
 // magnitude, clamped to the servo's reach.
 func SteerCapNorm(commitDistanceM float64, cfg Config) float64 {
-	anchorRad := cfg.MaxCornerSteerDeg * math.Pi / navutil.DegreesPerHalfTurn
+	anchorRad := cfg.MaxCornerSteerDeg * math.Pi / geom.DegreesPerHalfTurn
 	if !cfg.SteerCapFromCommitDistance || commitDistanceM <= 0.0 {
-		return navutil.SteeringNormFromAngleRad(anchorRad, cfg.MaxSteeringAngleRad)
+		return control.SteeringNormFromAngleRad(anchorRad, cfg.MaxSteeringAngleRad)
 	}
 	scaled := math.Atan(math.Tan(anchorRad) * cfg.TurnClearanceM / commitDistanceM)
-	return navutil.SteeringNormFromAngleRad(
+	return control.SteeringNormFromAngleRad(
 		math.Min(scaled, cfg.MaxSteeringAngleRad), cfg.MaxSteeringAngleRad,
 	)
 }
@@ -249,7 +251,7 @@ func cornerSteer(forced TurnSide, left, right, maxCorner float64) float64 {
 // Left in, a single dropped beam would read as wide-open track and veto every
 // corner turn on the round.
 func wayThrough(scan controllers.LidarScan, cfg Config) bool {
-	turnArcRad := cfg.TurnArcHalfFovDeg * math.Pi / navutil.DegreesPerHalfTurn
+	turnArcRad := cfg.TurnArcHalfFovDeg * math.Pi / geom.DegreesPerHalfTurn
 
 	best := math.Inf(-1)
 	found := false
@@ -258,7 +260,7 @@ func wayThrough(scan controllers.LidarScan, cfg Config) bool {
 			break
 		}
 		r := scan.RangesM[i]
-		if math.Abs(navutil.WrapAngle(angle)) > turnArcRad {
+		if math.Abs(geom.WrapAngle(angle)) > turnArcRad {
 			continue
 		}
 		if r <= cfg.MinValidRangeM || r >= cfg.MaxInTrackRangeM {

@@ -3,9 +3,9 @@ package signrouter
 import (
 	"math"
 
-	"github.com/teamvoltimor/vtitan/src/go/internal/nav/navutil"
 	"github.com/teamvoltimor/vtitan/src/go/internal/nav/trackmodel"
 	"github.com/teamvoltimor/vtitan/src/go/internal/nav/waypoints"
+	"github.com/teamvoltimor/vtitan/src/go/pkg/geom"
 )
 
 // BoundingBox is a pixel detection's geometry, matching the fields
@@ -165,8 +165,8 @@ func (c Config) DetectionToWorld(
 	thetaH := (cx/c.CameraWidthPX - imageCenterFraction) * c.CameraHFOVRad
 
 	if len(lidarRangesM) > 0 && len(lidarAnglesRad) > 0 {
-		lidarRange := navutil.NearestRay(
-			navutil.LidarScan{RangesM: lidarRangesM, AnglesRad: lidarAnglesRad},
+		lidarRange := geom.NearestRay(
+			geom.LidarScan{RangesM: lidarRangesM, AnglesRad: lidarAnglesRad},
 			thetaH,
 		)
 		if minValidLidarRangeM < lidarRange && lidarRange < c.CameraFarClipM {

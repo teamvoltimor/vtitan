@@ -5,8 +5,8 @@ import (
 	"slices"
 
 	"github.com/teamvoltimor/vtitan/src/go/internal/nav/controllers"
-	"github.com/teamvoltimor/vtitan/src/go/internal/nav/navutil"
 	"github.com/teamvoltimor/vtitan/src/go/internal/nav/trackmodel"
+	"github.com/teamvoltimor/vtitan/src/go/pkg/geom"
 )
 
 // assessPerception reads the LIDAR and derives forward clearance and both
@@ -171,7 +171,7 @@ func (n *Navigator) driveNormally(pose trackmodel.Pose, p perception) {
 	// adr:0088-refuted-config-knobs.
 	if n.cfg.SignContactEvade && n.signRouter != nil {
 		if evade, evading := n.signEvadeSteer(pose); evading {
-			steering = navutil.Clamp(steering+evade, -1.0, 1.0)
+			steering = geom.Clamp(steering+evade, -1.0, 1.0)
 			speed = math.Min(speed, n.cfg.CreepSpeedMPS())
 		}
 	}

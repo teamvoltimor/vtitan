@@ -3,7 +3,7 @@ package trackmodel
 import (
 	"math"
 
-	"github.com/teamvoltimor/vtitan/src/go/internal/nav/navutil"
+	"github.com/teamvoltimor/vtitan/src/go/pkg/geom"
 )
 
 // segment is an axis-aligned wall face as a line segment (for LIDAR
@@ -147,7 +147,7 @@ func (w *TrackWalls) RaycastFan(
 			}
 		}
 
-		ranges[i] = navutil.Clamp(best, lidarMinRangeM, lidarMaxRangeM)
+		ranges[i] = geom.Clamp(best, lidarMinRangeM, lidarMaxRangeM)
 	}
 	return ranges
 }

@@ -6,11 +6,11 @@ import (
 
 	"github.com/teamvoltimor/vtitan/src/go/internal/nav/controllers"
 	"github.com/teamvoltimor/vtitan/src/go/internal/nav/localization"
-	"github.com/teamvoltimor/vtitan/src/go/internal/nav/navutil"
 	"github.com/teamvoltimor/vtitan/src/go/internal/nav/trackmodel"
 	"github.com/teamvoltimor/vtitan/src/go/internal/sim/collision"
 	"github.com/teamvoltimor/vtitan/src/go/internal/sim/kinematics"
 	"github.com/teamvoltimor/vtitan/src/go/internal/sim/sensorerrors"
+	"github.com/teamvoltimor/vtitan/src/go/pkg/geom"
 )
 
 // SimHardwareGateway is the Go-native HardwareGateway backing a scenario run
@@ -174,7 +174,7 @@ func (g *SimHardwareGateway) ResetHeadingReference() {}
 
 // CorrectHeadingForDirectionChange shifts the kinematic yaw by deltaRad.
 func (g *SimHardwareGateway) CorrectHeadingForDirectionChange(deltaRad float64) {
-	g.state.Yaw = navutil.WrapAngle(g.state.Yaw + deltaRad)
+	g.state.Yaw = geom.WrapAngle(g.state.Yaw + deltaRad)
 }
 
 // Advance integrates the last command over dt (defaulting to the control
@@ -198,7 +198,7 @@ func (g *SimHardwareGateway) Advance(dt float64) {
 	// Unwrapped so a one-way round accumulates: the gyro scale error scales
 	// with the course turned rather than the clock, and wrapping here would
 	// cancel twelve corners back to nearly nothing.
-	g.rotationRad += navutil.WrapAngle(g.state.Yaw - g.prevTrueYaw)
+	g.rotationRad += geom.WrapAngle(g.state.Yaw - g.prevTrueYaw)
 	g.prevTrueYaw = g.state.Yaw
 
 	// The chassis is allowed to graze a wall; the integrated pose is kept
@@ -265,7 +265,7 @@ func (g *SimHardwareGateway) buildAngles() {
 	if n <= 0 {
 		n = 360
 	}
-	angles := navutil.AngleFanClosed(n)
+	angles := geom.AngleFanClosed(n)
 	g.angles = angles
 }
 

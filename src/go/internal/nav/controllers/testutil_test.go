@@ -3,9 +3,8 @@ package controllers_test
 import (
 	"math"
 
-	"github.com/teamvoltimor/vtitan/src/go/internal/nav/navutil"
-
 	"github.com/teamvoltimor/vtitan/src/go/internal/nav/controllers"
+	"github.com/teamvoltimor/vtitan/src/go/pkg/geom"
 )
 
 // numRays/forwardSectorIndices/rearSectorIndices/lidarCloseThreat/
@@ -38,7 +37,7 @@ const (
 // sectors.go's synthesizeAngles) -- that fallback only matters for the one
 // test that omits angles entirely and relies on it instead of this fixture.
 func anglesFullRotation() []float64 {
-	return navutil.AngleFanClosed(numRays)
+	return geom.AngleFanClosed(numRays)
 }
 
 // newScan returns a uniform-range scan, matching fixtures.create_numpy_scan.

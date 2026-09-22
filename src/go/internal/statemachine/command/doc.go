@@ -30,7 +30,7 @@
 // changing.
 //
 // The reconnect-backoff constants both real Python channels share
-// (grpc_backoff.py) are ported separately, in internal/statemachine/backoff,
+// (grpc_backoff.py) are ported separately, in pkg/backoff,
 // since they're policy shared by both directions of the eventual real
 // wiring, not specific to command dispatch.
 package command

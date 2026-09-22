@@ -39,6 +39,7 @@ import (
 	"github.com/teamvoltimor/vtitan/src/go/internal/nav/controllers"
 	"github.com/teamvoltimor/vtitan/src/go/internal/nav/navutil"
 	"github.com/teamvoltimor/vtitan/src/go/internal/nav/trackmodel"
+	"github.com/teamvoltimor/vtitan/src/go/pkg/geom"
 )
 
 // Config is start-measurement's tuning, matching StartMeasurementParams
@@ -175,7 +176,7 @@ func MeasureStartPose(
 	section trackmodel.Section,
 	cfg Config,
 ) (MeasuredStart, bool) {
-	rayHalfWidthRad := cfg.RayHalfWidthDeg * math.Pi / navutil.DegreesPerHalfTurn
+	rayHalfWidthRad := cfg.RayHalfWidthDeg * math.Pi / geom.DegreesPerHalfTurn
 	maxValidRangeM := cfg.LidarMaxRangeM * lidarMaxRangeMargin
 
 	forward, ok := navutil.WedgeMedian(

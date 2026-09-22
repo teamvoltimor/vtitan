@@ -11,10 +11,10 @@ import (
 	"github.com/teamvoltimor/vtitan/src/go/internal/config/profile"
 	"github.com/teamvoltimor/vtitan/src/go/internal/nav/controllers"
 	"github.com/teamvoltimor/vtitan/src/go/internal/nav/navigator"
-	"github.com/teamvoltimor/vtitan/src/go/internal/nav/navutil"
 	"github.com/teamvoltimor/vtitan/src/go/internal/nav/trackmodel"
-	"github.com/teamvoltimor/vtitan/src/go/internal/recording"
 	"github.com/teamvoltimor/vtitan/src/go/internal/sim/kinematics"
+	"github.com/teamvoltimor/vtitan/src/go/pkg/geom"
+	"github.com/teamvoltimor/vtitan/src/go/pkg/recording"
 )
 
 // simRecorder writes one scenario's run to an MCAP bag.
@@ -124,7 +124,7 @@ const defaultWheelRadiusM = 0.035
 
 // newSimRecorder creates the run directory for one scenario under root and
 // opens its bag. Returns nil when root is empty (recording off).
-func newSimRecorder(root, scenarioID string, geom recorderGeometry) (*simRecorder, error) {
+func newSimRecorder(root, scenarioID string, recGeom recorderGeometry) (*simRecorder, error) {
 	if root == "" {
 		return nil, nil //nolint:nilnil // a nil recorder is the documented "off" state
 	}
@@ -137,10 +137,10 @@ func newSimRecorder(root, scenarioID string, geom recorderGeometry) (*simRecorde
 	}
 	return &simRecorder{
 		run:           run,
-		wheelRadiusM:  geom.WheelRadiusM,
-		maxSteerRad:   geom.MaxSteerRad,
-		lidarXOffsetM: geom.LidarXOffsetM,
-		lidarZOffsetM: geom.LidarZOffsetM,
+		wheelRadiusM:  recGeom.WheelRadiusM,
+		maxSteerRad:   recGeom.MaxSteerRad,
+		lidarXOffsetM: recGeom.LidarXOffsetM,
+		lidarZOffsetM: recGeom.LidarZOffsetM,
 	}, nil
 }
 
@@ -204,7 +204,7 @@ func (r *simRecorder) tick(
 
 	yawRate := 0.0
 	if r.haveYaw {
-		yawRate = navutil.WrapAngle(reportedYaw-r.prevYawRad) / dt
+		yawRate = geom.WrapAngle(reportedYaw-r.prevYawRad) / dt
 	}
 	r.prevYawRad, r.haveYaw = reportedYaw, true
 	if err := r.run.WriteROS2(
@@ -410,21 +410,21 @@ func SimRunsRootFor(explicit string, now time.Time) (string, error) {
 func recorderGeometryFor(
 	logger *slog.Logger, configRoot string, hardwareProfileNames []string, maxSteerRad float64,
 ) recorderGeometry {
-	geom := recorderGeometry{WheelRadiusM: defaultWheelRadiusM, MaxSteerRad: maxSteerRad}
+	recGeom := recorderGeometry{WheelRadiusM: defaultWheelRadiusM, MaxSteerRad: maxSteerRad}
 	if configRoot == "" {
-		return geom
+		return recGeom
 	}
 	loaded, err := profile.LoadRobotConfig(
 		filepath.Join(configRoot, profile.DefaultRobotTOMLPath), hardwareProfileNames,
 	)
 	if err != nil {
 		logger.Warn("sim recorder: reading robot.toml, using default geometry", "error", err)
-		return geom
+		return recGeom
 	}
 	if loaded.Wheel.Radius > 0 {
-		geom.WheelRadiusM = loaded.Wheel.Radius
+		recGeom.WheelRadiusM = loaded.Wheel.Radius
 	}
-	geom.LidarXOffsetM = loaded.Lidar.MountXOffset
-	geom.LidarZOffsetM = loaded.Lidar.MountZOffset
-	return geom
+	recGeom.LidarXOffsetM = loaded.Lidar.MountXOffset
+	recGeom.LidarZOffsetM = loaded.Lidar.MountZOffset
+	return recGeom
 }

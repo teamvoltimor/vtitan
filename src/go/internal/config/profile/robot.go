@@ -5,7 +5,7 @@ import (
 	"math"
 
 	"github.com/teamvoltimor/vtitan/src/go/internal/config/generated"
-	"github.com/teamvoltimor/vtitan/src/go/internal/nav/navutil"
+	"github.com/teamvoltimor/vtitan/src/go/pkg/geom"
 )
 
 // RobotConfig is the value-based view of robot.toml the rest of Go reads.
@@ -278,7 +278,7 @@ func (c *RobotConfig) MaxSteeringAngle() float64 {
 	if limitDeg == 0 {
 		limitDeg = c.Steering.MaxWheelAngleDeg
 	}
-	return limitDeg * math.Pi / navutil.DegreesPerHalfTurn
+	return limitDeg * math.Pi / geom.DegreesPerHalfTurn
 }
 
 // LidarYawOffsetRad was removed deliberately: an upside-down mount reverses

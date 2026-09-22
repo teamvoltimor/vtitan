@@ -3,7 +3,7 @@ package navigator
 import (
 	"math"
 
-	"github.com/teamvoltimor/vtitan/src/go/internal/nav/navutil"
+	"github.com/teamvoltimor/vtitan/src/go/pkg/geom"
 )
 
 // CornerLatch is a sticky version of the corner-turn preview.
@@ -104,7 +104,7 @@ func (c *CornerLatch) Reset() {
 // than duplicated here.
 func (c *CornerLatch) Update(turnAheadRad, robotYaw, armThresholdRad float64) float64 {
 	if c.lastYaw != nil {
-		c.accumulatedRad += math.Abs(navutil.WrapAngle(robotYaw - *c.lastYaw))
+		c.accumulatedRad += math.Abs(geom.WrapAngle(robotYaw - *c.lastYaw))
 	}
 	c.lastYaw = &robotYaw
 
@@ -126,7 +126,7 @@ func (c *CornerLatch) Update(turnAheadRad, robotYaw, armThresholdRad float64) fl
 		return turnAheadRad
 	}
 
-	turned := math.Abs(navutil.WrapAngle(robotYaw - *c.yawAtArm))
+	turned := math.Abs(geom.WrapAngle(robotYaw - *c.yawAtArm))
 	if turned >= c.effectiveCompletionFraction()*c.previewedRad ||
 		c.accumulatedRad >= maxLatchYawRad {
 		held := c.previewedRad

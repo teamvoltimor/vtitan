@@ -8,7 +8,7 @@
 // This is a telemetry-aggregation node, not a hardware driver: it owns no
 // sensor I/O of its own, only the fan-in/summarize logic that sits between
 // several input topics and one low-rate output topic. Real NATS
-// subscriptions (internal/transport/nats is still a one-line stub) and the
+// subscriptions (pkg/transport/nats is still a one-line stub) and the
 // corresponding ui/telemetry_summary.proto (not yet designed — only 5
 // proto files exist in proto/ so far, none for this output) are both out
 // of scope for this package until those two pieces exist elsewhere in the

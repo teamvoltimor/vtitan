@@ -5,6 +5,7 @@ import (
 
 	"github.com/teamvoltimor/vtitan/src/go/internal/nav/controllers"
 	"github.com/teamvoltimor/vtitan/src/go/internal/nav/navutil"
+	"github.com/teamvoltimor/vtitan/src/go/pkg/geom"
 )
 
 // InferDirection reports which way round the loop rangesM/anglesRad implies,
@@ -33,8 +34,8 @@ func InferDirection(
 		return 0, false
 	}
 
-	left := navutil.NearestRay(scan, math.Pi/2)
-	right := navutil.NearestRay(scan, -math.Pi/2)
+	left := geom.NearestRay(scan, math.Pi/2)
+	right := geom.NearestRay(scan, -math.Pi/2)
 
 	// A dropout carries no information about whether a side is open, and
 	// the span test below cannot tell one from a corridor running away:
@@ -75,8 +76,8 @@ func InferDirection(
 // because the alternative is a deadlock, not a delay: nothing settles
 // until the robot moves and nothing moves until the direction settles.
 func DirectionFromParkingBay(scan controllers.LidarScan, cfg Config) (dir Direction, ok bool) {
-	arcRad := cfg.DirectionArcHalfFovDeg * math.Pi / navutil.DegreesPerHalfTurn
-	if navutil.ForwardClearance(
+	arcRad := cfg.DirectionArcHalfFovDeg * math.Pi / geom.DegreesPerHalfTurn
+	if geom.ForwardClearance(
 		scan,
 		arcRad,
 		cfg.MinValidRangeM,
@@ -84,8 +85,8 @@ func DirectionFromParkingBay(scan controllers.LidarScan, cfg Config) (dir Direct
 		return 0, false
 	}
 
-	left := navutil.NearestRay(scan, math.Pi/2)
-	right := navutil.NearestRay(scan, -math.Pi/2)
+	left := geom.NearestRay(scan, math.Pi/2)
+	right := geom.NearestRay(scan, -math.Pi/2)
 
 	if min(left, right) > cfg.BayWallClearanceM || max(left, right) <= cfg.TurnClearanceM {
 		return 0, false

@@ -20,8 +20,8 @@ import (
 	"github.com/teamvoltimor/vtitan/src/go/internal/cmdkit"
 	"github.com/teamvoltimor/vtitan/src/go/internal/hwconfig"
 	nodeimu "github.com/teamvoltimor/vtitan/src/go/internal/node/imu"
-	"github.com/teamvoltimor/vtitan/src/go/internal/transport/nats"
 	"github.com/teamvoltimor/vtitan/src/go/pkg/driver/imu"
+	"github.com/teamvoltimor/vtitan/src/go/pkg/transport/nats"
 )
 
 // cliConfig holds every flag imu-node accepts.

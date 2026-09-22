@@ -7,7 +7,7 @@ import (
 )
 
 // Source is the narrow read surface Aggregator needs from whatever feeds it
-// the input topics — real NATS subscriptions once internal/transport/nats
+// the input topics — real NATS subscriptions once pkg/transport/nats
 // is wired up (still a one-line stub as of this pass), a bag-replay
 // harness, or a test fake. Defined here, at the point of use (go-architect
 // §4: interfaces belong where they're consumed, not where implemented),

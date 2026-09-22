@@ -41,10 +41,10 @@ import (
 	nodenav "github.com/teamvoltimor/vtitan/src/go/internal/node/nav"
 	nodestatemachine "github.com/teamvoltimor/vtitan/src/go/internal/node/statemachine"
 	nodetelemetry "github.com/teamvoltimor/vtitan/src/go/internal/node/telemetry"
-	"github.com/teamvoltimor/vtitan/src/go/internal/supervise"
-	"github.com/teamvoltimor/vtitan/src/go/internal/transport/nats"
 	"github.com/teamvoltimor/vtitan/src/go/pkg/driver/imu"
 	"github.com/teamvoltimor/vtitan/src/go/pkg/driver/lidar"
+	"github.com/teamvoltimor/vtitan/src/go/pkg/supervise"
+	"github.com/teamvoltimor/vtitan/src/go/pkg/transport/nats"
 )
 
 type cliConfig struct {
@@ -150,7 +150,7 @@ func runMain() int {
 
 	// Each subsystem runs as its own supervised goroutine: a panic or a failure
 	// in one is restarted with backoff and never takes the process down with it
-	// (internal/supervise). Each opens its own NATS connection, so a restart
+	// (pkg/supervise). Each opens its own NATS connection, so a restart
 	// reconnects rather than inheriting a half-dead one.
 	//
 	// Nav is last in the slice deliberately: it is the only target that commands

@@ -7,7 +7,7 @@ import (
 	natsio "github.com/nats-io/nats.go"
 
 	sensorv1 "github.com/teamvoltimor/vtitan/src/go/internal/schema/pb/vtitan/sensor/v1"
-	"github.com/teamvoltimor/vtitan/src/go/internal/transport/nats"
+	"github.com/teamvoltimor/vtitan/src/go/pkg/transport/nats"
 )
 
 // NATSSourceDriver subscribes to a CameraFrame topic (vtitan.sensor.v1.camera)

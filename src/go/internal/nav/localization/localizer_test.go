@@ -6,10 +6,9 @@ import (
 	"math"
 	"testing"
 
-	"github.com/teamvoltimor/vtitan/src/go/internal/nav/navutil"
-
 	"github.com/teamvoltimor/vtitan/src/go/internal/nav/localization"
 	"github.com/teamvoltimor/vtitan/src/go/internal/nav/trackmodel"
+	"github.com/teamvoltimor/vtitan/src/go/pkg/geom"
 )
 
 // lidarSamples matches robot.toml's [lidar] samples: one 360 deg sweep.
@@ -26,7 +25,7 @@ const (
 // OPEN interval, so the last ray stops short of +pi rather than duplicating
 // the first.
 func scanAngles() []float64 {
-	return navutil.AngleFan(lidarSamples)
+	return geom.AngleFan(lidarSamples)
 }
 
 func wallsForWidths(widths map[trackmodel.Section]float64) *trackmodel.TrackWalls {

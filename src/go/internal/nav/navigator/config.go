@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"math"
 
-	"github.com/teamvoltimor/vtitan/src/go/internal/nav/navutil"
+	"github.com/teamvoltimor/vtitan/src/go/pkg/control"
 )
 
 // challengeTiers pairs a challenge's wire name with its configured tier
@@ -564,13 +564,13 @@ func (c Config) FastSpeedMPS() float64 {
 // command for the same angle rather than the same command meaning a wider
 // angle on different hardware.
 func (c Config) RevSteerNorm() float64 {
-	return navutil.SteeringNormFromAngleRad(degreesToRadians(c.RevSteerDeg), c.MaxSteeringAngleRad)
+	return control.SteeringNormFromAngleRad(degreesToRadians(c.RevSteerDeg), c.MaxSteeringAngleRad)
 }
 
 // SignContactSteerNorm converts SignContactSteerDeg into a normalised
 // actuator command, matching SignRouterParams.sign_contact_steer_norm().
 func (c Config) SignContactSteerNorm() float64 {
-	return navutil.SteeringNormFromAngleRad(
+	return control.SteeringNormFromAngleRad(
 		degreesToRadians(c.SignContactSteerDeg),
 		c.MaxSteeringAngleRad,
 	)
@@ -582,7 +582,7 @@ func (c Config) SignContactSteerNorm() float64 {
 // dimensionless bearing ratio, the gain turns it into a road-wheel angle,
 // and only then does the servo's reach enter.
 func (c Config) RetraceSteerGainNorm(lateralOverDistance float64) float64 {
-	return navutil.SteeringNormFromAngleRad(
+	return control.SteeringNormFromAngleRad(
 		degreesToRadians(c.RetraceSteerGainDeg)*lateralOverDistance,
 		c.MaxSteeringAngleRad,
 	)

@@ -10,8 +10,8 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 
-	"github.com/teamvoltimor/vtitan/src/go/internal/statemachine/backoff"
 	"github.com/teamvoltimor/vtitan/src/go/internal/statemachine/command"
+	"github.com/teamvoltimor/vtitan/src/go/pkg/backoff"
 
 	telemetryv1 "github.com/teamvoltimor/vtitan/src/go/internal/schema/pb/telemetry/v1"
 )

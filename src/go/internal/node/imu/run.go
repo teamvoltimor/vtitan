@@ -6,8 +6,8 @@ import (
 	"log/slog"
 
 	sensorv1 "github.com/teamvoltimor/vtitan/src/go/internal/schema/pb/vtitan/sensor/v1"
-	"github.com/teamvoltimor/vtitan/src/go/internal/transport/nats"
 	"github.com/teamvoltimor/vtitan/src/go/pkg/driver/imu"
+	"github.com/teamvoltimor/vtitan/src/go/pkg/transport/nats"
 )
 
 // Config wires the IMU driver and the NATS connection the publish loop uses.

@@ -3,9 +3,9 @@ package corridorestimator
 import (
 	"math"
 
-	"github.com/teamvoltimor/vtitan/src/go/internal/nav/navutil"
 	"github.com/teamvoltimor/vtitan/src/go/internal/nav/racetracker"
 	"github.com/teamvoltimor/vtitan/src/go/internal/nav/trackmodel"
+	"github.com/teamvoltimor/vtitan/src/go/pkg/geom"
 )
 
 // Config is the estimator's tuning, matching CorridorEstimatorParams plus the
@@ -79,7 +79,7 @@ func DefaultConfig() Config {
 		PlausibleWidthMarginM: DefaultPlausibleWidthMarginM,
 		MaxStartSamples:       DefaultMaxStartSamples,
 		DecisionBoundaryM:     DefaultDecisionBoundaryM,
-		AlignmentToleranceRad: DefaultAlignmentToleranceDeg * math.Pi / navutil.DegreesPerHalfTurn,
+		AlignmentToleranceRad: DefaultAlignmentToleranceDeg * math.Pi / geom.DegreesPerHalfTurn,
 		NarrowWidthM:          DefaultNarrowWidthM,
 		WideWidthM:            DefaultWideWidthM,
 	}
@@ -109,12 +109,12 @@ func MeasureCorridorWidth(
 
 	// Heading error against the nearest track axis; corridors always run
 	// along one.
-	axisError := navutil.WrapAngle(yaw - math.Round(yaw/navutil.QuarterTurnRad)*navutil.QuarterTurnRad)
+	axisError := geom.WrapAngle(yaw - math.Round(yaw/geom.QuarterTurnRad)*geom.QuarterTurnRad)
 	isAligned := math.Abs(axisError) <= cfg.AlignmentToleranceRad
 
-	scan := navutil.LidarScan{RangesM: rangesM, AnglesRad: anglesRad}
-	left := navutil.NearestRay(scan, navutil.QuarterTurnRad)
-	right := navutil.NearestRay(scan, -navutil.QuarterTurnRad)
+	scan := geom.LidarScan{RangesM: rangesM, AnglesRad: anglesRad}
+	left := geom.NearestRay(scan, geom.QuarterTurnRad)
+	right := geom.NearestRay(scan, -geom.QuarterTurnRad)
 
 	width := 0.0
 	if isAligned {

@@ -11,7 +11,7 @@ import (
 // which runs on a fixed-rate timer and reads its node's own `_latest_*`
 // instance caches rather than blocking on any one topic. The eventual NATS
 // wiring drives Summarize the same way, off its own timer, once
-// internal/transport/nats exists.
+// pkg/transport/nats exists.
 type Aggregator struct {
 	source Source
 	config Config

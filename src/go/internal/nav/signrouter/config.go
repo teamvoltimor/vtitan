@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"math"
 
-	"github.com/teamvoltimor/vtitan/src/go/internal/nav/navutil"
+	"github.com/teamvoltimor/vtitan/src/go/pkg/geom"
 )
 
 // Config bundles every tuning- and geometry-derived value the routing,
@@ -244,7 +244,7 @@ func DefaultConfig() Config {
 		DeformDepthBufferM:      DefaultDeformDepthBufferM,
 		PinCornerGuard:          DefaultPinCornerGuard,
 		PinHeadingGuard:         DefaultPinHeadingGuard,
-		PinHeadingGuardRad:      DefaultPinHeadingGuardDeg * math.Pi / navutil.DegreesPerHalfTurn,
+		PinHeadingGuardRad:      DefaultPinHeadingGuardDeg * math.Pi / geom.DegreesPerHalfTurn,
 		TrackMinCoordM:          DefaultTrackMinCoordM,
 		TrackMaxCoordM:          DefaultTrackMaxCoordM,
 		TrackCornerMinM:         DefaultTrackCornerMinM,

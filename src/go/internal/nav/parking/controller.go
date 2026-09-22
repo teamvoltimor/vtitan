@@ -3,8 +3,9 @@ package parking
 import (
 	"math"
 
-	"github.com/teamvoltimor/vtitan/src/go/internal/nav/navutil"
 	"github.com/teamvoltimor/vtitan/src/go/internal/nav/trackmodel"
+	"github.com/teamvoltimor/vtitan/src/go/pkg/control"
+	"github.com/teamvoltimor/vtitan/src/go/pkg/geom"
 )
 
 // Phase is the parking maneuver's state, matching shared.domain.enums.ParkPhase
@@ -261,7 +262,7 @@ func (p *ParkController) startReposition(
 	// Sign-flipped for reverse Ackermann geometry (v<0 inverts the yaw-rate
 	// response to a given steer sign), biased toward whichever side the target
 	// currently bears.
-	p.repositionSteer = -navutil.Clamp(p.cfg.RepositionSteerMag*sign(bearingErr), -1.0, 1.0)
+	p.repositionSteer = -geom.Clamp(p.cfg.RepositionSteerMag*sign(bearingErr), -1.0, 1.0)
 	p.repositionLeft--
 	return ParkCommand{LinearMPS: p.repositionSpeed, SteeringNorm: p.repositionSteer, Phase: phase}
 }
@@ -321,7 +322,7 @@ func BearingError(pose trackmodel.Pose, target trackmodel.Waypoint) float64 {
 // pure_pursuit_steer (which read RobotSpecs.WHEELBASE and the physical
 // steering limit as module globals).
 func PurePursuitSteer(xLocal, yLocal float64, cfg Config) float64 {
-	return navutil.PurePursuitSteer(
+	return control.PurePursuitSteer(
 		xLocal,
 		yLocal,
 		cfg.MinLookaheadDistM,

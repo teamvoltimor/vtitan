@@ -3,7 +3,7 @@ package corridorfollower
 import (
 	"math"
 
-	"github.com/teamvoltimor/vtitan/src/go/internal/nav/navutil"
+	"github.com/teamvoltimor/vtitan/src/go/pkg/geom"
 )
 
 // TurnSide overrides the clearance-based side choice in the back-off and
@@ -388,7 +388,7 @@ func DefaultConfig() Config {
 		DecisionBoundaryM: DefaultDecisionBoundaryM,
 
 		MaxSteeringAngleRad:  DefaultMaxSteeringAngleRad,
-		ForwardArcHalfFovRad: DefaultForwardArcHalfFovDeg * math.Pi / navutil.DegreesPerHalfTurn,
+		ForwardArcHalfFovRad: DefaultForwardArcHalfFovDeg * math.Pi / geom.DegreesPerHalfTurn,
 		MinValidRangeM:       DefaultMinValidRangeM,
 		MaxInTrackRangeM:     DefaultMaxInTrackRangeM,
 

@@ -21,7 +21,7 @@ import (
 
 	"github.com/teamvoltimor/vtitan/src/go/internal/driver/camera"
 	"github.com/teamvoltimor/vtitan/src/go/internal/node/capture"
-	"github.com/teamvoltimor/vtitan/src/go/internal/transport/nats"
+	"github.com/teamvoltimor/vtitan/src/go/pkg/transport/nats"
 )
 
 // Capture defaults, matching cmd/pi5's flags so both entry points behave the

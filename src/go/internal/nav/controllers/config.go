@@ -5,7 +5,8 @@ import (
 	"math"
 
 	"github.com/teamvoltimor/vtitan/src/go/internal/config/profile"
-	"github.com/teamvoltimor/vtitan/src/go/internal/nav/navutil"
+	"github.com/teamvoltimor/vtitan/src/go/pkg/control"
+	"github.com/teamvoltimor/vtitan/src/go/pkg/geom"
 )
 
 // Config aggregates every tuning value internal/nav/controllers' types
@@ -322,29 +323,29 @@ func (c Config) ForObstaclesChallenge() Config {
 // NewCollisionAvoidanceController builds a CollisionAvoidanceController
 // from c, matching CollisionAvoidanceController.from_tuning.
 func (c Config) NewCollisionAvoidanceController() *CollisionAvoidanceController {
-	pathHalfWidth := c.ChassisWidthM/navutil.Half + c.PathMargin
+	pathHalfWidth := c.ChassisWidthM/geom.Half + c.PathMargin
 	return &CollisionAvoidanceController{
 		ContactDist:    c.ContactDist,
 		RiskRayWindow:  c.RiskRayWindow,
 		SlowDist:       c.SlowDist,
 		FastDist:       c.FastDist,
 		EscapeRevSpeed: c.RevSpeed,
-		EscapeSteerScale: navutil.SteeringNormFromAngleRad(
-			c.RevSteerDeg*math.Pi/navutil.DegreesPerHalfTurn,
+		EscapeSteerScale: control.SteeringNormFromAngleRad(
+			c.RevSteerDeg*math.Pi/geom.DegreesPerHalfTurn,
 			c.MaxSteeringAngleRad,
 		),
 		StuckThreshold: c.StuckMoveThreshold,
 		PathHalfWidth:  pathHalfWidth,
 		KTurnMinFrames: c.KTurnMinFrames,
 		KTurnMaxFrames: c.KTurnMaxFrames,
-		SideCorrectionSteer: navutil.SteeringNormFromAngleRad(
-			c.SideCorrectionSteerDeg*math.Pi/navutil.DegreesPerHalfTurn,
+		SideCorrectionSteer: control.SteeringNormFromAngleRad(
+			c.SideCorrectionSteerDeg*math.Pi/geom.DegreesPerHalfTurn,
 			c.MaxSteeringAngleRad,
 		),
 		SideCorrectionSpeed:     c.SideCorrectionSpeed,
 		SideCorrectionFrames:    c.SideCorrectionFrames,
-		FrontHalfFovRad:         c.FrontHalfFovDeg * math.Pi / navutil.DegreesPerHalfTurn,
-		ThreatHalfFovRad:        c.ThreatHalfFovDeg * math.Pi / navutil.DegreesPerHalfTurn,
+		FrontHalfFovRad:         c.FrontHalfFovDeg * math.Pi / geom.DegreesPerHalfTurn,
+		ThreatHalfFovRad:        c.ThreatHalfFovDeg * math.Pi / geom.DegreesPerHalfTurn,
 		Geometry:                c.sectorGeometry(),
 		ThreatNoDetectionRangeM: c.ThreatNoDetectionRangeM,
 		LidarToFrontBumperM:     c.LidarToFrontBumperM,
@@ -421,13 +422,13 @@ func (c Config) sectorGeometry() SectorGeometry {
 		// exactly half_length -/+ the mount offset.
 		ChassisExitXForwardM:  c.LidarToFrontBumperM,
 		ChassisExitXRearM:     -c.LidarToRearBumperM,
-		ChassisExitYSideM:     c.ChassisWidthM / navutil.Half,
+		ChassisExitYSideM:     c.ChassisWidthM / geom.Half,
 		MinValidRangeM:        c.MinValidRangeM,
 		NoDataRangeM:          c.NoDataRangeM,
 		LidarMaxRangeM:        c.LidarMaxRangeM,
-		BlindWedgeLeftMinRad:  c.BlindWedgeLeftMinDeg * math.Pi / navutil.DegreesPerHalfTurn,
-		BlindWedgeLeftMaxRad:  c.BlindWedgeLeftMaxDeg * math.Pi / navutil.DegreesPerHalfTurn,
-		BlindWedgeRightMinRad: c.BlindWedgeRightMinDeg * math.Pi / navutil.DegreesPerHalfTurn,
-		BlindWedgeRightMaxRad: c.BlindWedgeRightMaxDeg * math.Pi / navutil.DegreesPerHalfTurn,
+		BlindWedgeLeftMinRad:  c.BlindWedgeLeftMinDeg * math.Pi / geom.DegreesPerHalfTurn,
+		BlindWedgeLeftMaxRad:  c.BlindWedgeLeftMaxDeg * math.Pi / geom.DegreesPerHalfTurn,
+		BlindWedgeRightMinRad: c.BlindWedgeRightMinDeg * math.Pi / geom.DegreesPerHalfTurn,
+		BlindWedgeRightMaxRad: c.BlindWedgeRightMaxDeg * math.Pi / geom.DegreesPerHalfTurn,
 	}
 }

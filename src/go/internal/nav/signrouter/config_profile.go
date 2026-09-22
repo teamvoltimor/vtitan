@@ -8,7 +8,7 @@ import (
 	"github.com/teamvoltimor/vtitan/src/go/internal/config/generated"
 	"github.com/teamvoltimor/vtitan/src/go/internal/config/generated/navigation/signs"
 	"github.com/teamvoltimor/vtitan/src/go/internal/config/profile"
-	"github.com/teamvoltimor/vtitan/src/go/internal/nav/navutil"
+	"github.com/teamvoltimor/vtitan/src/go/pkg/geom"
 )
 
 // ConfigFor resolves the Config to run with: DefaultConfig's literals,
@@ -81,7 +81,7 @@ func ConfigFor(logger *slog.Logger, configRoot string) Config {
 			cfg.DeformDepthBufferM = sr.DeformDepthBufferM
 			cfg.PinCornerGuard = sr.PinCornerGuard
 			cfg.PinHeadingGuard = sr.PinHeadingGuard
-			cfg.PinHeadingGuardRad = sr.PinHeadingGuardDeg * math.Pi / navutil.DegreesPerHalfTurn
+			cfg.PinHeadingGuardRad = sr.PinHeadingGuardDeg * math.Pi / geom.DegreesPerHalfTurn
 			cfg.SlotSignMap = sr.SlotSignMap
 			cfg.SlotAcceptRadiusM = sr.SlotAcceptRadiusM
 			cfg.SlotMinEvidence = sr.SlotMinEvidence

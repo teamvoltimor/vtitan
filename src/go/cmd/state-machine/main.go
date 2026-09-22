@@ -25,7 +25,7 @@ import (
 
 	"github.com/teamvoltimor/vtitan/src/go/internal/cmdkit"
 	"github.com/teamvoltimor/vtitan/src/go/internal/node/statemachine"
-	"github.com/teamvoltimor/vtitan/src/go/internal/transport/nats"
+	"github.com/teamvoltimor/vtitan/src/go/pkg/transport/nats"
 )
 
 // cliConfig holds every flag state-machine accepts.

@@ -33,9 +33,9 @@ import (
 	"github.com/teamvoltimor/vtitan/src/go/internal/hwconfig"
 	nodemotor "github.com/teamvoltimor/vtitan/src/go/internal/node/motor"
 	actuationv1 "github.com/teamvoltimor/vtitan/src/go/internal/schema/pb/vtitan/actuation/v1"
-	"github.com/teamvoltimor/vtitan/src/go/internal/transport/nats"
 	"github.com/teamvoltimor/vtitan/src/go/pkg/driver/encoder"
 	"github.com/teamvoltimor/vtitan/src/go/pkg/driver/motor"
+	"github.com/teamvoltimor/vtitan/src/go/pkg/transport/nats"
 )
 
 // cliConfig holds every flag motor-node accepts.

@@ -5,8 +5,8 @@ import (
 
 	nodebutton "github.com/teamvoltimor/vtitan/src/go/internal/node/button"
 	uiv1 "github.com/teamvoltimor/vtitan/src/go/internal/schema/pb/vtitan/ui/v1"
-	"github.com/teamvoltimor/vtitan/src/go/internal/transport/nats"
 	driverbutton "github.com/teamvoltimor/vtitan/src/go/pkg/driver/button"
+	"github.com/teamvoltimor/vtitan/src/go/pkg/transport/nats"
 )
 
 // NATSButtonSink implements command.ButtonSink by publishing a synthetic

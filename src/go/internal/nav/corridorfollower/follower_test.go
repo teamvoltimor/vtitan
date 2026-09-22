@@ -7,7 +7,7 @@ import (
 
 	"github.com/teamvoltimor/vtitan/src/go/internal/nav/controllers"
 	"github.com/teamvoltimor/vtitan/src/go/internal/nav/corridorfollower"
-	"github.com/teamvoltimor/vtitan/src/go/internal/nav/navutil"
+	"github.com/teamvoltimor/vtitan/src/go/pkg/geom"
 )
 
 const (
@@ -34,7 +34,7 @@ func corridorScan(leftM, rightM, aheadM float64) controllers.LidarScan {
 		angle := -math.Pi + 2*math.Pi*float64(i)/float64(rays-1)
 		angles[i] = angle
 		switch {
-		case math.Abs(navutil.WrapAngle(angle)) <= forwardHalfWindowRad:
+		case math.Abs(geom.WrapAngle(angle)) <= forwardHalfWindowRad:
 			ranges[i] = aheadM
 		default:
 			ranges[i] = farRangeM
@@ -48,7 +48,7 @@ func corridorScan(leftM, rightM, aheadM float64) controllers.LidarScan {
 func nearestIndex(angles []float64, target float64) int {
 	best, bestErr := 0, math.Inf(1)
 	for i, a := range angles {
-		if err := math.Abs(navutil.WrapAngle(a - target)); err < bestErr {
+		if err := math.Abs(geom.WrapAngle(a - target)); err < bestErr {
 			best, bestErr = i, err
 		}
 	}

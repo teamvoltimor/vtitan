@@ -1,8 +1,8 @@
 package collision
 
 import (
-	"github.com/teamvoltimor/vtitan/src/go/internal/nav/navutil"
 	"github.com/teamvoltimor/vtitan/src/go/internal/sim/kinematics"
+	"github.com/teamvoltimor/vtitan/src/go/pkg/geom"
 )
 
 // minStepScale is the smallest usable fraction of a commanded step,
@@ -57,7 +57,7 @@ func AllowedStep(
 	}
 
 	dx, dy := candidate.X-state.X, candidate.Y-state.Y
-	dyaw := navutil.WrapAngle(candidate.Yaw - state.Yaw)
+	dyaw := geom.WrapAngle(candidate.Yaw - state.Yaw)
 
 	free := func(move, turn float64) bool {
 		surface := track.ContactSurfaceAt(state.X+dx*move, state.Y+dy*move, state.Yaw+dyaw*turn, length, width)

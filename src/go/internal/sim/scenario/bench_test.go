@@ -4,11 +4,10 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/teamvoltimor/vtitan/src/go/internal/nav/navutil"
-
 	"github.com/teamvoltimor/vtitan/src/go/internal/nav/trackmodel"
 	"github.com/teamvoltimor/vtitan/src/go/internal/sim/collision"
 	"github.com/teamvoltimor/vtitan/src/go/internal/sim/kinematics"
+	"github.com/teamvoltimor/vtitan/src/go/pkg/geom"
 )
 
 // benchTrackGeometry is a small synthetic WRO-style layout with a square
@@ -51,7 +50,7 @@ func BenchmarkScenarioStep(b *testing.B) {
 	k := benchKinematics()
 
 	const numRays = 360
-	angles := navutil.AngleFan(numRays)
+	angles := geom.AngleFan(numRays)
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {

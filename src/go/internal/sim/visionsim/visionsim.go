@@ -17,9 +17,9 @@ package visionsim
 import (
 	"math"
 
-	"github.com/teamvoltimor/vtitan/src/go/internal/nav/navutil"
 	"github.com/teamvoltimor/vtitan/src/go/internal/nav/signrouter"
 	"github.com/teamvoltimor/vtitan/src/go/internal/nav/trackmodel"
+	"github.com/teamvoltimor/vtitan/src/go/pkg/geom"
 )
 
 // Config bundles the tuning values EmulateSignObservations reads, matching
@@ -115,8 +115,8 @@ func EmulateSignObservations(
 		}
 
 		bearing := robotPos.BearingTo(signPos)
-		thetaH := navutil.WrapAngle(bearing - robotYaw)
-		if math.Abs(thetaH) > cfg.CameraHFOVRad/navutil.Half {
+		thetaH := geom.WrapAngle(bearing - robotYaw)
+		if math.Abs(thetaH) > cfg.CameraHFOVRad/geom.Half {
 			continue
 		}
 

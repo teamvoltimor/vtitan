@@ -6,7 +6,7 @@ import (
 	"sort"
 	"testing"
 
-	"github.com/teamvoltimor/vtitan/src/go/internal/recording"
+	"github.com/teamvoltimor/vtitan/src/go/pkg/recording"
 	"github.com/teamvoltimor/vtitan/src/go/test/bagreplay"
 )
 

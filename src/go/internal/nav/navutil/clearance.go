@@ -3,6 +3,8 @@ package navutil
 import (
 	"math"
 	"sort"
+
+	"github.com/teamvoltimor/vtitan/src/go/pkg/geom"
 )
 
 // BlindWedges bounds the mount's two occlusion wedges (radians, wrapped
@@ -28,7 +30,7 @@ const medianEvenDivisor = 2
 // self-detection returns at or below selfDetectionThresholdM (the chassis
 // and its own cabling).
 func RearClearance(
-	scan LidarScan,
+	scan geom.LidarScan,
 	threatHalfFovRad, minValidRangeM, selfDetectionThresholdM float64,
 	blindWedges BlindWedges,
 ) (clearanceM float64, ok bool) {
@@ -36,13 +38,13 @@ func RearClearance(
 	found := false
 	for i, a := range scan.AnglesRad {
 		r := scan.RangesM[i]
-		if math.Abs(WrapAngle(a-math.Pi)) > threatHalfFovRad {
+		if math.Abs(geom.WrapAngle(a-math.Pi)) > threatHalfFovRad {
 			continue
 		}
 		if r <= minValidRangeM || r <= selfDetectionThresholdM {
 			continue
 		}
-		wrapped := WrapAngle(a)
+		wrapped := geom.WrapAngle(a)
 		if wrapped >= blindWedges.LeftMinRad && wrapped <= blindWedges.LeftMaxRad {
 			continue
 		}
@@ -69,14 +71,14 @@ func RearClearance(
 // default of None), and selfDetectionThresholdM <= 0 to skip that filter
 // (also matching a None default).
 func WedgeMedian(
-	scan LidarScan,
+	scan geom.LidarScan,
 	centerRad, halfWidthRad, minValidRangeM float64,
 	selfDetectionThresholdM, maxValidRangeM float64,
 ) (medianM float64, ok bool) {
 	valid := make([]float64, 0, len(scan.RangesM))
 	for i, a := range scan.AnglesRad {
 		r := scan.RangesM[i]
-		if math.Abs(WrapAngle(a-centerRad)) > halfWidthRad {
+		if math.Abs(geom.WrapAngle(a-centerRad)) > halfWidthRad {
 			continue
 		}
 		if r <= minValidRangeM {

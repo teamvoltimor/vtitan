@@ -11,8 +11,8 @@ import (
 	"math"
 	"sort"
 
-	"github.com/teamvoltimor/vtitan/src/go/internal/nav/navutil"
 	"github.com/teamvoltimor/vtitan/src/go/internal/nav/trackmodel"
+	"github.com/teamvoltimor/vtitan/src/go/pkg/geom"
 )
 
 // controlPoint is one (depth, lateral) sample of a corridor's lane
@@ -153,10 +153,10 @@ func holdPoints(plateaux []controlPoint, params SignLaneParams) []controlPoint {
 			// passed (legal WRO geometry never overlaps; see
 			// SignLaneParams.SplitOverlap's Python docstring).
 			if index > 0 {
-				low = math.Max(low, (plateaux[index-1].Depth+plateau.Depth)/navutil.Half)
+				low = math.Max(low, (plateaux[index-1].Depth+plateau.Depth)/geom.Half)
 			}
 			if index+1 < len(plateaux) {
-				high = math.Min(high, (plateau.Depth+plateaux[index+1].Depth)/navutil.Half)
+				high = math.Min(high, (plateau.Depth+plateaux[index+1].Depth)/geom.Half)
 			}
 			if high < low {
 				low, high = plateau.Depth, plateau.Depth

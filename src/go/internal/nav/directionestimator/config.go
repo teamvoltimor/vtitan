@@ -3,7 +3,7 @@ package directionestimator
 import (
 	"math"
 
-	"github.com/teamvoltimor/vtitan/src/go/internal/nav/navutil"
+	"github.com/teamvoltimor/vtitan/src/go/pkg/geom"
 )
 
 // Config parameterizes InferDirection, DirectionEstimator, and
@@ -70,7 +70,7 @@ const (
 // DefaultConfig returns the Config matching the Python tuning defaults.
 func DefaultConfig() Config {
 	return Config{
-		AlignmentToleranceRad:   DefaultAlignmentToleranceDeg * math.Pi / navutil.DegreesPerHalfTurn,
+		AlignmentToleranceRad:   DefaultAlignmentToleranceDeg * math.Pi / geom.DegreesPerHalfTurn,
 		MaxInTrackRangeM:        DefaultMaxInTrackRangeM,
 		PlausibleSpanThresholdM: DefaultPlausibleSpanM,
 		MinAsymmetryM:           DefaultMinAsymmetryM,

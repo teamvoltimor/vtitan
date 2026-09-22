@@ -11,8 +11,8 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	actuationv1 "github.com/teamvoltimor/vtitan/src/go/internal/schema/pb/vtitan/actuation/v1"
-	"github.com/teamvoltimor/vtitan/src/go/internal/transport/nats"
 	"github.com/teamvoltimor/vtitan/src/go/pkg/driver/motor"
+	"github.com/teamvoltimor/vtitan/src/go/pkg/transport/nats"
 )
 
 // Loop holds the running control loop's state: the driver/transport it was

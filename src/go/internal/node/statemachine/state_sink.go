@@ -7,7 +7,7 @@ import (
 
 	statev1 "github.com/teamvoltimor/vtitan/src/go/internal/schema/pb/vtitan/state/v1"
 	"github.com/teamvoltimor/vtitan/src/go/internal/statemachine/core"
-	"github.com/teamvoltimor/vtitan/src/go/internal/transport/nats"
+	"github.com/teamvoltimor/vtitan/src/go/pkg/transport/nats"
 )
 
 // NATSStateSink publishes the machine's current state on the

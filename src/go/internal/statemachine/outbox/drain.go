@@ -22,7 +22,7 @@ type Streamer[T any] interface {
 // that error to the caller. Reconnect/backoff is deliberately not this
 // function's job -- both real Python channels scope their backoff loop
 // one level up, around re-opening the whole stream (`_command_channel_loop`/
-// `_stream_loop`), and internal/statemachine/backoff is the Go port of
+// `_stream_loop`), and pkg/backoff is the Go port of
 // that policy; a caller wraps Drain in its own retry loop using it,
 // rather than Drain retrying internally.
 func Drain[T any](ctx context.Context, slot *Slot[T], streamer Streamer[T]) error {

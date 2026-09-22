@@ -3,7 +3,7 @@ package trackmodel
 import (
 	"math"
 
-	"github.com/teamvoltimor/vtitan/src/go/internal/nav/navutil"
+	"github.com/teamvoltimor/vtitan/src/go/pkg/geom"
 )
 
 // PathProjection is where a point sits relative to the planned path, in the
@@ -143,5 +143,5 @@ func PathTurnAhead(waypoints []Waypoint, waypointIndex int, previewDistanceM flo
 	if firstHeading == nil || lastHeading == nil {
 		return 0.0
 	}
-	return math.Abs(navutil.WrapAngle(*lastHeading - *firstHeading))
+	return math.Abs(geom.WrapAngle(*lastHeading - *firstHeading))
 }

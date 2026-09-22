@@ -40,7 +40,7 @@ import (
 	"github.com/teamvoltimor/vtitan/src/go/internal/nav/trackmodel"
 	actuationv1 "github.com/teamvoltimor/vtitan/src/go/internal/schema/pb/vtitan/actuation/v1"
 	sensorv1 "github.com/teamvoltimor/vtitan/src/go/internal/schema/pb/vtitan/sensor/v1"
-	natsx "github.com/teamvoltimor/vtitan/src/go/internal/transport/nats"
+	natsx "github.com/teamvoltimor/vtitan/src/go/pkg/transport/nats"
 )
 
 // Gateway is a NATS-backed controllers.HardwareGateway. See the package doc

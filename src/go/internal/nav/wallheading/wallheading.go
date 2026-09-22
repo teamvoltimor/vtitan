@@ -40,7 +40,7 @@ package wallheading
 import (
 	"math"
 
-	"github.com/teamvoltimor/vtitan/src/go/internal/nav/navutil"
+	"github.com/teamvoltimor/vtitan/src/go/pkg/geom"
 )
 
 // Config is the wall-heading tuning, matching WallHeadingParams.
@@ -153,12 +153,12 @@ func EstimateYawFromWalls(
 	candidate := -offset
 	// Pick the candidate nearest the prior: the walls decide the value, the
 	// prior only decides which quadrant is meant.
-	quadrant := math.Round((priorYaw - candidate) / navutil.QuarterTurnRad)
-	return candidate + quadrant*navutil.QuarterTurnRad, true
+	quadrant := math.Round((priorYaw - candidate) / geom.QuarterTurnRad)
+	return candidate + quadrant*geom.QuarterTurnRad, true
 }
 
 // HeadingError is the signed difference between a wall-derived yaw and the
 // current estimate.
 func HeadingError(measuredYaw, priorYaw float64) float64 {
-	return navutil.WrapAngle(measuredYaw - priorYaw)
+	return geom.WrapAngle(measuredYaw - priorYaw)
 }

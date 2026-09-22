@@ -3,8 +3,9 @@ package controllers
 import (
 	"math"
 
-	"github.com/teamvoltimor/vtitan/src/go/internal/nav/navutil"
 	"github.com/teamvoltimor/vtitan/src/go/internal/nav/trackmodel"
+	"github.com/teamvoltimor/vtitan/src/go/pkg/control"
+	"github.com/teamvoltimor/vtitan/src/go/pkg/geom"
 )
 
 // WaypointController is a pure pursuit steering controller for waypoint
@@ -16,7 +17,7 @@ import (
 type WaypointController struct {
 	// MaxSteeringAngle is the physical steering limit in radians.
 	MaxSteeringAngle float64
-	// WheelbaseM is the chassis wheelbase (m), fed to navutil.PurePursuitSteer.
+	// WheelbaseM is the chassis wheelbase (m), fed to control.PurePursuitSteer.
 	WheelbaseM float64
 	// YawGainCompensation is the fraction of predicted yaw the chassis
 	// delivers; see controllers.Config.YawGainCompensation.
@@ -178,7 +179,7 @@ func (w *WaypointController) Reset() {
 // ComputeSteering computes steering angle, lookahead, and heading error
 // for the next control step, matching WaypointController.compute_steering.
 //
-// Curvature-based pure pursuit (see navutil.PurePursuitSteer), not a gain
+// Curvature-based pure pursuit (see control.PurePursuitSteer), not a gain
 // on heading error. Returns (steeringNormalized, lookaheadDistanceM,
 // angleErrorRad): steeringNormalized is the command in [-1, 1] after rate
 // limiting; angleErrorRad is the signed bearing error before rate
@@ -200,7 +201,7 @@ func (w *WaypointController) ComputeSteering(
 
 	var steeringNormalizedRaw float64
 	if xLocal > 0 {
-		steeringNormalizedRaw = navutil.PurePursuitSteer(
+		steeringNormalizedRaw = control.PurePursuitSteer(
 			xLocal, yLocal, w.WaypointReachedDistanceM, w.WheelbaseM, w.MaxSteeringAngle,
 			w.YawGainCompensation,
 		)
@@ -281,5 +282,5 @@ func (w *WaypointController) demand(value, threshold float64) float64 {
 		return 0.0
 	}
 	span := 1.0 - w.LookaheadBlendStart
-	return navutil.Clamp((ratio-w.LookaheadBlendStart)/span, 0.0, 1.0)
+	return geom.Clamp((ratio-w.LookaheadBlendStart)/span, 0.0, 1.0)
 }

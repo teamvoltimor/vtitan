@@ -5,7 +5,7 @@
 // stay local.
 package cmdkit
 
-import "github.com/teamvoltimor/vtitan/src/go/internal/transport/nats"
+import "github.com/teamvoltimor/vtitan/src/go/pkg/transport/nats"
 
 // Common holds the flag fields repeated by the cmd/* binaries. Embed it in a
 // binary's cliConfig so the shared fields are declared once.

@@ -5,12 +5,11 @@ import (
 	"math"
 	"testing"
 
-	"github.com/teamvoltimor/vtitan/src/go/internal/nav/navutil"
-
 	"github.com/teamvoltimor/vtitan/src/go/internal/nav/controllers"
 	"github.com/teamvoltimor/vtitan/src/go/internal/nav/navigator"
 	"github.com/teamvoltimor/vtitan/src/go/internal/nav/racetracker"
 	"github.com/teamvoltimor/vtitan/src/go/internal/nav/trackmodel"
+	"github.com/teamvoltimor/vtitan/src/go/pkg/geom"
 )
 
 // TestNew_RejectsMissingGateway covers New's ErrNoGateway guard: every Step
@@ -350,7 +349,7 @@ func TestStep_NormalDrive_PublishesMotion(t *testing.T) {
 func clearScan() controllers.LidarScan {
 	const numRays = 360
 	ranges := make([]float64, numRays)
-	angles := navutil.AngleFan(numRays)
+	angles := geom.AngleFan(numRays)
 	for i := range ranges {
 		ranges[i] = 3.0
 	}

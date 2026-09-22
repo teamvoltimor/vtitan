@@ -8,7 +8,7 @@ import (
 	uiv1 "github.com/teamvoltimor/vtitan/src/go/internal/schema/pb/vtitan/ui/v1"
 	"github.com/teamvoltimor/vtitan/src/go/internal/statemachine/command"
 	"github.com/teamvoltimor/vtitan/src/go/internal/statemachine/robotcmd"
-	"github.com/teamvoltimor/vtitan/src/go/internal/transport/nats"
+	"github.com/teamvoltimor/vtitan/src/go/pkg/transport/nats"
 )
 
 // Config wires the NATS connection synthetic button events go out on and the

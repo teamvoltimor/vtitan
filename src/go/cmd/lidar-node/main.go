@@ -21,8 +21,8 @@ import (
 	"github.com/teamvoltimor/vtitan/src/go/internal/cmdkit"
 	"github.com/teamvoltimor/vtitan/src/go/internal/hwconfig"
 	nodelidar "github.com/teamvoltimor/vtitan/src/go/internal/node/lidar"
-	"github.com/teamvoltimor/vtitan/src/go/internal/transport/nats"
 	"github.com/teamvoltimor/vtitan/src/go/pkg/driver/lidar"
+	"github.com/teamvoltimor/vtitan/src/go/pkg/transport/nats"
 )
 
 // cliConfig holds every flag lidar-node accepts.

@@ -14,9 +14,9 @@ import (
 	natsio "github.com/nats-io/nats.go"
 
 	"github.com/teamvoltimor/vtitan/src/go/internal/driver/camera"
-	"github.com/teamvoltimor/vtitan/src/go/internal/recording"
 	sensorv1 "github.com/teamvoltimor/vtitan/src/go/internal/schema/pb/vtitan/sensor/v1"
-	"github.com/teamvoltimor/vtitan/src/go/internal/transport/nats"
+	"github.com/teamvoltimor/vtitan/src/go/pkg/recording"
+	"github.com/teamvoltimor/vtitan/src/go/pkg/transport/nats"
 )
 
 // Config configures the capture loop.

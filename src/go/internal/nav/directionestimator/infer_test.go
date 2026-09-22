@@ -5,13 +5,13 @@ import (
 	"testing"
 
 	"github.com/teamvoltimor/vtitan/src/go/internal/nav/directionestimator"
-	"github.com/teamvoltimor/vtitan/src/go/internal/nav/navutil"
+	"github.com/teamvoltimor/vtitan/src/go/pkg/geom"
 )
 
 // scan builds a minimal scan with just the left/right bearings
 // InferDirection actually reads.
-func scan(left, right float64) navutil.LidarScan {
-	return navutil.LidarScan{
+func scan(left, right float64) geom.LidarScan {
+	return geom.LidarScan{
 		RangesM:   []float64{left, right},
 		AnglesRad: []float64{math.Pi / 2, -math.Pi / 2},
 	}
@@ -123,7 +123,7 @@ func TestDirectionFromParkingBay(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			s := navutil.LidarScan{
+			s := geom.LidarScan{
 				RangesM:   []float64{tt.forward, tt.left, tt.right},
 				AnglesRad: []float64{0, math.Pi / 2, -math.Pi / 2},
 			}

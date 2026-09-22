@@ -1,6 +1,6 @@
 package kinematics
 
-import "github.com/teamvoltimor/vtitan/src/go/internal/nav/navutil"
+import "github.com/teamvoltimor/vtitan/src/go/pkg/geom"
 
 // AckermannState is the full kinematic state of the simulated car,
 // matching src.simulation.kinematics.AckermannState. (X, Y) is the
@@ -55,8 +55,8 @@ const (
 // Coordinates are relative to the chassis center, matching AckermannState.
 func WheelPoses(steer, wheelbase, trackWidth, rearSteerRatio float64) WheelPoseSet {
 	rearSteer := -steer * rearSteerRatio
-	halfWheelbase := wheelbase / navutil.Half
-	halfTrack := trackWidth / navutil.Half
+	halfWheelbase := wheelbase / geom.Half
+	halfTrack := trackWidth / geom.Half
 	return WheelPoseSet{
 		FrontLeft:  WheelPose{Name: frontLeftWheelName, X: halfWheelbase, Y: halfTrack, Steer: steer},
 		FrontRight: WheelPose{Name: frontRightWheelName, X: halfWheelbase, Y: -halfTrack, Steer: steer},

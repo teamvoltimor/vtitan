@@ -16,8 +16,8 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/teamvoltimor/vtitan/src/go/internal/cmdkit"
-	"github.com/teamvoltimor/vtitan/src/go/internal/foxglove/foxglovetest"
 	sensorv1 "github.com/teamvoltimor/vtitan/src/go/internal/schema/pb/vtitan/sensor/v1"
+	"github.com/teamvoltimor/vtitan/src/go/pkg/foxglove/foxglovetest"
 )
 
 const testTimeout = 10 * time.Second
@@ -61,7 +61,7 @@ func freeHTTPAddr(ctx context.Context, t *testing.T) string {
 // for the whole binary: publish one real message on a real NATS subject,
 // and a real Foxglove-protocol websocket client (mirroring what Foxglove
 // Studio does) must receive it, decoded correctly, over the bridge's HTTP
-// server -- not just the isolated internal/foxglove protocol logic, but
+// server -- not just the isolated pkg/foxglove protocol logic, but
 // this command's own wiring (bridgeAllSubjects registering all subjects,
 // the NATS subscription loop, the HTTP server lifecycle).
 func TestRun_BridgesANATSMessageToAFoxgloveClient(t *testing.T) {

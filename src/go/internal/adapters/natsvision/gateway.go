@@ -21,7 +21,7 @@ import (
 	"github.com/teamvoltimor/vtitan/src/go/internal/nav/signrouter"
 	"github.com/teamvoltimor/vtitan/src/go/internal/nav/trackmodel"
 	visionv1 "github.com/teamvoltimor/vtitan/src/go/internal/schema/pb/vtitan/vision/v1"
-	natsx "github.com/teamvoltimor/vtitan/src/go/internal/transport/nats"
+	natsx "github.com/teamvoltimor/vtitan/src/go/pkg/transport/nats"
 )
 
 // PoseSource is the subset of controllers.HardwareGateway this package

@@ -7,10 +7,9 @@ import (
 	"math"
 	"testing"
 
-	"github.com/teamvoltimor/vtitan/src/go/internal/nav/navutil"
-
 	"github.com/teamvoltimor/vtitan/src/go/internal/nav/startmeasurement"
 	"github.com/teamvoltimor/vtitan/src/go/internal/nav/trackmodel"
+	"github.com/teamvoltimor/vtitan/src/go/pkg/geom"
 )
 
 const (
@@ -36,7 +35,7 @@ func uniformWalls() *trackmodel.TrackWalls {
 // scanAngles mirrors the Python oracle's np.linspace(-pi, pi, LIDAR_SAMPLES,
 // endpoint=False) -- a half-open interval, matching real driver sampling.
 func scanAngles() []float64 {
-	return navutil.AngleFan(lidarSamples)
+	return geom.AngleFan(lidarSamples)
 }
 
 // scan raycasts a noise-free sweep at a known pose on a known layout.
@@ -88,7 +87,7 @@ func TestRecoversThePoseItWasTakenAt(t *testing.T) {
 			ranges, angles := scan(walls, tc.x, tc.y, tc.yaw)
 
 			measured, ok := startmeasurement.MeasureStartPose(
-				navutil.LidarScan{RangesM: ranges, AnglesRad: angles}, tc.direction, trackmodel.South, cfg,
+				geom.LidarScan{RangesM: ranges, AnglesRad: angles}, tc.direction, trackmodel.South, cfg,
 			)
 
 			if !ok {
@@ -120,7 +119,7 @@ func TestReportsTheTrackActuallyLeftAhead(t *testing.T) {
 	cfg := testConfig()
 
 	measured, ok := startmeasurement.MeasureStartPose(
-		navutil.LidarScan{RangesM: ranges, AnglesRad: angles}, trackmodel.Counterclockwise, trackmodel.South, cfg,
+		geom.LidarScan{RangesM: ranges, AnglesRad: angles}, trackmodel.Counterclockwise, trackmodel.South, cfg,
 	)
 
 	if !ok {
@@ -140,7 +139,7 @@ func TestMeasuresCorridorWidthWhenBesideInnerBlock(t *testing.T) {
 	cfg := testConfig()
 
 	measured, ok := startmeasurement.MeasureStartPose(
-		navutil.LidarScan{RangesM: ranges, AnglesRad: angles}, trackmodel.Counterclockwise, trackmodel.South, cfg,
+		geom.LidarScan{RangesM: ranges, AnglesRad: angles}, trackmodel.Counterclockwise, trackmodel.South, cfg,
 	)
 
 	if !ok {
@@ -165,7 +164,7 @@ func TestReportsNoWidthWhenLevelWithACorner(t *testing.T) {
 	cfg := testConfig()
 
 	measured, ok := startmeasurement.MeasureStartPose(
-		navutil.LidarScan{RangesM: ranges, AnglesRad: angles}, trackmodel.Counterclockwise, trackmodel.South, cfg,
+		geom.LidarScan{RangesM: ranges, AnglesRad: angles}, trackmodel.Counterclockwise, trackmodel.South, cfg,
 	)
 
 	if !ok {
@@ -188,13 +187,13 @@ func TestSectionIsAFreeRelabelling(t *testing.T) {
 	cfg := testConfig()
 
 	south, ok := startmeasurement.MeasureStartPose(
-		navutil.LidarScan{RangesM: ranges, AnglesRad: angles}, trackmodel.Counterclockwise, trackmodel.South, cfg,
+		geom.LidarScan{RangesM: ranges, AnglesRad: angles}, trackmodel.Counterclockwise, trackmodel.South, cfg,
 	)
 	if !ok {
 		t.Fatal("MeasureStartPose(South) = ok false, want true")
 	}
 	east, ok := startmeasurement.MeasureStartPose(
-		navutil.LidarScan{RangesM: ranges, AnglesRad: angles}, trackmodel.Counterclockwise, trackmodel.East, cfg,
+		geom.LidarScan{RangesM: ranges, AnglesRad: angles}, trackmodel.Counterclockwise, trackmodel.East, cfg,
 	)
 	if !ok {
 		t.Fatal("MeasureStartPose(East) = ok false, want true")
@@ -224,7 +223,7 @@ func TestRejectsABlockedRay(t *testing.T) {
 	}
 
 	_, ok := startmeasurement.MeasureStartPose(
-		navutil.LidarScan{
+		geom.LidarScan{
 			RangesM:   blocked,
 			AnglesRad: angles,
 		},
@@ -254,7 +253,7 @@ func TestAcceptsATrackThatIsNotPerfect(t *testing.T) {
 	}
 
 	_, ok := startmeasurement.MeasureStartPose(
-		navutil.LidarScan{RangesM: shrunk, AnglesRad: angles}, trackmodel.Counterclockwise, trackmodel.South, cfg,
+		geom.LidarScan{RangesM: shrunk, AnglesRad: angles}, trackmodel.Counterclockwise, trackmodel.South, cfg,
 	)
 
 	if !ok {
@@ -274,7 +273,7 @@ func TestRejectsWhenNoRayReturns(t *testing.T) {
 	}
 
 	_, ok := startmeasurement.MeasureStartPose(
-		navutil.LidarScan{
+		geom.LidarScan{
 			RangesM:   empty,
 			AnglesRad: angles,
 		},

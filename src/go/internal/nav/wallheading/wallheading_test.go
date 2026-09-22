@@ -12,10 +12,9 @@ import (
 	"math/rand/v2"
 	"testing"
 
-	"github.com/teamvoltimor/vtitan/src/go/internal/nav/navutil"
-
 	"github.com/teamvoltimor/vtitan/src/go/internal/nav/trackmodel"
 	"github.com/teamvoltimor/vtitan/src/go/internal/nav/wallheading"
+	"github.com/teamvoltimor/vtitan/src/go/pkg/geom"
 )
 
 const (
@@ -42,7 +41,7 @@ func uniformWalls() *trackmodel.TrackWalls {
 // scanAngles mirrors the oracle's linspace(-pi, pi, RAYS) -- a CLOSED
 // interval, both endpoints included, which is what that test uses.
 func scanAngles() []float64 {
-	return navutil.AngleFanClosed(rays)
+	return geom.AngleFanClosed(rays)
 }
 
 // scan raycasts a sweep at (x, y, yaw), optionally with Gaussian range noise

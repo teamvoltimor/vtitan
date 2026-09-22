@@ -3,8 +3,8 @@ package collision
 import (
 	"math"
 
-	"github.com/teamvoltimor/vtitan/src/go/internal/nav/navutil"
 	"github.com/teamvoltimor/vtitan/src/go/internal/nav/trackmodel"
+	"github.com/teamvoltimor/vtitan/src/go/pkg/geom"
 )
 
 // NewTrackModelParams bundles NewTrackModel's inputs. Geometry and the
@@ -130,7 +130,7 @@ func (m *TrackModel) RaycastScanFan(
 				ranges[i] = hit
 			}
 		}
-		ranges[i] = navutil.Clamp(ranges[i], lidarMinRangeM, maxRangeM)
+		ranges[i] = geom.Clamp(ranges[i], lidarMinRangeM, maxRangeM)
 	}
 	return ranges
 }
@@ -220,7 +220,7 @@ func (m *TrackModel) ObstacleCenter(index int) (trackmodel.Waypoint, bool) {
 		return trackmodel.Waypoint{}, false
 	}
 	b := m.obstacleBoxes[index]
-	return trackmodel.Waypoint{X: (b.xMin + b.xMax) / navutil.Half, Y: (b.yMin + b.yMax) / navutil.Half}, true
+	return trackmodel.Waypoint{X: (b.xMin + b.xMax) / geom.Half, Y: (b.yMin + b.yMax) / geom.Half}, true
 }
 
 // PointInFreeSpace reports whether (x, y) is in the navigable ring with

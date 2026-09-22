@@ -12,9 +12,9 @@ import (
 	"slices"
 	"sort"
 
-	"github.com/teamvoltimor/vtitan/src/go/internal/nav/navutil"
 	"github.com/teamvoltimor/vtitan/src/go/internal/nav/trackmodel"
 	"github.com/teamvoltimor/vtitan/src/go/internal/nav/waypoints"
+	"github.com/teamvoltimor/vtitan/src/go/pkg/geom"
 )
 
 // signCandidate is one (index, distance) entry from activeSignCandidates,
@@ -334,7 +334,7 @@ func (r *SignRouter) DeformWaypoint(
 	}
 	committedIdx := nearestIdx
 	r.committed = &committedIdx
-	yawDrift := math.Abs(navutil.WrapAngle(robotYawRad - r.commitYaw[nearestIdx]))
+	yawDrift := math.Abs(geom.WrapAngle(robotYawRad - r.commitYaw[nearestIdx]))
 
 	sign := r.signs[nearestIdx]
 	color := sign.Color

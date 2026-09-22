@@ -3,8 +3,8 @@ package collision
 import (
 	"math"
 
-	"github.com/teamvoltimor/vtitan/src/go/internal/nav/navutil"
 	"github.com/teamvoltimor/vtitan/src/go/internal/nav/trackmodel"
+	"github.com/teamvoltimor/vtitan/src/go/pkg/geom"
 )
 
 // box is an axis-aligned keep-out rectangle, matching track_model.py's
@@ -42,7 +42,7 @@ func axesForYaw(yaw float64) [4][2]float64 {
 // rectCorners returns the four corners of an oriented rectangle centered at
 // (cx, cy), matching track_model.py's _rect_corners.
 func rectCorners(cx, cy, yaw, length, width float64) []trackmodel.Waypoint {
-	hl, hw := length/navutil.Half, width/navutil.Half
+	hl, hw := length/geom.Half, width/geom.Half
 
 	cosY, sinY := math.Cos(yaw), math.Sin(yaw)
 	local := [4][2]float64{{hl, hw}, {hl, -hw}, {-hl, -hw}, {-hl, hw}}

@@ -6,7 +6,7 @@ import (
 	"github.com/teamvoltimor/vtitan/src/go/internal/nav/controllers"
 	"github.com/teamvoltimor/vtitan/src/go/internal/nav/navigator"
 	"github.com/teamvoltimor/vtitan/src/go/internal/nav/trackmodel"
-	"github.com/teamvoltimor/vtitan/src/go/internal/recording"
+	"github.com/teamvoltimor/vtitan/src/go/pkg/recording"
 	"github.com/teamvoltimor/vtitan/src/go/test/bagreplay"
 )
 

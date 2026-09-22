@@ -10,7 +10,7 @@
 // page-orchestration logic (which screen renders for /robot_state,
 // /race_metrics, /ui/telemetry_summary, /button/hold, /system_status, and
 // the button-driven/state-driven switching between them). That logic
-// depends on internal/transport/nats (still a doc.go stub) and the
+// depends on pkg/transport/nats (still a doc.go stub) and the
 // telemetry/state wire message types, which are a separate, larger effort
 // tightly coupled to the telemetry-bridge port happening in parallel. Out
 // of scope here, not silently skipped.

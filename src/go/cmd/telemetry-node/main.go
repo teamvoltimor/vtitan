@@ -26,7 +26,7 @@ import (
 
 	"github.com/teamvoltimor/vtitan/src/go/internal/cmdkit"
 	nodetelemetry "github.com/teamvoltimor/vtitan/src/go/internal/node/telemetry"
-	"github.com/teamvoltimor/vtitan/src/go/internal/transport/nats"
+	"github.com/teamvoltimor/vtitan/src/go/pkg/transport/nats"
 )
 
 // cliConfig holds every flag telemetry-node accepts.

@@ -12,13 +12,13 @@ import (
 	"github.com/teamvoltimor/vtitan/src/go/internal/nav/corridorestimator"
 	"github.com/teamvoltimor/vtitan/src/go/internal/nav/corridorfollower"
 	"github.com/teamvoltimor/vtitan/src/go/internal/nav/directionestimator"
-	"github.com/teamvoltimor/vtitan/src/go/internal/nav/navutil"
 	"github.com/teamvoltimor/vtitan/src/go/internal/nav/parking"
 	"github.com/teamvoltimor/vtitan/src/go/internal/nav/racetracker"
 	"github.com/teamvoltimor/vtitan/src/go/internal/nav/signrouter"
 	"github.com/teamvoltimor/vtitan/src/go/internal/nav/startmeasurement"
 	"github.com/teamvoltimor/vtitan/src/go/internal/nav/trackmodel"
 	"github.com/teamvoltimor/vtitan/src/go/internal/nav/waypoints"
+	"github.com/teamvoltimor/vtitan/src/go/pkg/geom"
 )
 
 // VisionGateway is the port supplying traffic-sign observations for
@@ -610,7 +610,7 @@ func (n *Navigator) BelievedYawOffset() (offset float64, ok bool) {
 // the estimator heading via the gateway so subsequent poses are in the map
 // frame.
 func (n *Navigator) ApplyBelievedStart(measured, pose trackmodel.Pose) {
-	offset := navutil.WrapAngle(pose.Yaw - measured.Yaw)
+	offset := geom.WrapAngle(pose.Yaw - measured.Yaw)
 	n.believedYawOffset = offset
 	n.believedYawSet = true
 	if math.Abs(offset) > yawOffsetEpsilonRad {

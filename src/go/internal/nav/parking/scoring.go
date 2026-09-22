@@ -3,7 +3,7 @@ package parking
 import (
 	"math"
 
-	"github.com/teamvoltimor/vtitan/src/go/internal/nav/navutil"
+	"github.com/teamvoltimor/vtitan/src/go/pkg/geom"
 )
 
 // ParkScore is what a judge would award for a final pose, and the reasons
@@ -118,7 +118,7 @@ func projectExtent(points [][2]float64, axx, axy float64) (lo, hi float64) {
 // score a robot parked perfectly but facing the other way as not parallel.
 // The controller is right to aim at one; the judge does not care which.
 func IsWallParallel(robotYaw float64, zone ParkZone, yawTolerance float64) bool {
-	yawErr := math.Abs(navutil.WrapAngle(robotYaw - zone.TargetYaw))
+	yawErr := math.Abs(geom.WrapAngle(robotYaw - zone.TargetYaw))
 	return math.Min(yawErr, math.Pi-yawErr) <= yawTolerance
 }
 
