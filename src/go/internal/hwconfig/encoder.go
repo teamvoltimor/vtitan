@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"path/filepath"
 
+	"github.com/teamvoltimor/vtitan/src/go/internal/config/generated/hardware/motors"
 	"github.com/teamvoltimor/vtitan/src/go/internal/config/profile"
 	driverencoder "github.com/teamvoltimor/vtitan/src/go/pkg/driver/encoder"
 )
@@ -38,12 +39,26 @@ func Encoder(configRoot string) (driverencoder.Config, error) {
 		return driverencoder.Config{}, fmt.Errorf("encoder: loading robot.toml: %w", err)
 	}
 
+	// The count's sign lives in motors.toml, not encoder.toml:
+	// drive.encoder_reversed, which Python passes to the encoder as its
+	// invert (ackermann_motor_node.py). Go used to leave Invert false, so
+	// with the shipped `encoder_reversed = true` every Go odometry sample
+	// had the opposite sign to Python's.
+	motorsCfg, err := profile.Load[motors.HardwareMotorsMotors](
+		filepath.Join(configRoot, filepath.FromSlash(profile.DefaultMotorsTOMLPath)),
+		names,
+	)
+	if err != nil {
+		return driverencoder.Config{}, fmt.Errorf("encoder: loading motors.toml: %w", err)
+	}
+
 	cfg := driverencoder.Config{
 		GPIOChip:       driverencoder.DefaultGPIOChip,
 		PinA:           encCfg.PinA,
 		PinB:           encCfg.PinB,
 		CountsPerRev:   encCfg.CountsPerRev,
 		WheelDiameterM: robotCfg.Wheel.Radius * 2,
+		Invert:         motorsCfg.Drive.EncoderReversed,
 	}
 	if validateErr := cfg.Validate(); validateErr != nil {
 		//nolint:wrapcheck // Validate's errors already carry "encoder: ..." context
