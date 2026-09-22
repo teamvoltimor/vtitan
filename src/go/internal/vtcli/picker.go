@@ -31,9 +31,9 @@ type pickerModel struct {
 	selected  *pickItem
 	cancelled bool
 
-	// header draws the banner above the list for a given terminal size; the
-	// list gets whatever height is left.
-	header        func(width, height int) string
+	// ui draws the header above the list and styles the list; the list gets
+	// whatever height the header leaves.
+	ui            UI
 	width, height int
 
 	// resolve maps a trail of segments to the rows shown at that level. It is
@@ -167,15 +167,15 @@ func newPickerModel(
 	root []pickItem,
 	resolve func([]string) []pickItem,
 	tasks []pickItem,
-	header func(width, height int) string,
+	ui UI,
 ) *pickerModel {
 	model := &pickerModel{
 		root:    root,
-		list:    newPickerList(root),
+		list:    newPickerList(root, ui),
 		levels:  [][]pickItem{root},
 		tasks:   tasks,
 		resolve: resolve,
-		header:  header,
+		ui:      ui,
 		width:   defaultPickerWidth,
 		height:  defaultPickerHeight,
 	}
@@ -186,13 +186,14 @@ func newPickerModel(
 }
 
 // newPickerList builds a sized list model from one level of rows.
-func newPickerList(items []pickItem) list.Model {
+func newPickerList(items []pickItem, ui UI) list.Model {
 	entries := make([]list.Item, 0, len(items))
 	for index := range items {
 		entries = append(entries, items[index])
 	}
 
-	model := list.New(entries, list.NewDefaultDelegate(), defaultPickerWidth, defaultPickerHeight)
+	model := list.New(entries, pickerDelegate(ui), defaultPickerWidth, defaultPickerHeight)
+	styleList(&model, ui)
 	model.SetFilteringEnabled(true)
 	model.SetShowHelp(true)
 	model.SetShowStatusBar(true)
@@ -249,20 +250,13 @@ func (m *pickerModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 // View implements tea.Model.
 func (m *pickerModel) View() string {
-	if m.header == nil {
-		return m.list.View()
-	}
-
-	return m.header(m.width, m.height) + "\n" + m.list.View()
+	return m.ui.Header(m.width, m.height) + "\n" + m.list.View()
 }
 
 // fit sizes the list to the terminal minus the header. Every level change
 // builds a new list, so it has to be re-applied there too, not only on resize.
 func (m *pickerModel) fit() {
-	used := 0
-	if m.header != nil {
-		used = lipgloss.Height(m.header(m.width, m.height)) + 1
-	}
+	used := lipgloss.Height(m.ui.Header(m.width, m.height))
 
 	m.list.SetSize(m.width, max(m.height-used, minPickerListHeight))
 }
@@ -300,7 +294,7 @@ func (m *pickerModel) descend(segment string) {
 func (m *pickerModel) push(segment string, level []pickItem) {
 	m.trail = append(m.trail, segment)
 	m.levels = append(m.levels, level)
-	m.list = newPickerList(level)
+	m.list = newPickerList(level, m.ui)
 	m.fit()
 	m.updateTitle()
 }
@@ -313,7 +307,7 @@ func (m *pickerModel) pop() {
 
 	m.levels = m.levels[:len(m.levels)-1]
 	m.trail = m.trail[:len(m.trail)-1]
-	m.list = newPickerList(m.levels[len(m.levels)-1])
+	m.list = newPickerList(m.levels[len(m.levels)-1], m.ui)
 	m.fit()
 	m.updateTitle()
 }
@@ -330,4 +324,32 @@ func (m *pickerModel) updateTitle() {
 	}
 
 	m.list.Title = "vt " + strings.Join(m.trail, " › ")
+}
+
+// pickerDelegate renders list rows in the palette: the selected row in the
+// accent colour instead of bubbles' default magenta.
+func pickerDelegate(ui UI) list.DefaultDelegate {
+	delegate := list.NewDefaultDelegate()
+	if !ui.color {
+		return delegate
+	}
+
+	delegate.Styles.SelectedTitle = delegate.Styles.SelectedTitle.
+		Foreground(colorAccent).BorderLeftForeground(colorAccent)
+	delegate.Styles.SelectedDesc = delegate.Styles.SelectedDesc.
+		Foreground(colorAccent).BorderLeftForeground(colorAccent)
+	delegate.Styles.NormalDesc = delegate.Styles.NormalDesc.Foreground(colorMuted)
+
+	return delegate
+}
+
+// styleList puts the list chrome (title, filter prompt) in the palette.
+func styleList(model *list.Model, ui UI) {
+	if !ui.color {
+		return
+	}
+
+	model.Styles.Title = model.Styles.Title.UnsetBackground().Bold(true).Foreground(colorAccent)
+	model.Styles.FilterPrompt = model.Styles.FilterPrompt.Foreground(colorAccent)
+	model.Styles.FilterCursor = model.Styles.FilterCursor.Foreground(colorAccent)
 }

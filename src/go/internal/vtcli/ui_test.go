@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 )
 
 // TestBannerFollowsTheTerminal checks the three renderings: a pipe gets one
@@ -33,9 +34,11 @@ func TestBannerFollowsTheTerminal(t *testing.T) {
 		t.Error("header dropped the art in a terminal big enough for it")
 	}
 
+	compactRows := 1 + headerMarginTop + headerMarginBottom
 	for _, size := range [][2]int{{minArtWidth - 1, minArtHeight}, {minArtWidth, minArtHeight - 1}} {
-		if header := (UI{art: true}).Header(size[0], size[1]); strings.Contains(header, "\n") {
-			t.Errorf("header at %dx%d should be one line, got %q", size[0], size[1], header)
+		header := (UI{art: true}).Header(size[0], size[1])
+		if strings.Contains(header, "██") || lipgloss.Height(header) != compactRows {
+			t.Errorf("header at %dx%d should be one line plus margins, got %q", size[0], size[1], header)
 		}
 	}
 }
@@ -50,11 +53,10 @@ func TestPickerKeepsTerminalSizeAcrossLevels(t *testing.T) {
 	root := []pickItem{{title: "go", segment: "go"}}
 	child := func([]string) []pickItem { return []pickItem{backRow(), {title: "test"}} }
 
-	model := newPickerModel(root, child, nil, ui.Header)
+	model := newPickerModel(root, child, nil, ui)
 	model.Update(tea.WindowSizeMsg{Width: 100, Height: 50})
 
-	headerRows := strings.Count(ui.Header(100, 50), "\n") + 1
-	want := 50 - headerRows - 1
+	want := 50 - lipgloss.Height(ui.Header(100, 50))
 
 	if got := model.list.Height(); got != want {
 		t.Errorf("root list height = %d, want %d", got, want)

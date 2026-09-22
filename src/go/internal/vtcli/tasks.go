@@ -29,10 +29,6 @@ type tasksEnvelope struct {
 // flag) matches the plan: vt is the discovery surface, Task is the engine.
 const taskBinary = "task"
 
-// taskShortWidth caps a task description in listings; Task descs run to
-// several sentences and the first clause is what identifies the task.
-const taskShortWidth = 90
-
 // LoadTasks returns every task Task knows about, rooted at repoRoot. It shells
 // out to `task -d <repoRoot> --list-all --json` so there is one inventory and
 // no second Task parser to drift from the first.

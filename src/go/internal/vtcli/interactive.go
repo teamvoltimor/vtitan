@@ -24,6 +24,7 @@ type formModel struct {
 	confirm   bool
 	heavy     bool
 	taskName  string
+	ui        UI
 }
 
 // formField is one prompt in the argument form. defaultValue/defaultBool are
@@ -52,25 +53,6 @@ const (
 	placePassthrough
 	// placeVerbatim forwards the value as typed (the escape hatch's args).
 	placeVerbatim
-)
-
-// formCharLimit bounds how much a single argument field accepts. The width
-// constants size the text inputs; a zero-width input renders only its first
-// placeholder rune, so the default width matters before the first resize.
-const (
-	formCharLimit         = 512
-	defaultFormInputWidth = 40
-	formWidthMargin       = 4
-	minFormInputWidth     = 10
-)
-
-// picker sizing: a default for the first frame, before the terminal reports
-// its real dimensions via tea.WindowSizeMsg.
-const (
-	defaultPickerWidth  = 80
-	defaultPickerHeight = 24
-	// minPickerListHeight keeps a few rows of list even in a tiny terminal.
-	minPickerListHeight = 6
 )
 
 // backRowTitle labels the row that returns to the parent level, and
@@ -112,7 +94,7 @@ func (a *App) printHome(cmd *cobra.Command) error {
 // pickAndRun opens the picker, then the argument form, then runs the task.
 func (a *App) pickAndRun(cmd *cobra.Command) error {
 	program := tea.NewProgram(
-		newPickerModel(a.buildPickerRoot(), a.childLevel, a.taskLevel(), a.ui.Header),
+		newPickerModel(a.buildPickerRoot(), a.childLevel, a.taskLevel(), a.ui),
 		tea.WithAltScreen(),
 		tea.WithInput(os.Stdin),
 		tea.WithOutput(cmd.OutOrStdout()),
@@ -153,7 +135,7 @@ func (a *App) promptTaskArgs(ctx context.Context, name string) error {
 	field := newTextField("args", "VAR=value and flags, verbatim (optional)", false, FlagString)
 	field.placement = placeVerbatim
 
-	values, submitted, err := runForm("run "+name, name, []*formField{field})
+	values, submitted, err := runForm(a.ui, "run "+name, name, []*formField{field})
 	if err != nil || !submitted {
 		return err
 	}
@@ -196,7 +178,7 @@ func (a *App) promptFields(command Command) (values map[string]string, ok bool, 
 		return map[string]string{}, true, nil
 	}
 
-	return runFormHeavy(strings.Join(command.Path, " "), command.Task, fields, command.Heavy)
+	return runFormHeavy(a.ui, strings.Join(command.Path, " "), command.Task, fields, command.Heavy)
 }
 
 // newTextField creates a text field for one argument.
@@ -210,15 +192,15 @@ func newTextField(name, help string, required bool, kind FlagKind) *formField {
 }
 
 // runForm runs the argument form and returns the collected values.
-func runForm(title, taskName string, fields []*formField) (values map[string]string, ok bool, err error) {
-	return runFormHeavy(title, taskName, fields, false)
+func runForm(ui UI, title, taskName string, fields []*formField) (values map[string]string, ok bool, err error) {
+	return runFormHeavy(ui, title, taskName, fields, false)
 }
 
 // runFormHeavy runs the form and, before executing, asks for confirmation.
-func runFormHeavy(title, taskName string, fields []*formField, heavy bool) (
+func runFormHeavy(ui UI, title, taskName string, fields []*formField, heavy bool) (
 	values map[string]string, ok bool, err error,
 ) {
-	model := formModel{title: title, fields: fields, heavy: heavy, taskName: taskName}
+	model := formModel{title: title, fields: fields, heavy: heavy, taskName: taskName, ui: ui}
 	model.focus(0)
 
 	program := tea.NewProgram(&model, tea.WithAltScreen(), tea.WithInput(os.Stdin), tea.WithOutput(os.Stdout))
@@ -356,12 +338,12 @@ func (m *formModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 // View implements tea.Model.
 func (m *formModel) View() string {
-	lines := []string{m.title, ""}
+	lines := []string{m.ui.Accent(m.title, true), ""}
 
 	for i, field := range m.fields {
 		cursor := "  "
 		if i == m.index {
-			cursor = "> "
+			cursor = m.ui.Accent("> ", true)
 		}
 
 		if field.isBool {
@@ -379,22 +361,22 @@ func (m *formModel) View() string {
 	}
 
 	if m.err != "" {
-		lines = append(lines, "", m.err)
+		lines = append(lines, "", m.ui.Danger(m.err))
 	}
 
 	if m.confirm {
-		lines = append(lines, "", "Will run:  "+m.commandLine())
+		lines = append(lines, "", "Will run:  "+m.ui.Accent(m.commandLine(), true))
 
 		if m.heavy {
-			lines = append(lines, "WARNING: this task starts long-running processes (simulator/service).")
+			lines = append(lines, m.ui.Warning("WARNING: this task starts long-running processes (simulator/service)."))
 		}
 
-		lines = append(lines, "", "(enter: run · esc: cancel)")
+		lines = append(lines, "", m.ui.Muted("(enter: run · esc: cancel)"))
 
 		return strings.Join(lines, "\n")
 	}
 
-	lines = append(lines, "", "(tab: next · enter: next · esc: cancel) · untouched defaults stay with Task")
+	lines = append(lines, "", m.ui.Muted("(tab: next · enter: next · esc: cancel) · untouched defaults stay with Task"))
 
 	return strings.Join(lines, "\n")
 }

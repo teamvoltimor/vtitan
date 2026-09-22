@@ -1,7 +1,7 @@
 // Package vtcli builds the vt command tree over the repository Taskfiles. Its
-// design is recorded in other/docs/development/plan-cli-unificada.md: cobra is
-// the tree, the Taskfiles remain the single source of truth for how each thing
-// runs, and every wrapped leaf shells out to `task`.
+// design is recorded in ADR 0096: cobra is the tree, the Taskfiles remain the
+// single source of truth for how each thing runs, and every wrapped leaf shells
+// out to `task`. Colors and sizes live in theme.go.
 package vtcli
 
 import (
@@ -10,15 +10,20 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/x/term"
 )
 
-// UI renders the human-facing text vt emits: the bare-command banner and
-// errors. Styling is presentation only and is skipped entirely when colour is
-// not wanted, so CI logs and piped output stay plain. The wordmark follows the
-// TTY, not NO_COLOR: NO_COLOR asks for no colour, not for no art.
+// UI renders the human-facing text vt emits: the banner, the menu, the form
+// and errors. Styling is presentation only and is skipped entirely when colour
+// is not wanted, so CI logs and piped output stay plain. The wordmark follows
+// the TTY, not NO_COLOR: NO_COLOR asks for no colour, not for no art.
 type UI struct {
 	color bool
 	art   bool
+	// width is the terminal width at start-up, 0 when it is not a terminal
+	// or will not say. It only centers the static banner; the picker gets
+	// live sizes from bubbletea.
+	width int
 }
 
 // MenuEntry is one row of the home menu: a first-level command and its
@@ -28,41 +33,14 @@ type MenuEntry struct {
 	Short string
 }
 
-// menuColumnWidth is the width reserved for the command name in the home
-// menu, in both the styled and the plain renderings.
-const menuColumnWidth = 12
-
-// wordmark is the vTitan banner. It is 48 columns wide and 6 rows tall;
-// Header falls back to one line below that, plus a margin.
-const wordmark = `██╗   ██╗████████╗██╗████████╗ █████╗ ███╗   ██╗
-██║   ██║╚══██╔══╝██║╚══██╔══╝██╔══██╗████╗  ██║
-██║   ██║   ██║   ██║   ██║   ███████║██╔██╗ ██║
-╚██╗ ██╔╝   ██║   ██║   ██║   ██╔══██║██║╚██╗██║
- ╚████╔╝    ██║   ██║   ██║   ██║  ██║██║ ╚████║
-  ╚═══╝     ╚═╝   ╚═╝   ╚═╝   ╚═╝  ╚═╝╚═╝  ╚═══╝`
-
-// Wordmark geometry and the room Header needs before drawing it.
-const (
-	wordmarkWidth   = 48
-	minArtWidth     = wordmarkWidth + 4
-	minArtHeight    = 22
-	tagline         = "Team Voltimor · development CLI over the Taskfiles"
-	compactHeadline = "vTitan · Team Voltimor"
-)
-
-// wordmarkGradient runs the logo's electric blue from light to deep, one
-// colour per row of the wordmark.
-var wordmarkGradient = []lipgloss.Color{"#7DD3FC", "#38BDF8", "#0EA5E9", "#0284C7", "#0369A1", "#075985"}
-
-// Palette shared by the banner, the menu and the errors.
-var (
-	accent = lipgloss.Color("#38BDF8")
-	muted  = lipgloss.Color("241")
-)
-
 // NewUI returns a UI bound to the capabilities of standard output.
 func NewUI() UI {
-	return UI{color: useColor(os.Stdout), art: isTerminal(os.Stdout) && os.Getenv("TERM") != "dumb"}
+	ui := UI{color: useColor(os.Stdout), art: isTerminal(os.Stdout) && os.Getenv("TERM") != "dumb"}
+	if width, _, err := term.GetSize(os.Stdout.Fd()); err == nil {
+		ui.width = width
+	}
+
+	return ui
 }
 
 // useColor reports whether ANSI styling should be emitted to f. NO_COLOR and a
@@ -89,58 +67,104 @@ func isTerminal(f *os.File) bool {
 	return info.Mode()&os.ModeCharDevice != 0
 }
 
-// Banner is the header shown by a bare `vt`: the wordmark on a terminal, one
-// plain line in a pipe or a CI log.
+// Banner is the header shown by a bare `vt`: the centered wordmark on a
+// terminal, one plain line in a pipe or a CI log.
 func (u UI) Banner() string {
-	hint := "`task <name>` keeps working unchanged; `vt run <name>` is the escape hatch."
-
 	if !u.art {
-		return "vt: vTitan development CLI, Team Voltimor\n" + hint
+		return plainHeadline + "\n" + escapeHint
 	}
 
-	return u.wordmarkBlock() + "\n\n" + u.paint(hint, lipgloss.NewStyle().Foreground(muted))
+	width := u.width
+	if width <= 0 {
+		width = fallbackTermWidth
+	}
+
+	return u.Header(width, minArtHeight) + "\n" + u.center(u.Muted(escapeHint), width)
 }
 
-// Header is the picker's top: the wordmark when the terminal has room for it
-// and still leaves the list usable, otherwise one line.
+// Header is the picker's top: the wordmark centered in the terminal with a
+// margin row above and below when there is room for it and the list, otherwise
+// one line. Its height is what the picker subtracts from the list.
 func (u UI) Header(width, height int) string {
-	if width >= minArtWidth && height >= minArtHeight {
-		return u.wordmarkBlock()
+	top := strings.Repeat("\n", headerMarginTop)
+	bottom := strings.Repeat("\n", headerMarginBottom)
+
+	if width < minArtWidth || height < minArtHeight {
+		line := u.Accent(brandGlyph+" "+compactHeadline, true)
+
+		return top + u.center(line, width) + bottom
 	}
 
-	return u.paint("⚡ "+compactHeadline, lipgloss.NewStyle().Bold(true).Foreground(accent))
+	return top + u.center(u.wordmarkBlock(), width) + bottom
 }
 
-// Menu renders the first-level command list. With colour it is a styled
-// two-column listing; otherwise a plain aligned one, so pipes and CI stay
-// readable.
+// Accent paints text in the accent colour, bold when asked.
+func (u UI) Accent(text string, bold bool) string {
+	return u.paint(text, lipgloss.NewStyle().Bold(bold).Foreground(colorAccent))
+}
+
+// Muted paints secondary text: hints, descriptions, key help.
+func (u UI) Muted(text string) string {
+	return u.paint(text, lipgloss.NewStyle().Foreground(colorMuted))
+}
+
+// Warning paints a caution the user should read before confirming.
+func (u UI) Warning(text string) string {
+	return u.paint(text, lipgloss.NewStyle().Bold(true).Foreground(colorWarning))
+}
+
+// Menu renders the first-level command list, names in the accent colour. The
+// plain rendering keeps the same columns, so pipes and CI stay readable.
 func (u UI) Menu(entries []MenuEntry) string {
-	if !u.color {
-		return plainMenu(entries)
-	}
-
-	nameStyle := lipgloss.NewStyle().Bold(true).Foreground(accent).Width(nameColumnWidth(entries))
-	shortStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("250"))
-
-	rows := make([]string, 0, len(entries))
-	for _, entry := range entries {
-		rows = append(rows, lipgloss.JoinHorizontal(lipgloss.Top,
-			nameStyle.Render(entry.Name), shortStyle.Render(entry.Short)))
-	}
-
-	return lipgloss.JoinVertical(lipgloss.Left, rows...)
-}
-
-// plainMenu is the NO_COLOR / non-TTY fallback for Menu.
-func plainMenu(entries []MenuEntry) string {
 	width := nameColumnWidth(entries)
+	indent := strings.Repeat(" ", menuIndent)
 
 	rows := make([]string, 0, len(entries))
 	for _, entry := range entries {
-		rows = append(rows, "  "+fmt.Sprintf("%-*s %s", width, entry.Name, entry.Short))
+		name := fmt.Sprintf("%-*s", width, entry.Name)
+		rows = append(rows, indent+u.Accent(name, true)+" "+entry.Short)
 	}
 
 	return strings.Join(rows, "\n")
+}
+
+// Danger paints a failure the user has to act on.
+func (u UI) Danger(text string) string {
+	return u.paint(text, lipgloss.NewStyle().Foreground(colorDanger))
+}
+
+// Error renders a failure message for standard error.
+func (u UI) Error(err error) string {
+	return u.Danger("vt: " + err.Error())
+}
+
+// wordmarkBlock renders the wordmark down the gradient with the tagline under
+// it, as one block whose rows share a left edge.
+func (u UI) wordmarkBlock() string {
+	rows := strings.Split(wordmark, "\n")
+	for i, row := range rows {
+		padded := fmt.Sprintf("%-*s", wordmarkWidth, row)
+		rows[i] = u.paint(padded, lipgloss.NewStyle().Foreground(wordmarkGradient[i%len(wordmarkGradient)]))
+	}
+
+	line := u.Accent(brandGlyph+" ", false) + u.paint(tagline, lipgloss.NewStyle().Bold(true))
+
+	return lipgloss.JoinVertical(lipgloss.Center, strings.Join(rows, "\n"), line)
+}
+
+// center places a block in the middle of width columns, as a unit, so a
+// multi-row block keeps its own alignment.
+func (u UI) center(block string, width int) string {
+	return lipgloss.PlaceHorizontal(width, lipgloss.Center, block)
+}
+
+// paint applies style only when colour is wanted.
+func (u UI) paint(text string, style lipgloss.Style) string {
+	if !u.color {
+		return text
+	}
+
+	return style.Render(text)
 }
 
 // nameColumnWidth fits the longest name, never narrower than menuColumnWidth.
@@ -151,36 +175,4 @@ func nameColumnWidth(entries []MenuEntry) int {
 	}
 
 	return width
-}
-
-// Error renders a failure message for standard error.
-func (u UI) Error(err error) string {
-	if u.color {
-		return lipgloss.NewStyle().Foreground(lipgloss.Color("196")).Render("vt: " + err.Error())
-	}
-
-	return "vt: " + err.Error()
-}
-
-// wordmarkBlock renders the wordmark, row by row down the gradient, with the
-// tagline under it.
-func (u UI) wordmarkBlock() string {
-	rows := strings.Split(wordmark, "\n")
-	for i, row := range rows {
-		rows[i] = u.paint(row, lipgloss.NewStyle().Foreground(wordmarkGradient[i%len(wordmarkGradient)]))
-	}
-
-	line := u.paint("⚡ ", lipgloss.NewStyle().Foreground(accent)) +
-		u.paint(tagline, lipgloss.NewStyle().Bold(true))
-
-	return strings.Join(rows, "\n") + "\n" + line
-}
-
-// paint applies style only when colour is wanted.
-func (u UI) paint(text string, style lipgloss.Style) string {
-	if !u.color {
-		return text
-	}
-
-	return style.Render(text)
 }
