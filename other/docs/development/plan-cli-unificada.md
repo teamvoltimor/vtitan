@@ -1,7 +1,7 @@
 # Plan: CLI unificada sobre los Taskfiles (cobra + lipgloss)
 
-- Estado: fases 0 y 2 hechas, fase 1 en curso (`go`, `fleet` y `sim`
-  curados); decision registrada en
+- Estado: fases 0, 1 y 2 hechas; la 3 y la 4 son opcionales y no empezadas.
+  Decision registrada en
   [ADR 0096](../adr/0096-vt-cli-wraps-the-taskfiles.md)
 - Fecha: 2026-09-22
 - Alcance: superficie de comandos de desarrollo, no el runtime del robot
@@ -174,8 +174,12 @@ todavia.
 **Fase 1: dominios curados.** Flags tipados para los flujos diarios, dominio
 por dominio, empezando por el que mas se usa. Cada dominio cerrado anade su
 entrada en la lista de exclusiones para que el test 2 empiece a morder.
-Curados: `go`, `fleet` (`windows:*`) y `sim`. Quedan `robot`, `rpi` y los
-paraguas (`test`, `lint`, `format`, `clean`).
+**Hecha.** Curados `go`, `fleet` (`windows:*`), `sim`, `robot`, `rpi` y los
+paraguas `install`, `init`, `test`, `lint` y `clean` (`format` no existe como
+tarea). 65 comandos. Criterio aplicado: `vt` es de maquina de desarrollo, asi
+que las tareas que corren SOBRE una placa se excluyen con ese motivo. Eso deja
+fuera las 28 `rpi:*` salvo `rpi:migrate-data` (que es `vt fleet
+migrate-data`) y 7 de las 26 `robot:*`.
 
 **Fase 2: acabado.** Borrar el `help` manual, generar completions
 (`bash`/`zsh`/`fish`, gratis con cobra), documentar en README el nuevo camino

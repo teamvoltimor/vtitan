@@ -304,7 +304,7 @@ task test             # Python + Go, todos los módulos (ver Pruebas, más abajo
 
 ### CLI de desarrollo `vt` (opcional)
 
-`vt` es una capa sobre los mismos Taskfiles: organiza las tareas en subcomandos (`task go:test:hw` es `vt go test hw`), da flags tipados a los flujos diarios (`go`, `fleet`, `sim`) y ejecuta `task` por debajo, devolviendo su mismo código de salida. `task X` sigue funcionando exactamente igual y es lo que usa CI; `vt` solo existe en el computador de desarrollo, las placas siguen con `task`.
+`vt` es una capa sobre los mismos Taskfiles: organiza las tareas en subcomandos (`task go:test:hw` es `vt go test hw`), da flags tipados a los flujos diarios (`sim`, `robot`, `go`, `fleet` y los paraguas `test`, `lint`, `clean`, `install`) y ejecuta `task` por debajo, devolviendo su mismo código de salida. `task X` sigue funcionando exactamente igual y es lo que usa CI; `vt` solo existe en el computador de desarrollo, las placas siguen con `task`.
 
 ```bash
 task cli:build                      # Compila src/go/bin/vt (recomendado)

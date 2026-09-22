@@ -104,7 +104,12 @@ bubbles v0.21.0.
   hence the don't-pin rule.
 - Each curated domain costs hand-written flags and an exclusion list. At the
   first cut the spec had 20 wrapped commands and two curated domains (`go`,
-  `fleet`); `sim` joined as the third (see History).
+  `fleet`); by the end of phase 1 it has 65 across `go`, `fleet`, `sim`,
+  `robot`, `rpi` and the umbrella verbs (see History).
+- Tasks that run on a board are excluded from the typed tree rather than
+  wrapped, with that reason recorded: `vt` is not on the boards, so a typed
+  command for them would only ever fail. That is all of `rpi:*` but
+  `rpi:migrate-data`, and seven `robot:*` tasks.
 - `vt` has to be built (`task cli:build`, to `src/go/bin/vt`) or run with
   `task cli:run -- <args>`. `go:build:static` cross-compiles it along with the
   rest of `./cmd/...`, which is harmless.
@@ -132,9 +137,13 @@ bubbles v0.21.0.
 - `5b02bf79` 2026-09-22: `sim test` and `sim navigate` lose `Heavy`. Both are
   headless pytest runs; the first version of this ADR said `sim test` starts
   Gazebo and RViz, which was wrong.
-- `docs(cli): close phase 2` 2026-09-22: phase 2 closed. The `help` task is deleted and the
+- `a28a0cf6` 2026-09-22: phase 2 closed. The `help` task is deleted and the
   README documents `vt`, with `task cli:build` as the recommended path and
   `task cli:run` as the no-build alternative.
+- `c0a5710e` 2026-09-22: phase 1 closed. `robot` (19 dev-side leaves, 7
+  on-board exclusions), `rpi` (all 28 on-board, `rpi:migrate-data` moved to
+  `vt fleet migrate-data`), the eight deferred `fleet` tasks, and the
+  umbrellas; `ownerDomain` also owns the bare verb (`lint` for `lint:`).
 
 ## Cross-references
 
