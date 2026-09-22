@@ -90,7 +90,9 @@ def check_adr_paths() -> list[str]:
                 ref = match.group(1).rstrip("/")
                 if ref.split("/")[0] not in _LIVE_ROOTS:
                     continue
-                if not _resolves(ref):
+                # A gitignored path (a build output such as src/go/bin/vt) is
+                # never in a clean checkout, so its absence proves nothing.
+                if not _resolves(ref) and not _is_ignored(REPO_ROOT / ref):
                     problems.append(f"{adr.relative_to(REPO_ROOT)} ({name.strip()}): `{ref}` does not exist")
     return problems
 

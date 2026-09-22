@@ -271,5 +271,14 @@ func parityBagDir(t *testing.T) string {
 	// Documented complete sighted bag from an earlier session, in the shared
 	// repo-root data/live/runs tree (see pkg/recording/root.go). The parity
 	// gate this feeds is adr:0087-test-methodology.
-	return filepath.Join(repoRootFromPackageDir, "other", "data", "live", "runs", "run_20260829_140424")
+	//
+	// Bags are not tracked, so a clean checkout (CI included) has no such
+	// directory. That skips, as the sibling reader tests do, rather than
+	// failing every run that lacks the data; an explicit VTITAN_BAG_DIR that
+	// is missing still fails, in ReadNavDebug, because someone asked for it.
+	dir := filepath.Join(repoRootFromPackageDir, "other", "data", "live", "runs", "run_20260829_140424")
+	if _, err := os.Stat(dir); err != nil {
+		t.Skipf("parity bag not in this checkout (%v): bags are untracked; set VTITAN_BAG_DIR to run the gate", err)
+	}
+	return dir
 }
