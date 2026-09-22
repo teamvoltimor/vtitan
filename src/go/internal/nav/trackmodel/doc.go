@@ -8,6 +8,7 @@
 //
 // RaycastGrid (the localizer's batched grid-search variant) is deliberately
 // not ported: it is a pure performance optimization over repeated Raycast
-// calls with no behavioral difference, and nothing in robot-go calls it yet
-// (there is no Go LIDAR localizer to need it).
+// calls with no behavioral difference, and the Go localizer
+// (internal/nav/localization.LidarLocalizer) drives its grid search through
+// RaycastFan instead, so nothing needs it.
 package trackmodel

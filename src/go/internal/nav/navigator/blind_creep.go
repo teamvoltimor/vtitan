@@ -1,10 +1,13 @@
 package navigator
 
 import (
+	"math"
+
 	"github.com/teamvoltimor/vtitan/src/go/internal/nav/bayexit"
 	"github.com/teamvoltimor/vtitan/src/go/internal/nav/controllers"
 	"github.com/teamvoltimor/vtitan/src/go/internal/nav/corridorfollower"
 	"github.com/teamvoltimor/vtitan/src/go/internal/nav/directionestimator"
+	"github.com/teamvoltimor/vtitan/src/go/internal/nav/racetracker"
 	"github.com/teamvoltimor/vtitan/src/go/internal/nav/startmeasurement"
 	"github.com/teamvoltimor/vtitan/src/go/internal/nav/trackmodel"
 )
@@ -155,8 +158,17 @@ func (n *Navigator) adoptDirection(
 		if measured, measuredOK := startmeasurement.MeasureStartPose(
 			scan, dir, trackmodel.South, n.startMeasCfg,
 		); measuredOK {
+			// The measured pose is in the MAP frame; its heading is the travel
+			// normal of the bay it started in, the same value
+			// startconditions.StartPose computes for the start. Passing the
+			// belief yaw here made the believed-start offset always zero, so
+			// the heading was never corrected.
+			startYaw := pose.Yaw
+			if normal, ok := racetracker.TravelNormalFor(trackmodel.South, dir); ok {
+				startYaw = math.Atan2(normal.NY, normal.NX)
+			}
 			n.ApplyBelievedStart(
-				trackmodel.Pose{X: measured.X, Y: measured.Y, Yaw: pose.Yaw},
+				trackmodel.Pose{X: measured.X, Y: measured.Y, Yaw: startYaw},
 				pose,
 			)
 		}

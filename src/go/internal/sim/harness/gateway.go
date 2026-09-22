@@ -19,9 +19,8 @@ import (
 //
 // It mirrors the Python oracle's behaviour:
 //   - GetCurrentPose returns the kinematic pose as ground truth (perfect
-//     odometry) — localize=false in the Python gateway. wall_heading
-//     localization is NOT implemented yet (see TODO in Advance), so Localize
-//     is currently ignored and ground truth is always returned.
+//     odometry) when Localize is off (localize=false in the Python gateway),
+//     and the LIDAR scan-matcher's estimate when cfg.Localize is set.
 //   - GetLidarScan raycasts TrackModel.RaycastScan with Gaussian range noise
 //     (LidarNoiseStd) and invalid-ray dropout at InvalidRayRate.
 //   - PublishDrive stores the latest command; Advance integrates it over dt

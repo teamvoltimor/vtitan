@@ -29,6 +29,14 @@ func receiveScan(g *Gateway) {
 	g.mu.Unlock()
 }
 
+// receiveIMU stands in for imuLoop's cache update.
+func receiveIMU(g *Gateway) {
+	g.mu.Lock()
+	g.imu = &sensorv1.Imu{Orientation: &sensorv1.Quaternion{W: 1}}
+	g.imuAt = g.clock()
+	g.mu.Unlock()
+}
+
 // A LIDAR that stops publishing must stop the navigator: with scan and pose
 // both ok=false, Step publishes a zero command. Before this gate the last
 // scan was served forever, the navigator kept publishing, and the motor
@@ -108,5 +116,43 @@ func TestNew_RefusesNonPositiveStaleTimeout(t *testing.T) {
 		if _, err = New(conn, walls, localization.DefaultConfig(), 0.03, d); err == nil {
 			t.Errorf("New with stale timeout %v: no error", d)
 		}
+	}
+}
+
+// An IMU that stops publishing must withdraw the pose: its yaw scores every
+// scan, so a frozen heading freezes the pose. Before this gate a dead IMU left
+// GetCurrentPose serving a pose built from its last orientation forever, and
+// the navigator kept steering on it.
+func TestStaleIMU_WithdrawsPose(t *testing.T) {
+	t.Parallel()
+
+	clk := &fakeClock{t: time.Unix(1000, 0)}
+	g := &Gateway{staleTimeout: testStaleTimeout, now: clk.now}
+
+	receiveIMU(g)
+	receiveScan(g)
+	if _, ok := g.GetCurrentPose(); !ok {
+		t.Fatal("fresh IMU: GetCurrentPose ok=false")
+	}
+
+	clk.t = clk.t.Add(testStaleTimeout)
+	if _, ok := g.GetCurrentPose(); !ok {
+		t.Fatal("IMU exactly at the timeout: GetCurrentPose ok=false, want the boundary inclusive like the scan gate")
+	}
+
+	clk.t = clk.t.Add(time.Millisecond)
+	// Refresh only the scan: the pose must still be withdrawn, because the yaw
+	// it is scored with is the stale one.
+	receiveScan(g)
+	if _, ok := g.GetLidarScan(); !ok {
+		t.Error("stale IMU withdrew a fresh scan: GetLidarScan ok=false")
+	}
+	if _, ok := g.GetCurrentPose(); ok {
+		t.Error("stale IMU: GetCurrentPose ok=true")
+	}
+
+	receiveIMU(g)
+	if _, ok := g.GetCurrentPose(); !ok {
+		t.Error("IMU after recovery: GetCurrentPose ok=false")
 	}
 }

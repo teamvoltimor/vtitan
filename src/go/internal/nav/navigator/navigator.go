@@ -595,22 +595,29 @@ func (n *Navigator) Step() {
 	n.driveNormally(pose, percept)
 }
 
-// BelievedYawOffset returns the belief->map yaw measured at start (the
+// BelievedYawOffset returns the belief->map yaw offset measured at start (the
 // start_measurement believed-offset), or ok=false until ApplyBelievedStart
-// has been called. Match for the MCAP belief-stream plan: the localizer's
-// heading can be a rigid rotation off truth at start, and sign routing /
-// direction inference must know it.
+// has been called. It is added to a belief-frame heading to put it in the map
+// frame: mapYaw = beliefYaw + offset. Match for the MCAP belief-stream plan:
+// the localizer's heading can be a rigid rotation off truth at start, and sign
+// routing / direction inference must know it.
 func (n *Navigator) BelievedYawOffset() (offset float64, ok bool) {
 	return n.believedYawOffset, n.believedYawSet
 }
 
 // ApplyBelievedStart records the belief->map yaw offset from a measured start
 // pose, matching start_measurement's believed-start offset: the difference
-// between the robot's current heading estimate and the measured one. Corrects
-// the estimator heading via the gateway so subsequent poses are in the map
-// frame.
+// between the measured (map-frame) heading and the robot's current (belief-
+// frame) estimate. Corrects the estimator heading via the gateway so
+// subsequent poses are in the map frame.
+//
+// The gateway ADDS the correction to the heading it scores scans with, so the
+// delta is measured minus pose: after this call the corrected heading equals
+// measured.Yaw. It used to pass pose minus measured, which pointed the
+// correction the wrong way, and its one caller passed the belief yaw as the
+// measured one, so the offset was always zero and the call was skipped.
 func (n *Navigator) ApplyBelievedStart(measured, pose trackmodel.Pose) {
-	offset := geom.WrapAngle(pose.Yaw - measured.Yaw)
+	offset := geom.WrapAngle(measured.Yaw - pose.Yaw)
 	n.believedYawOffset = offset
 	n.believedYawSet = true
 	if math.Abs(offset) > yawOffsetEpsilonRad {

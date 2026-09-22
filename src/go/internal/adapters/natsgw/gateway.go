@@ -53,6 +53,12 @@ type Gateway struct {
 	scan *sensorv1.Scan
 	imu  *sensorv1.Imu
 
+	// imuAt is when the latest IMU was received, by this process's clock. It
+	// carries the same freshness rule as scanAt: the pose yaw comes from the
+	// IMU, so a dead IMU must withdraw the pose rather than let the navigator
+	// keep steering on a frozen heading.
+	imuAt time.Time
+
 	// pendingWalls / pendingResetXY are consumed by the scan loop on its next
 	// tick, so the localizer rebuild and pose re-seed happen atomically with
 	// the cache the navigator reads (no torn state across the mutex). Only
@@ -88,9 +94,10 @@ type Gateway struct {
 	// not the scan's own stamp: the question is whether the feed is still
 	// alive here, and the two boards' clock offset is unmeasured.
 	scanAt time.Time
-	// staleTimeout is how old scanAt may get before GetLidarScan and
-	// GetCurrentPose report ok=false. Zero disables the gate; only a
-	// struct literal can produce that, since New refuses it.
+	// staleTimeout is how old scanAt or imuAt may get before the pose is
+	// withdrawn (and GetLidarScan reports ok=false for a stale scan). Zero
+	// disables the gate; only a struct literal can produce that, since New
+	// refuses it.
 	staleTimeout time.Duration
 	// now is the clock scanAt and the gate read; nil means time.Now.
 	now func() time.Time
@@ -191,14 +198,15 @@ func (g *Gateway) PublishDrive(command controllers.DriveCommand) {
 // until the first scan has been scored. The localizer runs inside the scan
 // watch loop (see Run), so this is a cache read.
 //
-// Once scans have been seen, a stale feed also reports ok=false: LIDAR is
-// the position source, so a pose scored from a frozen scan is a frozen
-// pose, and the navigator stops on ok=false rather than steering on it.
-// This mirrors ros2_hardware_gateway.py's get_current_pose.
+// Once a feed has been seen, it going stale also reports ok=false: the pose
+// is scored from the LIDAR scan AND the IMU yaw, so a frozen scan or a
+// frozen IMU is a frozen pose, and the navigator stops on ok=false rather
+// than steering on it. This mirrors ros2_hardware_gateway.py's
+// get_current_pose.
 func (g *Gateway) GetCurrentPose() (trackmodel.Pose, bool) {
 	g.mu.RLock()
 	defer g.mu.RUnlock()
-	if g.scanStaleLocked() {
+	if g.scanStaleLocked() || g.imuStaleLocked() {
 		return trackmodel.Pose{}, false
 	}
 	return g.pose, g.havePose
@@ -415,6 +423,7 @@ func (g *Gateway) imuLoop(ctx context.Context, sub *natsx.Subscriber[*sensorv1.I
 		}
 		g.mu.Lock()
 		g.imu = imu
+		g.imuAt = g.clock()
 		if g.captureHeadingRef {
 			// Zero the offset against the next IMU: the next scored yaw becomes
 			// the reference and subsequent IMU drifts are tracked from it.
@@ -428,9 +437,11 @@ func (g *Gateway) imuLoop(ctx context.Context, sub *natsx.Subscriber[*sensorv1.I
 }
 
 // currentYawLocked returns the IMU-derived yaw plus the gateway's heading
-// offset. Caller must hold g.mu.
+// offset, ok=false when no IMU has arrived yet or the latest is stale (so
+// the scan loop never scores a fresh scan against a frozen yaw). Caller must
+// hold g.mu.
 func (g *Gateway) currentYawLocked() (float64, bool) {
-	if g.imu == nil {
+	if g.imu == nil || g.imuStaleLocked() {
 		return 0, false
 	}
 	yaw, ok := imuYawRad(g.imu)
@@ -544,4 +555,10 @@ func (g *Gateway) clock() time.Time {
 // older than staleTimeout. Callers hold g.mu.
 func (g *Gateway) scanStaleLocked() bool {
 	return g.staleTimeout > 0 && !g.scanAt.IsZero() && g.clock().Sub(g.scanAt) > g.staleTimeout
+}
+
+// imuStaleLocked reports whether IMUs have been seen and the latest is older
+// than staleTimeout. Callers hold g.mu.
+func (g *Gateway) imuStaleLocked() bool {
+	return g.staleTimeout > 0 && !g.imuAt.IsZero() && g.clock().Sub(g.imuAt) > g.staleTimeout
 }
