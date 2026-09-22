@@ -82,7 +82,7 @@ func (u UI) Menu(entries []MenuEntry) string {
 		return plainMenu(entries)
 	}
 
-	nameStyle := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("205")).Width(menuColumnWidth)
+	nameStyle := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("205")).Width(nameColumnWidth(entries))
 	shortStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("250"))
 
 	rows := make([]string, 0, len(entries))
@@ -96,12 +96,24 @@ func (u UI) Menu(entries []MenuEntry) string {
 
 // plainMenu is the NO_COLOR / non-TTY fallback for Menu.
 func plainMenu(entries []MenuEntry) string {
+	width := nameColumnWidth(entries)
+
 	rows := make([]string, 0, len(entries))
 	for _, entry := range entries {
-		rows = append(rows, "  "+fmt.Sprintf("%-*s %s", menuColumnWidth, entry.Name, entry.Short))
+		rows = append(rows, "  "+fmt.Sprintf("%-*s %s", width, entry.Name, entry.Short))
 	}
 
 	return strings.Join(rows, "\n")
+}
+
+// nameColumnWidth fits the longest name, never narrower than menuColumnWidth.
+func nameColumnWidth(entries []MenuEntry) int {
+	width := menuColumnWidth
+	for _, entry := range entries {
+		width = max(width, len(entry.Name)+1)
+	}
+
+	return width
 }
 
 // Error renders a failure message for standard error.

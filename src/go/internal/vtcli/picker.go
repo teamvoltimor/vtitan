@@ -14,6 +14,7 @@ type pickItem struct {
 	desc    string
 	segment string
 	spec    *Command
+	task    string
 	escape  bool
 }
 
@@ -25,6 +26,7 @@ type pickerModel struct {
 	root      []pickItem
 	levels    [][]pickItem
 	trail     []string
+	tasks     []pickItem
 	selected  *pickItem
 	cancelled bool
 
@@ -58,7 +60,7 @@ func (a *App) buildPickerRoot() []pickItem {
 
 	items = append(items, pickItem{
 		title:  "run",
-		desc:   "Escape hatch: any Task task, with its arguments",
+		desc:   "Any Task task: browse and filter the full inventory",
 		escape: true,
 	})
 
@@ -115,7 +117,25 @@ func (a *App) childLevel(segments []string) []pickItem {
 		items = append(items, pickItem{title: child, desc: command.Short, spec: command})
 	}
 
-	return append([]pickItem{{title: backRowTitle, desc: "back to the previous level", segment: backSegment}}, items...)
+	return append([]pickItem{backRow()}, items...)
+}
+
+// taskLevel lists every task in the inventory, for the escape hatch: this is
+// what replaces scrolling `task --list-all`.
+func (a *App) taskLevel() []pickItem {
+	entries := TaskEntries(a.tasks)
+	items := make([]pickItem, 0, len(entries))
+
+	for _, entry := range entries {
+		items = append(items, pickItem{title: entry.Name, desc: entry.Short, task: entry.Name})
+	}
+
+	return items
+}
+
+// backRow is the row that returns to the parent level.
+func backRow() pickItem {
+	return pickItem{title: backRowTitle, desc: "back to the previous level", segment: backSegment}
 }
 
 // hasPickItem reports whether a row with the given title already exists.
@@ -154,7 +174,7 @@ func (i pickItem) Description() string { return i.desc }
 func (i pickItem) FilterValue() string { return i.title }
 
 // newPickerModel builds the picker rooted at the first-level domains.
-func newPickerModel(root []pickItem, resolve func([]string) []pickItem) *pickerModel {
+func newPickerModel(root []pickItem, resolve func([]string) []pickItem, tasks []pickItem) *pickerModel {
 	model := newPickerList(root)
 	model.Title = "vt — pick a command"
 
@@ -162,6 +182,7 @@ func newPickerModel(root []pickItem, resolve func([]string) []pickItem) *pickerM
 		root:    root,
 		list:    model,
 		levels:  [][]pickItem{root},
+		tasks:   tasks,
 		resolve: resolve,
 	}
 }
@@ -233,7 +254,11 @@ func (m *pickerModel) View() string { return m.list.View() }
 // choose descends into a domain or quits with a leaf/escape selection.
 func (m *pickerModel) choose(item pickItem) (tea.Model, tea.Cmd) {
 	switch {
-	case item.escape, item.spec != nil:
+	case item.escape:
+		m.push("run", append([]pickItem{backRow()}, m.tasks...))
+
+		return m, nil
+	case item.task != "", item.spec != nil:
 		m.selected = &item
 
 		return m, tea.Quit
@@ -252,8 +277,12 @@ func (m *pickerModel) choose(item pickItem) (tea.Model, tea.Cmd) {
 
 // descend pushes the children of segment onto the level stack.
 func (m *pickerModel) descend(segment string) {
+	m.push(segment, m.resolve(append(m.trail, segment)))
+}
+
+// push shows level as the child of the current one, named segment.
+func (m *pickerModel) push(segment string, level []pickItem) {
 	m.trail = append(m.trail, segment)
-	level := m.resolve(m.trail)
 	m.levels = append(m.levels, level)
 	m.list = newPickerList(level)
 	m.updateTitle()

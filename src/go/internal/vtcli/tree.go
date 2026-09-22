@@ -190,12 +190,17 @@ func (a *App) newLeaf(command Command) (*cobra.Command, error) {
 // runCommand builds the catch-all: any Task name, forwarded verbatim.
 func (a *App) runCommand() *cobra.Command {
 	return &cobra.Command{
-		Use:                "run <task> [VAR=value ...] [-- <args>]",
-		Short:              "Run any Task task, with or without typed flags",
-		Long:               "Escape hatch for tasks that have no typed flags yet. The name is validated against the real inventory before running.",
-		Args:               cobra.MinimumNArgs(1),
+		Use:   "run [<task> [VAR=value ...] [-- <args>]]",
+		Short: "Run any Task task, with or without typed flags",
+		Long: "Escape hatch for tasks that have no typed flags yet. The name is validated against the real " +
+			"inventory before running. With no task, lists every task with its description.",
+		Args:               cobra.ArbitraryArgs,
 		DisableFlagParsing: true,
 		RunE: func(cmd *cobra.Command, raw []string) error {
+			if len(raw) == 0 {
+				return a.printTasks(cmd)
+			}
+
 			name := raw[0]
 			if !KnownTask(a.tasks, name) {
 				return fmt.Errorf("unknown task %q; try `vt --help` or `task --list-all`", name)
@@ -204,6 +209,19 @@ func (a *App) runCommand() *cobra.Command {
 			return runTask(cmd.Context(), a.repoRoot, name, raw[1:])
 		},
 	}
+}
+
+// printTasks lists the whole inventory with descriptions. It is what retired
+// the hand-written `help` task, which drifted every time a task was added.
+func (a *App) printTasks(cmd *cobra.Command) error {
+	listing := fmt.Sprintf("%d tasks. Run one with `vt run <task> [VAR=value ...]`.\n\n%s",
+		len(a.tasks), a.ui.Menu(TaskEntries(a.tasks)))
+
+	if _, err := fmt.Fprintln(cmd.OutOrStdout(), listing); err != nil {
+		return fmt.Errorf("write task list: %w", err)
+	}
+
+	return nil
 }
 
 // registerFlags declares each binding on the leaf's flag set.

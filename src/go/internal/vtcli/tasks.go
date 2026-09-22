@@ -29,6 +29,10 @@ type tasksEnvelope struct {
 // flag) matches the plan: vt is the discovery surface, Task is the engine.
 const taskBinary = "task"
 
+// taskShortWidth caps a task description in listings; Task descs run to
+// several sentences and the first clause is what identifies the task.
+const taskShortWidth = 90
+
 // LoadTasks returns every task Task knows about, rooted at repoRoot. It shells
 // out to `task -d <repoRoot> --list-all --json` so there is one inventory and
 // no second Task parser to drift from the first.
@@ -72,6 +76,24 @@ func FindRepoRoot(start string) (string, error) {
 
 		dir = parent
 	}
+}
+
+// TaskEntries turns the inventory into listing rows, sorted by name, each with
+// the first line of its description.
+func TaskEntries(tasks []TaskInfo) []MenuEntry {
+	entries := make([]MenuEntry, 0, len(tasks))
+	for _, task := range tasks {
+		short, _, _ := strings.Cut(strings.TrimSpace(task.Desc), "\n")
+		if runes := []rune(short); len(runes) > taskShortWidth {
+			short = string(runes[:taskShortWidth-1]) + "…"
+		}
+
+		entries = append(entries, MenuEntry{Name: task.Name, Short: short})
+	}
+
+	slices.SortFunc(entries, func(left, right MenuEntry) int { return strings.Compare(left.Name, right.Name) })
+
+	return entries
 }
 
 // KnownTask reports whether name (or one of its aliases) is in the inventory.

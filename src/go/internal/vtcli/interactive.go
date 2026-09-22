@@ -30,6 +30,8 @@ type formModel struct {
 // the Task defaults: shown (prefilled) but never forwarded unless edited.
 type formField struct {
 	label        string
+	varName      string
+	placement    fieldPlacement
 	help         string
 	kind         FlagKind
 	required     bool
@@ -39,6 +41,18 @@ type formField struct {
 	defaultBool  bool
 	input        textinput.Model
 }
+
+// fieldPlacement says where a field's value lands in the task command line.
+type fieldPlacement int
+
+const (
+	// placeVar forwards the value as VAR=value.
+	placeVar fieldPlacement = iota
+	// placePassthrough forwards the value after `--`, into CLI_ARGS.
+	placePassthrough
+	// placeVerbatim forwards the value as typed (the escape hatch's args).
+	placeVerbatim
+)
 
 // formCharLimit bounds how much a single argument field accepts. The width
 // constants size the text inputs; a zero-width input renders only its first
@@ -84,7 +98,7 @@ func (a *App) home(cmd *cobra.Command) error {
 func (a *App) printHome(cmd *cobra.Command) error {
 	out := cmd.OutOrStdout()
 	home := a.ui.Banner() + "\n\n" + a.ui.Menu(a.menuEntries()) +
-		"\n\nUse `vt <domain> --help` for details, or `vt run <task>` for the rest."
+		"\n\nUse `vt <domain> --help` for details, `vt run` to list every task, or `vt run <task>` to run one."
 
 	if _, err := fmt.Fprintln(out, home); err != nil {
 		return fmt.Errorf("write home: %w", err)
@@ -96,7 +110,7 @@ func (a *App) printHome(cmd *cobra.Command) error {
 // pickAndRun opens the picker, then the argument form, then runs the task.
 func (a *App) pickAndRun(cmd *cobra.Command) error {
 	program := tea.NewProgram(
-		newPickerModel(a.buildPickerRoot(), a.childLevel),
+		newPickerModel(a.buildPickerRoot(), a.childLevel, a.taskLevel()),
 		tea.WithAltScreen(),
 		tea.WithInput(os.Stdin),
 		tea.WithOutput(cmd.OutOrStdout()),
@@ -112,8 +126,8 @@ func (a *App) pickAndRun(cmd *cobra.Command) error {
 		return nil
 	}
 
-	if result.selected.escape {
-		return a.promptEscape(cmd.Context())
+	if result.selected.task != "" {
+		return a.promptTaskArgs(cmd.Context(), result.selected.task)
 	}
 
 	if result.selected.spec == nil {
@@ -131,21 +145,15 @@ func (a *App) pickAndRun(cmd *cobra.Command) error {
 	return a.invoke(cmd.Context(), *result.selected.spec, values, passthrough)
 }
 
-// promptEscape asks for a raw task name and its arguments.
-func (a *App) promptEscape(ctx context.Context) error {
-	fields := []*formField{
-		newTextField("task", "exact name, e.g. go:test:hw", true, FlagString),
-		newTextField("args", "VAR=valor y flags, tal cual", false, FlagString),
-	}
+// promptTaskArgs asks for the free-form arguments of a task picked from the
+// full inventory, which has no typed flags to build a form from.
+func (a *App) promptTaskArgs(ctx context.Context, name string) error {
+	field := newTextField("args", "VAR=value and flags, verbatim (optional)", false, FlagString)
+	field.placement = placeVerbatim
 
-	values, submitted, err := runForm("run <task>", "", fields)
+	values, submitted, err := runForm("run "+name, name, []*formField{field})
 	if err != nil || !submitted {
 		return err
-	}
-
-	name := values["task"]
-	if !KnownTask(a.tasks, name) {
-		return fmt.Errorf("unknown task %q", name)
 	}
 
 	return runTask(ctx, a.repoRoot, name, splitArgs(values["args"]))
@@ -156,11 +164,14 @@ func (a *App) promptFields(command Command) (values map[string]string, ok bool, 
 	fields := make([]*formField, 0, len(command.Args)+len(command.Flags)+1)
 
 	for _, arg := range command.Args {
-		fields = append(fields, newTextField(arg.Name, arg.Usage, arg.Required, FlagString))
+		field := newTextField(arg.Name, arg.Usage, arg.Required, FlagString)
+		field.varName = arg.Var
+		fields = append(fields, field)
 	}
 
 	for _, flag := range command.Flags {
 		field := newTextField(flag.Name, flag.Usage, flag.Required, flag.Kind)
+		field.varName = flag.Var
 		if flag.Kind == FlagBool {
 			field.isBool = true
 			field.boolVal = boolDefault(flag.Default)
@@ -174,7 +185,9 @@ func (a *App) promptFields(command Command) (values map[string]string, ok bool, 
 	}
 
 	if command.Passthrough {
-		fields = append(fields, newTextField("args", "extra arguments after --", false, FlagString))
+		field := newTextField("args", "extra arguments after --", false, FlagString)
+		field.placement = placePassthrough
+		fields = append(fields, field)
 	}
 
 	if len(fields) == 0 {
@@ -210,7 +223,7 @@ func runFormHeavy(title, taskName string, fields []*formField, heavy bool) (
 
 	final, err := program.Run()
 	if err != nil {
-		return nil, false, fmt.Errorf("formulario: %w", err)
+		return nil, false, fmt.Errorf("form: %w", err)
 	}
 
 	result, isForm := final.(*formModel)
@@ -392,22 +405,33 @@ func (m *formModel) commandLine() string {
 	}
 
 	parts := []string{"task", target}
+	var tail []string
+
 	for _, field := range m.fields {
 		if field.isBool {
 			if field.boolVal != field.defaultBool {
-				parts = append(parts, field.label+"="+strconv.FormatBool(field.boolVal))
+				parts = append(parts, field.varName+"="+strconv.FormatBool(field.boolVal))
 			}
 
 			continue
 		}
 
 		value := strings.TrimSpace(field.input.Value())
-		if value != "" && value != strings.TrimSpace(field.defaultValue) {
-			parts = append(parts, field.label+"="+value)
+		if value == "" || value == strings.TrimSpace(field.defaultValue) {
+			continue
+		}
+
+		switch field.placement {
+		case placeVar:
+			parts = append(parts, field.varName+"="+value)
+		case placePassthrough:
+			tail = append(tail, "--", value)
+		case placeVerbatim:
+			parts = append(parts, value)
 		}
 	}
 
-	return strings.Join(parts, " ")
+	return strings.Join(append(parts, tail...), " ")
 }
 
 // resizeInputs keeps the text inputs as wide as the terminal allows.
