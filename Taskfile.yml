@@ -144,7 +144,7 @@ tasks:
                   # Only LOSSLESS files are candidates. A file already at q90 is
                   # skipped, so re-running never stacks a second generation of
                   # loss on the drawings. VP8L in the header means lossless.
-                  head -c 64 "$f" | grep -q VP8L || { echo "skip (ya con perdida) $f"; continue; }
+                  head -c 64 "$f" | grep -q VP8L || { echo "skip (already lossy) $f"; continue; }
                   out="$f" ;;
                 *.png)
                   out="${f%.png}.webp" ;;
