@@ -13,7 +13,13 @@ import (
 // the other expectations in this file: DefaultConfig leaves the override nil
 // (that IS its documented default, and the Open path depends on nil meaning
 // "unset"), so comparing against it would assert the opposite of what ships.
-const shippedObstaclesContactDist = 0.10
+//
+// Moved 0.10 -> 0.07 to follow d344b813 (2026-09-14), which set the shipped
+// value after the sim's LIDAR model was fixed in ced51207 and the corpus
+// picture inverted. The pin follows the shipped value, it does not argue with
+// it: adr:0061's whole point is that a stale pin means Python and Go run
+// different numbers.
+const shippedObstaclesContactDist = 0.07
 
 // hardwareProfileNames matches the currently active profile recorded in
 // this repo's own memory/config (VTITAN_HARDWARE_PROFILE =
