@@ -16,7 +16,9 @@ vars:
   # Deliberately NOT applied to robot:test -- tests pin their own hardware in
   # tests/conftest.py, and setting it here would silently move the whole suite
   # onto different hardware and re-baseline every assertion.
-  PROFILE: 270deg-hiwonder-35kg,rev-hd-hex-motor-6000rpm
+  # A global var in an included Taskfile beats a CLI `VAR=x` unless it is
+  # written as its own default, so every var meant to be overridden is.
+  PROFILE: '{{.PROFILE | default "270deg-hiwonder-35kg,rev-hd-hex-motor-6000rpm"}}'
   PYTHON: uv
   ROS2: pixi
   # Full path to pixi on the Pi 5 / Pi Zero specifically -- bare `pixi` only
@@ -28,7 +30,7 @@ vars:
   ROBOT_PIXI: ~/.pixi/bin/pixi
   SCENARIOS: 10
   CHALLENGE: open
-  OUTPUT_DIR: ./src/go/training_data
+  OUTPUT_DIR: '{{.OUTPUT_DIR | default "./src/go/training_data"}}'
   BASE_WORLD: ./other/apps/gazebo/runtime/worlds/wro_track_2026.sdf
   METADATA: ./src/go/training_data/open/scenarios/scenario_0000_metadata.json
   SCENARIO_SDF: ./src/go/training_data/open/scenarios/scenario_0000.sdf

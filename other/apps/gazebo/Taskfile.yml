@@ -1,7 +1,9 @@
 version: "3"
 
 vars:
-  OUTPUT_DIR: ./src/go/training_data
+  # A global var in an included Taskfile beats a CLI `VAR=x` unless it is
+  # written as its own default, so every var meant to be overridden is.
+  OUTPUT_DIR: '{{.OUTPUT_DIR | default "./src/go/training_data"}}'
   CHALLENGE: open
 
 tasks:
