@@ -38,12 +38,25 @@ type flagBinding struct {
 	truth *bool
 }
 
+// rootGroupID identifies one section of the root help and menu.
+type rootGroupID int
+
 // rootGroup is one section of the root help and menu, in display order.
 type rootGroup struct {
-	id      string
+	id      rootGroupID
 	title   string
 	members []string
 }
+
+// The root sections, in display order.
+const (
+	rootRobot rootGroupID = iota
+	rootApps
+	rootContracts
+	rootRepo
+	rootTooling
+	rootAny
+)
 
 // rootGroups orders the first level by how often it is reached for: the robot
 // and the simulator, then the apps, the contracts they share, the verbs and
@@ -51,16 +64,16 @@ type rootGroup struct {
 // escape hatch. The members list is also the help, home-menu and picker order,
 // so a new domain belongs in exactly one group here (see TestRootGroups).
 var rootGroups = []rootGroup{
-	{id: "robot", title: "Robot and simulation:", members: []string{"sim", "robot", "go", "fleet", "gen"}},
-	{id: "apps", title: "Apps:", members: []string{"frontend", "backend", "annotator", "hailo"}},
-	{id: "contracts", title: "Contracts and models:", members: []string{"config", "proto", "openapi", "models"}},
+	{id: rootRobot, title: "Robot and simulation:", members: []string{"sim", "robot", "go", "fleet", "gen"}},
+	{id: rootApps, title: "Apps:", members: []string{"frontend", "backend", "annotator", "hailo"}},
+	{id: rootContracts, title: "Contracts and models:", members: []string{"config", "proto", "openapi", "models"}},
 	{
-		id:      "repo",
+		id:      rootRepo,
 		title:   "Across the repo:",
 		members: []string{"setup", "test", "lint", "clean", "workflow", "docker", "docs"},
 	},
-	{id: "tooling", title: "Tooling:", members: []string{"cli", "simgen", "shared"}},
-	{id: "any", title: "Any task:", members: []string{catchAllName}},
+	{id: rootTooling, title: "Tooling:", members: []string{"cli", "simgen", "shared"}},
+	{id: rootAny, title: "Any task:", members: []string{catchAllName}},
 }
 
 // namespaceShort describes every node that is not itself a command, keyed by
@@ -108,6 +121,26 @@ var namespaceShort = map[string]string{
 	"hailo model":            "ONNX models: export, inspect",
 }
 
+// String implements fmt.Stringer.
+func (g rootGroupID) String() string {
+	switch g {
+	case rootRobot:
+		return "robot"
+	case rootApps:
+		return "apps"
+	case rootContracts:
+		return "contracts"
+	case rootRepo:
+		return "repo"
+	case rootTooling:
+		return "tooling"
+	case rootAny:
+		return "any"
+	default:
+		return "unknown"
+	}
+}
+
 // NewApp attaches the curated spec and the generated catch-all to root.
 func NewApp(repoRoot string, root *cobra.Command, ui UI, spec []Command, tasks []TaskInfo) (*App, error) {
 	app := &App{
@@ -129,7 +162,7 @@ func (a *App) build() error {
 	cobra.EnableCommandSorting = false //nolint:reassign // cobra's sole ordering switch; see above
 
 	for _, group := range rootGroups {
-		a.Root.AddGroup(&cobra.Group{ID: group.id, Title: group.title})
+		a.Root.AddGroup(&cobra.Group{ID: group.id.String(), Title: group.title})
 	}
 
 	for i := range a.spec {
@@ -163,7 +196,7 @@ func (a *App) assignGroups() {
 	for _, group := range rootGroups {
 		for _, member := range group.members {
 			if child := findChild(a.Root, member); child != nil {
-				child.GroupID = group.id
+				child.GroupID = group.id.String()
 			}
 		}
 	}

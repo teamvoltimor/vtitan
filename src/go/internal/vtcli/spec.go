@@ -75,10 +75,13 @@ type Command struct {
 	Terminal bool
 }
 
+// DomainID identifies a curated domain.
+type DomainID int
+
 // Domain groups a first-level CLI namespace and the Task-name prefix it owns.
 // Only curated domains are checked by the anti-drift test.
 type Domain struct {
-	ID         string
+	ID         DomainID
 	Title      string
 	TaskPrefix string
 }
@@ -137,6 +140,37 @@ const (
 	platformDarwin
 )
 
+// The curated domain identifiers.
+const (
+	// domainUnset is the zero value: a task in no curated domain.
+	domainUnset DomainID = iota
+	domainGo
+	domainFleet
+	domainSim
+	domainGen
+	domainFrontend
+	domainBackend
+	domainConfig
+	domainWorkflow
+	domainCLI
+	domainAnnotator
+	domainHailo
+	domainSimgen
+	domainDocs
+	domainShared
+	domainOpenAPI
+	domainProto
+	domainDocker
+	domainModels
+	domainRobot
+	domainRPI
+	domainInstall
+	domainInit
+	domainTest
+	domainLint
+	domainClean
+)
+
 // commandGroupOrder is how a level's sections are ordered.
 var commandGroupOrder = []CommandGroup{groupRun, groupCheck, groupSetup, groupClean}
 
@@ -162,31 +196,31 @@ var profileFlag = Flag{
 // in the spec or excluded by name. A domain is promoted here once its
 // exclusion list is closed.
 var curatedDomains = []Domain{
-	{ID: "go", Title: "Go module", TaskPrefix: "go:"},
-	{ID: "fleet", Title: "boards over SSH", TaskPrefix: "windows:"},
-	{ID: "sim", Title: "simulation", TaskPrefix: "sim:"},
-	{ID: "gen", Title: "generators", TaskPrefix: "gen:"},
-	{ID: "frontend", Title: "web frontend", TaskPrefix: "frontend:"},
-	{ID: "backend", Title: "telemetry backend", TaskPrefix: "backend:"},
-	{ID: "config", Title: "config schemas", TaskPrefix: "config:"},
-	{ID: "workflow", Title: "pipelines", TaskPrefix: "workflow:"},
-	{ID: "cli", Title: "the vt CLI itself", TaskPrefix: "cli:"},
-	{ID: "annotator", Title: "auto-annotator app", TaskPrefix: "auto-annotator:"},
-	{ID: "hailo", Title: "Hailo model toolchain", TaskPrefix: "hailo:"},
-	{ID: "simgen", Title: "scenario generator", TaskPrefix: "simgen:"},
-	{ID: "docs", Title: "prose and diagrams", TaskPrefix: "docs:"},
-	{ID: "shared", Title: "shared Python", TaskPrefix: "shared:"},
-	{ID: "openapi", Title: "OpenAPI contract", TaskPrefix: "openapi:"},
-	{ID: "proto", Title: "proto contract", TaskPrefix: "proto:"},
-	{ID: "docker", Title: "docker compose", TaskPrefix: "docker:"},
-	{ID: "models", Title: "tracked models", TaskPrefix: "models:"},
-	{ID: "robot", Title: "Python/ROS2 runtime", TaskPrefix: "robot:"},
-	{ID: "rpi", Title: "on-board Pi tasks", TaskPrefix: "rpi:"},
-	{ID: "install", Title: "umbrella install", TaskPrefix: "install:"},
-	{ID: "init", Title: "umbrella init", TaskPrefix: "init:"},
-	{ID: "test", Title: "umbrella test", TaskPrefix: "test:"},
-	{ID: "lint", Title: "umbrella lint", TaskPrefix: "lint:"},
-	{ID: "clean", Title: "umbrella clean", TaskPrefix: "clean:"},
+	{ID: domainGo, Title: "Go module", TaskPrefix: "go:"},
+	{ID: domainFleet, Title: "boards over SSH", TaskPrefix: "windows:"},
+	{ID: domainSim, Title: "simulation", TaskPrefix: "sim:"},
+	{ID: domainGen, Title: "generators", TaskPrefix: "gen:"},
+	{ID: domainFrontend, Title: "web frontend", TaskPrefix: "frontend:"},
+	{ID: domainBackend, Title: "telemetry backend", TaskPrefix: "backend:"},
+	{ID: domainConfig, Title: "config schemas", TaskPrefix: "config:"},
+	{ID: domainWorkflow, Title: "pipelines", TaskPrefix: "workflow:"},
+	{ID: domainCLI, Title: "the vt CLI itself", TaskPrefix: "cli:"},
+	{ID: domainAnnotator, Title: "auto-annotator app", TaskPrefix: "auto-annotator:"},
+	{ID: domainHailo, Title: "Hailo model toolchain", TaskPrefix: "hailo:"},
+	{ID: domainSimgen, Title: "scenario generator", TaskPrefix: "simgen:"},
+	{ID: domainDocs, Title: "prose and diagrams", TaskPrefix: "docs:"},
+	{ID: domainShared, Title: "shared Python", TaskPrefix: "shared:"},
+	{ID: domainOpenAPI, Title: "OpenAPI contract", TaskPrefix: "openapi:"},
+	{ID: domainProto, Title: "proto contract", TaskPrefix: "proto:"},
+	{ID: domainDocker, Title: "docker compose", TaskPrefix: "docker:"},
+	{ID: domainModels, Title: "tracked models", TaskPrefix: "models:"},
+	{ID: domainRobot, Title: "Python/ROS2 runtime", TaskPrefix: "robot:"},
+	{ID: domainRPI, Title: "on-board Pi tasks", TaskPrefix: "rpi:"},
+	{ID: domainInstall, Title: "umbrella install", TaskPrefix: "install:"},
+	{ID: domainInit, Title: "umbrella init", TaskPrefix: "init:"},
+	{ID: domainTest, Title: "umbrella test", TaskPrefix: "test:"},
+	{ID: domainLint, Title: "umbrella lint", TaskPrefix: "lint:"},
+	{ID: domainClean, Title: "umbrella clean", TaskPrefix: "clean:"},
 }
 
 // curatedSpec is the single declarative table the tree is built from, one
@@ -330,6 +364,64 @@ func platformNames(platforms []Platform) []string {
 	}
 
 	return names
+}
+
+// String implements fmt.Stringer.
+func (d DomainID) String() string {
+	switch d {
+	case domainGo:
+		return "go"
+	case domainFleet:
+		return "fleet"
+	case domainSim:
+		return "sim"
+	case domainGen:
+		return "gen"
+	case domainFrontend:
+		return "frontend"
+	case domainBackend:
+		return "backend"
+	case domainConfig:
+		return "config"
+	case domainWorkflow:
+		return "workflow"
+	case domainCLI:
+		return "cli"
+	case domainAnnotator:
+		return "annotator"
+	case domainHailo:
+		return "hailo"
+	case domainSimgen:
+		return "simgen"
+	case domainDocs:
+		return "docs"
+	case domainShared:
+		return "shared"
+	case domainOpenAPI:
+		return "openapi"
+	case domainProto:
+		return "proto"
+	case domainDocker:
+		return "docker"
+	case domainModels:
+		return "models"
+	case domainRobot:
+		return "robot"
+	case domainRPI:
+		return "rpi"
+	case domainInstall:
+		return "install"
+	case domainInit:
+		return "init"
+	case domainTest:
+		return "test"
+	case domainLint:
+		return "lint"
+	case domainClean:
+		return "clean"
+	default:
+		return "unset"
+	}
 }
 
 // fixVariant is the --fix switch of a lint command: the same linter, fixing.

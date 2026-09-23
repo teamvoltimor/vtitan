@@ -61,18 +61,18 @@ func TestRootGroups(t *testing.T) {
 	t.Parallel()
 
 	app := newSpecApp(t)
-	grouped := make(map[string]string)
+	grouped := make(map[string]rootGroupID)
 
 	for _, group := range rootGroups {
 		for _, member := range group.members {
 			if previous, dup := grouped[member]; dup {
-				t.Errorf("%q is in both %q and %q", member, previous, group.id)
+				t.Errorf("%q is in both %s and %s", member, previous, group.id)
 			}
 
 			grouped[member] = group.id
 
 			if findChild(app.Root, member) == nil {
-				t.Errorf("root group %q lists %q, which is not a command", group.id, member)
+				t.Errorf("root group %s lists %q, which is not a command", group.id, member)
 			}
 		}
 	}

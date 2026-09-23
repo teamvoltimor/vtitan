@@ -129,7 +129,7 @@ func checkCuratedCoverage(
 		}
 
 		problems = append(problems,
-			fmt.Sprintf("task %q is in curated domain %q but is neither in the spec nor excluded",
+			fmt.Sprintf("task %q is in curated domain %s but is neither in the spec nor excluded",
 				task.Name, domain))
 	}
 

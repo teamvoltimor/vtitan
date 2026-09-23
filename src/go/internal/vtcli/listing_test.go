@@ -34,7 +34,7 @@ func TestTaskEntriesSortsAndTrims(t *testing.T) {
 func TestOwnerDomainMatchesBareUmbrella(t *testing.T) {
 	t.Parallel()
 
-	domains := []Domain{{ID: "lint", TaskPrefix: "lint:"}}
+	domains := []Domain{{ID: domainLint, TaskPrefix: "lint:"}}
 
 	for name, want := range map[string]bool{"lint": true, "lint:fix": true, "linter": false, "robot:lint": false} {
 		if _, got := ownerDomain(name, domains); got != want {
