@@ -15,7 +15,7 @@ var goSpec = []Command{
 		Task:      "go:build:capture",
 		Group:     groupRun,
 		Short:     "Build the camera binaries with gocv/OpenCV (CGO on)",
-		Platforms: []string{"linux", "windows"},
+		Platforms: []Platform{platformLinux, platformWindows},
 		Flags: []Flag{
 			{Name: flagOut, Var: "OUT", Default: "dist", Usage: "output directory"},
 			{Name: "cc", Var: "CC", Default: "aarch64-linux-gnu-gcc", Usage: "C cross-compiler"},

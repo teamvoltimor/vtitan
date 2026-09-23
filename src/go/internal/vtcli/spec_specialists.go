@@ -23,7 +23,7 @@ var autoAnnotatorSpec = []Command{
 		Group:     groupRun,
 		Short:     "Run ml-service + api + frontend concurrently",
 		Heavy:     true,
-		Platforms: []string{"linux", "darwin"},
+		Platforms: []Platform{platformLinux, platformDarwin},
 		Variants: []Variant{{
 			Flag: "install", Task: "auto-annotator:dev:local", Usage: "install the dependencies first",
 		}},
@@ -51,7 +51,7 @@ var autoAnnotatorSpec = []Command{
 		Task:      "auto-annotator:clean:build",
 		Group:     groupClean,
 		Short:     "Remove build artifacts and caches",
-		Platforms: []string{"linux", "darwin"},
+		Platforms: []Platform{platformLinux, platformDarwin},
 		Variants: []Variant{{
 			Flag: "deep", Task: "auto-annotator:clean:deep", Usage: "the dependencies too",
 		}},
@@ -238,7 +238,7 @@ var hailoSpec = []Command{
 		Task:      "hailo:clean:all",
 		Group:     groupClean,
 		Short:     "Remove every generated file",
-		Platforms: []string{"linux", "darwin"},
+		Platforms: []Platform{platformLinux, platformDarwin},
 		Variants: []Variant{
 			{Flag: "output", Task: "hailo:clean:output", Usage: "only the test output and exported models"},
 			{Flag: "calib", Task: "hailo:clean:calib", Usage: "only the downloaded calibration data"},

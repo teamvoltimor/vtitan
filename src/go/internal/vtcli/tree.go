@@ -244,7 +244,7 @@ func (a *App) newLeaf(command Command) (*cobra.Command, error) {
 		RunE: func(cmd *cobra.Command, raw []string) error {
 			if !command.Available(a.goos) {
 				return fmt.Errorf("`vt %s` runs on %s only; this is %s",
-					strings.Join(command.Path, " "), strings.Join(command.Platforms, "/"), a.goos)
+					strings.Join(command.Path, " "), strings.Join(platformNames(command.Platforms), "/"), a.goos)
 			}
 
 			values, passthrough := cliValues(cmd, command, bindings, raw)

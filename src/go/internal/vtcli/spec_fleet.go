@@ -2,7 +2,7 @@ package vtcli
 
 // windowsOnly marks the direct-link and route tasks: PowerShell, netsh and
 // `route -p` against the Windows adapter. Elsewhere they are hidden.
-var windowsOnly = []string{"windows"}
+var windowsOnly = []Platform{platformWindows}
 
 // sshHostFlag is the SSH alias most fleet tasks reach a board through.
 var sshHostFlag = Flag{Name: flagSSHHost, Var: "SSH_HOST", Default: "rpi-5-direct", Usage: "SSH alias"}

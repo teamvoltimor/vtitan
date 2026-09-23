@@ -31,7 +31,7 @@ var umbrellaSpec = []Command{
 		Task:      "robot:build-ws",
 		Group:     groupSetup,
 		Short:     "Build the ROS2 workspace with colcon",
-		Platforms: []string{"linux"},
+		Platforms: []Platform{platformLinux},
 	},
 	{
 		Path:  []string{"setup", "lidar-driver"},

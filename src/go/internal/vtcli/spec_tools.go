@@ -112,7 +112,7 @@ var contractsSpec = []Command{
 		Group:     groupRun,
 		Short:     "Interactive local preview of the API docs",
 		Heavy:     true,
-		Platforms: []string{"linux", "darwin"},
+		Platforms: []Platform{platformLinux, platformDarwin},
 	},
 }
 
@@ -151,21 +151,21 @@ var dockerSpec = []Command{
 		Task:      "docker:up",
 		Group:     groupRun,
 		Short:     "Start the Docker Compose services",
-		Platforms: []string{"linux", "darwin"},
+		Platforms: []Platform{platformLinux, platformDarwin},
 	},
 	{
 		Path:      []string{"docker", "down"},
 		Task:      "docker:down",
 		Group:     groupClean,
 		Short:     "Stop the Docker Compose services",
-		Platforms: []string{"linux", "darwin"},
+		Platforms: []Platform{platformLinux, platformDarwin},
 	},
 	{
 		Path:      []string{"docker", "restart"},
 		Task:      "docker:restart",
 		Group:     groupRun,
 		Short:     "Restart the Docker Compose services",
-		Platforms: []string{"linux", "darwin"},
+		Platforms: []Platform{platformLinux, platformDarwin},
 	},
 	{
 		Path:      []string{"docker", "logs"},
@@ -173,13 +173,13 @@ var dockerSpec = []Command{
 		Group:     groupRun,
 		Short:     "Follow the Docker Compose logs",
 		Heavy:     true,
-		Platforms: []string{"linux", "darwin"},
+		Platforms: []Platform{platformLinux, platformDarwin},
 	},
 	{
 		Path:      []string{"docker", "build"},
 		Task:      "docker:build",
 		Group:     groupRun,
 		Short:     "Build the Docker images",
-		Platforms: []string{"linux", "darwin"},
+		Platforms: []Platform{platformLinux, platformDarwin},
 	},
 }

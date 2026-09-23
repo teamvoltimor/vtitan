@@ -36,7 +36,7 @@ func TestPlatformsMatchTaskfiles(t *testing.T) {
 	defs := taskDefinitions(t, root)
 
 	for _, command := range CuratedSpec() {
-		declared := slices.Sorted(slices.Values(command.Platforms))
+		declared := slices.Sorted(slices.Values(platformNames(command.Platforms)))
 
 		for _, task := range command.Tasks() {
 			effective := effectivePlatforms(defs, task, map[string]bool{})
@@ -59,7 +59,7 @@ func TestPlatformHiding(t *testing.T) {
 
 	spec := []Command{
 		{Path: []string{"fleet", "ping"}, Task: "windows:ping"},
-		{Path: []string{"fleet", "route", "add"}, Task: "windows:route:add", Platforms: []string{"windows"}},
+		{Path: []string{"fleet", "route", "add"}, Task: "windows:route:add", Platforms: []Platform{platformWindows}},
 	}
 
 	for goos, wantRoute := range map[string]bool{"windows": true, "linux": false} {

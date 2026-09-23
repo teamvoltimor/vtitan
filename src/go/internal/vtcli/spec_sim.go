@@ -19,7 +19,7 @@ var simSpec = []Command{
 		Group:     groupRun,
 		Short:     "Same, on Gazebo physics and the real ROS2 nodes (needs setup ros-ws)",
 		Heavy:     true,
-		Platforms: []string{"linux"},
+		Platforms: []Platform{platformLinux},
 		Flags:     []Flag{{Name: flagSDF, Var: "SDF", Default: defaultSDF, Usage: "path to the .sdf world"}},
 	},
 	{

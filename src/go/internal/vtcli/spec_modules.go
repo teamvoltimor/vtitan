@@ -56,14 +56,14 @@ var frontendSpec = []Command{
 		Task:      "frontend:docker:build",
 		Group:     groupRun,
 		Short:     "Build the frontend Docker image",
-		Platforms: []string{"linux", "windows"},
+		Platforms: []Platform{platformLinux, platformWindows},
 	},
 	{
 		Path:      []string{"frontend", "docker", "run"},
 		Task:      "frontend:docker:run",
 		Group:     groupRun,
 		Short:     "Serve the frontend container on http://localhost:8080",
-		Platforms: []string{"linux", "windows"},
+		Platforms: []Platform{platformLinux, platformWindows},
 		Heavy:     true,
 	},
 }

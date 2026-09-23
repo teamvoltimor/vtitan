@@ -21,7 +21,7 @@ func TestRecentHistory(t *testing.T) {
 			{
 				Path:      []string{"fleet", "setup", "route", "add"},
 				Task:      "windows:route:add",
-				Platforms: []string{"windows"},
+				Platforms: []Platform{platformWindows},
 			},
 		},
 		tasks: []TaskInfo{{Name: "gen:corpus:all", Desc: "both corpora"}},

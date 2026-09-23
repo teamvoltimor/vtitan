@@ -256,7 +256,7 @@ func sectionChildren(segments []string, children []childRow) []pickItem {
 // that path, or of the first command beneath it when the child is a namespace.
 func (a *App) childGroup(segments []string, child string) CommandGroup {
 	path := append(slices.Clone(segments), child)
-	first := CommandGroup("")
+	first := groupUnset
 
 	for i := range a.spec {
 		if !a.spec[i].Available(a.goos) || !hasPrefixPath(a.spec[i].Path, path) {
@@ -267,12 +267,12 @@ func (a *App) childGroup(segments []string, child string) CommandGroup {
 			return a.spec[i].Group
 		}
 
-		if first == "" {
+		if first == groupUnset {
 			first = a.spec[i].Group
 		}
 	}
 
-	if first != "" {
+	if first != groupUnset {
 		return first
 	}
 

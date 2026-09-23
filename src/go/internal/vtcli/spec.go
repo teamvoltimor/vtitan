@@ -6,7 +6,7 @@ import (
 )
 
 // FlagKind is the value type a typed flag carries into its Task variable.
-type FlagKind string
+type FlagKind int
 
 // Flag maps one CLI flag to one Task variable. Default is display-only: it is
 // shown in --help and prefilled in the interactive form, but never forwarded,
@@ -45,7 +45,10 @@ type Variant struct {
 
 // CommandGroup is where a command sits in its level's section order: what you
 // run, the checks that gate it, the setup it needs, and the cleanup after it.
-type CommandGroup string
+type CommandGroup int
+
+// Platform is a GOOS a command is limited to.
+type Platform int
 
 // Command is one wrapped leaf: a path in the CLI tree that runs one Task.
 type Command struct {
@@ -64,7 +67,7 @@ type Command struct {
 	Heavy bool
 	// Platforms limits the command to these GOOS values; empty means every
 	// platform. Elsewhere it is hidden from help, menus and the picker.
-	Platforms []string
+	Platforms []Platform
 	Variants  []Variant
 	// Terminal hands the task the whole terminal in the interactive session
 	// instead of showing its output in the run pane, for a task that draws
@@ -81,12 +84,13 @@ type Domain struct {
 }
 
 const (
-	// FlagString forwards the flag value verbatim.
-	FlagString FlagKind = "string"
+	// FlagString forwards the flag value verbatim; it is the zero value, so an
+	// unset Kind is a string flag.
+	FlagString FlagKind = iota
 	// FlagInt forwards a base-10 integer.
-	FlagInt FlagKind = "int"
+	FlagInt
 	// FlagBool forwards "true" or "false".
-	FlagBool FlagKind = "bool"
+	FlagBool
 )
 
 // Flag names, positional names and reasons reused across the domain tables.
@@ -117,10 +121,20 @@ const (
 // The command groups, in the order a level shows them: what you run, the
 // quality gates, the setup it needs, and the cleanup after it (ADR 0096).
 const (
-	groupRun   CommandGroup = "run"
-	groupCheck CommandGroup = "check"
-	groupSetup CommandGroup = "setup"
-	groupClean CommandGroup = "clean"
+	// groupUnset is the zero value: a command that declares no group, which
+	// TestCommandsGrouped rejects.
+	groupUnset CommandGroup = iota
+	groupRun
+	groupCheck
+	groupSetup
+	groupClean
+)
+
+// The platforms a command can be limited to, named by GOOS.
+const (
+	platformLinux Platform = iota
+	platformWindows
+	platformDarwin
 )
 
 // commandGroupOrder is how a level's sections are ordered.
@@ -241,7 +255,81 @@ func (c Command) Tasks() []string {
 
 // Available reports whether the command runs on goos.
 func (c Command) Available(goos string) bool {
-	return len(c.Platforms) == 0 || slices.Contains(c.Platforms, goos)
+	if len(c.Platforms) == 0 {
+		return true
+	}
+
+	platform, ok := platformOf(goos)
+
+	return ok && slices.Contains(c.Platforms, platform)
+}
+
+// String implements fmt.Stringer.
+func (k FlagKind) String() string {
+	switch k {
+	case FlagString:
+		return "string"
+	case FlagInt:
+		return "int"
+	case FlagBool:
+		return "bool"
+	default:
+		return "unknown"
+	}
+}
+
+// String implements fmt.Stringer.
+func (g CommandGroup) String() string {
+	switch g {
+	case groupRun:
+		return "run"
+	case groupCheck:
+		return "check"
+	case groupSetup:
+		return "setup"
+	case groupClean:
+		return "clean"
+	default:
+		return "unset"
+	}
+}
+
+// String implements fmt.Stringer, returning the GOOS name.
+func (p Platform) String() string {
+	switch p {
+	case platformLinux:
+		return "linux"
+	case platformWindows:
+		return "windows"
+	case platformDarwin:
+		return "darwin"
+	default:
+		return "unknown"
+	}
+}
+
+// platformOf maps a GOOS name to its Platform.
+func platformOf(goos string) (Platform, bool) {
+	switch goos {
+	case "linux":
+		return platformLinux, true
+	case "windows":
+		return platformWindows, true
+	case "darwin":
+		return platformDarwin, true
+	default:
+		return 0, false
+	}
+}
+
+// platformNames renders a command's platforms for a message.
+func platformNames(platforms []Platform) []string {
+	names := make([]string, len(platforms))
+	for i, platform := range platforms {
+		names[i] = platform.String()
+	}
+
+	return names
 }
 
 // fixVariant is the --fix switch of a lint command: the same linter, fixing.
