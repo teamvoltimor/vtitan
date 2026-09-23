@@ -1,28 +1,5 @@
 version: "3"
 
-vars:
-  # Full path to pixi on the Pi 5 / Pi Zero specifically -- bare `pixi` only
-  # resolves under an interactive login shell (.bashrc adds ~/.pixi/bin to
-  # PATH); a one-shot `ssh host "task robot:..."` gets the minimal
-  # non-interactive PATH and fails with "pixi: not found". Every robot:*
-  # task that runs directly ON a Pi (not on a dev machine, where pixi lives
-  # wherever it was installed) should use {{.ROBOT_PIXI}}, not a bare `pixi`.
-  ROBOT_PIXI: ~/.pixi/bin/pixi
-  # Sample scenario metadata for robot:drive's optional replay mode and for
-  # gen:rviz -- produced by the Go simgen corpus generator, see
-  # tasks/platform.yml's gen:corpus. Relative to this Taskfile's own dir
-  # (src/python), NOT the repo root -- unlike tasks/platform.yml's own
-  # METADATA var (used by gen:preview/gen:scenarios), which IS repo-root
-  # relative. Override per invocation with METADATA=path.
-  METADATA: '{{.METADATA | default "../go/training_data/open/scenarios/scenario_0000_metadata.json"}}'
-  # Mirrors tasks/platform.yml's PROFILE var (see its own comment there for
-  # why this is a checked-in default rather than a config-loader default) --
-  # duplicated here because Task's included-Taskfile vars aren't shared
-  # across files, same reason EXE/BASH are duplicated in src/go/Taskfile.yml.
-  # A global var in an included Taskfile beats a CLI `VAR=x` unless it is
-  # written as its own default, so every var meant to be overridden is.
-  PROFILE: '{{.PROFILE | default "270deg-hiwonder-35kg,rev-hd-hex-motor-6000rpm"}}'
-
 tasks:
   robot:install:
     desc: Install robot platform dependencies (pixi + RoboStack, default + dev envs)

@@ -156,7 +156,7 @@ var curatedSpec = slices.Concat(
 // the build (see spec_test.go).
 var exclusions = mergeExclusions(
 	goExclusions, simExclusions, robotExclusions, rpiExclusions,
-	autoAnnotatorExclusions, hailoExclusions, simgenExclusions)
+	autoAnnotatorExclusions, hailoExclusions)
 
 // mergeExclusions joins the per-domain exclusion tables.
 func mergeExclusions(tables ...map[string]string) map[string]string {

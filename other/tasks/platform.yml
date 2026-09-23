@@ -1,38 +1,14 @@
 version: '3'
 
 vars:
-  # Which physical robot a sim task models. The base robot.toml describes the
-  # chassis only and deliberately declares no motor or servo, so config loading
-  # FAILS unless one profile of each is named -- see .env.example.
-  #
-  # Defaulted here, not in the config loader, and that distinction is the whole
-  # design: a default living in a checked-in Taskfile is visible and reviewable,
-  # whereas the old base-config default was invisible and silently made every
-  # unset run model whichever hardware happened to be committed. Override per
-  # invocation, e.g. to reproduce a measurement taken on the retired build:
-  #
-  #   task sim:navigate:visualize:all PROFILE=180deg-injora-14kg,generic-motor-1500rpm -- --challenge open
-  #
-  # Deliberately NOT applied to robot:test -- tests pin their own hardware in
-  # tests/conftest.py, and setting it here would silently move the whole suite
-  # onto different hardware and re-baseline every assertion.
-  # A global var in an included Taskfile beats a CLI `VAR=x` unless it is
-  # written as its own default, so every var meant to be overridden is.
-  PROFILE: '{{.PROFILE | default "270deg-hiwonder-35kg,rev-hd-hex-motor-6000rpm"}}'
+  # PROFILE, ROBOT_PIXI, CHALLENGE, OUTPUT_DIR and METADATA live in the root
+  # Taskfile: they are shared with src/python, gazebo and the other includes,
+  # and Task does not share vars between included Taskfiles. See the root for
+  # the PROFILE rationale and the repo-root anchoring of the two paths.
   PYTHON: uv
   ROS2: pixi
-  # Full path to pixi on the Pi 5 / Pi Zero specifically -- bare `pixi` only
-  # resolves under an interactive login shell (.bashrc adds ~/.pixi/bin to
-  # PATH); a one-shot `ssh host "task robot:..."` gets the minimal
-  # non-interactive PATH and fails with "pixi: not found". Every robot:*
-  # task that runs directly ON a Pi (not on a dev machine, where pixi lives
-  # wherever it was installed) should use {{.ROBOT_PIXI}}, not a bare `pixi`.
-  ROBOT_PIXI: ~/.pixi/bin/pixi
   SCENARIOS: '{{.SCENARIOS | default "10"}}'
-  CHALLENGE: '{{.CHALLENGE | default "open"}}'
-  OUTPUT_DIR: '{{.OUTPUT_DIR | default "./src/go/training_data"}}'
   BASE_WORLD: ./other/apps/gazebo/runtime/worlds/wro_track_2026.sdf
-  METADATA: '{{.METADATA | default "./src/go/training_data/open/scenarios/scenario_0000_metadata.json"}}'
   SCENARIO_SDF: ./src/go/training_data/open/scenarios/scenario_0000.sdf
   LAPS: 3
   PARAMS: ./other/apps/gazebo/runtime/scripts/navigator_params.json
@@ -476,8 +452,9 @@ tasks:
   # simgen:build, a dep of gen:track, gen:track-constants, gen:scenarios and
   # gen:corpus below.
 
-  # RECORD (video + frame pipeline) moved to other/apps/gazebo/Taskfile.yml
-  # (record:*) -- fully self-contained, no cross-references into this file.
+  # RECORD (video + frame pipeline) moved to
+  # other/apps/gazebo/runtime/Taskfile.yml (record:*) -- it runs in the runtime
+  # dir alongside its own pyproject, and is fully self-contained otherwise.
   # Called from workflow:record below.
 
   # DOCKER (compose)

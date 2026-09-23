@@ -1,12 +1,7 @@
 version: "3"
 
-vars:
-  # EXE resolves to ".exe" on Windows and "" on Linux/macOS so binary references work cross-platform.
-  # Falls back to "" when Go isn't installed (e.g. on the robot/Pi) so non-Go tasks still run.
-  EXE:
-    sh: go env GOEXE 2>/dev/null || true
-  # BASH lives in the root Taskfile: more than one include needs it and Task
-  # does not share vars between included Taskfiles.
+# EXE and BASH live in the root Taskfile: more than one include needs them
+# and Task does not share vars between included Taskfiles.
 
 tasks:
   # Two build paths:
@@ -293,11 +288,6 @@ tasks:
     desc: "Run the vt CLI from source, without building (usage: task cli:run -- [args])"
     cmds:
       - go run ./cmd/vt {{.CLI_ARGS}}
-
-  simgen:install:
-    desc: Build simgen binary (Go compilation — no external deps required)
-    cmds:
-      - task: simgen:build
 
   simgen:build:
     desc: Compile simgen binary to src/go/bin/simgen[.exe]

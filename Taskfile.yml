@@ -8,8 +8,12 @@ version: "3"
 # flattened first, did. That is invisible coupling -- reorder the includes, or
 # un-flatten platform, and nine robot tasks break with "BASH: not found".
 # Defining them here, where every include can see them, removes the ordering
-# dependency. Both are written as their own default so a CLI override still
-# wins (a plain global would beat `task X BASH=...`).
+# dependency and the duplicate copies each include used to keep in sync.
+#
+# A var a caller may override is written as its own default. Task lets a
+# global in an included Taskfile beat a CLI `VAR=x`; a plain global here still
+# shadows the CLI for an included task exactly as the include's own copy did,
+# so the self-default is what keeps `VAR=x` working everywhere.
 vars:
   # EXE resolves to ".exe" on Windows and "" on Linux/macOS so binary
   # references work cross-platform. Falls back to "" when Go isn't installed
@@ -28,6 +32,41 @@ vars:
   # The OS-aware fallback BASH defaults to. It is a separate var rather than an
   # inline expression because Task rejects `if` inside a default pipeline.
   OS_BASH: '{{if eq OS "windows"}}C:/Program Files/Git/bin/bash.exe{{else}}bash{{end}}'
+
+  # Which physical robot a sim task models. The base robot.toml describes the
+  # chassis only and declares no motor or servo, so config loading FAILS unless
+  # one profile of each is named. Defaulted here, in a checked-in Taskfile,
+  # which is visible and reviewable, rather than in the config loader, where
+  # the old invisible default silently made every unset run model whichever
+  # hardware happened to be committed. Deliberately NOT applied to robot:test:
+  # the tests pin their own hardware in tests/conftest.py. Override per
+  # invocation, e.g. PROFILE=180deg-injora-14kg,generic-motor-1500rpm.
+  PROFILE: '{{.PROFILE | default "270deg-hiwonder-35kg,rev-hd-hex-motor-6000rpm"}}'
+  # Full path to pixi on the Pi 5 / Pi Zero specifically -- bare `pixi` only
+  # resolves under an interactive login shell (.bashrc adds ~/.pixi/bin to
+  # PATH); a one-shot `ssh host "task robot:..."` gets the minimal
+  # non-interactive PATH and fails with "pixi: not found". Every robot:* task
+  # that runs directly ON a Pi should use {{.ROBOT_PIXI}}, not a bare `pixi`.
+  ROBOT_PIXI: ~/.pixi/bin/pixi
+  # Which challenge a generator targets.
+  CHALLENGE: '{{.CHALLENGE | default "open"}}'
+  # Where generated scenarios and recordings live. Anchored to the repo root
+  # because the includes run from different working dirs -- gazebo's record:*
+  # tasks run with dir: other/apps/gazebo/runtime -- and a relative default
+  # would resolve to a different place in each. Override per invocation.
+  OUTPUT_DIR: '{{.OUTPUT_DIR | default (printf "%s/src/go/training_data" .ROOT_DIR)}}'
+  # Sample scenario metadata, for replaying/previewing one scenario. Anchored
+  # to the repo root for the same reason as OUTPUT_DIR.
+  METADATA: '{{.METADATA | default (printf "%s/src/go/training_data/open/scenarios/scenario_0000_metadata.json" .ROOT_DIR)}}'
+  # Board addresses, shared by other/tasks/fleet.yml (windows:*/rpi:* tasks)
+  # and other/deploy/ansible/Taskfile.yml. Change them here, once.
+  # RPI_LOCAL_IP/ZERO_WIFI_IP are the router subnet; RPI_ZERO_GADGET_IP is the
+  # Zero's end of the Pi5<->Zero usb0 gadget link (Zero=.1, Pi5=.2). Distinct
+  # from the direct-cable subnet (RPI_DIRECT_IP, 192.168.251.x) to avoid both
+  # landing on Pi 5's usb0 and 'Wired connection 1' with the same address.
+  RPI_LOCAL_IP: 192.168.0.50
+  ZERO_WIFI_IP: 192.168.0.51
+  RPI_ZERO_GADGET_IP: 192.168.250.1
 
 includes:
   platform:
@@ -63,7 +102,7 @@ includes:
     dir: ./other/apps/backend
     flatten: true
   apps-gazebo:
-    taskfile: ./other/apps/gazebo/Taskfile.yml
+    taskfile: ./other/apps/gazebo/runtime/Taskfile.yml
     dir: ./other/apps/gazebo/runtime
     flatten: true
   deploy-ansible:

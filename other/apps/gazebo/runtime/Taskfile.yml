@@ -1,10 +1,7 @@
 version: "3"
 
-vars:
-  # A global var in an included Taskfile beats a CLI `VAR=x` unless it is
-  # written as its own default, so every var meant to be overridden is.
-  OUTPUT_DIR: '{{.OUTPUT_DIR | default "./src/go/training_data"}}'
-  CHALLENGE: '{{.CHALLENGE | default "open"}}'
+# OUTPUT_DIR and CHALLENGE live in the root Taskfile, shared with the other
+# includes; Task does not share vars between included Taskfiles.
 
 tasks:
   record:run:

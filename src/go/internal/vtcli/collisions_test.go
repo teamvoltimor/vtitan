@@ -16,6 +16,28 @@ type taskOrigin struct {
 	namespace string
 }
 
+// namespacedDuplicateTasks lists the raw task keys defined by more than one
+// included Taskfile but landing in different namespaces, where Task keeps them
+// apart and include order does not matter. Each is intentional -- the same
+// verb under two apps, or an app's own task beside the repo-wide umbrella --
+// and each would become a real collision the moment one of its files is
+// flattened (which check 7 above would then catch, but only that way). Listing
+// them here turns a new cross-file duplicate into an explicit decision instead
+// of something include order hides.
+var namespacedDuplicateTasks = map[string]string{
+	"clean:all":        "hailo's own deep clean, beside platform.yml's repo-wide clean:all",
+	"default":          "the root's task list, and each non-flattened app's own (auto-annotator, hailo, hugo-docs)",
+	"docker:down":      "each app's own compose stack (auto-annotator) beside the repo-level one in platform.yml",
+	"docker:logs":      "each app's own compose stack (auto-annotator, hailo) beside the repo-level one in platform.yml",
+	"docker:up":        "each app's own compose stack (auto-annotator) beside the repo-level one in platform.yml",
+	"frontend:build":   "auto-annotator's own frontend, beside the flattened frontend: domain",
+	"frontend:dev":     "auto-annotator's own frontend, beside the flattened frontend: domain",
+	"frontend:install": "auto-annotator's own frontend, beside the flattened frontend: domain",
+	"frontend:preview": "auto-annotator's own frontend, beside the flattened frontend: domain",
+	"lint":             "hailo's own ruff lint, beside the repo-wide umbrella in platform.yml",
+	"lint:fix":         "hailo's own ruff fix, beside the repo-wide umbrella in platform.yml",
+}
+
 // TestNoTaskNameCollisions is anti-drift check 7. Task's global namespace is
 // flat: two includes that both define `lint` collide, and the winner is
 // decided by include order. Today that is invisible because the four
@@ -26,9 +48,9 @@ type taskOrigin struct {
 // to warn about it.
 //
 // The check reports two names that resolve to the same name in the global
-// namespace. Duplicates that stay namespaced apart are fine and are the
-// intended state, so the check is about the namespace each definition lands
-// in, not about the raw task key.
+// namespace. Duplicates that stay namespaced apart are fine, so they must be
+// listed in namespacedDuplicateTasks; a duplicate that collapses into one
+// namespace is a real collision and fails. A stale allowlist entry fails too.
 func TestNoTaskNameCollisions(t *testing.T) {
 	t.Parallel()
 
@@ -45,30 +67,53 @@ func TestNoTaskNameCollisions(t *testing.T) {
 			continue
 		}
 
-		// Two definitions of the same raw key are only a real collision when
-		// they land in the same namespace; otherwise Task keeps them apart.
-		namespaces := make(map[string]bool)
-		for _, origin := range where {
-			namespaces[origin.namespace] = true
-		}
-
-		// Group by namespace, and report only a namespace holding 2+, so a
-		// pre-existing namespaced duplicate is not dragged into the message.
+		// Two definitions of the same raw key are a real collision when they
+		// land in the same namespace; otherwise Task keeps them apart.
 		byNamespace := make(map[string][]string)
 		for _, origin := range where {
 			byNamespace[origin.namespace] = append(byNamespace[origin.namespace], origin.file)
 		}
 
+		collided := false
 		for namespace, files := range byNamespace {
 			if len(files) < 2 {
 				continue
 			}
 
+			collided = true
 			t.Errorf("task %q is defined %d times in namespace %q (%v); include order "+
 				"decides the winner, so which one CI's `task %s` runs depends on the "+
 				"includes block", name, len(files), namespace, files, name)
 		}
+
+		if collided {
+			continue
+		}
+
+		if _, documented := namespacedDuplicateTasks[name]; !documented {
+			t.Errorf("task %q is defined in more than one included Taskfile (%v); the "+
+				"namespaces keep them apart today, but flattening any of those includes "+
+				"would let include order decide the winner. Add it to "+
+				"namespacedDuplicateTasks with a reason, or rename it", name, namesByFile(where))
+		}
 	}
+
+	for name, reason := range namespacedDuplicateTasks {
+		if len(origins[name]) < 2 {
+			t.Errorf("namespacedDuplicateTasks lists %q (%s), but it is no longer defined "+
+				"in more than one included Taskfile; remove the entry", name, reason)
+		}
+	}
+}
+
+// namesByFile renders the files a task is defined in, for failure messages.
+func namesByFile(where []taskOrigin) []string {
+	files := make([]string, 0, len(where))
+	for _, origin := range where {
+		files = append(files, origin.file)
+	}
+
+	return files
 }
 
 // collectOrigins walks the Taskfile tree, recording every task definition and

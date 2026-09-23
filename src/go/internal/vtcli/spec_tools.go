@@ -26,12 +26,6 @@ var simgenSpec = []Command{
 	},
 }
 
-// simgenExclusions are the simgen tasks left out: `install` only calls
-// `build`, so wrapping both would list the same build twice.
-var simgenExclusions = map[string]string{
-	"simgen:install": "only calls simgen:build; use vt simgen build",
-}
-
 // docsSpec wraps the prose and diagram gates (src/Taskfile.yml and the root
 // Taskfile.yml). These run in CI, so they are worth reaching by name.
 var docsSpec = []Command{

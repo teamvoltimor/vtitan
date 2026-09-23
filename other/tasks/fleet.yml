@@ -6,10 +6,8 @@ vars:
   # usb0 and 'Wired connection 1' with the same address.
   WINDOWS_ETHERNET_IP: 192.168.251.1
   RPI_DIRECT_IP: 192.168.251.2
-  RPI_LOCAL_IP: 192.168.0.50
-  ZERO_WIFI_IP: 192.168.0.51
-  # Pi Zero's usb0 gadget address (Zero=.1, Pi5=.2) — see other/deploy/ansible/roles/pi_zero
-  RPI_ZERO_GADGET_IP: 192.168.250.1
+  # RPI_LOCAL_IP, ZERO_WIFI_IP and RPI_ZERO_GADGET_IP live in the root Taskfile,
+  # shared with other/deploy/ansible/Taskfile.yml.
   RPI_5_GADGET_IP: 192.168.250.2
   WIFI_CONN: for
   WIFI_2G_BSSID: AA:D3:62:23:33:28
@@ -197,7 +195,6 @@ tasks:
       SSH_KEY_PATH: "{{.SSH_KEY_PATH | default \"~/.ssh/YOUR_KEY_FILE\"}}"
       SSH_DOMAIN: "{{.SSH_DOMAIN | default \"YOUR_DOMAIN\"}}"
       SSH_ZERO_HOSTNAME: "{{.SSH_ZERO_HOSTNAME | default \"YOUR_PI_ZERO_HOSTNAME.local\"}}"
-      RPI_LOCAL_IP: 192.168.0.50
 
   windows:ssh:setup-config:
     desc: "Append missing SSH host entries to ~/.ssh/config (vars: SSH_USER, SSH_KEY_PATH, RPI_DIRECT_IP, SSH_ZERO_HOSTNAME)"

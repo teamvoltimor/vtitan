@@ -1,13 +1,8 @@
 version: "3"
 
-vars:
-  # Mirrors tasks/fleet.yml's own copies (used there by windows:*/rpi:* tasks
-  # that don't go through Ansible) -- duplicated per Task's included-Taskfile
-  # var scoping, same pattern as BASH/EXE/PROFILE elsewhere in this repo.
-  RPI_LOCAL_IP: 192.168.0.50
-  ZERO_WIFI_IP: 192.168.0.51
-  # Pi Zero's usb0 gadget address (Zero=.1, Pi5=.2) -- see roles/pi_zero.
-  RPI_ZERO_GADGET_IP: 192.168.250.1
+# RPI_LOCAL_IP, ZERO_WIFI_IP and RPI_ZERO_GADGET_IP live in the root Taskfile,
+# shared with other/tasks/fleet.yml; Task does not share vars between included
+# Taskfiles.
 
 tasks:
   # Provisioning (Ansible, run from dev Pi 5 -- this repo's own checkout, so

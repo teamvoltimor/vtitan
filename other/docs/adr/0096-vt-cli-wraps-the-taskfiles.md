@@ -233,6 +233,21 @@ bubbles v0.21.0.
   terminal emulator: scrollback plus the redraws tools use in place (carriage
   return, erase line, cursor up, column), colors per cell, everything else
   dropped.
+- 2026-09-22, Taskfile clean-up: the last globals shared by more than one
+  include moved to the root Taskfile (PROFILE, ROBOT_PIXI, CHALLENGE,
+  OUTPUT_DIR, METADATA, and the board IPs RPI_LOCAL_IP/ZERO_WIFI_IP/
+  RPI_ZERO_GADGET_IP), so no global is defined twice. OUTPUT_DIR and METADATA
+  are anchored with `printf "%s/..." .ROOT_DIR`: the includes run from
+  different working dirs (gazebo's record:* from other/apps/gazebo/runtime),
+  and the old relative defaults resolved differently in each, which had
+  silently pointed `sim:analyze` and `record:*` at a training_data dir that did
+  not exist. The gazebo Taskfile moved into runtime/, beside the pyproject its
+  tasks run against, so its include's `taskfile:` and `dir:` name one
+  directory. `simgen:install`, which only called `simgen:build`, is deleted.
+  Check 7 now also requires every raw task key defined by more than one include
+  to be listed in `namespacedDuplicateTasks` with a reason, so a new cross-file
+  duplicate is a decision rather than something include order hides.
+
 - The boundary rule, now written down: **Taskfiles own what runs, `vt` owns
   how it is spelled.** A change that alters what a task does belongs in the
   Taskfile, so `task` and CI get it too; a change to discovery, flags or
