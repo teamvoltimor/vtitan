@@ -20,6 +20,9 @@ import (
 type UI struct {
 	color bool
 	art   bool
+	// dark is the terminal's detected background, for the palette and for
+	// answering a task that asks the terminal for it.
+	dark bool
 	// width is the terminal width at start-up, 0 when it is not a terminal
 	// or will not say. It only centers the static banner; the picker gets
 	// live sizes from bubbletea.
@@ -41,7 +44,12 @@ type MenuSection struct {
 
 // NewUI returns a UI bound to the capabilities of standard output.
 func NewUI() UI {
-	ui := UI{color: useColor(os.Stdout), art: isTerminal(os.Stdout) && os.Getenv("TERM") != "dumb"}
+	ui := UI{color: useColor(os.Stdout), art: isTerminal(os.Stdout) && os.Getenv("TERM") != "dumb", dark: true}
+	if ui.color {
+		// The same detection AdaptiveColor uses; only worth asking a terminal.
+		ui.dark = lipgloss.HasDarkBackground()
+	}
+
 	if width, _, err := term.GetSize(os.Stdout.Fd()); err == nil {
 		ui.width = width
 	}

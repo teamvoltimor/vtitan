@@ -60,7 +60,8 @@ func (a *App) runSession(ctx context.Context, out *os.File) error {
 		width:  defaultPickerWidth, height: defaultPickerHeight,
 	}
 
-	program := tea.NewProgram(session, tea.WithAltScreen(), tea.WithInput(os.Stdin), tea.WithOutput(out))
+	program := tea.NewProgram(session, tea.WithAltScreen(), tea.WithMouseCellMotion(),
+		tea.WithInput(os.Stdin), tea.WithOutput(out))
 	if _, err := program.Run(); err != nil {
 		return fmt.Errorf("interactive session: %w", err)
 	}

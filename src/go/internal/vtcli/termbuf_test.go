@@ -89,3 +89,40 @@ func TestTermBufColorOff(t *testing.T) {
 		t.Errorf("got %q, want no escapes", got)
 	}
 }
+
+// TestTermBufAnswersColorQueries checks that the terminal colour queries a
+// task waits on before it draws are answered for the detected background,
+// while a title still is not.
+func TestTermBufAnswersColorQueries(t *testing.T) {
+	t.Parallel()
+
+	dark := newTermBuf(80, 24, 10, false)
+	dark.feed([]byte("\x1b]11;?\x1b\\drawing"))
+
+	if got := dark.plain(); got != "drawing" {
+		t.Errorf("query leaked into the output: %q", got)
+	}
+
+	if got := dark.takeReplies(); len(got) != 1 || !strings.Contains(got[0], "11;rgb:0000/0000/0000") {
+		t.Errorf("dark background reply: %q", got)
+	}
+
+	if got := dark.takeReplies(); got != nil {
+		t.Errorf("replies were not cleared: %q", got)
+	}
+
+	light := newTermBuf(80, 24, 10, false)
+	light.light = true
+	light.feed([]byte("\x1b]10;?\x07"))
+
+	if got := light.takeReplies(); len(got) != 1 || !strings.Contains(got[0], "10;rgb:0000/0000/0000") {
+		t.Errorf("foreground reply on a light background: %q", got)
+	}
+
+	title := newTermBuf(80, 24, 10, false)
+	title.feed([]byte("\x1b]0;a title\x07"))
+
+	if got := title.takeReplies(); got != nil {
+		t.Errorf("a title produced a reply: %q", got)
+	}
+}

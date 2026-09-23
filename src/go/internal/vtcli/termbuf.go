@@ -24,7 +24,12 @@ type termBuf struct {
 	height    int
 	maxLines  int
 	color     bool
-	pending   []byte
+	// light is the terminal's background, for answering a task's colour query.
+	light   bool
+	pending []byte
+	// replies are the terminal's answers to the queries a task made, waiting
+	// to be written back to its PTY.
+	replies []string
 }
 
 // termCell is one character and the SGR sequence it was written with.
@@ -134,13 +139,18 @@ func (b *termBuf) escape(data []byte) int {
 
 		return 0
 	case oscByte:
-		// Titles and hyperlinks: dropped, terminated by BEL or ESC \.
+		// Titles, hyperlinks and terminal queries: the query is answered,
+		// everything else is dropped, terminated by BEL or ESC \.
 		for i := 2; i < len(data); i++ {
 			if data[i] == bellByte {
+				b.osc(string(data[2:i]))
+
 				return i + 1
 			}
 
 			if data[i] == escByte && i+1 < len(data) && data[i+1] == '\\' {
+				b.osc(string(data[2:i]))
+
 				return i + 2
 			}
 		}
@@ -149,6 +159,33 @@ func (b *termBuf) escape(data []byte) int {
 	default:
 		return 2
 	}
+}
+
+// osc answers the terminal colour queries a task waits on before it draws.
+// Dropping them stalls the task until its own timeout, which reads as a hang;
+// vt answers with the background it detected for its own palette. Everything
+// else an OSC carries -- a window title, a hyperlink -- is dropped.
+func (b *termBuf) osc(payload string) {
+	background, foreground := "0000/0000/0000", "ffff/ffff/ffff"
+	if b.light {
+		background, foreground = foreground, background
+	}
+
+	switch payload {
+	case "10;?":
+		b.replies = append(b.replies, "\x1b]10;rgb:"+foreground+"\x1b\\")
+	case "11;?":
+		b.replies = append(b.replies, "\x1b]11;rgb:"+background+"\x1b\\")
+	}
+}
+
+// takeReplies returns and clears the answers accumulated since the last call,
+// for the run pane to write back to the task's PTY.
+func (b *termBuf) takeReplies() []string {
+	replies := b.replies
+	b.replies = nil
+
+	return replies
 }
 
 // csi applies one control sequence: params is what sits between ESC [ and

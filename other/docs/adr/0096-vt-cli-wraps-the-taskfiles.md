@@ -256,6 +256,12 @@ bubbles v0.21.0.
   files any more, so check 7 lost `namespacedDuplicateTasks` entirely and now
   fails on any duplicate, aliases included. Their `default` tasks keep the
   include key as an explicit alias, since flattening drops the implicit one.
+- 2026-09-23, run pane: the mouse wheel scrolls the output (the program now
+  enables mouse reporting and the pane's viewport handles the wheel), and the
+  pane answers the terminal colour queries a task waits on (OSC 10/11) with
+  the background vt detected for its own palette, instead of dropping them and
+  stalling the task until its timeout. `termbuf` stays a scrollback, not a
+  terminal emulator.
 
 - The boundary rule, now written down: **Taskfiles own what runs, `vt` owns
   how it is spelled.** A change that alters what a task does belongs in the

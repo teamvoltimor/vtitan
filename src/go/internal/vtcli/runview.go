@@ -51,8 +51,10 @@ func newRunModel(ui UI, line string, run *taskRun, note string, width, height in
 		spin: spinner.New(spinner.WithSpinner(spinner.MiniDot)),
 	}
 	m.view = viewport.New(width, max(height-runChromeLines, minRunViewLines))
+	m.view.MouseWheelEnabled = true
 	m.resize(width, height)
 	m.buf = newTermBuf(m.view.Width, m.view.Height, runScrollback, ui.color)
+	m.buf.light = !ui.dark
 
 	return m
 }
@@ -73,9 +75,21 @@ func (m *runModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) { //nolint:ireturn /
 		m.resize(msg.Width, msg.Height)
 	case runOutputMsg:
 		m.buf.feed(msg.data)
+
+		// A task that queried the terminal is waiting on the answer; dropping
+		// it stalls the task until its own timeout.
+		for _, reply := range m.buf.takeReplies() {
+			m.run.input(reply)
+		}
+
 		m.refresh()
 
 		return m, m.run.next()
+	case tea.MouseMsg:
+		var cmd tea.Cmd
+		m.view, cmd = m.view.Update(msg)
+
+		return m, cmd
 	case runDoneMsg:
 		m.result = &msg
 		if msg.err != nil {
@@ -250,10 +264,10 @@ func (m *runModel) footer() string {
 			stop = "ctrl+c again: kill"
 		}
 
-		return m.ui.Muted(stop + " · ↑↓ pgup/pgdn: scroll · other keys go to the task")
+		return m.ui.Muted(stop + " · ↑↓ pgup/pgdn/wheel: scroll · other keys go to the task")
 	}
 
-	return m.ui.Muted("enter/esc: back to the menu · r: run again · q: quit · ↑↓ pgup/pgdn: scroll")
+	return m.ui.Muted("enter/esc: back to the menu · r: run again · q: quit · ↑↓ pgup/pgdn/wheel: scroll")
 }
 
 // summary is the line printed after the session ends, one per run, so the
