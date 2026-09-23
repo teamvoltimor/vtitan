@@ -1,0 +1,7 @@
+# Normalize line endings: store LF in the repository and check out LF, so a
+# Windows/OneDrive checkout cannot turn every text file into a phantom
+# modification. On 2026-09-23 the working tree carried CRLF on 136 tracked
+# files, all of them content-identical to HEAD; without this file they show up
+# as a 14k-line diff that must be sidestepped on every commit.
+# Binary detection stays automatic. See adr:0097-doc-ownership-and-drift-checks.
+* text=auto eol=lf
