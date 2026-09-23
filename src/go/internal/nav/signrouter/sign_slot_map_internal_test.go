@@ -11,6 +11,9 @@ import (
 // into. Each property is paired with the control that would otherwise let it
 // pass vacuously.
 
+// feedConfidence is the detector confidence every fed observation carries.
+const feedConfidence = 0.8
+
 func slotTestMap() *SlotSignMap {
 	return NewSlotSignMap(DefaultConfig(), DefaultDiscoveryConfig(), nil)
 }
@@ -29,10 +32,10 @@ func cellsOf(m *SlotSignMap, section trackmodel.Section) []trackmodel.Waypoint {
 	return out
 }
 
-func feed(m *SlotSignMap, cell trackmodel.Waypoint, color SignColor, times int, confidence float64) {
+func feed(m *SlotSignMap, cell trackmodel.Waypoint, color SignColor, times int) {
 	here := trackmodel.Waypoint{X: cell.X, Y: cell.Y - 0.4}
 	for range times {
-		m.Observe([]TrafficSignObservation{slotObs(cell.X, cell.Y, color, confidence)}, here)
+		m.Observe([]TrafficSignObservation{slotObs(cell.X, cell.Y, color, feedConfidence)}, here)
 	}
 }
 
@@ -78,7 +81,7 @@ func TestSlotMap_SectionNeverPublishesAThird(t *testing.T) {
 		t.Fatalf("a section should have six legal cells, fixture has %d", len(cells))
 	}
 	for _, cell := range cells[:3] {
-		feed(m, cell, SignColorRed, 3, 0.8)
+		feed(m, cell, SignColorRed, 3)
 	}
 	published := m.newlyConfirmed()
 	if len(published) > 2 {
@@ -93,7 +96,7 @@ func TestSlotMap_ControlThreeCellsHadEvidence(t *testing.T) {
 	m := slotTestMap()
 	cells := cellsOf(m, m.cellSection[m.lattice[0]])
 	for _, cell := range cells[:3] {
-		feed(m, cell, SignColorRed, 3, 0.8)
+		feed(m, cell, SignColorRed, 3)
 	}
 	withEvidence := 0
 	for _, cell := range cells[:3] {
@@ -113,21 +116,21 @@ func TestSlotMap_BetterSupportedCellTakesTheSlot(t *testing.T) {
 
 	m := slotTestMap()
 	cells := cellsOf(m, m.cellSection[m.lattice[0]])
-	phantom, real := cells[0], cells[1]
-	feed(m, phantom, SignColorRed, 1, 0.8)
+	phantom, genuine := cells[0], cells[1]
+	feed(m, phantom, SignColorRed, 1)
 	held := m.newlyConfirmed()
 	if len(held) != 1 || held[0].Cell != phantom {
 		t.Fatalf("held = %+v, want the phantom %+v first", held, phantom)
 	}
 
-	feed(m, cells[2], SignColorRed, 2, 0.8)
+	feed(m, cells[2], SignColorRed, 2)
 	m.newlyConfirmed()
-	feed(m, real, SignColorGreen, 12, 0.8)
-	m.Observe(nil, trackmodel.Waypoint{X: real.X, Y: real.Y - 0.4})
+	feed(m, genuine, SignColorGreen, 12)
+	m.Observe(nil, trackmodel.Waypoint{X: genuine.X, Y: genuine.Y - 0.4})
 
 	found := false
 	for _, slot := range append(append([]*SignSlot{}, m.slots...), m.unpublished...) {
-		if slot.Cell == real {
+		if slot.Cell == genuine {
 			found = true
 		}
 	}
@@ -142,8 +145,8 @@ func TestSlotMap_CommittedSlotIsFrozen(t *testing.T) {
 
 	m := slotTestMap()
 	cells := cellsOf(m, m.cellSection[m.lattice[0]])
-	feed(m, cells[0], SignColorRed, 1, 0.8)
-	feed(m, cells[1], SignColorRed, 1, 0.8)
+	feed(m, cells[0], SignColorRed, 1)
+	feed(m, cells[1], SignColorRed, 1)
 	for i, slot := range m.newlyConfirmed() {
 		idx := i
 		slot.PublishedIndex = &idx
@@ -152,7 +155,7 @@ func TestSlotMap_CommittedSlotIsFrozen(t *testing.T) {
 	m.setCommitted(&committed)
 	frozenCell := m.slots[0].Cell
 
-	feed(m, cells[2], SignColorGreen, 20, 0.8)
+	feed(m, cells[2], SignColorGreen, 20)
 	m.Observe(nil, trackmodel.Waypoint{X: cells[2].X, Y: cells[2].Y - 0.4})
 
 	if m.slots[0].Cell != frozenCell {
@@ -167,8 +170,8 @@ func TestSlotMap_PassedIndexGetsFreshSlot(t *testing.T) {
 
 	m := slotTestMap()
 	cells := cellsOf(m, m.cellSection[m.lattice[0]])
-	feed(m, cells[0], SignColorRed, 1, 0.8)
-	feed(m, cells[1], SignColorRed, 1, 0.8)
+	feed(m, cells[0], SignColorRed, 1)
+	feed(m, cells[1], SignColorRed, 1)
 	for i, slot := range m.newlyConfirmed() {
 		idx := i
 		slot.PublishedIndex = &idx
@@ -176,7 +179,7 @@ func TestSlotMap_PassedIndexGetsFreshSlot(t *testing.T) {
 	m.retire(0)
 	m.retire(1)
 
-	feed(m, cells[2], SignColorGreen, 20, 0.8)
+	feed(m, cells[2], SignColorGreen, 20)
 	m.Observe(nil, trackmodel.Waypoint{X: cells[2].X, Y: cells[2].Y - 0.4})
 
 	fresh := m.newlyConfirmed()
@@ -229,7 +232,7 @@ func TestSlotMap_FrozenSectionDoesNotGrowAThird(t *testing.T) {
 	m := slotTestMap()
 	cells := cellsOf(m, m.cellSection[m.lattice[0]])
 	for _, cell := range cells[:2] {
-		feed(m, cell, SignColorRed, 3, 0.8)
+		feed(m, cell, SignColorRed, 3)
 	}
 	for i, slot := range m.newlyConfirmed() {
 		idx := i
@@ -238,7 +241,7 @@ func TestSlotMap_FrozenSectionDoesNotGrowAThird(t *testing.T) {
 	committed := 0
 	m.setCommitted(&committed)
 
-	feed(m, cells[2], SignColorGreen, 30, 0.8)
+	feed(m, cells[2], SignColorGreen, 30)
 	m.Observe(nil, trackmodel.Waypoint{X: cells[2].X, Y: cells[2].Y - 0.4})
 
 	live := append(append([]*SignSlot{}, m.slots...), m.unpublished...)
@@ -254,9 +257,9 @@ func TestSlotMap_ControlThirdCellOutEvidenced(t *testing.T) {
 	m := slotTestMap()
 	cells := cellsOf(m, m.cellSection[m.lattice[0]])
 	for _, cell := range cells[:2] {
-		feed(m, cell, SignColorRed, 3, 0.8)
+		feed(m, cell, SignColorRed, 3)
 	}
-	feed(m, cells[2], SignColorGreen, 30, 0.8)
+	feed(m, cells[2], SignColorGreen, 30)
 	if m.weight(cells[2]) <= m.weight(cells[0])*1.5 {
 		t.Errorf("weight(cell2)=%v not > 1.5x weight(cell0)=%v", m.weight(cells[2]), m.weight(cells[0]))
 	}
@@ -270,7 +273,7 @@ func TestSlotMap_RetiredSlotMayStillBeReplaced(t *testing.T) {
 	m := slotTestMap()
 	cells := cellsOf(m, m.cellSection[m.lattice[0]])
 	for _, cell := range cells[:2] {
-		feed(m, cell, SignColorRed, 3, 0.8)
+		feed(m, cell, SignColorRed, 3)
 	}
 	for i, slot := range m.newlyConfirmed() {
 		idx := i
@@ -279,7 +282,7 @@ func TestSlotMap_RetiredSlotMayStillBeReplaced(t *testing.T) {
 	m.retire(0)
 	m.retire(1)
 
-	feed(m, cells[2], SignColorGreen, 30, 0.8)
+	feed(m, cells[2], SignColorGreen, 30)
 	m.Observe(nil, trackmodel.Waypoint{X: cells[2].X, Y: cells[2].Y - 0.4})
 
 	fresh := m.newlyConfirmed()

@@ -14,26 +14,6 @@ import (
 	"github.com/teamvoltimor/vtitan/src/go/pkg/portable/quadrature"
 )
 
-// gpioLineHigh is the raw line-value integer go-gpiocdev's Values returns
-// for a HIGH reading.
-const gpioLineHigh = 1
-
-// errSampleBeforeConnect is returned by the sampling methods when called
-// before Connect has completed successfully.
-var errSampleBeforeConnect = errors.New("encoder: sampled before Connect")
-
-// nominalDTS is the step assumed on the first RPM sample, before a real
-// interval can be measured -- control.py's _NOMINAL_DT_S.
-const nominalDTS = 0.02
-
-// minDTS/maxDTS bound a measured step, so two calls in the same instant or
-// a long stall cannot turn into a divide-by-zero or a huge derivative kick
-// -- control.py's _MIN_DT_S/_MAX_DT_S.
-const (
-	minDTS = 0.001
-	maxDTS = 0.5
-)
-
 // Quadrature is the GPIO-backed A/B quadrature encoder on the drive shaft.
 // Counting is interrupt-driven: both channels are requested with both-edge
 // detection and the kernel's events feed the pure Decoder, so no count is
@@ -60,6 +40,26 @@ type Quadrature struct {
 	lastRPMAt time.Time
 	haveRPMAt bool
 }
+
+// gpioLineHigh is the raw line-value integer go-gpiocdev's Values returns
+// for a HIGH reading.
+const gpioLineHigh = 1
+
+// nominalDTS is the step assumed on the first RPM sample, before a real
+// interval can be measured -- control.py's _NOMINAL_DT_S.
+const nominalDTS = 0.02
+
+// minDTS/maxDTS bound a measured step, so two calls in the same instant or
+// a long stall cannot turn into a divide-by-zero or a huge derivative kick
+// -- control.py's _MIN_DT_S/_MAX_DT_S.
+const (
+	minDTS = 0.001
+	maxDTS = 0.5
+)
+
+// errSampleBeforeConnect is returned by the sampling methods when called
+// before Connect has completed successfully.
+var errSampleBeforeConnect = errors.New("encoder: sampled before Connect")
 
 // New validates cfg and returns a Quadrature. Call Connect before sampling.
 func New(cfg Config) (*Quadrature, error) {
@@ -116,22 +116,6 @@ func (q *Quadrature) Connect(_ context.Context) error {
 	return nil
 }
 
-// handleEdge folds one kernel edge event into the decoder. It runs on
-// go-gpiocdev's event goroutine, not the caller's.
-func (q *Quadrature) handleEdge(event gpiocdev.LineEvent) {
-	index := 0
-	if event.Offset == q.cfg.PinB {
-		index = 1
-	} else if event.Offset != q.cfg.PinA {
-		return
-	}
-
-	q.mu.Lock()
-	q.levels[index] = event.Type == gpiocdev.LineEventRisingEdge
-	q.decoder.Sample(q.levels[0], q.levels[1])
-	q.mu.Unlock()
-}
-
 // Counts returns the accumulated quadrature count in the COMMAND frame
 // (Config.Invert applied), or 0 before Connect. Sign-corrected here rather
 // than at each call site so every derived quantity inherits it consistently
@@ -140,16 +124,6 @@ func (q *Quadrature) Counts() int64 {
 	q.mu.Lock()
 	defer q.mu.Unlock()
 	return q.countsLocked()
-}
-
-func (q *Quadrature) countsLocked() int64 {
-	if q.lines == nil {
-		return 0
-	}
-	if q.cfg.Invert {
-		return -q.decoder.Counts()
-	}
-	return q.decoder.Counts()
 }
 
 // RPM samples the counter and returns the smoothed output-shaft RPM,
@@ -163,20 +137,6 @@ func (q *Quadrature) RPM() (float64, error) {
 		return 0, errSampleBeforeConnect
 	}
 	return q.estimator.Update(q.countsLocked(), q.elapsedLocked()), nil
-}
-
-// elapsedLocked returns seconds since the previous RPM sample, seeding the
-// first call with nominalDTS.
-func (q *Quadrature) elapsedLocked() float64 {
-	now := time.Now()
-	if !q.haveRPMAt {
-		q.haveRPMAt = true
-		q.lastRPMAt = now
-		return nominalDTS
-	}
-	dtS := now.Sub(q.lastRPMAt).Seconds()
-	q.lastRPMAt = now
-	return min(max(dtS, minDTS), maxDTS)
 }
 
 // Odometry returns a full sample (counts, revolutions, RPM, distance) from
@@ -231,4 +191,44 @@ func (q *Quadrature) Close() error {
 		return fmt.Errorf("encoder: closing GPIO lines: %w", err)
 	}
 	return nil
+}
+
+// handleEdge folds one kernel edge event into the decoder. It runs on
+// go-gpiocdev's event goroutine, not the caller's.
+func (q *Quadrature) handleEdge(event gpiocdev.LineEvent) {
+	index := 0
+	if event.Offset == q.cfg.PinB {
+		index = 1
+	} else if event.Offset != q.cfg.PinA {
+		return
+	}
+
+	q.mu.Lock()
+	q.levels[index] = event.Type == gpiocdev.LineEventRisingEdge
+	q.decoder.Sample(q.levels[0], q.levels[1])
+	q.mu.Unlock()
+}
+
+func (q *Quadrature) countsLocked() int64 {
+	if q.lines == nil {
+		return 0
+	}
+	if q.cfg.Invert {
+		return -q.decoder.Counts()
+	}
+	return q.decoder.Counts()
+}
+
+// elapsedLocked returns seconds since the previous RPM sample, seeding the
+// first call with nominalDTS.
+func (q *Quadrature) elapsedLocked() float64 {
+	now := time.Now()
+	if !q.haveRPMAt {
+		q.haveRPMAt = true
+		q.lastRPMAt = now
+		return nominalDTS
+	}
+	dtS := now.Sub(q.lastRPMAt).Seconds()
+	q.lastRPMAt = now
+	return min(max(dtS, minDTS), maxDTS)
 }

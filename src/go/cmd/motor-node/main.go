@@ -46,6 +46,14 @@ type cliConfig struct {
 	invert         bool
 }
 
+// encoderFeedback owns the background JointStates publishing loop started by
+// startEncoderFeedback and its teardown.
+type encoderFeedback struct {
+	done   chan struct{}
+	enc    *encoder.Quadrature
+	logger *slog.Logger
+}
+
 // exit codes: 0 means motor-node ran and shut down cleanly (including via
 // SIGINT/SIGTERM). 1 means it could not start or hit an unrecoverable
 // runtime error.
@@ -118,7 +126,7 @@ func run(ctx context.Context, logger *slog.Logger, cfg cliConfig) error {
 		actuationv1.AckermannCmdSubject,
 	)
 	if err != nil {
-		return err //nolint:wrapcheck // NewSubscriber already wraps with "nats: ..." context
+		return err
 	}
 	defer func() {
 		if closeErr := sub.Close(); closeErr != nil {
@@ -157,14 +165,6 @@ func run(ctx context.Context, logger *slog.Logger, cfg cliConfig) error {
 // noTeardown is the no-op teardown returned when encoder feedback is not
 // configured, so the caller can defer it unconditionally.
 func noTeardown() {}
-
-// encoderFeedback owns the background JointStates publishing loop started by
-// startEncoderFeedback and its teardown.
-type encoderFeedback struct {
-	done   chan struct{}
-	enc    *encoder.Quadrature
-	logger *slog.Logger
-}
 
 // Teardown waits for the feedback loop to finish and closes the encoder.
 func (f *encoderFeedback) Teardown() {

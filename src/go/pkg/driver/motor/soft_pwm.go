@@ -43,11 +43,6 @@ func newSoftPWM(line *gpiocdev.Line, frequencyHz int) *softPWM {
 	}
 }
 
-// start begins the toggle goroutine. Must be called at most once.
-func (s *softPWM) start() {
-	go s.run()
-}
-
 // SetDuty stores the target duty fraction ([0, 1]); the toggle goroutine
 // picks it up on its next cycle. Lock-free by design — the toggle loop
 // reads this on every cycle (up to frequencyHz times per second) and a
@@ -68,6 +63,14 @@ func (s *softPWM) Stop() error {
 	return nil
 }
 
+// start begins the toggle goroutine. Must be called at most once.
+func (s *softPWM) start() {
+	go s.run()
+}
+
+// run toggles the line until Stop. A failed SetValue is not fatal: the next
+// half-cycle writes the line again, and there is no caller to report to
+// mid-cycle. Stop's final LOW write is the one whose error is returned.
 func (s *softPWM) run() {
 	defer close(s.doneCh)
 	for {
@@ -76,13 +79,13 @@ func (s *softPWM) run() {
 		low := s.period - high
 
 		if high > 0 {
-			_ = s.line.SetValue(gpioHigh)
+			_ = s.line.SetValue(gpioHigh) //nolint:errcheck // retried next cycle, see run
 			if s.wait(high) {
 				return
 			}
 		}
 		if low > 0 {
-			_ = s.line.SetValue(gpioLow)
+			_ = s.line.SetValue(gpioLow) //nolint:errcheck // retried next cycle, see run
 			if s.wait(low) {
 				return
 			}

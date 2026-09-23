@@ -9,6 +9,7 @@ import (
 	"os/exec"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/go-playground/validator/v10"
 	"github.com/warthog618/go-gpiocdev"
@@ -71,6 +72,9 @@ const (
 	// them; they gate protection, not direction.
 	DefaultREnLine = 6
 	DefaultLEnLine = 5
+
+	// pinctrlTimeout bounds forceGPIOLow's pinctrl call.
+	pinctrlTimeout = 2 * time.Second
 )
 
 // errNotConnected is returned by SetSpeed when called before Connect has
@@ -108,10 +112,10 @@ func New(cfg Config) (*Driver, error) {
 func (d *Driver) Connect(ctx context.Context) error {
 	rpwm := newSysfsPWMChannel(sysfsPWMRoot, d.cfg.PWMChip, d.cfg.PWMChannel, d.cfg.FrequencyHz)
 	if err := rpwm.Export(ctx); err != nil {
-		return err //nolint:wrapcheck // Export already wraps with "motor: ..." context
+		return err
 	}
 	if err := rpwm.Init(ctx); err != nil {
-		return err //nolint:wrapcheck // Init already wraps with "motor: ..." context
+		return err
 	}
 
 	lpwmLine, err := gpiocdev.RequestLine(
@@ -135,7 +139,7 @@ func (d *Driver) Connect(ctx context.Context) error {
 	}
 
 	ctrl := hbridge.NewController(rpwm, lpwm, rEn, lEn, d.cfg.Invert)
-	if err := ctrl.Connect(ctx); err != nil {
+	if err = ctrl.Connect(ctx); err != nil {
 		return errors.Join(
 			fmt.Errorf("motor: %w", err),
 			rEn.Close(), lEn.Close(), lpwm.Stop(), lpwmLine.Close(),
@@ -222,7 +226,11 @@ func forceGPIOLow(cfg Config) {
 		strconv.Itoa(cfg.REnLine),
 		strconv.Itoa(cfg.LEnLine),
 	}, ",")
-	//nolint:gosec // G204: args are config-derived integers, not user input; mirrors the Python driver's
-	// subprocess.run(["pinctrl", ...], check=False) (noqa: S607).
-	_ = exec.Command("pinctrl", "set", pins, "op", "dl").Run()
+	// Best effort, like the Python driver's subprocess.run(["pinctrl", ...],
+	// check=False): see this function's doc comment. Bounded, so a hung
+	// pinctrl cannot hold Close.
+	ctx, cancel := context.WithTimeout(context.Background(), pinctrlTimeout)
+	defer cancel()
+	//nolint:errcheck // deliberately swallowed, see above
+	_ = exec.CommandContext(ctx, "pinctrl", "set", pins, "op", "dl").Run()
 }

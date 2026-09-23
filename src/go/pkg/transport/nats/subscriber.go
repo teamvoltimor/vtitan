@@ -43,8 +43,6 @@ func NewSubscriber[M any, P interface {
 // Read blocks until the next message arrives on the Subscriber's subject,
 // or until ctx is done. Returns T, the same protobuf-message type parameter
 // declared on Subscriber.
-//
-//nolint:ireturn // T is a generic constrained to proto.Message, not a hand-written interface-return choice
 func (s *Subscriber[T]) Read(ctx context.Context) (T, error) {
 	var zero T
 

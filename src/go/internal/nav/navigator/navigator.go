@@ -341,26 +341,7 @@ func New(p Params) (*Navigator, error) {
 		cfg = cfg.ForObstaclesChallenge()
 	}
 
-	followerCfg := corridorfollower.DefaultConfig()
-	if p.CorridorFollowerConfig != nil {
-		followerCfg = *p.CorridorFollowerConfig
-	}
-	dirEstCfg := directionestimator.DefaultConfig()
-	if p.DirectionEstimatorConfig != nil {
-		dirEstCfg = *p.DirectionEstimatorConfig
-	}
-	bayExitCfg := bayexit.DefaultConfig()
-	if p.BayExitConfig != nil {
-		bayExitCfg = *p.BayExitConfig
-	}
-	widthMeasCfg := corridorestimator.DefaultConfig()
-	if p.CorridorEstimatorConfig != nil {
-		widthMeasCfg = *p.CorridorEstimatorConfig
-	}
-	startMeasCfg := startmeasurement.DefaultConfig()
-	if p.StartMeasurementConfig != nil {
-		startMeasCfg = *p.StartMeasurementConfig
-	}
+	dirEstCfg := orDefault(p.DirectionEstimatorConfig, directionestimator.DefaultConfig())
 
 	// A SignRouter is what identifies the Obstacles Challenge (see p.SignRouter),
 	// so the two challenges resolve their own pursuit overrides here, matching
@@ -378,11 +359,11 @@ func New(p Params) (*Navigator, error) {
 		vision:            p.Vision,
 		cfg:               cfg,
 		signRouterCfg:     p.SignRouterConfig,
-		followerCfg:       followerCfg,
+		followerCfg:       orDefault(p.CorridorFollowerConfig, corridorfollower.DefaultConfig()),
 		dirEstCfg:         dirEstCfg,
-		bayExitCfg:        bayExitCfg,
-		widthMeasCfg:      widthMeasCfg,
-		startMeasCfg:      startMeasCfg,
+		bayExitCfg:        orDefault(p.BayExitConfig, bayexit.DefaultConfig()),
+		widthMeasCfg:      orDefault(p.CorridorEstimatorConfig, corridorestimator.DefaultConfig()),
+		startMeasCfg:      orDefault(p.StartMeasurementConfig, startmeasurement.DefaultConfig()),
 		waypoints:         slices.Clone(p.Waypoints),
 		laneBaseWaypoints: slices.Clone(p.Waypoints),
 		numLaps:           numLaps,
@@ -405,21 +386,40 @@ func New(p Params) (*Navigator, error) {
 	if n.direction == nil {
 		n.dirEstimator = directionestimator.NewEstimator(dirEstCfg.MinVotes)
 		if n.signRouter != nil {
-			discoveryCfg := signrouter.DefaultDiscoveryConfig()
-			if p.SignDiscoveryConfig != nil {
-				discoveryCfg = *p.SignDiscoveryConfig
-			}
-			// SLOT_SIGN_MAP selects the rulebook-constrained assignment over
-			// free clustering, matching SignRouter.__init__'s choice.
-			if n.signRouterCfg.SlotSignMap {
-				n.discovery = signrouter.NewSlotSignMap(n.signRouterCfg, discoveryCfg, n.signRouter)
-			} else {
-				n.discovery = signrouter.NewObservedSignMap(discoveryCfg, n.signRouter)
-			}
+			n.discovery = newSignMap(
+				n.signRouterCfg,
+				orDefault(p.SignDiscoveryConfig, signrouter.DefaultDiscoveryConfig()),
+				n.signRouter,
+			)
 		}
 	}
 	n.applyPathWallBudget()
 	return n, nil
+}
+
+// orDefault is *override when the caller supplied one, else def: the shape
+// of every optional config in Params.
+func orDefault[T any](override *T, def T) T {
+	if override != nil {
+		return *override
+	}
+	return def
+}
+
+// newSignMap builds the discovery map a blind Obstacles round feeds.
+// SLOT_SIGN_MAP selects the rulebook-constrained assignment over free
+// clustering, matching SignRouter.__init__'s choice.
+//
+//nolint:ireturn // picking the implementation is this function's job
+func newSignMap(
+	routerCfg signrouter.Config,
+	discoveryCfg signrouter.DiscoveryConfig,
+	router *signrouter.SignRouter,
+) signrouter.SignMap {
+	if routerCfg.SlotSignMap {
+		return signrouter.NewSlotSignMap(routerCfg, discoveryCfg, router)
+	}
+	return signrouter.NewObservedSignMap(discoveryCfg, router)
 }
 
 // DebugSnapshot is the full internal state of the most recent Step call,

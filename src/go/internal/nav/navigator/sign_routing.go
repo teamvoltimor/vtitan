@@ -8,6 +8,10 @@ import (
 	"github.com/teamvoltimor/vtitan/src/go/internal/nav/trackmodel"
 )
 
+// fingerprintCentimetres scales a position to centimetres before rounding,
+// matching Python's round(s.x, 2) / round(s.y, 2).
+const fingerprintCentimetres = 100.0
+
 // signAhead reports whether a routed sign is within activation distance and
 // ahead of the chassis, the third preview signal alongside crosstrack and
 // turn-ahead.
@@ -165,10 +169,6 @@ func laneFingerprintOf(router *signrouter.SignRouter) []laneFingerprintEntry {
 	}
 	return fingerprint
 }
-
-// fingerprintCentimetres scales a position to centimetres before rounding,
-// matching Python's round(s.x, 2) / round(s.y, 2).
-const fingerprintCentimetres = 100.0
 
 // holdCommittedPath keeps a lane rebuild from moving the path the chassis
 // is already on, matching _hold_committed_path.

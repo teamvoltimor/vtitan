@@ -52,6 +52,17 @@ type SignLaneParams struct {
 	CornerEntryM float64
 }
 
+// lanePlan is one corridor's lane, planned against the UNMODIFIED path,
+// matching sign_lane._LanePlan.
+type lanePlan struct {
+	corridor    trackmodel.Section
+	axis        Axis
+	indices     []int
+	baseLateral float64
+	profile     []controlPoint
+	signs       []LaneSpec
+}
+
 // axisCoords returns (lateral, depth) for wp under axis, matching
 // _axis_coords.
 func axisCoords(wp trackmodel.Waypoint, axis Axis) (lateral, depth float64) {
@@ -279,17 +290,6 @@ func medianLateral(waypoints []trackmodel.Waypoint, axis Axis, indices, straight
 	}
 	sort.Float64s(laterals)
 	return laterals[len(laterals)/2]
-}
-
-// lanePlan is one corridor's lane, planned against the UNMODIFIED path,
-// matching sign_lane._LanePlan.
-type lanePlan struct {
-	corridor    trackmodel.Section
-	axis        Axis
-	indices     []int
-	baseLateral float64
-	profile     []controlPoint
-	signs       []LaneSpec
 }
 
 // planLane builds one corridor's lane profile, matching the planning half of

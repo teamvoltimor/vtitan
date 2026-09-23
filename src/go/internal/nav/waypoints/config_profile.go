@@ -48,8 +48,10 @@ func ConfigFor(logger *slog.Logger, configRoot string) Config {
 		if side, ok := corridorSideFromString(loaded.NarrowCenterBiasSide); ok {
 			cfg.NarrowCenterBiasSide = side
 		} else {
-			logger.Warn("waypoints: waypoints.toml's narrow_center_bias_side is not \"inner\"/\"outer\", keeping default",
-				"value", loaded.NarrowCenterBiasSide)
+			logger.Warn(
+				"waypoints: waypoints.toml's narrow_center_bias_side is not \"inner\"/\"outer\", keeping default",
+				"value", loaded.NarrowCenterBiasSide,
+			)
 		}
 	})
 

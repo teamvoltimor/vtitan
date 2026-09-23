@@ -26,13 +26,6 @@ type OdometrySource interface {
 	Odometry() (encoder.Odometry, error)
 }
 
-// DefaultFeedbackInterval is how often the feedback loop samples the
-// encoder and publishes JointStates: 50Hz, matching the rate the navigator
-// drives its own control loop at, so a consumer differencing successive
-// distances (internal/nav/bayexit) never has to wait more than one nav tick
-// for a fresh sample.
-const DefaultFeedbackInterval = 20 * time.Millisecond
-
 // Feedback publishes wheel odometry as JointStates on
 // vtitan.actuation.v1.joint_states, the subject
 // natsgw.Gateway.GetWheelOdometry reads and the direct analogue of the
@@ -55,6 +48,13 @@ type Feedback struct {
 	pub      *nats.Publisher[*actuationv1.JointStates]
 	interval time.Duration
 }
+
+// DefaultFeedbackInterval is how often the feedback loop samples the
+// encoder and publishes JointStates: 50Hz, matching the rate the navigator
+// drives its own control loop at, so a consumer differencing successive
+// distances (internal/nav/bayexit) never has to wait more than one nav tick
+// for a fresh sample.
+const DefaultFeedbackInterval = 20 * time.Millisecond
 
 // NewFeedback builds a Feedback over source and pub, sampling every
 // interval (DefaultFeedbackInterval when interval is not positive).

@@ -49,8 +49,6 @@ func (s *Slot[T]) Push(item T) {
 // `_drain`'s `q.get(timeout=0.5)` polling loop collapsed into a single
 // channel receive -- context-first cancellation per this project's
 // concurrency convention. ok is false only when ctx was done first.
-//
-//nolint:ireturn // T is Slot's own type parameter, not a leaked interface -- ireturn's generic-instantiation false positive.
 func (s *Slot[T]) Next(ctx context.Context) (item T, ok bool) {
 	select {
 	case item = <-s.ch:

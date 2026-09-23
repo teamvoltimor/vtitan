@@ -14,16 +14,6 @@ import (
 	"github.com/teamvoltimor/vtitan/src/go/pkg/driver"
 )
 
-// gpioLineLow is the raw line-value integer go-gpiocdev's Value returns
-// for a LOW reading -- matching motor.gpioLow's meaning in the sibling
-// driver package (not reused directly since it belongs to a different
-// package's private consts).
-const gpioLineLow = 0
-
-// errReadBeforeConnect is returned by Read when called before Connect has
-// completed successfully.
-var errReadBeforeConnect = errors.New("button: Read called before Connect")
-
 // Config configures a Driver's GPIO wiring and poll rate, plus the embedded
 // debounce/hold-threshold timings (Thresholds). GPIOChip/Line/PullUp are
 // real hardware facts, matching
@@ -42,6 +32,22 @@ type Config struct {
 	Thresholds   Thresholds    `validate:"required"`
 }
 
+// Driver is the hardware GPIO-backed button driver: a single input line,
+// sampled at Config.PollInterval and run through the pure evaluator
+// (evaluator.go) to produce debounced press/hold/release events. It
+// implements driver.Driver[Event] (src/go/pkg/driver).
+type Driver struct {
+	cfg  Config
+	line *gpiocdev.Line
+	eval *Evaluator
+}
+
+// gpioLineLow is the raw line-value integer go-gpiocdev's Value returns
+// for a LOW reading -- matching motor.gpioLow's meaning in the sibling
+// driver package (not reused directly since it belongs to a different
+// package's private consts).
+const gpioLineLow = 0
+
 // DefaultGPIOChip is the character device every GPIO consumer on this
 // board requests lines against (matches motor.DefaultGPIOChip). There is
 // deliberately no default Line: config.py's gpio_pin is required with no
@@ -52,15 +58,9 @@ const DefaultGPIOChip = "gpiochip0"
 // DefaultPollInterval matches button_node.toml's default POLL_HZ (20Hz).
 const DefaultPollInterval = 50 * time.Millisecond
 
-// Driver is the hardware GPIO-backed button driver: a single input line,
-// sampled at Config.PollInterval and run through the pure evaluator
-// (evaluator.go) to produce debounced press/hold/release events. It
-// implements driver.Driver[Event] (src/go/pkg/driver).
-type Driver struct {
-	cfg  Config
-	line *gpiocdev.Line
-	eval *Evaluator
-}
+// errReadBeforeConnect is returned by Read when called before Connect has
+// completed successfully.
+var errReadBeforeConnect = errors.New("button: Read called before Connect")
 
 var _ driver.Driver[Event] = (*Driver)(nil)
 

@@ -10,6 +10,7 @@
 // machine this was written on -- see doc.go. Build/vet/test/lint this
 // package's hardware layer with GOOS=linux GOARCH=arm64 (the actual
 // deployment target).
+
 package motor
 
 import (

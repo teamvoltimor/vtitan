@@ -308,7 +308,7 @@ func run(ctx context.Context, logger *slog.Logger, cfg cliConfig) error {
 		actuationv1.AckermannCmdSubject,
 	)
 	if err != nil {
-		return err //nolint:wrapcheck // NewSubscriber already wraps with "nats: ..." context
+		return err
 	}
 	defer closeLogged(logger, "AckermannCmd subscription", ackermannSub.Close)
 
@@ -317,7 +317,7 @@ func run(ctx context.Context, logger *slog.Logger, cfg cliConfig) error {
 		uiv1.TelemetrySummarySubject,
 	)
 	if err != nil {
-		return err //nolint:wrapcheck // NewSubscriber already wraps with "nats: ..." context
+		return err
 	}
 	defer closeLogged(logger, "TelemetrySummary subscription", summarySub.Close)
 
@@ -378,7 +378,7 @@ func run(ctx context.Context, logger *slog.Logger, cfg cliConfig) error {
 	}
 
 	logger.Info("pi-zero: connected", "nats_url", cfg.NATSURL)
-	targets := []supervise.Target{
+	targets := append([]supervise.Target{
 		{Name: "motor", Fn: func(ctx context.Context) error {
 			return mLoop.Run(ctx, ackermannSub, cfg.motorCommandTimeout)
 		}},
@@ -388,8 +388,7 @@ func run(ctx context.Context, logger *slog.Logger, cfg cliConfig) error {
 		{Name: "oled", Fn: func(ctx context.Context) error {
 			return oledLoop(ctx, logger, oledCfg, oledDrv, summarySub)
 		}},
-	}
-	targets = append(targets, feedbackTargets...)
+	}, feedbackTargets...)
 	if err = supervisor.RunAll(ctx, targets...); err != nil {
 		return fmt.Errorf("pi-zero: %w", err)
 	}

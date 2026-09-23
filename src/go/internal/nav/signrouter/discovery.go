@@ -53,8 +53,6 @@ type SignMap interface {
 	// feeds router state back (committed/passed), and refines published signs
 	// in place.
 	Publish()
-	// IsDiscovering reports whether the map is actively feeding a router.
-	IsDiscovering() bool
 	// ResetForNewLap clears per-lap bookkeeping (a no-op for the
 	// free-clustering map, which keeps none).
 	ResetForNewLap()

@@ -273,6 +273,8 @@ linters:
         - anon
         - stdlib
         - context.Context
+        # A type parameter is the caller's concrete type, not an interface.
+        - generic
 
     exhaustive:
       default-signifies-exhaustive: true
@@ -344,6 +346,13 @@ linters:
         - cancelled
         - honouring
         - recognises
+        - metre
+        - centimetre
+        - centimetres
+        - millimetre
+        - neighbouring
+        - colourless
+        - analogue
 
     nolintlint:
       require-explanation: true

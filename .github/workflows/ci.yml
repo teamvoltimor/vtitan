@@ -73,19 +73,15 @@ jobs:
       - name: Test
         run: go test ./...
 
-      # The 59 findings that existed when lint joined CI are grandfathered by
-      # pinning the revision they were counted at; everything after it must be
-      # clean. A rolling base (the previous commit, the PR base) would let a
-      # finding land in one push and be forgiven by the next. The depguard
-      # rule that keeps pkg/ free of internal/ (ADR 0094) was checked to still
-      # fire under this mode, with a planted import. To pay the debt down,
-      # fix findings and move the pin forward; never move it to hide new ones.
-      - name: Lint (new code only)
+      # The whole module is linted. The findings grandfathered when lint
+      # joined CI (the --new-from-rev=a28a0cf6 pin) are paid down, so there is
+      # no baseline left to hide behind: a finding is fixed or carries a
+      # //nolint with its reason.
+      - name: Lint
         uses: golangci/golangci-lint-action@v8
         with:
           version: v2.12.2
           working-directory: src/go
-          args: --new-from-rev=a28a0cf63fef10231a0c6b2b9abc72f61894673b
 
   # pkg/portable is shared with the Pico 2 firmware, so it must build under
   # TinyGo (ADR 0098). The depguard rule catches forbidden imports; this job

@@ -21,16 +21,12 @@ package signrouter
 
 import (
 	"math"
+	"slices"
 	"sort"
 
 	"github.com/teamvoltimor/vtitan/src/go/internal/nav/trackmodel"
 	"github.com/teamvoltimor/vtitan/src/go/internal/nav/waypoints"
 )
-
-// signsPerSection is the rulebook cap. A section holds at most two pillars, so
-// the whole track holds at most eight in twenty-four legal cells. Matches
-// sign_slot_map._SIGNS_PER_SECTION.
-const signsPerSection = 2
 
 // cellEvidence is what has been observed AT one legal cell over the whole
 // round, matching _CellEvidence. Never decays: a pillar does not move during a
@@ -42,21 +38,6 @@ type cellEvidence struct {
 	// hits is observations that claimed this cell (for the discovery log).
 	hits  int
 	votes map[SignColor]float64
-}
-
-// colour is the cell's colour: argmax over its OWN votes, pooled over the
-// round -- NOT pooled with neighbouring cells; pooling relocates flips rather
-// than removing them. See adr:0058-sign-discovery-range-and-barrier-belief.
-func (e *cellEvidence) colour() SignColor {
-	best := SignColorUnknown
-	bestV := math.Inf(-1)
-	for color, v := range e.votes {
-		if v > bestV {
-			bestV = v
-			best = color
-		}
-	}
-	return best
 }
 
 // SignSlot is one published sign, as a STABLE index pointing at a cell that may
@@ -75,12 +56,6 @@ type SignSlot struct {
 	// Hits is observations behind the cell this slot points at, for the
 	// router's discovery log.
 	Hits int
-}
-
-// asSpec materialises the slot as the router sees it. The position IS a legal
-// cell, exactly.
-func (s *SignSlot) asSpec() SignSpec {
-	return SignSpec{X: s.Cell.X, Y: s.Cell.Y, Color: s.Colour}
 }
 
 // SlotSignMap is a drop-in for ObservedSignMap that assigns evidence to legal
@@ -112,6 +87,45 @@ type SlotSignMap struct {
 	// would make an unpassed pillar inherit the "behind us" flag and vanish
 	// for the rest of the lap, so those get a fresh slot instead.
 	retired map[int]struct{}
+}
+
+// weightedCell pairs a cell with its evidence weight for the assignment sort.
+type weightedCell struct {
+	weight float64
+	cell   trackmodel.Waypoint
+}
+
+// signsPerSection is the rulebook cap. A section holds at most two pillars, so
+// the whole track holds at most eight in twenty-four legal cells. Matches
+// sign_slot_map._SIGNS_PER_SECTION.
+const signsPerSection = 2
+
+// trackSections and legalCellsPerSection size the legal grid: four sections,
+// three depth rows by two width lines each.
+const (
+	trackSections        = 4
+	legalCellsPerSection = 6
+)
+
+// colour is the cell's colour: argmax over its OWN votes, pooled over the
+// round -- NOT pooled with neighbouring cells; pooling relocates flips rather
+// than removing them. See adr:0058-sign-discovery-range-and-barrier-belief.
+func (e *cellEvidence) colour() SignColor {
+	best := SignColorUnknown
+	bestV := math.Inf(-1)
+	for color, v := range e.votes {
+		if v > bestV {
+			bestV = v
+			best = color
+		}
+	}
+	return best
+}
+
+// asSpec materialises the slot as the router sees it. The position IS a legal
+// cell, exactly.
+func (s *SignSlot) asSpec() SignSpec {
+	return SignSpec{X: s.Cell.X, Y: s.Cell.Y, Color: s.Colour}
 }
 
 // NewSlotSignMap builds an empty rulebook-constrained map, matching
@@ -151,7 +165,7 @@ func legalSignPositions(cfg Config) []trackmodel.Waypoint {
 	depths := []float64{cfg.GridDepthNear, cfg.GridDepthMiddle, cfg.GridDepthFar}
 	near := []float64{cfg.GridWidthOuter, cfg.GridWidthInner}
 	far := []float64{cfg.TrackSizeM - near[0], cfg.TrackSizeM - near[1]}
-	points := make([]trackmodel.Waypoint, 0, 24)
+	points := make([]trackmodel.Waypoint, 0, trackSections*legalCellsPerSection)
 	for _, d := range depths {
 		for _, w := range near {
 			points = append(points, trackmodel.Waypoint{X: d, Y: w}) // SOUTH
@@ -259,17 +273,11 @@ func (m *SlotSignMap) claim(obs TrafficSignObservation) {
 	evidence.votes[obs.Color] += obs.Confidence
 }
 
-// weightedCell pairs a cell with its evidence weight for the assignment sort.
-type weightedCell struct {
-	weight float64
-	cell   trackmodel.Waypoint
-}
-
 // reassign recomputes the top-two-per-section assignment and applies it to the
 // slots. Recomputed rather than accumulated: a slot held by a phantom is
 // re-pointed the moment a real pillar out-evidences it.
 func (m *SlotSignMap) reassign() {
-	sectionOrder := make([]trackmodel.Section, 0, 4)
+	sectionOrder := make([]trackmodel.Section, 0, trackSections)
 	bySection := map[trackmodel.Section][]weightedCell{}
 	for _, cell := range m.cellOrder {
 		evidence := m.cells[cell]
@@ -308,59 +316,61 @@ func (m *SlotSignMap) reassign() {
 // version opened a slot whenever no incumbent was displaceable, which let a
 // section hold three. Slots at a RETIRED index do not count as live.
 func (m *SlotSignMap) applySection(section trackmodel.Section, wanted []trackmodel.Waypoint) {
-	inWanted := func(cell trackmodel.Waypoint) bool {
-		for _, w := range wanted {
-			if w == cell {
-				return true
-			}
-		}
-		return false
-	}
 	for _, cell := range wanted {
 		slots := m.slotsForSection(section)
-		live := make([]*SignSlot, 0, len(slots))
-		for _, slot := range slots {
-			if !m.isRetired(slot) {
-				live = append(live, slot)
-			}
-		}
-		var existing *SignSlot
-		for _, slot := range slots {
-			if slot.Cell == cell {
-				existing = slot
-				break
-			}
-		}
-		if existing != nil {
+		if existing := slotAt(slots, cell); existing != nil {
 			m.refreshColour(existing)
 			continue
 		}
+		live := m.liveSlots(slots)
 		if len(live) < signsPerSection {
 			m.openSlot(cell, section)
 			continue
 		}
-		free := make([]*SignSlot, 0, len(live))
-		for _, slot := range live {
-			if !inWanted(slot.Cell) && !slot.Frozen {
-				free = append(free, slot)
-			}
-		}
-		if len(free) == 0 {
-			// At the cap with nothing displaceable. The evidence does not
-			// expire, so this cell takes a slot as soon as one frees.
-			continue
-		}
-		incumbent := free[0]
-		for _, slot := range free[1:] {
-			if m.weight(slot.Cell) < m.weight(incumbent.Cell) {
-				incumbent = slot
-			}
-		}
-		if !m.displaces(cell, incumbent.Cell) {
+		// At the cap. With nothing displaceable the evidence does not
+		// expire, so this cell takes a slot as soon as one frees.
+		incumbent := m.weakestDisplaceable(live, wanted)
+		if incumbent == nil || !m.displaces(cell, incumbent.Cell) {
 			continue
 		}
 		m.repoint(incumbent, cell)
 	}
+}
+
+// slotAt returns the slot already pointed at cell, or nil.
+func slotAt(slots []*SignSlot, cell trackmodel.Waypoint) *SignSlot {
+	for _, slot := range slots {
+		if slot.Cell == cell {
+			return slot
+		}
+	}
+	return nil
+}
+
+// liveSlots drops the slots at a RETIRED index.
+func (m *SlotSignMap) liveSlots(slots []*SignSlot) []*SignSlot {
+	live := make([]*SignSlot, 0, len(slots))
+	for _, slot := range slots {
+		if !m.isRetired(slot) {
+			live = append(live, slot)
+		}
+	}
+	return live
+}
+
+// weakestDisplaceable is the lowest-weight live slot that is neither wanted
+// nor frozen (the first on a tie), or nil when every slot is protected.
+func (m *SlotSignMap) weakestDisplaceable(live []*SignSlot, wanted []trackmodel.Waypoint) *SignSlot {
+	var weakest *SignSlot
+	for _, slot := range live {
+		if slices.Contains(wanted, slot.Cell) || slot.Frozen {
+			continue
+		}
+		if weakest == nil || m.weight(slot.Cell) < m.weight(weakest.Cell) {
+			weakest = slot
+		}
+	}
+	return weakest
 }
 
 // displaces reports whether challenger beats incumbent by the hysteresis

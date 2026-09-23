@@ -11,13 +11,6 @@ import (
 	"github.com/teamvoltimor/vtitan/src/go/pkg/portable/hbridge"
 )
 
-const (
-	// gpioLow/gpioHigh are the raw line-value integers go-gpiocdev's
-	// SetValue expects.
-	gpioLow  = 0
-	gpioHigh = 1
-)
-
 // gpioEnableLine is the real hbridge.EnableWriter backed by a
 // go-gpiocdev output line. Used for both R_EN and L_EN — see
 // docs/bts7960-ibt2-wiring.md for why both are held permanently HIGH once
@@ -25,6 +18,13 @@ const (
 type gpioEnableLine struct {
 	line *gpiocdev.Line
 }
+
+const (
+	// gpioLow/gpioHigh are the raw line-value integers go-gpiocdev's
+	// SetValue expects.
+	gpioLow  = 0
+	gpioHigh = 1
+)
 
 var _ hbridge.EnableWriter = (*gpioEnableLine)(nil)
 

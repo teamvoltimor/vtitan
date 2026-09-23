@@ -403,13 +403,15 @@ func TestPassLateral_GapCentresTheSqueeze(t *testing.T) {
 	}
 
 	wantCentred := (cfg.TrackMinCoordM + signLateral - cfg.SignWidthM/2) / 2
-	if got := signrouter.PassLateral(signLateral, mult, trackmodel.South, offset, 1.0, cfg); math.Abs(got-wantCentred) > 1e-9 {
+	got := signrouter.PassLateral(signLateral, mult, trackmodel.South, offset, 1.0, cfg)
+	if math.Abs(got-wantCentred) > 1e-9 {
 		t.Errorf("PassLateral(frac=1) = %v, want %v", got, wantCentred)
 	}
 
 	// Halfway between the two endpoints.
 	wantHalf := clamped + (wantCentred-clamped)/2
-	if got := signrouter.PassLateral(signLateral, mult, trackmodel.South, offset, 0.5, cfg); math.Abs(got-wantHalf) > 1e-9 {
+	got = signrouter.PassLateral(signLateral, mult, trackmodel.South, offset, 0.5, cfg)
+	if math.Abs(got-wantHalf) > 1e-9 {
 		t.Errorf("PassLateral(frac=0.5) = %v, want %v", got, wantHalf)
 	}
 }
@@ -427,7 +429,8 @@ func TestPassLateral_UnsqueezedSignIsUntouchedAtEveryFrac(t *testing.T) {
 
 	want := signrouter.ClampLateral(signLateral+float64(mult)*offset, trackmodel.South, cfg)
 	for _, frac := range []float64{0.0, 0.25, 0.5, 1.0} {
-		if got := signrouter.PassLateral(signLateral, mult, trackmodel.South, offset, frac, cfg); math.Abs(got-want) > 1e-9 {
+		got := signrouter.PassLateral(signLateral, mult, trackmodel.South, offset, frac, cfg)
+		if math.Abs(got-want) > 1e-9 {
 			t.Errorf("PassLateral(frac=%v) = %v, want untouched %v", frac, got, want)
 		}
 	}
