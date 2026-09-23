@@ -65,6 +65,12 @@ const DefaultIMUUARTRVCTOMLPath = "src/config/hardware/imu/bno08x_uart_rvc.toml"
 // command directly, not via the ROS2 driver node).
 const DefaultLidarLaunchTOMLPath = "src/config/hardware/lidar.toml"
 
+// DefaultBoardTOMLPath is src/config/hardware/board.toml, relative to the
+// repo root: which actuation board drives the servo and the motor, and the
+// Pico's serial port. The pico2 profile overlays its kind. The file's shape
+// is the generated hardware.HardwareBoard DTO.
+const DefaultBoardTOMLPath = "src/config/hardware/board.toml"
+
 // DefaultMotorsTOMLPath is
 // src/config/hardware/motors/motors.toml, relative to the repo
 // root. The file's shape is the generated motors.HardwareMotorsMotors DTO.

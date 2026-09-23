@@ -18,13 +18,14 @@
 // detections subscription the nav loop already opens, not a driver loop of its
 // own.
 //
-// With --pico-port, a Pico 2 actuation board on that serial port is served by
-// the picolink target (internal/node/picolink, adr:0098-pico-actuation-board-and-portable-cores):
-// it answers ackermann_cmd and publishes motor_status and joint_states on the
-// Pico's behalf, exactly as the Zero's motor loop does for itself. Pick one
-// board: running picolink while the Zero's motor loop is also up would
-// double-publish MotorStatus and JointStates. The default (empty) leaves the
-// actuation subjects to the Zero.
+// When the hardware profile selects a Pico 2 as the actuation board (the pico2
+// profile overlays src/config/hardware/board.toml's kind), the board on
+// board.toml's serial_port is served by the picolink target
+// (internal/node/picolink, adr:0098-pico-actuation-board-and-portable-cores):
+// it answers ackermann_cmd and publishes motor_status, joint_states and
+// button_event on the Pico's behalf, exactly as the Zero's loops do for
+// themselves. The same profile makes cmd/pi-zero refuse to drive, so the
+// subjects never have two publishers. Otherwise actuation stays with the Zero.
 package main
 
 import (
@@ -40,6 +41,7 @@ import (
 	"time"
 
 	"github.com/teamvoltimor/vtitan/src/go/internal/cmdkit"
+	"github.com/teamvoltimor/vtitan/src/go/internal/config/generated/hardware"
 	"github.com/teamvoltimor/vtitan/src/go/internal/config/profile"
 	"github.com/teamvoltimor/vtitan/src/go/internal/hwconfig"
 	"github.com/teamvoltimor/vtitan/src/go/internal/node/capture"
@@ -71,7 +73,6 @@ type cliConfig struct {
 	navRateHz float64
 	record    bool
 
-	picoPort           string
 	picoCommandTimeout time.Duration
 	picoMotorInvert    bool
 }
@@ -146,13 +147,6 @@ func runMain() int {
 	)
 	fs.Float64Var(&cfg.navRateHz, "nav-rate-hz", nodenav.DefaultRateHz, "navigator Step rate")
 	fs.BoolVar(&cfg.record, "record", false, "record the run as an MCAP bag under the runs root")
-	fs.StringVar(
-		&cfg.picoPort,
-		"pico-port",
-		"",
-		"serial port of a Pico 2 actuation board (e.g. /dev/ttyACM1); empty (default) leaves actuation "+
-			"to the Zero. Do not set it while the Zero's motor loop runs: both would publish motor_status",
-	)
 	fs.DurationVar(
 		&cfg.picoCommandTimeout,
 		"pico-command-timeout",
@@ -170,6 +164,16 @@ func runMain() int {
 	defer stop()
 
 	camCfg := loadCamera(cfg, logger)
+
+	// Which board actuates is decided once, here: a wrong answer leaves the
+	// car with no driver or with two, so an unreadable board.toml stops the
+	// process instead of being retried.
+	board, err := hwconfig.ActuationBoard(cfg.ConfigRoot)
+	if err != nil {
+		logger.Error("pi5: resolving the actuation board", "error", err)
+		return 1
+	}
+	logger.Info("pi5: actuation board", "kind", board.Kind, "serial_port", board.SerialPort)
 
 	supervisor, err := supervise.New(supervise.DefaultConfig(), logger)
 	if err != nil {
@@ -246,11 +250,12 @@ func runMain() int {
 		}},
 	}
 
-	// The Pico link joins only when a port is given, and before nav, since it
-	// is what carries nav's commands to the actuators. The profile is resolved
-	// inside the target, so a missing one is retried with backoff like an
-	// absent serial port rather than taking the board process down.
-	if cfg.picoPort != "" {
+	// The Pico link joins only when the profile selects the Pico, and before
+	// nav, since it is what carries nav's commands to the actuators. The
+	// servo and motor profile is resolved inside the target, so a missing one
+	// is retried with backoff like an absent serial port rather than taking
+	// the board process down.
+	if board.Kind == hardware.HardwareBoardKindPico2 {
 		targets = append(targets, supervise.Target{Name: "picolink", Fn: func(ctx context.Context) error {
 			sessionCfg, cfgErr := picolink.SessionConfigFor(
 				logger, cfg.ConfigRoot, cfg.picoMotorInvert, cfg.picoCommandTimeout,
@@ -259,7 +264,7 @@ func runMain() int {
 				return cfgErr //nolint:wrapcheck // already wrapped with "picolink: ..." context
 			}
 			return picolink.Run(ctx, picolink.Config{
-				Port:    cfg.picoPort,
+				Port:    board.SerialPort,
 				NATS:    nats.DefaultConfig(cfg.NATSURL, cfg.NodeName),
 				Session: sessionCfg,
 			}, logger)

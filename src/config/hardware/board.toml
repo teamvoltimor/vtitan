@@ -1,0 +1,7 @@
+#:schema ../../model/hardware/board.schema.json
+# Which actuation board drives the steering servo and the drive motor.
+# The base is the Pi Zero; the pico2 hardware profile overlays kind = "pico2".
+# Rationale: adr:0098-pico-actuation-board-and-portable-cores
+
+kind = "zero"
+serial_port = "/dev/ttyACM0"

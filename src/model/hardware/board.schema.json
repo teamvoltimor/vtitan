@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://vtitan.local/schemas/hardware/board.schema.json",
+  "title": "HardwareBoard",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "kind": {
+      "type": "string",
+      "enum": ["zero", "pico2"],
+      "description": "Which actuation board drives the steering servo and the drive motor: zero (the Pi Zero, cmd/pi-zero) or pico2 (a Pico 2 on a serial link, served by cmd/pi5's picolink). Selected by the pico2 hardware profile, not edited here."
+    },
+    "serial_port": {
+      "type": "string",
+      "description": "Serial device of the Pico 2 on the Pi 5 (its USB CDC port). Read only when kind is pico2."
+    }
+  },
+  "required": [
+    "kind",
+    "serial_port"
+  ]
+}

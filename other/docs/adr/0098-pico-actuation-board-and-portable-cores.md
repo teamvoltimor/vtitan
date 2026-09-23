@@ -114,11 +114,13 @@ packets for the host.
   board-driven session (Hello until configured, Config from the host's
   profile, Ping/Pong for the clock offset). The board side is
   `pkg/portable/boardloop`, the host side `internal/node/picolink`.
-- The board is selected by `cmd/pi5`'s `--pico-port` flag for now, not yet by
-  a hardware-profile axis as decided above. Running it alongside the Zero's
-  motor loop double-publishes MotorStatus; the flag's help says so.
-- The button and OLED are not on the link yet, so a Pico build has no start
-  button: `button_event` still needs a message.
+- The board is a hardware-profile axis, as decided above: the `pico2` profile
+  overlays `src/config/hardware/board.toml`'s `kind`, and the base file also
+  holds the Pico's `serial_port`. With it, `cmd/pi5` runs picolink and
+  `cmd/pi-zero` refuses to start, so no subject has two publishers.
+- The start button is on the link (the board sends raw edges, the host runs
+  the Zero's evaluator and publishes `button_event`). The OLED is not, and
+  neither is `button_hold`.
 - TinyGo becomes a pinned tool (`mise.toml`), and its version moves in step with
   the module's Go version.
 - Raw gyro over SPI (the reason section 18 wanted a Pico) becomes an
@@ -135,6 +137,8 @@ packets for the host.
   `internal/node/picolink`. Nothing has run on a Pico: the pin map is
   provisional and the hardware watchdog's tick and load values are set
   around two TinyGo 0.42 gaps that need a bench check.
+- 2026-09-22: the board is selected by the `pico2` hardware profile
+  (`board.toml`), replacing `cmd/pi5`'s `--pico-port` flag.
 
 ## Cross-references
 

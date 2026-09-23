@@ -3,8 +3,10 @@
 package main
 
 import (
+	"path/filepath"
 	"testing"
 
+	"github.com/teamvoltimor/vtitan/src/go/internal/config/profile"
 	uiv1 "github.com/teamvoltimor/vtitan/src/go/internal/schema/pb/vtitan/ui/v1"
 	"github.com/teamvoltimor/vtitan/src/go/pkg/driver/display/ssd1306"
 )
@@ -54,5 +56,21 @@ func TestRenderSummary_InvalidConfigIsAnError(t *testing.T) {
 
 	if _, err := renderSummary(ssd1306.Config{Width: 0, Height: 0}, &uiv1.TelemetrySummary{}); err == nil {
 		t.Fatal("renderSummary() with an invalid framebuffer size: got nil error, want non-nil")
+	}
+}
+
+// With the pico2 profile the Zero must refuse before touching any driver;
+// without it, the shipped board.toml is the Zero and it proceeds.
+func TestRequireZeroBoard(t *testing.T) {
+	shippedRoot := filepath.Join("..", "..", "..", "..")
+
+	t.Setenv(profile.EnvVar, "270deg-hiwonder-35kg,rev-hd-hex-motor-6000rpm")
+	if err := requireZeroBoard(shippedRoot); err != nil {
+		t.Errorf("requireZeroBoard without pico2 = %v, want nil", err)
+	}
+
+	t.Setenv(profile.EnvVar, "270deg-hiwonder-35kg,rev-hd-hex-motor-6000rpm,pico2")
+	if err := requireZeroBoard(shippedRoot); err == nil {
+		t.Error("requireZeroBoard with pico2 = nil, want a refusal")
 	}
 }

@@ -1,0 +1,5 @@
+# Hardware-profile overlay for the Pico 2 actuation board: cmd/pi5 serves it
+# over board.toml's serial_port, and cmd/pi-zero refuses to drive.
+# Rationale: adr:0070-hardware-profiles-and-challenge-overlays, adr:0098-pico-actuation-board-and-portable-cores
+
+kind = "pico2"

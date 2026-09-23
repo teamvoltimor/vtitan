@@ -24,6 +24,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/teamvoltimor/vtitan/src/go/internal/cmdkit"
+	"github.com/teamvoltimor/vtitan/src/go/internal/config/generated/hardware"
 	"github.com/teamvoltimor/vtitan/src/go/internal/hwconfig"
 	nodebutton "github.com/teamvoltimor/vtitan/src/go/internal/node/button"
 	nodemotor "github.com/teamvoltimor/vtitan/src/go/internal/node/motor"
@@ -238,6 +239,10 @@ func oledLoop(
 // run connects every driver and NATS subscription/publisher, then runs the
 // motor/button/OLED loops as supervised goroutines until ctx is done.
 func run(ctx context.Context, logger *slog.Logger, cfg cliConfig) error {
+	if err := requireZeroBoard(cfg.ConfigRoot); err != nil {
+		return err
+	}
+
 	motorCfg := motor.DefaultConfig()
 	buttonCfg := button.Config{
 		GPIOChip:     button.DefaultGPIOChip,
@@ -387,6 +392,22 @@ func run(ctx context.Context, logger *slog.Logger, cfg cliConfig) error {
 	targets = append(targets, feedbackTargets...)
 	if err = supervisor.RunAll(ctx, targets...); err != nil {
 		return fmt.Errorf("pi-zero: %w", err)
+	}
+	return nil
+}
+
+// requireZeroBoard refuses to start when the hardware profile makes a Pico 2
+// the actuation board: cmd/pi5 then serves ackermann_cmd, motor_status,
+// joint_states and button_event through picolink, and a Zero driving too
+// would put two publishers on each and two drivers on the car.
+func requireZeroBoard(configRoot string) error {
+	board, err := hwconfig.ActuationBoard(configRoot)
+	if err != nil {
+		return fmt.Errorf("pi-zero: %w", err)
+	}
+	if board.Kind != hardware.HardwareBoardKindZero {
+		return fmt.Errorf("pi-zero: board.toml selects the %q actuation board (the %s profile); "+
+			"cmd/pi5 drives it, so the Zero will not", board.Kind, board.Kind)
 	}
 	return nil
 }
