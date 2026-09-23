@@ -74,7 +74,6 @@ type cliConfig struct {
 	record    bool
 
 	picoCommandTimeout time.Duration
-	picoMotorInvert    bool
 }
 
 // Capture defaults, matching cmd/capture-node's flags so a pi5 run behaves
@@ -154,8 +153,6 @@ func runMain() int {
 		"Pico board: safety-stop the drive if no AckermannCmd arrives within this duration "+
 			"(the Zero's --motor-command-timeout)",
 	)
-	fs.BoolVar(&cfg.picoMotorInvert, "pico-motor-invert", false,
-		"Pico board: flip the drive's sign convention (the Zero's --motor-invert)")
 	if err := fs.Parse(os.Args[1:]); err != nil {
 		return 1
 	}
@@ -258,7 +255,7 @@ func runMain() int {
 	if board.Kind == hardware.HardwareBoardKindPico2 {
 		targets = append(targets, supervise.Target{Name: "picolink", Fn: func(ctx context.Context) error {
 			sessionCfg, cfgErr := picolink.SessionConfigFor(
-				logger, cfg.ConfigRoot, cfg.picoMotorInvert, cfg.picoCommandTimeout,
+				logger, cfg.ConfigRoot, cfg.picoCommandTimeout,
 			)
 			if cfgErr != nil {
 				return cfgErr //nolint:wrapcheck // already wrapped with "picolink: ..." context

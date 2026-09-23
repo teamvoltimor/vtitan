@@ -28,7 +28,7 @@ var shippedRoot = filepath.Join("..", "..", "..", "..", "..")
 func TestHello_ConfigMatchesShippedProfile(t *testing.T) {
 	t.Setenv(profile.EnvVar, shippedProfile)
 
-	cfg, err := picolink.SessionConfigFor(slog.New(slog.DiscardHandler), shippedRoot, false,
+	cfg, err := picolink.SessionConfigFor(slog.New(slog.DiscardHandler), shippedRoot,
 		picolink.DefaultCommandTimeout)
 	if err != nil {
 		t.Fatalf("SessionConfigFor: %v", err)
@@ -36,7 +36,7 @@ func TestHello_ConfigMatchesShippedProfile(t *testing.T) {
 	want := boardlink.Config{
 		CommandTimeoutMS:    500,                 // node/motor.DefaultCommandTimeout
 		SpeedScalePctPerMPS: 30,                  // motors.toml drive.speed_scale
-		InvertDrive:         false,               // the --pico-motor-invert flag
+		InvertDrive:         false,               // motors.toml drive.reversed
 		LinkageRatio:        float32(85.0 / 135), // robot.toml via the servo profile
 		ServoMaxAngleDeg:    135,                 // robot.toml steering.servo_max_angle_deg (profile)
 		SteeringOffsetDeg:   0,                   // motors.toml steering.offset
@@ -99,7 +99,7 @@ func TestSessionConfigFor_WithoutEncoder(t *testing.T) {
 	}
 
 	logs := &logBuffer{}
-	cfg, err := picolink.SessionConfigFor(slog.New(slog.NewTextHandler(logs, nil)), root, false,
+	cfg, err := picolink.SessionConfigFor(slog.New(slog.NewTextHandler(logs, nil)), root,
 		picolink.DefaultCommandTimeout)
 	if err != nil {
 		t.Fatalf("SessionConfigFor: %v", err)
@@ -118,10 +118,10 @@ func TestSessionConfigFor_RefusesToGuess(t *testing.T) {
 	t.Setenv(profile.EnvVar, "")
 
 	logger := slog.New(slog.DiscardHandler)
-	if _, err := picolink.SessionConfigFor(logger, shippedRoot, false, picolink.DefaultCommandTimeout); err == nil {
+	if _, err := picolink.SessionConfigFor(logger, shippedRoot, picolink.DefaultCommandTimeout); err == nil {
 		t.Error("resolved a board config with no servo profile")
 	}
-	if _, err := picolink.SessionConfigFor(logger, "", false, picolink.DefaultCommandTimeout); err == nil {
+	if _, err := picolink.SessionConfigFor(logger, "", picolink.DefaultCommandTimeout); err == nil {
 		t.Error("resolved a board config with no config root")
 	}
 }

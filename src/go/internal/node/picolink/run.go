@@ -35,18 +35,18 @@ const (
 
 // SessionConfigFor resolves a SessionConfig from configRoot and the active
 // hardware profile (LoadProfile, then BoardConfig), with the Pi 5's
-// equivalents of the Zero's --motor-invert and --motor-command-timeout.
+// equivalent of the Zero's --motor-command-timeout. InvertDrive comes from
+// motors.toml's drive.reversed (LoadProfile's p.Invert), not a flag.
 func SessionConfigFor(
 	logger *slog.Logger,
 	configRoot string,
-	invertDrive bool,
 	commandTimeout time.Duration,
 ) (SessionConfig, error) {
 	p, err := LoadProfile(logger, configRoot)
 	if err != nil {
 		return SessionConfig{}, err
 	}
-	board, err := BoardConfig(p, invertDrive, commandTimeout)
+	board, err := BoardConfig(p, commandTimeout)
 	if err != nil {
 		return SessionConfig{}, err
 	}

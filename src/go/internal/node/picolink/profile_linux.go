@@ -37,6 +37,7 @@ func LoadProfile(logger *slog.Logger, configRoot string) (Profile, error) {
 		Steering:                steering,
 		Servo:                   servoCfg,
 		SpeedScalePercentPerMPS: nodemotor.SpeedScaleFor(logger, configRoot),
+		Invert:                  hwconfig.Motor(logger, configRoot).Invert,
 	}
 
 	p.Button = &ButtonParams{Thresholds: hwconfig.Button(logger, configRoot).Thresholds}

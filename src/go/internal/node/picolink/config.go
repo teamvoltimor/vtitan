@@ -25,6 +25,10 @@ type Profile struct {
 	// SpeedScalePercentPerMPS is internal/node/motor.SpeedScaleFor:
 	// motors.toml's drive.speed_scale.
 	SpeedScalePercentPerMPS float64
+	// Invert is hwconfig.Motor's Config.Invert: motors.toml's
+	// drive.reversed, the Pi 5's equivalent of the Zero's own drive.reversed
+	// read (internal/hwconfig.Motor).
+	Invert bool
 	// Encoder is nil when no encoder profile resolves (hwconfig.Encoder
 	// failed). Odometry is then not published, as on the Zero.
 	Encoder *EncoderParams
@@ -71,16 +75,16 @@ const (
 
 // BoardConfig builds the Config the board is sent when a session starts and
 // on every Hello.
-// invertDrive and commandTimeout are the Pi 5's equivalents of the Zero's
-// --motor-invert and --motor-command-timeout flags; everything else comes
-// from p.
+// commandTimeout is the Pi 5's equivalent of the Zero's
+// --motor-command-timeout flag; everything else comes from p, including
+// InvertDrive (p.Invert, motors.toml's drive.reversed).
 //
 // It errors rather than truncating a command timeout the wire's uint16
 // milliseconds cannot carry, or one that rounds to zero, and on anything
 // boardloop.ValidateConfig (the rule the board itself applies) would refuse:
 // a refused Config leaves the board unconfigured, so it is better caught
 // here, with the reason, than seen as a Hello that keeps coming back.
-func BoardConfig(p Profile, invertDrive bool, commandTimeout time.Duration) (boardlink.Config, error) {
+func BoardConfig(p Profile, commandTimeout time.Duration) (boardlink.Config, error) {
 	timeoutMS := commandTimeout.Milliseconds()
 	if timeoutMS < 1 || timeoutMS > math.MaxUint16 {
 		return boardlink.Config{}, fmt.Errorf(
@@ -90,7 +94,7 @@ func BoardConfig(p Profile, invertDrive bool, commandTimeout time.Duration) (boa
 	c := boardlink.Config{
 		CommandTimeoutMS:    uint16(timeoutMS),
 		SpeedScalePctPerMPS: float32(p.SpeedScalePercentPerMPS),
-		InvertDrive:         invertDrive,
+		InvertDrive:         p.Invert,
 		LinkageRatio:        float32(p.Steering.LinkageRatio),
 		ServoMaxAngleDeg:    float32(p.Steering.ServoMaxAngleDeg),
 		SteeringOffsetDeg:   float32(p.Steering.OffsetDeg),

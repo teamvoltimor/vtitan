@@ -45,7 +45,6 @@ type cliConfig struct {
 	cmdkit.Common
 
 	motorCommandTimeout time.Duration
-	motorInvert         bool
 
 	buttonLine   int
 	buttonPullUp bool
@@ -114,8 +113,6 @@ func newRootCmd(cfg *cliConfig, logger *slog.Logger) *cobra.Command {
 		nodemotor.DefaultCommandTimeout,
 		"safety-stop the drive if no AckermannCmd arrives within this duration",
 	)
-	flags.BoolVar(&cfg.motorInvert, "motor-invert", false,
-		"flip SetSpeed's sign convention, matching motors.toml's drive.reversed")
 	cfg.RegisterConfigRoot(flags,
 		"repo root to load the hardware profile (VTITAN_HARDWARE_PROFILE) from; "+
 			"required, because the steering servo and its linkage have no shipped default")
@@ -260,7 +257,6 @@ func run(ctx context.Context, logger *slog.Logger, cfg cliConfig) error {
 		buttonCfg = hwconfig.Button(logger, cfg.ConfigRoot)
 		oledCfg = hwconfig.Display(logger, cfg.ConfigRoot)
 	}
-	motorCfg.Invert = cfg.motorInvert
 
 	// Steering connects first, as in ackermann_motor_node.py's on_configure,
 	// so a missing profile fails before the H-bridge is ever enabled.
