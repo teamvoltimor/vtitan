@@ -1,6 +1,6 @@
 // Package memory is an in-memory Store for the Simulation bounded context.
 // Scenario generation produces real, request-driven random geometry (not a
-// bridge to the Python/Gazebo generator under platform/robot/src/simulation --
+// bridge to the Python/Gazebo generator under src/python/src/simulation --
 // no such bridge exists yet); run lifecycle/control is real state-machine
 // logic with no actual Gazebo process behind it until one is wired in.
 package memory
@@ -62,7 +62,7 @@ func (m *Memory) ListScenarios(_ context.Context, challenge simulation.Challenge
 
 // GenerateScenario produces a scenario with real, request-driven randomized
 // geometry. It does not call into the Python/Gazebo scenario generator under
-// platform/robot/src/simulation -- no such bridge exists from this Go service.
+// src/python/src/simulation -- no such bridge exists from this Go service.
 func (m *Memory) GenerateScenario(_ context.Context, req simulation.GenerateScenarioRequest) (simulation.Scenario, error) {
 	numSigns := minNumSigns + rand.IntN(maxNumSignsSpan)
 	if req.NumSigns != nil {
