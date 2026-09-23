@@ -43,12 +43,15 @@ func Apply[T any](
 // values: every config value lives in the TOML, which is complete for each
 // file it describes and validated against its schema by Taplo.
 //
-// A missing base file is an error. A profileNames entry whose directory
-// doesn't exist is an error, matching
-// shared.config.hardware_profile.profile_dirs(). A profile directory that
-// exists but has no file named like basePath's is skipped rather than an
-// error, matching settings_base.py's per-driver overlay behavior: not every
-// profile touches every TOML file.
+// A missing base file is an error. A profileNames entry that no profiles
+// tree knows is an error, matching
+// shared.config.hardware_profile.profile_dirs(): not basePath's own
+// profiles/<name>, nor that of any directory above it (src/config/profiles
+// sits above every component tree). A name the component's own tree lacks
+// but an enclosing one knows is skipped, as is a profile directory with no
+// file named like basePath's, matching settings_base.py's per-driver overlay
+// behavior: not every profile touches every component, and a servo profile
+// must not stop the LIDAR's file from loading.
 func merge(basePath string, profileNames []string, defaults map[string]any) (*viper.Viper, error) {
 	v := viper.New()
 	for key, value := range defaults {
@@ -64,7 +67,11 @@ func merge(basePath string, profileNames []string, defaults map[string]any) (*vi
 	for _, name := range profileNames {
 		profileDir := filepath.Join(dir, "profiles", name)
 		if _, statErr := os.Stat(profileDir); statErr != nil {
-			return nil, fmt.Errorf("profile: %q has no directory %s", name, profileDir)
+			if !knownAbove(dir, name) {
+				return nil, fmt.Errorf("profile: %q has no directory %s, nor in any profiles tree above it",
+					name, profileDir)
+			}
+			continue
 		}
 
 		overlayPath := filepath.Join(profileDir, file)
@@ -78,6 +85,18 @@ func merge(basePath string, profileNames []string, defaults map[string]any) (*vi
 		}
 	}
 	return v, nil
+}
+
+// knownAbove reports whether a directory strictly above dir holds a
+// profiles/<name> directory, i.e. whether name is a real profile that simply
+// does not touch the component living in dir.
+func knownAbove(dir, name string) bool {
+	for parent := filepath.Dir(dir); parent != dir; dir, parent = parent, filepath.Dir(parent) {
+		if info, err := os.Stat(filepath.Join(parent, "profiles", name)); err == nil && info.IsDir() {
+			return true
+		}
+	}
+	return false
 }
 
 // Load reads basePath as TOML, merges profileNames' overlays on top (see
