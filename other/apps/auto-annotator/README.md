@@ -21,16 +21,16 @@ and Vite frontend.
 
 ```bash
 # 1. Install dependencies (ML service + frontend)
-task ml-service:sync
-task frontend:install
+task auto-annotator:ml-service:sync
+task auto-annotator:frontend:install
 
 # 2. Start the full stack (all three services concurrently)
-task dev:serve
+task auto-annotator:dev:serve
 
 # 3. Or start individual services in separate terminals
-task ml-service:dev     # SAM + gRPC (port 50051)
-task api:dev            # Go HTTP API (port 8000)
-task frontend:dev       # Vite dev server (port 5173)
+task auto-annotator:ml-service:dev     # SAM + gRPC (port 50051)
+task auto-annotator:api:dev            # Go HTTP API (port 8000)
+task auto-annotator:frontend:dev       # Vite dev server (port 5173)
 ```
 
 ## Tasks

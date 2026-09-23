@@ -34,14 +34,15 @@ vars:
   SUITE_TARBALL: ~/Downloads/hailo8_ai_sw_suite_2025-10_docker/hailo8_ai_sw_suite_2025-10.tar.gz
 
 tasks:
-  default:
+  hailo:default:
     desc: List all available tasks
+    aliases: [hailo]
     cmds:
       - task --list
 
 # Environment
 
-  env:setup:
+  hailo:env:setup:
     desc: 'Install dependencies with uv'
     cmds:
       - uv sync
@@ -49,59 +50,59 @@ tasks:
       - pyproject.toml
       - uv.lock
 
-  env:list:
+  hailo:env:list:
     desc: 'Show installed packages in the virtual environment'
     cmds:
       - uv pip list
 
 # Model
 
-  model:export:
+  hailo:model:export:
     desc: 'Export YOLO checkpoint to ONNX format'
     cmds:
       - uv run hailo export --model {{.MODEL}} --imgsz {{.IMGSZ}}
 
-  model:export-all:
+  hailo:model:export-all:
     desc: 'Export all registered YOLO models (n/s/m) to ONNX'
     cmds:
       - uv run hailo export --model yolo11n --imgsz {{.IMGSZ}}
       - uv run hailo export --model yolo11s --imgsz {{.IMGSZ}}
       - uv run hailo export --model yolo11m --imgsz {{.IMGSZ}}
 
-  model:inspect:
+  hailo:model:inspect:
     desc: 'Inspect ONNX model graph, inputs, and outputs'
     cmds:
       - uv run hailo inspect --model {{.MODEL}}
 
-  model:export-inspect:
+  hailo:model:export-inspect:
     desc: 'Export then inspect the resulting ONNX model'
     cmds:
-      - task: model:export
-      - task: model:inspect
+      - task: hailo:model:export
+      - task: hailo:model:inspect
         vars:
           MODEL: 'data/{{.MODEL}}.onnx'
 
 # Calibration Data
 
-  calib:download:
+  hailo:calib:download:
     desc: 'Download COCO 2017 validation images for calibration'
     cmds:
       - uv run hailo calib download --samples {{.SAMPLES}} --output {{.CALIB_INPUT}}
 
-  calib:convert:
+  hailo:calib:convert:
     desc: 'Convert calibration images to float32 NPY format'
     cmds:
       - uv run hailo calib convert --input {{.CALIB_INPUT}} --output {{.CALIB_OUTPUT}} --size {{.CALIB_SIZE}}
 
-  calib:prepare:
+  hailo:calib:prepare:
     desc: 'Download and convert calibration data (full pipeline)'
     cmds:
-      - task: calib:download
-      - task: calib:convert
+      - task: hailo:calib:download
+      - task: hailo:calib:convert
 
 # Testing / Inference
 
-  test:run:
+  hailo:test:run:
     desc: 'Run inference on images (requires BACKEND=pt|onnx|ultraonnx)'
     cmds:
       - uv run hailo test --model {{.MODEL}} --backend {{.BACKEND}} --input {{.TEST_INPUT}} --output {{.TEST_OUTPUT}} --conf {{.TEST_CONF}}
@@ -109,114 +110,114 @@ tasks:
       vars:
         - BACKEND
 
-  test:onnx:
+  hailo:test:onnx:
     desc: 'Test ONNX model (.onnx)'
     cmds:
       - uv run hailo test --model data/{{.MODEL}}.onnx --backend onnx --input {{.TEST_INPUT}} --output {{.TEST_OUTPUT}} --conf {{.TEST_CONF}}
     deps:
-      - model:export
+      - hailo:model:export
 
-  test:ultraonnx:
+  hailo:test:ultraonnx:
     desc: 'Test with Ultralytics ONNX backend'
     cmds:
       - uv run hailo test --model data/{{.MODEL}}.onnx --backend ultraonnx --input {{.TEST_INPUT}} --output {{.TEST_OUTPUT}} --conf {{.TEST_CONF}}
     deps:
-      - model:export
+      - hailo:model:export
 
 # Staging for Docker
 
-  stage:run:
+  hailo:stage:run:
     desc: 'Stage model ONNX + calibration data for Docker'
     cmds:
       - uv run hailo stage --model {{.MODEL}} --calib {{.CALIB_OUTPUT}} --shared-dir {{.SHARED_DIR}}
     deps:
-      - calib:convert
+      - hailo:calib:convert
 
-  stage:no-calib:
+  hailo:stage:no-calib:
     desc: 'Stage model ONNX only (no calibration data)'
     cmds:
       - uv run hailo stage --model {{.MODEL}} --shared-dir {{.SHARED_DIR}}
 
 # Docker Container Management
 
-  docker:run:
+  hailo:docker:run:
     desc: 'Start the Hailo AI Software Suite Docker container'
     cmds:
       - uv run hailo docker run --container {{.DOCKER_CONTAINER}} --image {{.DOCKER_IMAGE}} --shared-dir {{.SHARED_DIR}} --display {{.DISPLAY}} --cuda-device {{.CUDA_DEVICE}}
 
-  docker:run-compile-only:
+  hailo:docker:run-compile-only:
     desc: 'Start a minimal detached container (required on Docker Desktop/Windows)'
     cmds:
       - uv run hailo docker run --container {{.DOCKER_CONTAINER}} --image {{.DOCKER_IMAGE}} --shared-dir {{.SHARED_DIR}} --compile-only --cuda-device {{.CUDA_DEVICE}}
 
-  docker:load:
+  hailo:docker:load:
     desc: 'Load the Hailo AI Software Suite image from its Developer Zone tarball'
     cmds:
       - docker load -i {{.SUITE_TARBALL}}
 
-  docker:dry:
+  hailo:docker:dry:
     desc: 'Print the docker run command without executing'
     cmds:
       - uv run hailo docker run --dry-run
 
-  docker:status:
+  hailo:docker:status:
     desc: 'Check if the Docker container is running'
     cmds:
       - docker ps --filter "name={{.DOCKER_CONTAINER}}"
 
-  docker:stop:
+  hailo:docker:stop:
     desc: 'Stop the running Hailo container'
     cmds:
       - docker stop {{.DOCKER_CONTAINER}}
 
-  docker:logs:
+  hailo:docker:logs:
     desc: 'Follow the Docker container logs'
     cmds:
       - docker logs -f {{.DOCKER_CONTAINER}}
 
 # Compile (ONNX to Hailo HEF)
 
-  compile:run:
+  hailo:compile:run:
     desc: 'Compile ONNX to Hailo HEF (execute in Docker)'
     cmds:
       - uv run hailo compile --model {{.MODEL}} --hw {{.HW_ARCH}} --docker {{.DOCKER_CONTAINER}}
     deps:
-      - stage:run
+      - hailo:stage:run
 
-  compile:dry:
+  hailo:compile:dry:
     desc: 'Compile ONNX to Hailo HEF (print command only)'
     cmds:
       - uv run hailo compile --model {{.MODEL}} --hw {{.HW_ARCH}}
 
 # Evaluate
 
-  eval:run:
+  hailo:eval:run:
     desc: 'Evaluate model on target (execute in Docker)'
     cmds:
       - uv run hailo eval --model {{.MODEL}} --target {{.TARGET}} --data-count {{.DATA_COUNT}} --docker {{.DOCKER_CONTAINER}}
     deps:
-      - compile:run
+      - hailo:compile:run
 
-  eval:dry:
+  hailo:eval:dry:
     desc: 'Evaluate model on target (print command only)'
     cmds:
       - uv run hailo eval --model {{.MODEL}} --target {{.TARGET}} --data-count {{.DATA_COUNT}}
 
-  eval:visual:
+  hailo:eval:visual:
     desc: 'Evaluate with visualization (execute in Docker)'
     cmds:
       - uv run hailo eval --model {{.MODEL}} --target {{.TARGET}} --data-count {{.DATA_COUNT}} --visualize --docker {{.DOCKER_CONTAINER}}
 
 # Profile
 
-  profile:run:
+  hailo:profile:run:
     desc: 'Profile HEF model for performance (execute in Docker)'
     cmds:
       - uv run hailo profile --model {{.MODEL}} --docker {{.DOCKER_CONTAINER}}
     deps:
-      - compile:run
+      - hailo:compile:run
 
-  profile:dry:
+  hailo:profile:dry:
     desc: 'Profile HEF model for performance (print command only)'
     cmds:
       - uv run hailo profile --model {{.MODEL}}
@@ -227,101 +228,101 @@ tasks:
 # prism photographs rather than COCO — quantisation ranges derived from
 # out-of-domain images cost real accuracy on a colour-critical detector.
 
-  gmr:export:
+  hailo:gmr:export:
     desc: 'Export the retrained GMR checkpoint to ONNX'
     cmds:
       - uv run hailo export --model gmr --imgsz {{.IMGSZ}}
 
-  gmr:stage:
+  hailo:gmr:stage:
     desc: 'Stage GMR ONNX + prism calibration images for Docker'
     cmds:
       - uv run hailo stage --model gmr --calib {{.GMR_CALIB_SRC}} --calib-name {{.GMR_CALIB_NAME}} --shared-dir {{.SHARED_DIR}}
 
-  gmr:compile:
+  hailo:gmr:compile:
     desc: 'Compile GMR ONNX to Hailo HEF (requires running container)'
     cmds:
       - uv run hailo compile --model gmr --hw {{.HW_ARCH}} --calib-path /local/shared_with_docker/{{.GMR_CALIB_NAME}} --docker {{.DOCKER_CONTAINER}}
 
-  gmr:stage-eval:
+  hailo:gmr:stage-eval:
     desc: 'Stage GMR images + labels for the evaluators'
     cmds:
       - uv run hailo stage --model gmr --calib {{.GMR_CALIB_SRC}} --calib-name {{.GMR_CALIB_NAME}} --labels {{.GMR_LABEL_SRC}} --labels-name {{.GMR_LABEL_NAME}} --shared-dir {{.SHARED_DIR}}
 
-  gmr:compile-performance:
+  hailo:gmr:compile-performance:
     desc: 'Compile GMR at the highest optimization level (needs a GPU-enabled container)'
     cmds:
       - uv run hailo compile --model gmr --hw {{.HW_ARCH}} --calib-path /local/shared_with_docker/{{.GMR_CALIB_NAME}} --docker {{.DOCKER_CONTAINER}} --performance
 
-  gmr:compile-dry:
+  hailo:gmr:compile-dry:
     desc: 'Print the GMR compile command without executing it'
     cmds:
       - uv run hailo compile --model gmr --hw {{.HW_ARCH}} --calib-path /local/shared_with_docker/{{.GMR_CALIB_NAME}}
 
-  gmr:workflow:
+  hailo:gmr:workflow:
     desc: 'GMR pipeline: export -> stage -> compile in Docker'
     cmds:
-      - task: gmr:export
-      - task: gmr:stage
-      - task: gmr:compile
+      - task: hailo:gmr:export
+      - task: hailo:gmr:stage
+      - task: hailo:gmr:compile
 
 # Accuracy Evaluation
 # Distinct from the eval:* tasks above, which wrap `hailomz eval` against a
 # target. These score a compiled model's detections and compare builds.
 
-  accuracy:sync:
+  hailo:accuracy:sync:
     desc: 'Copy the evaluators into the shared mount so the container can see them'
     cmds:
       - uv run python scripts/sync_eval.py
 
-  accuracy:sync-validate:
+  hailo:accuracy:sync-validate:
     desc: 'Check for drift between eval/ and shared_with_docker/eval/'
     cmds:
       - uv run python scripts/validate_eval_sync.py
 
-  accuracy:compare:
+  hailo:accuracy:compare:
     desc: 'Score the compiled HARs against each other (requires running container)'
-    deps: [accuracy:sync]
+    deps: [hailo:accuracy:sync]
     cmds:
       - docker exec -w {{.DOCKER_MOUNT}} {{.DOCKER_CONTAINER}} python eval/compare_hars.py --limit {{.EVAL_LIMIT}} --conf {{.EVAL_CONF}} --images {{.GMR_CALIB_NAME}} --labels {{.GMR_LABEL_NAME}} --har {{.GMR_HARS}} --batch-size {{.EVAL_BATCH_SIZE}}
 
-  accuracy:float:
+  hailo:accuracy:float:
     desc: 'Score the float checkpoint as the accuracy ceiling (host, no container)'
     cmds:
       - uv run python eval/float_anchor.py --limit {{.EVAL_LIMIT}} --conf {{.EVAL_CONF}} --checkpoint {{.GMR_CHECKPOINT}} --images {{.SHARED_DIR}}/{{.GMR_CALIB_NAME}} --labels {{.SHARED_DIR}}/{{.GMR_LABEL_NAME}} --batch-size {{.FLOAT_BATCH_SIZE}}
 
-  accuracy:all:
+  hailo:accuracy:all:
     desc: 'Full accuracy comparison: float ceiling, then every compiled HAR'
     cmds:
-      - task: accuracy:float
-      - task: accuracy:compare
+      - task: hailo:accuracy:float
+      - task: hailo:accuracy:compare
 
 # End-to-End Workflows
 
-  workflow:full:
+  hailo:workflow:full:
     desc: 'Local pipeline: export -> calib -> test -> stage -> start Docker'
     cmds:
-      - task: model:export
-      - task: calib:prepare
-      - task: test:onnx
-      - task: stage:run
-      - task: docker:run
+      - task: hailo:model:export
+      - task: hailo:calib:prepare
+      - task: hailo:test:onnx
+      - task: hailo:stage:run
+      - task: hailo:docker:run
 
-  workflow:compile:
+  hailo:workflow:compile:
     desc: 'Compile workflow: stage -> compile in Docker'
     cmds:
-      - task: stage:run
-      - task: compile:run
+      - task: hailo:stage:run
+      - task: hailo:compile:run
 
-  workflow:eval:
+  hailo:workflow:eval:
     desc: 'Evaluation workflow: compile -> eval -> profile'
     cmds:
-      - task: compile:run
-      - task: eval:run
-      - task: profile:run
+      - task: hailo:compile:run
+      - task: hailo:eval:run
+      - task: hailo:profile:run
 
 # Maintenance
 
-  clean:output:
+  hailo:clean:output:
     desc: 'Remove generated files (test output, exported models)'
     cmds:
       - cmd: rm -rf {{.TEST_OUTPUT}}
@@ -331,7 +332,7 @@ tasks:
       - cmd: rm -rf test_output
         ignore_error: true
 
-  clean:calib:
+  hailo:clean:calib:
     desc: 'Remove downloaded calibration images and NPY files'
     cmds:
       - cmd: rm -rf {{.CALIB_INPUT}}
@@ -339,16 +340,16 @@ tasks:
       - cmd: rm -rf {{.CALIB_OUTPUT}}
         ignore_error: true
 
-  clean:all:
+  hailo:clean:all:
     desc: 'Remove all generated files (models, calibration, test outputs)'
     cmds:
-      - task: clean:output
-      - task: clean:calib
+      - task: hailo:clean:output
+      - task: hailo:clean:calib
 
 # Code Quality
 
-  format:
-    desc: "Format Python code with ruff (usage: task format [MODE=check|diff], default writes in place)"
+  hailo:format:
+    desc: "Format Python code with ruff (usage: task hailo:format [MODE=check|diff], default writes in place)"
     vars:
       MODE: '{{.MODE | default "write"}}'
     cmds:
@@ -360,40 +361,40 @@ tasks:
             *) echo "Unknown MODE: {{.MODE}}. Use write|check|diff" && exit 1 ;;
           esac
 
-  lint:
+  hailo:lint:
     desc: 'Run ruff linter'
     cmds:
       - uv run ruff check .
 
-  lint:fix:
+  hailo:lint:fix:
     desc: 'Automatically fix linter issues'
     cmds:
       - uv run ruff check --fix .
 
-  typecheck:
+  hailo:typecheck:
     desc: 'Run mypy --strict-equivalent type checking'
     cmds:
       - uv run mypy .
 
-  test:unit:
+  hailo:test:unit:
     desc: 'Run the pytest unit suite (tests/, not the CLI test subcommand)'
     cmds:
       - uv run pytest -v
 
-  check:
+  hailo:check:
     desc: 'Format check + lint + typecheck + unit tests (no changes)'
     cmds:
-      - task: format
+      - task: hailo:format
         vars:
           MODE: check
-      - task: lint
-      - task: typecheck
-      - task: test:unit
+      - task: hailo:lint
+      - task: hailo:typecheck
+      - task: hailo:test:unit
 
 # Logging & Debugging
 
-  log:run:
-    desc: 'Run a command with a specific log level (usage: task log:run LEVEL=DEBUG|INFO|WARNING ARGS="...")'
+  hailo:log:run:
+    desc: 'Run a command with a specific log level (usage: task hailo:log:run LEVEL=DEBUG|INFO|WARNING ARGS="...")'
     cmds:
       - uv run hailo --log-level {{.LEVEL}} {{.ARGS}}
     requires:

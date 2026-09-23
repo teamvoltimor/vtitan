@@ -247,6 +247,15 @@ bubbles v0.21.0.
   Check 7 now also requires every raw task key defined by more than one include
   to be listed in `namespacedDuplicateTasks` with a reason, so a new cross-file
   duplicate is a decision rather than something include order hides.
+- 2026-09-23, every include flattened: the four app includes that used to be
+  namespaced (auto-annotator, hailo, models, hugo-docs) now carry
+  fully-qualified task keys and aliases (`hailo:lint`,
+  `auto-annotator:frontend:build`) and are included with `flatten: true`.
+  No reachable name changed -- `task --list-all` is identical before and after,
+  task names and aliases both -- but no raw key or alias is defined by two
+  files any more, so check 7 lost `namespacedDuplicateTasks` entirely and now
+  fails on any duplicate, aliases included. Their `default` tasks keep the
+  include key as an explicit alias, since flattening drops the implicit one.
 
 - The boundary rule, now written down: **Taskfiles own what runs, `vt` owns
   how it is spelled.** A change that alters what a task does belongs in the

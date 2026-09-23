@@ -31,7 +31,7 @@ produced it).
 - `scripts/promote-from-hailo.sh <name>` - copies the compiled `.hef` (and
   any `.onnx`/checkpoint files it can find alongside it) from
   `ml/hailo/shared_with_docker/` into a new `weights/<name>/vN/`, and updates
-  `LATEST`. Run this after compiling a new model with `task gmr:workflow` (in
+  `LATEST`. Run this after compiling a new model with `task hailo:gmr:workflow` (in
   `ml/hailo/`) that you want to keep.
 - `scripts/deploy-to-ml-service.sh <name> [version]` - copies a tracked
   version (defaults to `LATEST`) into

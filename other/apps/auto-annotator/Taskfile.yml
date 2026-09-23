@@ -6,15 +6,16 @@ vars:
   FRONTEND_PORT: '80'
 
 tasks:
-  default:
+  auto-annotator:default:
     desc: Show available tasks
+    aliases: [auto-annotator]
     cmds:
       - task --list
 
   # ML Service (SAM model server + gRPC compute workers)
 
-  ml-service:dev:
-    desc: "Start SAM model server + gRPC compute service (local development). Usage: task ml-service:dev [MODEL_ID=sam2_hiera_large] to pre-load a specific model"
+  auto-annotator:ml-service:dev:
+    desc: "Start SAM model server + gRPC compute service (local development). Usage: task auto-annotator:ml-service:dev [MODEL_ID=sam2_hiera_large] to pre-load a specific model"
     dir: ml-service
     vars:
       MODEL_ID: '{{.MODEL_ID | default ""}}'
@@ -28,19 +29,19 @@ tasks:
             uv run python grpc_main.py
           fi
 
-  ml-service:sync:
+  auto-annotator:ml-service:sync:
     desc: Install ML service dependencies with uv
     dir: ml-service
     cmds:
       - uv sync
 
-  ml-service:test:
+  auto-annotator:ml-service:test:
     desc: Run ML service unit tests (pure modules only, no GPU/model weights needed)
     dir: ml-service
     cmds:
       - uv run pytest tests/ -v
 
-  ml-service:typecheck:
+  auto-annotator:ml-service:typecheck:
     desc: Run mypy on ML service code
     dir: ml-service
     cmds:
@@ -48,31 +49,31 @@ tasks:
 
   # Go API (orchestration service)
 
-  api:dev:
+  auto-annotator:api:dev:
     desc: Run the Go orchestration API (Gin + SQLite + gRPC clients)
     dir: api
     cmds:
       - go run ./cmd/api
 
-  api:build:
+  auto-annotator:api:build:
     desc: Build the Go API binary
     dir: api
     cmds:
       - go build -o bin/api ./cmd/api
 
-  api:deps:
+  auto-annotator:api:deps:
     desc: Download Go API module dependencies
     dir: api
     cmds:
       - go mod download
 
-  api:test:
+  auto-annotator:api:test:
     desc: Run Go API tests
     dir: api
     cmds:
       - go test ./...
 
-  api:typecheck:
+  auto-annotator:api:typecheck:
     desc: Run go vet on the Go API
     dir: api
     cmds:
@@ -80,24 +81,24 @@ tasks:
 
   # Database (sqlc + goose migrations)
 
-  sqlc:gen:
+  auto-annotator:sqlc:gen:
     desc: Regenerate Go DB access code from db/migrations via sqlc
     dir: api
     cmds:
       - sqlc generate
 
-  db:migrate:new:
-    desc: 'Create a new goose migration under db/migrations. Usage: task db:migrate:new NAME=add_foo_column'
+  auto-annotator:db:migrate:new:
+    desc: 'Create a new goose migration under db/migrations. Usage: task auto-annotator:db:migrate:new NAME=add_foo_column'
     dir: api
     requires:
       vars: [NAME]
     cmds:
       - goose -dir db/migrations create {{.NAME}} sql
 
-  db:migrate:status:
+  auto-annotator:db:migrate:status:
     desc: >-
       Show which migrations in db/migrations are applied/pending against a
-      SQLite file. Usage: task db:migrate:status [DB_PATH=data/manifest.db]
+      SQLite file. Usage: task auto-annotator:db:migrate:status [DB_PATH=data/manifest.db]
     dir: api
     vars:
       DB_PATH: '{{.DB_PATH | default "data/manifest.db"}}'
@@ -106,7 +107,7 @@ tasks:
 
   # OpenAPI contract
 
-  openapi:validate:
+  auto-annotator:openapi:validate:
     desc: >-
       Lint the OpenAPI spec with Redocly (structural + semantic checks, not
       just YAML syntax -- see .redocly.yaml for the one disabled rule)
@@ -114,59 +115,59 @@ tasks:
     cmds:
       - pnpm exec redocly lint ../api/openapi.yaml --config ../.redocly.yaml
 
-  openapi:generate:backend:
+  auto-annotator:openapi:generate:backend:
     desc: Generate Go types from OpenAPI spec
-    deps: [openapi:validate]
+    deps: [auto-annotator:openapi:validate]
     cmds:
       - oapi-codegen -config .oapi-codegen.yaml api/openapi.yaml
       - echo "[OK] Generated api/internal/http/handlers/openapi.gen.go"
 
-  openapi:generate:frontend:
+  auto-annotator:openapi:generate:frontend:
     desc: Generate TypeScript types from OpenAPI spec
-    deps: [openapi:validate]
+    deps: [auto-annotator:openapi:validate]
     dir: frontend
     cmds:
       - pnpm exec openapi-typescript ../api/openapi.yaml -o src/api/types.generated.ts
       - echo "[OK] Generated src/api/types.generated.ts"
 
-  openapi:generate:all:
+  auto-annotator:openapi:generate:all:
     desc: Generate types for both backend and frontend
     cmds:
-      - task: openapi:generate:backend
-      - task: openapi:generate:frontend
+      - task: auto-annotator:openapi:generate:backend
+      - task: auto-annotator:openapi:generate:frontend
 
   # Shared gRPC contract (proto/)
 
-  proto:gen:
+  auto-annotator:proto:gen:
     desc: Regenerate Go + Python gRPC stubs from the shared proto contract
     cmds:
-      - task: proto:gen:go
-      - task: proto:gen:py
+      - task: auto-annotator:proto:gen:go
+      - task: auto-annotator:proto:gen:py
 
-  proto:gen:go:
+  auto-annotator:proto:gen:go:
     desc: Regenerate Go gRPC stubs (buf) into api/internal/compute/pb
     dir: proto
     cmds:
       - buf lint
       - buf generate
 
-  proto:lint:
+  auto-annotator:proto:lint:
     desc: Lint the shared proto contract (buf lint) without regenerating stubs
     dir: proto
     cmds:
       - buf lint
 
-  proto:breaking:
+  auto-annotator:proto:breaking:
     desc: >-
       Check the shared proto contract for breaking changes against the base
-      branch (default master). Usage: task proto:breaking [BASE=master]
+      branch (default master). Usage: task auto-annotator:proto:breaking [BASE=master]
     dir: proto
     vars:
       BASE: '{{.BASE | default "master"}}'
     cmds:
       - buf breaking --against "../../.git#branch={{.BASE}},subdir=auto-annotator/proto"
 
-  proto:gen:py:
+  auto-annotator:proto:gen:py:
     desc: >-
       Regenerate Python gRPC stubs (+ .pyi type stubs for mypy) into
       ml-service/src/grpc_server/pb, and the buf.validate runtime stub the
@@ -192,31 +193,31 @@ tasks:
 
   # Frontend (Vite)
 
-  frontend:dev:
+  auto-annotator:frontend:dev:
     desc: Start Vite dev server (http://localhost:5173)
     dir: frontend
     cmds:
       - npm run dev
 
-  frontend:build:
+  auto-annotator:frontend:build:
     desc: Build frontend for production
     dir: frontend
     cmds:
       - npm run build
 
-  frontend:preview:
+  auto-annotator:frontend:preview:
     desc: Preview production build locally
     dir: frontend
     cmds:
       - npm run preview
 
-  frontend:test:
+  auto-annotator:frontend:test:
     desc: Run frontend parity tests with Vitest
     dir: frontend
     cmds:
       - npm run test:run
 
-  frontend:install:
+  auto-annotator:frontend:install:
     desc: Install frontend dependencies
     dir: frontend
     cmds:
@@ -224,98 +225,98 @@ tasks:
 
   # Code Quality
 
-  lint:ml-service:
+  auto-annotator:lint:ml-service:
     desc: Run ruff linter on ML service code
     dir: ml-service
     cmds:
       - uv run ruff check .
 
-  lint:frontend:
+  auto-annotator:lint:frontend:
     desc: Run Biome linter on frontend code
     dir: frontend
     cmds:
       - npm run lint
 
-  lint:api:
+  auto-annotator:lint:api:
     desc: Run golangci-lint on Go API
     dir: api
     cmds:
       - golangci-lint run ./...
 
-  align:api:
+  auto-annotator:align:api:
     desc: Check Go struct field alignment (betteralign)
     dir: api
     cmds:
       - betteralign ./...
 
-  align:fix:api:
+  auto-annotator:align:fix:api:
     desc: Auto-fix Go struct field alignment with betteralign
     dir: api
     cmds:
       - betteralign -fix ./...
 
-  lint:all:
+  auto-annotator:lint:all:
     desc: Run linters on ml-service, frontend, and Go API
-    aliases: [lint]
+    aliases: [auto-annotator:lint]
     cmds:
-      - task: lint:ml-service
-      - task: lint:frontend
-      - task: lint:api
+      - task: auto-annotator:lint:ml-service
+      - task: auto-annotator:lint:frontend
+      - task: auto-annotator:lint:api
 
-  format:ml-service:
+  auto-annotator:format:ml-service:
     desc: Fix and format ML service code with ruff
     dir: ml-service
     cmds:
       - uv run ruff check --fix .
       - uv run ruff format .
 
-  format:frontend:
+  auto-annotator:format:frontend:
     desc: Fix and format frontend code with Biome
     dir: frontend
     cmds:
       - npm run format
 
-  format:api:
+  auto-annotator:format:api:
     desc: Format Go API code with golangci-lint fmt
     dir: api
     cmds:
       - golangci-lint fmt ./...
 
-  format:proto:
+  auto-annotator:format:proto:
     desc: Format the shared proto contract with buf format
     dir: proto
     cmds:
       - buf format -w
 
-  format:all:
+  auto-annotator:format:all:
     desc: Fix and format ml-service, frontend, Go API, and proto code
-    aliases: [fmt]
+    aliases: [auto-annotator:fmt]
     cmds:
-      - task: format:ml-service
-      - task: format:frontend
-      - task: format:api
-      - task: format:proto
+      - task: auto-annotator:format:ml-service
+      - task: auto-annotator:format:frontend
+      - task: auto-annotator:format:api
+      - task: auto-annotator:format:proto
 
   # Docker
 
-  docker:build:api:
+  auto-annotator:docker:build:api:
     desc: Build Go API Docker image
     cmds:
       - docker build -f Dockerfile.api -t auto-annotator-api .
 
-  docker:build:ml-service:
+  auto-annotator:docker:build:ml-service:
     desc: Build ML service Docker image
     cmds:
       - docker build -f Dockerfile.ml-service -t auto-annotator-ml-service .
 
-  docker:run:api:
+  auto-annotator:docker:run:api:
     desc: Run Go API container
     cmds:
       - docker run -p {{.API_PORT}}:{{.API_PORT}} auto-annotator-api
     env:
       API_PORT: '{{.API_PORT}}'
 
-  docker:run:ml-service:
+  auto-annotator:docker:run:ml-service:
     desc: Run ML service container with GPU and volume mounts for development
     cmds:
       - docker run --gpus all
@@ -326,8 +327,8 @@ tasks:
     env:
       GRPC_PORT: '{{.GRPC_PORT}}'
 
-  docker:up:
-    desc: "Start all services with docker compose (ml-service + api + frontend). Usage: task docker:up [DETACHED=true]"
+  auto-annotator:docker:up:
+    desc: "Start all services with docker compose (ml-service + api + frontend). Usage: task auto-annotator:docker:up [DETACHED=true]"
     vars:
       DETACHED_FLAG: '{{if eq .DETACHED "true"}}-d {{end}}'
     cmds:
@@ -337,13 +338,13 @@ tasks:
       FRONTEND_PORT: '{{.FRONTEND_PORT}}'
       GRPC_PORT: '{{.GRPC_PORT}}'
 
-  docker:down:
+  auto-annotator:docker:down:
     desc: Stop and remove docker compose services
     cmds:
       - docker compose down
 
-  docker:logs:
-    desc: "Follow docker compose logs (usage: task docker:logs [SERVICE=api|ml-service|frontend], default all services)"
+  auto-annotator:docker:logs:
+    desc: "Follow docker compose logs (usage: task auto-annotator:docker:logs [SERVICE=api|ml-service|frontend], default all services)"
     vars:
       SERVICE: '{{.SERVICE | default ""}}'
     cmds:
@@ -351,30 +352,30 @@ tasks:
 
   # Full Stack
 
-  dev:serve:
+  auto-annotator:dev:serve:
     desc: Run ml-service + api + frontend concurrently (assumes deps installed)
     deps:
-      - ml-service:dev
-      - api:dev
-      - frontend:dev
+      - auto-annotator:ml-service:dev
+      - auto-annotator:api:dev
+      - auto-annotator:frontend:dev
 
-  dev:local:
+  auto-annotator:dev:local:
     desc: Install deps, then start the full local development stack
-    aliases: [dev]
+    aliases: [auto-annotator:dev]
     cmds:
-      - task: dev:init
-      - task: dev:serve
+      - task: auto-annotator:dev:init
+      - task: auto-annotator:dev:serve
 
-  dev:docker:
-    desc: "Start full Docker stack (ml-service + api + frontend). Usage: task dev:docker [DETACHED=true]"
+  auto-annotator:dev:docker:
+    desc: "Start full Docker stack (ml-service + api + frontend). Usage: task auto-annotator:dev:docker [DETACHED=true]"
     cmds:
-      - task: docker:up
+      - task: auto-annotator:docker:up
         vars:
           DETACHED: '{{.DETACHED | default "false"}}'
 
   # Utility
 
-  clean:build:
+  auto-annotator:clean:build:
     desc: Clean build artifacts and cache
     cmds:
       - cmd: powershell -NoProfile -Command "Remove-Item -Recurse -Force -ErrorAction SilentlyContinue ml-service/.ruff_cache, api/bin, frontend/dist, frontend/node_modules"
@@ -383,19 +384,19 @@ tasks:
         platforms: [linux, darwin]
       - echo "Cleaned build artifacts"
 
-  clean:deep:
+  auto-annotator:clean:deep:
     desc: Clean everything including dependencies
     cmds:
-      - task: clean:build
+      - task: auto-annotator:clean:build
       - cmd: powershell -NoProfile -Command "Remove-Item -Recurse -Force -ErrorAction SilentlyContinue ml-service/.venv"
         platforms: [windows]
       - cmd: rm -rf ml-service/.venv
         platforms: [linux, darwin]
       - echo "Full clean complete"
 
-  dev:init:
+  auto-annotator:dev:init:
     desc: Initialize development environment
     cmds:
-      - task: ml-service:sync
-      - task: frontend:install
+      - task: auto-annotator:ml-service:sync
+      - task: auto-annotator:frontend:install
       - echo "Development environment initialized"

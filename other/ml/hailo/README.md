@@ -23,10 +23,10 @@ uv run hailo compile --model yolo11s --docker hailo8_ai_sw_suite_2025-10_contain
 Or use the Taskfile for the full pipeline:
 
 ```bash
-task env:setup         # uv sync
-task model:export      # yolo11s → ONNX
-task calib:prepare     # download + convert
-task workflow:full     # export → calib → test → stage → start Docker
+task hailo:env:setup         # uv sync
+task hailo:model:export      # yolo11s → ONNX
+task hailo:calib:prepare     # download + convert
+task hailo:workflow:full     # export → calib → test → stage → start Docker
 ```
 
 ## Project Structure
@@ -75,12 +75,12 @@ The Hailo AI Software Suite ships as a Linux container image, so `docker run`,
 - **Hardware eval/profile** (`--target hailo8`) need a native Linux host with
   the Hailo-8 device attached (PCIe passthrough is not available under WSL2).
 
-`task docker:run` reproduces the vendor script's full mount set, which only
-exists on a Linux host. On Docker Desktop use `task docker:run-compile-only`,
+`task hailo:docker:run` reproduces the vendor script's full mount set, which only
+exists on a Linux host. On Docker Desktop use `task hailo:docker:run-compile-only`,
 which starts a minimal detached container carrying just the shared mount.
 
 The suite image itself is a manual download from the Hailo Developer Zone -
-`docker pull` will not find it. Load it once with `task docker:load`.
+`docker pull` will not find it. Load it once with `task hailo:docker:load`.
 
 > Compiling on Windows has several non-obvious failure modes, including one that
 > silently produces a *less accurate* HEF rather than an error. See
@@ -118,8 +118,8 @@ All tasks follow the `namespace:verb` convention. Variables are overridable on
 the command line:
 
 ```bash
-task model:export MODEL=yolo12n
-task eval:run TARGET=hailo8 DATA_COUNT=100
+task hailo:model:export MODEL=yolo12n
+task hailo:eval:run TARGET=hailo8 DATA_COUNT=100
 ```
 
 ### Variables
@@ -147,75 +147,75 @@ task eval:run TARGET=hailo8 DATA_COUNT=100
 
 | Task | Description |
 |---|---|
-| `task env:setup` | Install dependencies (`uv sync`) |
-| `task env:list` | Show installed packages |
+| `task hailo:env:setup` | Install dependencies (`uv sync`) |
+| `task hailo:env:list` | Show installed packages |
 
 ### Model Export
 
 | Task | Description |
 |---|---|
-| `task model:export` | Export `MODEL` to ONNX |
-| `task model:export-all` | Export all registered models (n/s/m) |
-| `task model:inspect` | Print ONNX graph of `MODEL` |
-| `task model:export-inspect` | Export then inspect |
+| `task hailo:model:export` | Export `MODEL` to ONNX |
+| `task hailo:model:export-all` | Export all registered models (n/s/m) |
+| `task hailo:model:inspect` | Print ONNX graph of `MODEL` |
+| `task hailo:model:export-inspect` | Export then inspect |
 
 ### Calibration Data
 
 | Task | Description |
 |---|---|
-| `task calib:download` | Download COCO 2017 validation images |
-| `task calib:convert` | Convert images to float32 `.npy` |
-| `task calib:prepare` | Download + convert (full pipeline) |
+| `task hailo:calib:download` | Download COCO 2017 validation images |
+| `task hailo:calib:convert` | Convert images to float32 `.npy` |
+| `task hailo:calib:prepare` | Download + convert (full pipeline) |
 
 ### Testing / Inference
 
 | Task | Description |
 |---|---|
-| `task test:onnx` | Test with raw ONNX backend |
-| `task test:ultraonnx` | Test with Ultralytics ONNX backend |
-| `task test:run BACKEND=<backend>` | Run with explicit backend |
+| `task hailo:test:onnx` | Test with raw ONNX backend |
+| `task hailo:test:ultraonnx` | Test with Ultralytics ONNX backend |
+| `task hailo:test:run BACKEND=<backend>` | Run with explicit backend |
 
 ### Staging for Docker
 
 | Task | Description |
 |---|---|
-| `task stage:run` | Stage ONNX + calibration data into `shared_with_docker/` |
-| `task stage:no-calib` | Stage ONNX only (no calibration data) |
+| `task hailo:stage:run` | Stage ONNX + calibration data into `shared_with_docker/` |
+| `task hailo:stage:no-calib` | Stage ONNX only (no calibration data) |
 
 ### Docker Container Management
 
 | Task | Description |
 |---|---|
-| `task docker:load` | Load the suite image from its Developer Zone tarball |
-| `task docker:run` | Start the container with the full Linux mount set |
-| `task docker:run-compile-only` | Start a minimal detached container (Docker Desktop / Windows) |
-| `task docker:dry` | Print the docker run command without executing |
-| `task docker:status` | Check if the container is running |
-| `task docker:stop` | Stop the container |
-| `task docker:logs` | Follow container logs |
+| `task hailo:docker:load` | Load the suite image from its Developer Zone tarball |
+| `task hailo:docker:run` | Start the container with the full Linux mount set |
+| `task hailo:docker:run-compile-only` | Start a minimal detached container (Docker Desktop / Windows) |
+| `task hailo:docker:dry` | Print the docker run command without executing |
+| `task hailo:docker:status` | Check if the container is running |
+| `task hailo:docker:stop` | Stop the container |
+| `task hailo:docker:logs` | Follow container logs |
 
 ### Compile, Evaluate, Profile
 
 | Task | Description |
 |---|---|
-| `task compile:run` | Compile ONNX → HEF (requires running container) |
-| `task compile:dry` | Print compile command only |
-| `task eval:run` | Evaluate HEF on target |
-| `task eval:dry` | Print eval command only |
-| `task eval:visual` | Evaluate with visualization |
-| `task profile:run` | Profile HEF performance |
-| `task profile:dry` | Print profile command only |
+| `task hailo:compile:run` | Compile ONNX → HEF (requires running container) |
+| `task hailo:compile:dry` | Print compile command only |
+| `task hailo:eval:run` | Evaluate HEF on target |
+| `task hailo:eval:dry` | Print eval command only |
+| `task hailo:eval:visual` | Evaluate with visualization |
+| `task hailo:profile:run` | Profile HEF performance |
+| `task hailo:profile:dry` | Print profile command only |
 
 ### GMR (retrained 3-class model)
 
 | Task | Description |
 |---|---|
-| `task gmr:export` | Export the retrained checkpoint to ONNX |
-| `task gmr:stage` | Stage ONNX + prism calibration images |
-| `task gmr:compile` | Compile to HEF (requires running container) |
-| `task gmr:compile-performance` | Compile at the highest optimization level (needs a GPU) |
-| `task gmr:compile-dry` | Print the compile command only |
-| `task gmr:workflow` | export → stage → compile |
+| `task hailo:gmr:export` | Export the retrained checkpoint to ONNX |
+| `task hailo:gmr:stage` | Stage ONNX + prism calibration images |
+| `task hailo:gmr:compile` | Compile to HEF (requires running container) |
+| `task hailo:gmr:compile-performance` | Compile at the highest optimization level (needs a GPU) |
+| `task hailo:gmr:compile-dry` | Print the compile command only |
+| `task hailo:gmr:workflow` | export → stage → compile |
 
 ### Accuracy Evaluation
 
@@ -227,29 +227,29 @@ question per model, not a given. See
 
 | Task | Description |
 |---|---|
-| `task gmr:stage-eval` | Stage GMR images **and labels** for the evaluators |
-| `task accuracy:float` | Score the float checkpoint (host) - the ceiling |
-| `task accuracy:compare` | Score every compiled HAR (in the container) |
-| `task accuracy:all` | Float ceiling, then every HAR |
+| `task hailo:gmr:stage-eval` | Stage GMR images **and labels** for the evaluators |
+| `task hailo:accuracy:float` | Score the float checkpoint (host) - the ceiling |
+| `task hailo:accuracy:compare` | Score every compiled HAR (in the container) |
+| `task hailo:accuracy:all` | Float ceiling, then every HAR |
 
-Override the sample size with `task accuracy:all EVAL_LIMIT=600`.
+Override the sample size with `task hailo:accuracy:all EVAL_LIMIT=600`.
 
 ### End-to-End Workflows
 
 | Task | Description |
 |---|---|
-| `task workflow:full` | export → calib → test → stage → start Docker |
-| `task workflow:compile` | stage → compile in Docker |
-| `task workflow:eval` | compile → eval → profile |
+| `task hailo:workflow:full` | export → calib → test → stage → start Docker |
+| `task hailo:workflow:compile` | stage → compile in Docker |
+| `task hailo:workflow:eval` | compile → eval → profile |
 
 ### Maintenance
 
 | Task | Description |
 |---|---|
-| `task clean:output` | Remove test outputs and exported models |
-| `task clean:calib` | Remove calibration data |
-| `task clean:all` | Remove all generated files |
-| `task log:run LEVEL=DEBUG\|INFO\|WARNING ARGS=<cmd>` | Run a command with a specific log level |
+| `task hailo:clean:output` | Remove test outputs and exported models |
+| `task hailo:clean:calib` | Remove calibration data |
+| `task hailo:clean:all` | Remove all generated files |
+| `task hailo:log:run LEVEL=DEBUG\|INFO\|WARNING ARGS=<cmd>` | Run a command with a specific log level |
 
 ## Model Registry
 
@@ -280,7 +280,7 @@ config is regenerated for the real class count instead of COCO's 80.
 
 Two things differ from the stock workflow:
 
-- **Calibration data is domain-specific.** `task gmr:stage` calibrates on the
+- **Calibration data is domain-specific.** `task hailo:gmr:stage` calibrates on the
   apps/auto-annotator's own prism photographs, not COCO. Quantisation ranges
   derived from out-of-domain images cost real accuracy on a colour-critical
   detector. The images are nested per class, so `stage` walks the source
@@ -291,8 +291,8 @@ Two things differ from the stock workflow:
   matching `--calib-path` to `compile`.
 
 ```bash
-task gmr:workflow          # export → stage → compile
-task gmr:compile-dry       # print the hailomz command without a container
+task hailo:gmr:workflow          # export → stage → compile
+task hailo:gmr:compile-dry       # print the hailomz command without a container
 ```
 
 For any other retrained checkpoint, add a registry entry with its `.pt` path,
@@ -303,16 +303,16 @@ the zoo name of its base architecture, and its `classes` count.
 The Hailo AI Software Suite runs inside a Linux Docker container. The pipeline
 manages the full lifecycle:
 
-1. **Start the container** - `task docker:run` mounts `shared_with_docker/` at
+1. **Start the container** - `task hailo:docker:run` mounts `shared_with_docker/` at
    `/local/shared_with_docker/` inside the container, forwards X11 for GUI
    tools, and exposes GPU devices.
-2. **Stage files** - `task stage:run` copies the ONNX model and calibration
+2. **Stage files** - `task hailo:stage:run` copies the ONNX model and calibration
    data into `shared_with_docker/`.
-3. **Compile** - `task compile:run` executes `hailomz compile` via `docker exec`,
+3. **Compile** - `task hailo:compile:run` executes `hailomz compile` via `docker exec`,
    producing a `.har` (Hailo Archive) and `.hef` (Hailo Executable Format) file.
-4. **Evaluate** - `task eval:run` runs `hailomz eval` on the emulator or
+4. **Evaluate** - `task hailo:eval:run` runs `hailomz eval` on the emulator or
    connected Hailo-8 hardware.
-5. **Profile** - `task profile:run` measures inference performance.
+5. **Profile** - `task hailo:profile:run` measures inference performance.
 
 All docker commands accept `--docker CONTAINER` to target a specific container,
 or omit it to print the equivalent shell command for manual execution.
@@ -330,5 +330,5 @@ task list
 uv run --group dev ruff check src/
 
 # Run the full pipeline
-task workflow:full
+task hailo:workflow:full
 ```

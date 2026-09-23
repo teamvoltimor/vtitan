@@ -109,18 +109,26 @@ includes:
     taskfile: ./other/deploy/ansible/Taskfile.yml
     dir: ./other/deploy/ansible
     flatten: true
+  # The four app includes below are flattened, so their Taskfiles carry
+  # fully-qualified task keys (`hailo:lint`, not `lint`) and the include key is
+  # only a label. That keeps every reachable name identical while leaving no
+  # raw key defined by two files, so include order can never decide a winner.
   auto-annotator:
     taskfile: ./other/apps/auto-annotator/Taskfile.yml
     dir: ./other/apps/auto-annotator
+    flatten: true
   hailo:
     taskfile: ./other/ml/hailo/Taskfile.yml
     dir: ./other/ml/hailo
+    flatten: true
   models:
     taskfile: ./other/ml/weights/Taskfile.yml
     dir: ./other/ml/weights
+    flatten: true
   hugo-docs:
     taskfile: ./other/apps/hugo-docs/Taskfile.yml
     dir: ./other/apps/hugo-docs
+    flatten: true
 
 tasks:
   default:

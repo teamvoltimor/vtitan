@@ -24,7 +24,7 @@ hailo8_ai_sw_suite_2025-10_docker/
 Load it - do not copy it into the repo:
 
 ```sh
-task docker:load          # docker load -i $SUITE_TARBALL
+task hailo:docker:load          # docker load -i $SUITE_TARBALL
 ```
 
 Expect 20–40 minutes for the 9.3 GB gzip stream, and no output until it finishes.
@@ -37,7 +37,7 @@ nothing is normal until the very end. Budget ~18 GB of disk for the loaded image
 suite expects:
 
 ```sh
-task docker:run
+task hailo:docker:run
 ```
 
 **On Windows / Docker Desktop**, that command cannot work. The vendor script's
@@ -46,7 +46,7 @@ task docker:run
 exist on a Docker Desktop host. Use the minimal form instead:
 
 ```sh
-task docker:run-compile-only
+task hailo:docker:run-compile-only
 ```
 
 This starts a detached container with only the shared mount, plus the GPU flags
@@ -61,12 +61,12 @@ an interactive shell that exits immediately when detached and leaves nothing for
 ## Compile
 
 ```sh
-task gmr:export     # .pt -> .onnx  (host, needs ultralytics)
-task gmr:stage      # copy .onnx + calibration images into shared_with_docker/
-task gmr:compile    # hailomz compile, inside the container
+task hailo:gmr:export     # .pt -> .onnx  (host, needs ultralytics)
+task hailo:gmr:stage      # copy .onnx + calibration images into shared_with_docker/
+task hailo:gmr:compile    # hailomz compile, inside the container
 ```
 
-or `task gmr:workflow` for all three. The generated command is:
+or `task hailo:gmr:workflow` for all three. The generated command is:
 
 ```
 hailomz compile yolov11n \
@@ -152,8 +152,8 @@ $ nvidia-smi --query-gpu=index,memory.used,memory.total --format=csv,noheader,no
 ```
 
 Nothing about this is Windows-specific - any GPU also driving a display sits
-above the threshold - so both `task docker:run` and
-`task docker:run-compile-only` pass `--cuda-device 0`.
+above the threshold - so both `task hailo:docker:run` and
+`task hailo:docker:run-compile-only` pass `--cuda-device 0`.
 
 The guard is the fix: setting `CUDA_VISIBLE_DEVICES` explicitly skips the
 selector. Measured side by side in the same container:
@@ -182,7 +182,7 @@ it disagrees:
 
 ```sh
 docker exec $C sh -c 'echo $CUDA_VISIBLE_DEVICES'
-docker rm -f $C && task docker:run-compile-only
+docker rm -f $C && task hailo:docker:run-compile-only
 ```
 
 ### The image's driver pin rejects modern drivers
@@ -195,7 +195,7 @@ emitted by `_gpu_args()`. Use `--no-gpu` on hosts with no NVIDIA GPU, where
 
 ### Only 64 calibration images are used
 
-`task gmr:stage` copies 1339 prism images, but the log reads:
+`task hailo:gmr:stage` copies 1339 prism images, but the log reads:
 
 ```
 [info] Using dataset with 64 entries for calibration
@@ -212,7 +212,7 @@ calibset_size=N)`. Omitting them yields a HEF that compiles and decodes wrongly.
 
 `--performance` compiles at the highest optimization level and is the simpler
 lever when a GPU is available; it is mutually exclusive with `--model-script`
-(`task gmr:compile-performance`).
+(`task hailo:gmr:compile-performance`).
 
 ## What a healthy run looks like
 
@@ -287,7 +287,7 @@ The lesson is not "skip optimization" - it is that the optimization level is an
 empirical question per model, and cheap to settle. Compile both and measure
 before shipping either.
 
-Reproduce with `task gmr:stage-eval` then `task accuracy:all`. The harnesses
+Reproduce with `task hailo:gmr:stage-eval` then `task hailo:accuracy:all`. The harnesses
 live in `eval/`: `compare_hars.py` runs inside the container over the HARs,
 `float_anchor.py` runs on the host for the float anchor, and both score through
 the same `metrics.py` so any difference comes from the model rather than the

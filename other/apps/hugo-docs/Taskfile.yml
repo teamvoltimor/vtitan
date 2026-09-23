@@ -6,29 +6,30 @@ vars:
   HUGO_CONTENT: content/v1
 
 tasks:
-  default:
+  hugo-docs:default:
     desc: List available tasks
+    aliases: [hugo-docs]
     cmds:
       - task --list
     silent: true
 
   # theme: hugo-book submodule management
-  theme:init:
+  hugo-docs:theme:init:
     desc: Initialise hugo-book submodule (pinned to committed revision)
-    aliases: [theme]
+    aliases: [hugo-docs:theme]
     cmds:
       - git -C .. submodule update --init hugo-docs/themes/hugo-book
 
   # content: sync and clean Markdown sources
-  content:sync:
+  hugo-docs:content:sync:
     desc: Copy Markdown files from ../docs into content/v1/ via Go script
-    aliases: [copy-docs]
+    aliases: [hugo-docs:copy-docs]
     cmds:
       - go run scripts/copy_docs.go
 
-  content:clean:
+  hugo-docs:content:clean:
     desc: Remove generated content from content/v1/
-    aliases: [clean]
+    aliases: [hugo-docs:clean]
     prompt: This will delete all files under {{.HUGO_CONTENT}}. Continue?
     cmds:
       - cmd: powershell -Command "Remove-Item -Recurse -Force {{.HUGO_CONTENT}}\* -ErrorAction SilentlyContinue"
@@ -37,17 +38,17 @@ tasks:
         platforms: [linux, darwin]
 
   # site: serve, build, and clean the Hugo output
-  site:serve:
+  hugo-docs:site:serve:
     desc: Start Hugo dev server with live reload
-    aliases: [serve]
-    deps: [theme:init, content:sync]
+    aliases: [hugo-docs:serve]
+    deps: [hugo-docs:theme:init, hugo-docs:content:sync]
     cmds:
       - hugo server --disableFastRender
 
-  site:build:
-    desc: "Build the site (usage: task site:build [PROD=true] for a minified production build to public/)"
-    aliases: [build]
-    deps: [theme:init, content:sync]
+  hugo-docs:site:build:
+    desc: "Build the site (usage: task hugo-docs:site:build [PROD=true] for a minified production build to public/)"
+    aliases: [hugo-docs:build]
+    deps: [hugo-docs:theme:init, hugo-docs:content:sync]
     vars:
       PROD: '{{.PROD | default "false"}}'
     cmds:
@@ -58,9 +59,9 @@ tasks:
             hugo
           fi
 
-  site:clean:
+  hugo-docs:site:clean:
     desc: Remove the public/ build output directory
-    aliases: [clean:public]
+    aliases: [hugo-docs:clean:public]
     cmds:
       - cmd: powershell -Command "Remove-Item -Recurse -Force public -ErrorAction SilentlyContinue"
         platforms: [windows]
@@ -68,30 +69,30 @@ tasks:
         platforms: [linux, darwin]
 
   # code: Biome lint and format
-  code:lint:
+  hugo-docs:code:lint:
     desc: Run Biome linter
-    aliases: [lint]
+    aliases: [hugo-docs:lint]
     cmds:
       - biome lint .
 
-  code:fmt:
+  hugo-docs:code:fmt:
     desc: Format files with Biome (writes in place)
-    aliases: [fmt]
+    aliases: [hugo-docs:fmt]
     cmds:
       - biome format --write .
 
-  code:check:
+  hugo-docs:code:check:
     desc: Run Biome lint + format check (CI-safe, no writes)
-    aliases: [check]
+    aliases: [hugo-docs:check]
     cmds:
       - biome check .
 
   # deploy: publish the built site
-  deploy:github:
+  hugo-docs:deploy:github:
     desc: Build and deploy to GitHub Pages (requires GITHUB_TOKEN env var)
-    aliases: [deploy]
+    aliases: [hugo-docs:deploy]
     deps:
-      - task: site:build
+      - task: hugo-docs:site:build
         vars:
           PROD: "true"
     dir: public
@@ -110,11 +111,11 @@ tasks:
           git remote add origin https://x-access-token:$GITHUB_TOKEN@github.com/teamvoltimor/vtitan.git && \
           git push --force origin gh-pages
 
-  deploy:cloudflare:
+  hugo-docs:deploy:cloudflare:
     desc: Build for Cloudflare Pages (outputs to public/)
-    aliases: [cloudflare]
+    aliases: [hugo-docs:cloudflare]
     deps:
-      - task: site:build
+      - task: hugo-docs:site:build
         vars:
           PROD: "true"
     cmds:

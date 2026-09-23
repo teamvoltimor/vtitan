@@ -12,46 +12,46 @@ Hugo documentation site for the Voldemorbot v2 project, deployed to [voldemorbot
 ## Quick start
 
 ```sh
-task serve
+task hugo-docs:serve
 ```
 
 This initialises the theme submodule, syncs Markdown from `../docs` into `content/v1/`, and starts the Hugo dev server at <http://localhost:1313/>.
 
 ## Taskfile reference
 
-All common operations are automated via [Taskfile.yml](Taskfile.yml). Run `task` to list available commands.
+All common operations are automated via [Taskfile.yml](Taskfile.yml). Run `task --list` to list available commands.
 
-### `task theme:init` (alias: `theme`)
+### `task hugo-docs:theme:init` (alias: `hugo-docs:theme`)
 Init the `hugo-book` theme submodule.
 
-### `task content:sync` (alias: `copy-docs`)
+### `task hugo-docs:content:sync` (alias: `hugo-docs:copy-docs`)
 Copy Markdown files from `../docs` into `content/v1/`, auto-injecting YAML frontmatter when missing. Powered by `scripts/copy_docs.go`.
 
-### `task content:clean` (alias: `clean`)
+### `task hugo-docs:content:clean` (alias: `hugo-docs:clean`)
 Remove all generated files under `content/v1/`.
 
-### `task site:serve` (alias: `serve`)
-Start Hugo dev server with live reload. Depends on `theme:init` + `content:sync`.
+### `task hugo-docs:site:serve` (alias: `hugo-docs:serve`)
+Start Hugo dev server with live reload. Depends on `hugo-docs:theme:init` + `hugo-docs:content:sync`.
 
-### `task site:build` (alias: `build`)
+### `task hugo-docs:site:build` (alias: `hugo-docs:build`)
 Incremental Hugo build to `public/`.
 
-### `task site:build-prod` (alias: `build:prod`)
+### `task hugo-docs:site:build PROD=true`
 Production build with minification (`hugo --minify`).
 
-### `task site:clean` (alias: `clean:public`)
+### `task hugo-docs:site:clean` (alias: `hugo-docs:clean:public`)
 Remove the `public/` build output directory.
 
-### `task code:lint` (alias: `lint`)
+### `task hugo-docs:code:lint` (alias: `hugo-docs:lint`)
 Run Biome linter.
 
-### `task code:fmt` (alias: `fmt`)
+### `task hugo-docs:code:fmt` (alias: `hugo-docs:fmt`)
 Format files with Biome (writes in place).
 
-### `task code:check` (alias: `check`)
+### `task hugo-docs:code:check` (alias: `hugo-docs:check`)
 Run Biome lint + format check (CI-safe, no writes).
 
-### `task deploy:cloudflare` (alias: `cloudflare`)
+### `task hugo-docs:deploy:cloudflare` (alias: `hugo-docs:cloudflare`)
 Build for Cloudflare Pages. Output goes to `public/`; connect the repo in the Cloudflare dashboard.
 
 ## Deployment

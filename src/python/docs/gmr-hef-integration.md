@@ -31,7 +31,7 @@ Compile-side background lives in
 
 | Artifact | Where | Notes |
 |---|---|---|
-| `gmr.hef` | `apps/auto-annotator/ml-service/models/gmr/gmr.hef` | The build to ship. Gitignored, so it is local-only - recompile with `task gmr:workflow` if lost |
+| `gmr.hef` | `apps/auto-annotator/ml-service/models/gmr/gmr.hef` | The build to ship. Gitignored, so it is local-only - recompile with `task hailo:gmr:workflow` if lost |
 | `gmr_cpu_opt0.hef` / `.har` | `ml/hailo/shared_with_docker/` | Same build, original name |
 | `gmr_gpu_qat.hef` / `.har` | `ml/hailo/shared_with_docker/` | Rejected, see below |
 | Class-colour map | `src/python/src/vision/detector.py` | `DEFAULT_CLASS_TO_COLOR`, already corrected |
@@ -59,7 +59,7 @@ Which build won, measured on 300 and 600 images against the float checkpoint:
 | **`gmr_cpu_opt0`** | 0.9954 | 0.8808 | none | 2 |
 | `gmr_gpu_qat` | 0.9689 | 0.8096 | 2 | 23 |
 
-Reproduce with `task gmr:stage-eval && task accuracy:all` from `hailo/`.
+Reproduce with `task hailo:gmr:stage-eval && task hailo:accuracy:all` from `hailo/`.
 
 ## Fixed 2026-07-26 (kept for the reasoning)
 
@@ -249,5 +249,5 @@ mapping; reading as magenta or nothing points at RGB/BGR.
 
 One caution carried over from the compile work: the level-0 build beating the
 fully optimized one was **measured, not predicted** - the reverse of what the
-vendor warning implies. Re-measure with `task accuracy:all` rather than
+vendor warning implies. Re-measure with `task hailo:accuracy:all` rather than
 reasoning from first principles if the model is ever recompiled.

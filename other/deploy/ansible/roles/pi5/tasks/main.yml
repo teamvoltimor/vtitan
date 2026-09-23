@@ -34,7 +34,7 @@
     update_cache: true
 
 # Model files themselves are a day-2 concern (scripts/provisioning/deploy-to-pi5.sh pushes
-# the .hef built by `task gmr:workflow`) — just make sure the target
+# the .hef built by `task hailo:gmr:workflow`) — just make sure the target
 # directory HAILO_MODEL_PATH expects exists so that first deploy doesn't fail.
 - name: Ensure Hailo models directory exists
   tags: [hardware]

@@ -92,7 +92,7 @@ ssh "${SSH_OPTS[@]}" "$PI5_HOST" "cd $PI5_REPO && git log --oneline -1"
 
 # 2. Model.
 if [ -n "$HEF" ]; then
-  [ -f "$HEF" ] || die "HEF not found: $HEF (compile it with 'task gmr:workflow' in other/ml/hailo/)"
+  [ -f "$HEF" ] || die "HEF not found: $HEF (compile it with 'task hailo:gmr:workflow' in other/ml/hailo/)"
   log "Deploying $(basename "$HEF") -> $HEF_DEST"
   scp "${SSH_OPTS[@]}" -q "$HEF" "$PI5_HOST:/tmp/$(basename "$HEF_DEST")"
   ssh "${SSH_OPTS[@]}" "$PI5_HOST" "sudo mkdir -p '$(dirname "$HEF_DEST")' \

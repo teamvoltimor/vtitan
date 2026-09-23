@@ -1,7 +1,7 @@
 version: "3"
 
 tasks:
-  promote:
+  models:promote:
     desc: "Promote a compiled model from other/ml/hailo/shared_with_docker/ into a new tracked other/ml/weights/<name>/vN/ (usage: task models:promote NAME=gmr HEF=gmr_cpu_opt0.hef [ONNX=gmr.onnx])"
     dir: "{{.ROOT_DIR}}"
     requires:
@@ -13,7 +13,7 @@ tasks:
     cmds:
       - bash other/ml/weights/scripts/promote-from-hailo.sh {{.NAME}} {{.HEF}} {{.ONNX}}
 
-  deploy:
+  models:deploy:
     desc: "Deploy a tracked model version into other/apps/auto-annotator/ml-service/models/<name>/ (usage: task models:deploy NAME=gmr [VERSION=v1], defaults to LATEST)"
     dir: "{{.ROOT_DIR}}"
     requires:
