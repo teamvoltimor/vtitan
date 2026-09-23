@@ -4,6 +4,7 @@ import (
 	"strings"
 	"testing"
 
+	tea "github.com/charmbracelet/bubbletea"
 	"github.com/spf13/cobra"
 )
 
@@ -94,7 +95,7 @@ func TestPickerRootFollowsGroups(t *testing.T) {
 	previous := -1
 
 	for _, item := range app.buildPickerRoot() {
-		if item.escape {
+		if item.escape || item.groupHeader {
 			continue
 		}
 
@@ -104,6 +105,74 @@ func TestPickerRootFollowsGroups(t *testing.T) {
 		}
 
 		previous = rank
+	}
+}
+
+// TestPickerRootIsSectioned checks the root carries a header per root group
+// that has members, and that the list opens on a row rather than a header.
+func TestPickerRootIsSectioned(t *testing.T) {
+	t.Parallel()
+
+	app := newSpecApp(t)
+	app.recentPath = ""
+
+	headers := make(map[string]bool)
+	for _, row := range app.buildPickerRoot() {
+		if row.groupHeader {
+			headers[row.title] = true
+		}
+	}
+
+	for _, group := range rootGroups {
+		hasMember := false
+		for _, member := range group.members {
+			if findChild(app.Root, member) != nil {
+				hasMember = true
+
+				break
+			}
+		}
+
+		if hasMember && !headers[group.title] {
+			t.Errorf("root group %q has no header in the picker", group.title)
+		}
+	}
+
+	picker := newPickerModel(app.buildPickerRoot(), app.childLevel, app.taskLevel(), NewUI())
+	if row, ok := picker.list.SelectedItem().(pickItem); !ok || row.groupHeader {
+		t.Errorf("the picker opens on a header: %+v", row)
+	}
+}
+
+// TestPickerRendersGroupHeaders checks the root view draws a group header as a
+// label, not as an ordinary row.
+func TestPickerRendersGroupHeaders(t *testing.T) {
+	t.Parallel()
+
+	app := newSpecApp(t)
+	app.recentPath = ""
+
+	picker := newPickerModel(app.buildPickerRoot(), app.childLevel, app.taskLevel(), NewUI())
+	if view := picker.list.View(); !strings.Contains(view, "Robot and simulation:") {
+		t.Errorf("the root view has no group header:\n%s", view)
+	}
+}
+
+// TestPickerSkipsHeaders checks the cursor never lands on a group header.
+func TestPickerSkipsHeaders(t *testing.T) {
+	t.Parallel()
+
+	app := newSpecApp(t)
+	app.recentPath = ""
+
+	picker := newPickerModel(app.buildPickerRoot(), app.childLevel, app.taskLevel(), NewUI())
+
+	for range len(picker.list.Items()) + 2 {
+		if row, ok := picker.list.SelectedItem().(pickItem); !ok || row.groupHeader {
+			t.Fatalf("the cursor landed on a header: %+v", row)
+		}
+
+		picker.Update(tea.KeyMsg{Type: tea.KeyDown})
 	}
 }
 
@@ -120,7 +189,7 @@ func TestPickerRowsDescribed(t *testing.T) {
 		var walk func(trail []string, rows []pickItem)
 		walk = func(trail []string, rows []pickItem) {
 			for _, row := range rows {
-				if row.escape || row.segment == backSegment {
+				if row.escape || row.segment == backSegment || row.groupHeader {
 					continue
 				}
 

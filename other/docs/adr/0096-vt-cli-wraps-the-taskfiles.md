@@ -262,6 +262,11 @@ bubbles v0.21.0.
   the background vt detected for its own palette, instead of dropping them and
   stalling the task until its timeout. `termbuf` stays a scrollback, not a
   terminal emulator.
+- 2026-09-23, picker sections: the root now draws the `rootGroups` headers
+  (Recent, Robot and simulation, Apps, ...) as non-selectable labels, and the
+  cursor skips them. This needed a custom row delegate and a cursor nudge
+  because bubbles/list has no non-selectable rows; the header is a rule plus
+  its title, using the delegate's two-line height.
 
 - The boundary rule, now written down: **Taskfiles own what runs, `vt` owns
   how it is spelled.** A change that alters what a task does belongs in the

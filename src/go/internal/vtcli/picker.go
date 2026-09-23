@@ -1,6 +1,8 @@
 package vtcli
 
 import (
+	"fmt"
+	"io"
 	"slices"
 	"strings"
 
@@ -18,6 +20,9 @@ type pickItem struct {
 	spec    *Command
 	task    string
 	escape  bool
+	// groupHeader marks a section label in the root list: drawn as a rule and
+	// a title, and never selectable.
+	groupHeader bool
 }
 
 // pickerModel drives the command list as a stack of levels: the root lists
@@ -42,23 +47,80 @@ type pickerModel struct {
 	resolve func([]string) []pickItem
 }
 
-// buildPickerRoot turns the curated spec into the root level: first-level
-// domains, with the leaf commands directly under the root kept at that level.
+// pickerRowsDelegate renders list rows in the palette: the selected row in the
+// accent colour instead of bubbles' default magenta, and a group header as a
+// rule plus its label rather than a selectable row.
+type pickerRowsDelegate struct {
+	inner list.DefaultDelegate
+	ui    UI
+}
+
+// recentGroupTitle heads the picker's recent rows.
+const recentGroupTitle = "Recent:"
+
+// buildPickerRoot turns the curated spec into the root level: the recent rows
+// and then each first-level domain under its root group's header, so the
+// picker's sections match --help and the home menu. The leaf commands directly
+// under the root are kept at this level.
 func (a *App) buildPickerRoot() []pickItem {
 	// childLevel already separates leaves from namespaces (a root command with
 	// children, such as lint, must open rather than run); drop its back row.
 	domains := a.childLevel(nil)[1:]
-	slices.SortStableFunc(domains, func(x, y pickItem) int { return rootRank(x.title) - rootRank(y.title) })
 
-	items := append(a.recentItems(), domains...)
+	byTitle := make(map[string]pickItem, len(domains))
+	for _, domain := range domains {
+		byTitle[domain.title] = domain
+	}
 
-	items = append(items, pickItem{
-		title:  catchAllName,
-		desc:   "Any Task task: browse and filter the full inventory",
-		escape: true,
-	})
+	items := make([]pickItem, 0, len(domains)+len(rootGroups)+1)
+
+	if recent := a.recentItems(); len(recent) > 0 {
+		items = append(items, groupHeaderRow(recentGroupTitle))
+		items = append(items, recent...)
+	}
+
+	for _, group := range rootGroups {
+		members := make([]pickItem, 0, len(group.members))
+
+		for _, member := range group.members {
+			if member == catchAllName {
+				members = append(members, pickItem{
+					title:  catchAllName,
+					desc:   "Any Task task: browse and filter the full inventory",
+					escape: true,
+				})
+
+				continue
+			}
+
+			if item, ok := byTitle[member]; ok {
+				members = append(members, item)
+				delete(byTitle, member)
+			}
+		}
+
+		if len(members) == 0 {
+			continue
+		}
+
+		items = append(items, groupHeaderRow(group.title))
+		items = append(items, members...)
+	}
+
+	// A domain in no root group would otherwise be unreachable; TestRootGroups
+	// keeps this empty.
+	for _, domain := range domains {
+		if _, ok := byTitle[domain.title]; ok {
+			items = append(items, domain)
+		}
+	}
 
 	return items
+}
+
+// groupHeaderRow is a non-selectable section label.
+func groupHeaderRow(title string) pickItem {
+	return pickItem{title: title, groupHeader: true}
 }
 
 // childLevel returns the rows shown after descending into segments: a back
@@ -224,8 +286,22 @@ func newPickerList(items []pickItem, ui UI) list.Model {
 	model.SetShowHelp(true)
 	model.SetShowStatusBar(true)
 	model.SetShowPagination(true)
+	selectFirstRow(&model)
 
 	return model
+}
+
+// selectFirstRow moves the cursor off a leading group header, so the list
+// opens on a row that can actually be chosen.
+func selectFirstRow(model *list.Model) {
+	for range model.Items() {
+		row, ok := model.SelectedItem().(pickItem)
+		if !ok || !row.groupHeader {
+			return
+		}
+
+		model.CursorDown()
+	}
 }
 
 // Init implements tea.Model.
@@ -275,8 +351,11 @@ func (m *pickerModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 	}
 
+	before := m.list.Index()
+
 	var cmd tea.Cmd
 	m.list, cmd = m.list.Update(msg)
+	m.skipHeaders(before)
 
 	return m, cmd
 }
@@ -284,6 +363,24 @@ func (m *pickerModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 // View implements tea.Model.
 func (m *pickerModel) View() string {
 	return m.ui.Header(m.width, m.height) + "\n" + m.list.View()
+}
+
+// skipHeaders moves the cursor off a group header, which cannot be chosen.
+// Headers are not adjacent, but a clamped move (home, or the first row) can
+// land on one, so it keeps moving while the selection is a header.
+func (m *pickerModel) skipHeaders(before int) {
+	for range m.list.Items() {
+		row, ok := m.list.SelectedItem().(pickItem)
+		if !ok || !row.groupHeader {
+			return
+		}
+
+		if m.list.Index() > before || m.list.Index() == 0 {
+			m.list.CursorDown()
+		} else {
+			m.list.CursorUp()
+		}
+	}
 }
 
 // fit sizes the list to the terminal minus the header. Every level change
@@ -375,21 +472,44 @@ func (m *pickerModel) updateTitle() {
 	m.list.Title = "vt " + strings.Join(m.trail, " › ")
 }
 
-// pickerDelegate renders list rows in the palette: the selected row in the
-// accent colour instead of bubbles' default magenta.
-func pickerDelegate(ui UI) list.DefaultDelegate {
-	delegate := list.NewDefaultDelegate()
-	if !ui.color {
-		return delegate
+// Height implements list.ItemDelegate.
+func (d pickerRowsDelegate) Height() int { return d.inner.Height() }
+
+// Spacing implements list.ItemDelegate.
+func (d pickerRowsDelegate) Spacing() int { return d.inner.Spacing() }
+
+// Update implements list.ItemDelegate.
+func (d pickerRowsDelegate) Update(msg tea.Msg, m *list.Model) tea.Cmd { return d.inner.Update(msg, m) }
+
+// Render implements list.ItemDelegate.
+func (d pickerRowsDelegate) Render(w io.Writer, m list.Model, index int, item list.Item) {
+	row, ok := item.(pickItem)
+	if !ok {
+		return
 	}
 
-	delegate.Styles.SelectedTitle = delegate.Styles.SelectedTitle.
-		Foreground(colorAccent).BorderLeftForeground(colorAccent)
-	delegate.Styles.SelectedDesc = delegate.Styles.SelectedDesc.
-		Foreground(colorAccent).BorderLeftForeground(colorAccent)
-	delegate.Styles.NormalDesc = delegate.Styles.NormalDesc.Foreground(colorMuted)
+	if row.groupHeader {
+		rule := strings.Repeat("─", max(m.Width(), 1))
+		fmt.Fprintf(w, "%s\n%s", d.ui.Muted(rule), d.ui.Muted("  "+row.title))
 
-	return delegate
+		return
+	}
+
+	d.inner.Render(w, m, index, item)
+}
+
+// pickerDelegate builds the row delegate in the palette.
+func pickerDelegate(ui UI) list.ItemDelegate {
+	delegate := list.NewDefaultDelegate()
+	if ui.color {
+		delegate.Styles.SelectedTitle = delegate.Styles.SelectedTitle.
+			Foreground(colorAccent).BorderLeftForeground(colorAccent)
+		delegate.Styles.SelectedDesc = delegate.Styles.SelectedDesc.
+			Foreground(colorAccent).BorderLeftForeground(colorAccent)
+		delegate.Styles.NormalDesc = delegate.Styles.NormalDesc.Foreground(colorMuted)
+	}
+
+	return pickerRowsDelegate{inner: delegate, ui: ui}
 }
 
 // styleList puts the list chrome (title, filter prompt) in the palette.
