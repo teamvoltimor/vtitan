@@ -54,8 +54,7 @@ func run() int {
 	}
 
 	if execErr := app.Root.ExecuteContext(ctx); execErr != nil {
-		var exitErr *vtcli.ExitError
-		if errors.As(execErr, &exitErr) {
+		if exitErr, ok := errors.AsType[*vtcli.ExitError](execErr); ok {
 			return exitErr.Code
 		}
 

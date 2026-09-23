@@ -80,7 +80,7 @@ jobs:
       - name: Lint
         uses: golangci/golangci-lint-action@v8
         with:
-          version: v2.12.2
+          version: v2.13.2
           working-directory: src/go
 
   # pkg/portable is shared with the Pico 2 firmware, so it must build under

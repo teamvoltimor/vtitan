@@ -179,8 +179,8 @@ func (o *Orchestrator) Run(ctx context.Context, scenarios []corpus.Scenario) (Re
 
 			result, err := o.runner.Run(gctx, sc)
 			sr := indexedResult{
-				index:          index,
-				ScenarioResult: ScenarioResult{Scenario: sc, Result: result, Err: err},
+				index:    index,
+				Scenario: sc, Result: result, Err: err,
 			}
 
 			select {
