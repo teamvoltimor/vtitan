@@ -2,7 +2,6 @@ package vtcli
 
 import (
 	"fmt"
-	"os"
 	"strconv"
 	"strings"
 
@@ -72,31 +71,19 @@ func (f *formField) secret(on bool) {
 	}
 }
 
-// runForm runs the argument form and returns the collected values, after the
-// confirmation screen shows what preview says will run.
-func runForm(
+// newFormModel builds the argument form; its confirmation screen shows what
+// preview says will run. The session reads submit/cancelled from it.
+func newFormModel(
 	ui UI,
 	title string,
 	fields []*formField,
 	preview func(map[string]string) (string, error),
 	heavy bool,
-) (values map[string]string, ok bool, err error) {
-	model := formModel{title: title, fields: fields, heavy: heavy, ui: ui, preview: preview}
+) *formModel {
+	model := &formModel{title: title, fields: fields, heavy: heavy, ui: ui, preview: preview}
 	model.focus(0)
 
-	program := tea.NewProgram(&model, tea.WithAltScreen(), tea.WithInput(os.Stdin), tea.WithOutput(os.Stdout))
-
-	final, err := program.Run()
-	if err != nil {
-		return nil, false, fmt.Errorf("form: %w", err)
-	}
-
-	result, isForm := final.(*formModel)
-	if !isForm || result.cancelled || !result.submit {
-		return nil, false, nil
-	}
-
-	return result.values(), true, nil
+	return model
 }
 
 // Init implements tea.Model.
@@ -161,12 +148,12 @@ func (m *formModel) View() string {
 			lines = append(lines, m.ui.Warning("WARNING: this task starts long-running processes (simulator/service)."))
 		}
 
-		lines = append(lines, "", m.ui.Muted("(enter: run · esc: cancel)"))
+		lines = append(lines, "", m.ui.Muted("(enter: run · esc: back to the menu)"))
 
 		return strings.Join(lines, "\n")
 	}
 
-	lines = append(lines, "", m.ui.Muted("(tab: next · space: toggle · enter: next · esc: cancel) · "+
+	lines = append(lines, "", m.ui.Muted("(tab: next · space: toggle · enter: next · esc: back to the menu) · "+
 		"untouched defaults stay with Task"))
 
 	return strings.Join(lines, "\n")

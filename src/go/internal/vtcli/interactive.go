@@ -7,7 +7,6 @@ import (
 	"strconv"
 	"strings"
 
-	tea "github.com/charmbracelet/bubbletea"
 	"github.com/spf13/cobra"
 )
 
@@ -46,44 +45,15 @@ func (a *App) printHome(cmd *cobra.Command) error {
 	return nil
 }
 
-// pickAndRun opens the picker, then the argument form, then runs the task.
+// pickAndRun opens the interactive session: picker, form and run pane in
+// one program that stays open between runs.
 func (a *App) pickAndRun(cmd *cobra.Command) error {
-	program := tea.NewProgram(
-		newPickerModel(a.buildPickerRoot(), a.childLevel, a.taskLevel(), a.ui),
-		tea.WithAltScreen(),
-		tea.WithInput(os.Stdin),
-		tea.WithOutput(cmd.OutOrStdout()),
-	)
-
-	final, err := program.Run()
-	if err != nil {
-		return fmt.Errorf("selector: %w", err)
+	out, isFile := cmd.OutOrStdout().(*os.File)
+	if !isFile {
+		out = os.Stdout
 	}
 
-	result, ok := final.(*pickerModel)
-	if !ok || result.cancelled || result.selected == nil {
-		return nil
-	}
-
-	if result.selected.task != "" {
-		return a.promptTaskArgs(cmd.Context(), result.selected.task)
-	}
-
-	if result.selected.spec == nil {
-		return nil
-	}
-
-	command := *result.selected.spec
-
-	values, submitted, err := a.promptFields(command)
-	if err != nil || !submitted {
-		return err
-	}
-
-	passthrough := splitArgs(values[argsField])
-	a.echo(vtLine(command, values, passthrough))
-
-	return a.execute(cmd.Context(), command, values, passthrough)
+	return a.runSession(cmd.Context(), out)
 }
 
 // execute resolves a command against its values and runs the task. Every path
@@ -105,36 +75,43 @@ func (a *App) execute(ctx context.Context, command Command, values map[string]st
 	return runTask(ctx, a.repoRoot, inv.task, inv.argv())
 }
 
-// promptTaskArgs asks for the free-form arguments of a task picked from the
-// full inventory, which has no typed flags to build a form from.
-func (a *App) promptTaskArgs(ctx context.Context, name string) error {
-	field := newTextField(argsField, "VAR=value and flags, verbatim (optional)", false, FlagString)
+// formFor builds the argument form for a picked command or task, or returns
+// nil when there is nothing to ask. The preview is planInvocation's own
+// rendering, so the confirmation shows exactly what will run.
+func (a *App) formFor(pending *pendingRun) *formModel {
+	if pending.command == nil {
+		field := newTextField(argsField, "VAR=value and flags, verbatim (optional)", false, FlagString)
+		preview := func(values map[string]string) (string, error) {
+			_, _, _, display, err := a.resolve(&pendingRun{task: pending.task, values: values})
 
-	preview := func(values map[string]string) (string, error) {
-		line := "task " + name
-		if args := strings.TrimSpace(values[argsField]); args != "" {
-			line += " " + args
+			return display, err
 		}
 
-		return line, nil
+		return newFormModel(a.ui, catchAllName+" "+pending.task, []*formField{field}, preview, false)
 	}
 
-	values, submitted, err := runForm(a.ui, catchAllName+" "+name, []*formField{field}, preview, false)
-	if err != nil || !submitted {
-		return err
+	command := *pending.command
+
+	fields := commandFields(command)
+	if len(fields) == 0 {
+		return nil
 	}
 
-	args := splitArgs(values[argsField])
-	a.echo(strings.Join(append([]string{"vt", catchAllName, name}, args...), " "))
-	a.remember(recentTaskPrefix + name)
+	preview := func(values map[string]string) (string, error) {
+		inv, planErr := planInvocation(command, values, splitArgs(values[argsField]))
+		if planErr != nil {
+			return "", planErr
+		}
 
-	return runTask(ctx, a.repoRoot, name, args)
+		return inv.display(), nil
+	}
+
+	return newFormModel(a.ui, strings.Join(command.Path, " "), fields, preview, command.Heavy)
 }
 
-// promptFields builds and runs the argument form for one command. The preview
-// is planInvocation's own rendering, so the confirmation shows exactly what
-// will run.
-func (a *App) promptFields(command Command) (values map[string]string, ok bool, err error) {
+// commandFields lists the form fields of a command: its positionals, its
+// variant switches, its flags, and the passthrough line.
+func commandFields(command Command) []*formField {
 	fields := make([]*formField, 0, len(command.Args)+len(command.Flags)+len(command.Variants)+1)
 
 	for _, arg := range command.Args {
@@ -167,26 +144,31 @@ func (a *App) promptFields(command Command) (values map[string]string, ok bool, 
 		fields = append(fields, newTextField(argsField, "extra arguments after --", false, FlagString))
 	}
 
-	preview := func(values map[string]string) (string, error) {
-		inv, planErr := planInvocation(command, values, splitArgs(values[argsField]))
-		if planErr != nil {
-			return "", planErr
-		}
-
-		return inv.display(), nil
-	}
-
-	if len(fields) == 0 {
-		return map[string]string{}, true, nil
-	}
-
-	return runForm(a.ui, strings.Join(command.Path, " "), fields, preview, command.Heavy)
+	return fields
 }
 
-// echo prints the command line that reproduces a picker run, so the flags can
-// be learned and the run repeated without the picker.
-func (a *App) echo(line string) {
-	fmt.Fprintln(os.Stderr, a.ui.Muted(equivalentPrefix+line))
+// resolve turns a pending run and its values into what runs (the task name
+// and its argv), the equivalent vt line, and the display line with secrets
+// masked. It is planInvocation for a command, and the verbatim arguments for
+// a task picked from the full inventory.
+func (a *App) resolve(pending *pendingRun) (name string, args []string, line, display string, err error) {
+	if pending.command == nil {
+		args = splitArgs(pending.values[argsField])
+		line = strings.Join(append([]string{"vt", catchAllName, pending.task}, args...), " ")
+
+		return pending.task, args, line, strings.Join(append([]string{"task", pending.task}, args...), " "), nil
+	}
+
+	command := *pending.command
+	passthrough := splitArgs(pending.values[argsField])
+	line = vtLine(command, pending.values, passthrough)
+
+	inv, err := planInvocation(command, pending.values, passthrough)
+	if err != nil {
+		return "", nil, line, "", err
+	}
+
+	return inv.task, inv.argv(), line, inv.display(), nil
 }
 
 // splitArgs splits a free-text argument line on spaces, honouring quotes.

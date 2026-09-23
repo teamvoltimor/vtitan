@@ -164,6 +164,8 @@ var cliSpec = []Command{
 		Task:        "cli:run",
 		Short:       "Run vt from source, without building",
 		Passthrough: true,
+		// vt's own picker needs the whole terminal, not a pane inside one.
+		Terminal: true,
 	},
 	{Path: []string{"cli", "test"}, Task: "cli:test", Short: "Run vt's tests, including the anti-drift checks"},
 	{Path: []string{"cli", "lint"}, Task: "cli:lint", Short: "Lint vt (golangci-lint)"},

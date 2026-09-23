@@ -58,6 +58,10 @@ type Command struct {
 	// platform. Elsewhere it is hidden from help, menus and the picker.
 	Platforms []string
 	Variants  []Variant
+	// Terminal hands the task the whole terminal in the interactive session
+	// instead of showing its output in the run pane, for a task that draws
+	// its own screen or reads raw keys (an SSH shell, vt itself).
+	Terminal bool
 }
 
 // Domain groups a first-level CLI namespace and the Task-name prefix it owns.

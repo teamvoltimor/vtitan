@@ -314,7 +314,7 @@ Dominios (`vt --help`, el menú y el selector usan el mismo orden): robot y simu
 task cli:build                      # Compila src/go/bin/vt (recomendado)
 task cli:run -- sim --help          # O sin compilar, vía go run
 
-src/go/bin/vt                       # En una terminal: selector con los últimos comandos arriba y confirmación previa
+src/go/bin/vt                       # En una terminal: selector con los últimos comandos arriba; la salida se ve dentro y se vuelve al menú
 src/go/bin/vt sim view -- --challenge open --interactive   # Simulador + RViz en un solo comando
 src/go/bin/vt gen corpus --both     # Corpus de barrido de ambos desafíos (semilla fija)
 src/go/bin/vt fleet set-wifi zero --ssid Casa --password '...'

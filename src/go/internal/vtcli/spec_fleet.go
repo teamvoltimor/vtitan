@@ -37,6 +37,8 @@ var fleetSpec = []Command{
 		Task:  "windows:ssh",
 		Short: "Open an SSH session on a board",
 		Args:  []Arg{{Name: argHost, Var: "SSH_HOST", Required: true, Usage: "SSH alias of the Pi"}},
+		// A remote shell reads raw keys and redraws its own screen.
+		Terminal: true,
 	},
 	{
 		Path:  []string{"fleet", "run"},

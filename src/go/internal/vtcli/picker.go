@@ -345,6 +345,22 @@ func (m *pickerModel) pop() {
 	m.updateTitle()
 }
 
+// setRoot replaces the root level, keeping the cursor where it was if the
+// root is showing; the session calls it after a run so the run shows up in
+// the recent rows.
+func (m *pickerModel) setRoot(root []pickItem) {
+	m.root = root
+	m.levels[0] = root
+
+	if len(m.levels) == 1 {
+		index := m.list.Index()
+		m.list = newPickerList(root, m.ui)
+		m.list.Select(min(index, len(root)-1))
+		m.fit()
+		m.updateTitle()
+	}
+}
+
 // canPop reports whether popping is possible (not at the root).
 func (m *pickerModel) canPop() bool { return len(m.levels) > 1 }
 

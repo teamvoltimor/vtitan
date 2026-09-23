@@ -91,6 +91,21 @@ Choices made along the way:
   confirmation was added after a filtered selection in a test session launched
   `sim test` unintentionally. Without a TTY, or with `VT_NO_PICKER=1`, `vt`
   prints the static menu instead.
+- **The picker is a session, not a launcher.** Picker, form and run pane are
+  one bubbletea program. A confirmed command runs on a pseudo-terminal
+  (`charmbracelet/x/xpty`: a Unix PTY, ConPTY on Windows) and its output
+  streams into a scrollable pane under the equivalent `vt` line and a live
+  status. After it ends, enter goes back to the picker level it was picked
+  from, `r` runs it again and `q` quits. A PTY and not pipes because the
+  tools only behave as in a terminal when they see one: colors, line-by-line
+  flushing from Python, progress bars that redraw in place. While the task
+  runs, keys are typed into it and ctrl+c interrupts it (a second one kills
+  its process group) instead of ending vt. A command marked `Terminal` (an
+  SSH shell, `cli run`) gets the whole terminal instead and the session
+  resumes when it exits. The exit code of each run is shown in the pane and
+  printed after the session ends, one line per run; the session itself exits
+  0. The typed CLI (`vt <command>`) is unchanged: terminal attached, exit code
+  propagated.
 - **All user-facing text is in English**, matching the Taskfiles.
 
 Fixed versions: cobra v1.10.2, lipgloss v1.1.0, bubbletea v1.3.10,
@@ -206,12 +221,18 @@ bubbles v0.21.0.
   Single-task namespaces were flattened (`hailo test`, `proto <action>`),
   sibling cleans and dev modes became switches (`hailo clean --calib`,
   `annotator clean --deep`, `annotator dev --install`), and backend's 14 flat
-  rows became 10 with `backend gen` and `backend mod`. Namespace descriptions
+  rows became 12 with `backend gen` and `backend mod`. Namespace descriptions
   are keyed by full path, since `build` under `go` and under `backend` mean
   different things; the old per-segment table had left eight namespaces
   blank. Checks 8 and 9 (`TestNamespacesDescribed`, `TestRootGroups`) fail on
   a namespace without a description, a stale one, or a first-level command
   outside the root groups.
+- 2026-09-22, the picker stays open: runs show inline in a run pane on a
+  PTY and return to the menu, instead of ending vt; see the session bullet
+  under Decision. The output buffer (`termbuf.go`) is deliberately not a
+  terminal emulator: scrollback plus the redraws tools use in place (carriage
+  return, erase line, cursor up, column), colors per cell, everything else
+  dropped.
 - The boundary rule, now written down: **Taskfiles own what runs, `vt` owns
   how it is spelled.** A change that alters what a task does belongs in the
   Taskfile, so `task` and CI get it too; a change to discovery, flags or
