@@ -106,3 +106,43 @@ func TestPickerRootFollowsGroups(t *testing.T) {
 		previous = rank
 	}
 }
+
+// TestPickerRowsDescribed walks every picker level on every dev platform and
+// checks that no row is blank and no namespace opens onto nothing, since the
+// picker builds its levels from the spec rather than from the cobra tree.
+func TestPickerRowsDescribed(t *testing.T) {
+	t.Parallel()
+
+	for _, goos := range devPlatforms {
+		app := newSpecApp(t)
+		app.goos, app.recentPath = goos, ""
+
+		var walk func(trail []string, rows []pickItem)
+		walk = func(trail []string, rows []pickItem) {
+			for _, row := range rows {
+				if row.escape || row.segment == backSegment {
+					continue
+				}
+
+				if row.desc == "" {
+					t.Errorf("%s: picker row %q under `vt %s` has no description",
+						goos, row.title, strings.Join(trail, " "))
+				}
+
+				if row.segment == "" {
+					continue
+				}
+
+				childTrail := append(append([]string{}, trail...), row.segment)
+
+				level := app.childLevel(childTrail)
+				if len(level) < 2 {
+					t.Errorf("%s: `vt %s` opens onto nothing", goos, strings.Join(childTrail, " "))
+				}
+
+				walk(childTrail, level)
+			}
+		}
+		walk(nil, app.buildPickerRoot())
+	}
+}

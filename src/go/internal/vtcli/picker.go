@@ -103,7 +103,14 @@ func (a *App) childLevel(segments []string) []pickItem {
 		seen[child] = struct{}{}
 
 		if _, isNamespace := hasChildren[child]; isNamespace {
-			items = append(items, pickItem{title: child, desc: segmentDesc(segments, child), segment: child})
+			// A command with children (sim view) opens as a namespace, and
+			// its own description is what --help shows for it too.
+			desc := segmentDesc(segments, child)
+			if desc == "" && len(path) == len(segments)+1 {
+				desc = command.Short
+			}
+
+			items = append(items, pickItem{title: child, desc: desc, segment: child})
 
 			continue
 		}
