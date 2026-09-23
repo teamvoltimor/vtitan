@@ -94,13 +94,20 @@ const (
 	defaultSDF     = "worlds/wro_track_2026.sdf"
 	defaultPI5Host = "rpi-5-local"
 
+	// trainingDataDefault is the display-only default for OUTPUT_DIR, shared by
+	// the gen:record:* and sim:analyze tasks. Task anchors its real default to
+	// the repo root ({{.ROOT_DIR}}/src/go/training_data) because those tasks run
+	// from other/apps/gazebo/runtime, where a relative default would resolve
+	// instead. It is worded repo-relative for readability and never forwarded.
+	trainingDataDefault = "<repo>/src/go/training_data"
+
 	// reasonOnBoard marks tasks that run on a Pi. vt is a dev-machine tool
 	// (ADR 0096) and the boards keep using task directly.
 	reasonOnBoard = "runs on a Pi; vt is dev-machine only, use task there"
 )
 
 // profileFlag selects the hardware profile a sim task models. Task's default
-// lives in other/tasks/platform.yml.
+// lives in the root Taskfile.yml.
 var profileFlag = Flag{
 	Name:    "profile",
 	Var:     "PROFILE",

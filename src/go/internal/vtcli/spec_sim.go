@@ -67,8 +67,8 @@ var simSpec = []Command{
 		Flags: []Flag{{
 			Name:    "output-dir",
 			Var:     "OUTPUT_DIR",
-			Default: "./src/go/training_data",
-			Usage:   "scenario directory",
+			Default: trainingDataDefault,
+			Usage:   "scenario directory (override with an absolute path)",
 		}},
 	},
 	{

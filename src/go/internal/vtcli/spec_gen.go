@@ -81,10 +81,12 @@ var genSpec = []Command{
 	},
 }
 
-// outputDirFlag overrides where the recording tasks read and write.
+// outputDirFlag overrides where the recording tasks read and write. An override
+// is resolved against the task's own working directory, not the repo root, so
+// pass an absolute path.
 var outputDirFlag = Flag{
 	Name:    "output-dir",
 	Var:     "OUTPUT_DIR",
-	Default: "./src/go/training_data",
-	Usage:   "recording directory",
+	Default: trainingDataDefault,
+	Usage:   "recording directory (override with an absolute path)",
 }
