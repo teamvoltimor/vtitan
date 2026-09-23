@@ -409,6 +409,7 @@ class ScenarioSimulator(PassSideScorer):
         # Was the robot PLACED inside the parking bay? Answered once, on the
         # first scan, and never revisited -- see _resolve_direction.
         self._bay_start_checked = False
+        self._bay_start_checks = 0
         self._exiting_bay = False
         self._bay_exit_ticks = 0
         self._bay_exit = BayExit()
@@ -706,8 +707,19 @@ class ScenarioSimulator(PassSideScorer):
         # all, which changed parallel-start runs that must be untouched. See
         # ``adr:0053-direction-inference-and-start-pose``.
         if not self._bay_start_checked:
-            self._bay_start_checked = True
+            self._bay_start_checks += 1
             bay = direction_from_parking_bay(scan.ranges_m, scan.angles_rad, self._tuning)
+            # Retried over the first few scans, matching the node: the one look
+            # a one-shot test gets is the worst scan of the round, and on the
+            # recorded starts an entire arc read the substituted max range until
+            # 0.51 s. Bounded, so it still cannot fire mid-creep at a corner.
+            #
+            # A tick that has looks left falls THROUGH to ordinary creep, which
+            # is what a failed one-shot test always did. Returning here instead
+            # would hold the tick without publishing any drive command at all.
+            self._bay_start_checked = bay is not None or self._bay_start_checks >= max(
+                1, self._tuning.corridor_follower.bay_start_max_checks
+            )
             if bay is not None:
                 estimator.settle(bay)
                 self._exiting_bay = True

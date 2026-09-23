@@ -66,6 +66,14 @@ class NavigationBlindNavCorridorFollower(StrictModel):
         ...,
         description='Room needed behind (m) before backing off is allowed; defaults to the chassis length but is tunable independently.',
     )
+    bay_start_sector_deg: float = Field(
+        ...,
+        description='Half-angle (deg) of the sector whose MEDIAN range stands in for the single +/-90 deg ray in direction_from_parking_bay; 0.0 restores the single ray.',
+    )
+    bay_start_max_checks: int = Field(
+        ...,
+        description='Scans the placement test may be retried over before it is given up for the round; 1 restores the tick-1-only test. Bounded so it cannot fire mid-creep at a corner.',
+    )
     bay_wall_clearance_m: float = Field(
         ...,
         description="Side clearance below which a start counts as boxed against the bay wall, for direction_from_parking_bay's wall-against-open test.",

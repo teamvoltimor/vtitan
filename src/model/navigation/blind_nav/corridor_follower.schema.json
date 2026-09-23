@@ -75,6 +75,16 @@
       "description": "Room needed behind (m) before backing off is allowed; defaults to the chassis length but is tunable independently.",
       "x-journal": "adr:0055-escape-maneuver-selection"
     },
+    "bay_start_sector_deg": {
+      "type": "number",
+      "description": "Half-angle (deg) of the sector whose MEDIAN range stands in for the single +/-90 deg ray in direction_from_parking_bay; 0.0 restores the single ray.",
+      "x-journal": "adr:0053-direction-inference-and-start-pose"
+    },
+    "bay_start_max_checks": {
+      "type": "integer",
+      "description": "Scans the placement test may be retried over before it is given up for the round; 1 restores the tick-1-only test. Bounded so it cannot fire mid-creep at a corner.",
+      "x-journal": "adr:0053-direction-inference-and-start-pose"
+    },
     "bay_wall_clearance_m": {
       "type": "number",
       "description": "Side clearance below which a start counts as boxed against the bay wall, for direction_from_parking_bay's wall-against-open test.",
@@ -262,6 +272,8 @@
     "min_forward_clearance_m",
     "min_reverse_clearance_m",
     "bay_wall_clearance_m",
+    "bay_start_sector_deg",
+    "bay_start_max_checks",
     "assume_bay_start",
     "bay_exit_clearance_guard",
     "bay_exit_clearance_margin_m",

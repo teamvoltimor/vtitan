@@ -403,9 +403,10 @@ class TrackNavigator(Node, ResettableNode):
         # start as a side effect of grading the ladder. See
         # ``adr:0085-speed-envelope``.
         self._blind_follow_speed = tuning.speed.medium_mps
-        # In-bay start. Checked once (see _resolve_direction) and driven by the
-        # same nav-layer manoeuvre the simulator uses.
+        # In-bay start. Checked over the first few scans (see _resolve_direction)
+        # and driven by the same nav-layer manoeuvre the simulator uses.
         self._bay_start_checked = False
+        self._bay_start_checks = 0
         self._exiting_bay = False
         self._bay_exit = BayExit()
         # Whether `_commit_direction` has actually run for the settled
@@ -848,6 +849,7 @@ class TrackNavigator(Node, ResettableNode):
             return None
         return TurnSide.RIGHT if nearest.color == SignColor.RED else TurnSide.LEFT
 
+
     def _resolve_direction(self) -> bool:
         """Creep along the corridor until the travel direction is inferable.
 
@@ -925,17 +927,37 @@ class TrackNavigator(Node, ResettableNode):
         # Conclusive on its own, so it settles the estimator rather than
         # voting; the block below then runs unchanged.
         #
-        # Tested ONCE, on the first tick, because it is a question about where
-        # the robot was PLACED. Re-testing every tick lets it fire mid-creep at
-        # a corner -- forward blocked, one side close, the other open reads the
-        # same -- and settle the direction off geometry that is not a bay at
-        # all. The simulator carries this guard; this node once re-tested every
-        # tick and so carried that fault on hardware. See
+        # Tested over the FIRST FEW SCANS, not every tick, because it is a
+        # question about where the robot was PLACED. Re-testing every tick lets
+        # it fire mid-creep at a corner -- forward blocked, one side close, the
+        # other open reads the same -- and settle the direction off geometry
+        # that is not a bay at all. The simulator carries this guard; this node
+        # once re-tested every tick and so carried that fault on hardware.
+        #
+        # But one look is one look TOO FEW, and the one it gets is the worst
+        # scan of the round. Measured on the eighteen recorded in-bay starts:
+        # in ``172926`` the entire forward arc read the substituted max range
+        # for the first four scans and only resolved at 0.51 s, so the single
+        # look was spent on a LIDAR that had not started returning yet and the
+        # rule abstained for the round. A bounded retry -- BAY_START_MAX_CHECKS
+        # scans, about half a second -- takes the rule from 17/18 to 18/18 with
+        # still zero wrong answers, and cannot reintroduce the mid-creep fault
+        # it was one-shot to avoid: half a second of creep from a standing start
+        # does not reach a corner. See
         # ``adr:0053-direction-inference-and-start-pose``.
         boxed = None
+        looked = False
         if not self._bay_start_checked:
-            self._bay_start_checked = True
+            self._bay_start_checks += 1
             boxed = direction_from_parking_bay(scan.ranges_m, scan.angles_rad, self._tuning)
+            # Answered, or out of looks. The ASSUME_BAY_START fallback below
+            # belongs to the LAST look only: spending it on scan 1 would throw
+            # away the retries that are the point of this. Ticks in between fall
+            # through to ordinary creep, exactly as a failed one-shot test did.
+            attempts_left = self._bay_start_checks < max(1, self._tuning.corridor_follower.bay_start_max_checks)
+            looked = boxed is not None or not attempts_left
+            self._bay_start_checked = looked
+        if looked:
             if boxed is not None:
                 logger.info("direction settled from parking-bay geometry: %s", boxed.value)
                 # No estimator on a told-direction round: the direction is
@@ -1704,6 +1726,7 @@ class TrackNavigator(Node, ResettableNode):
         # counts its own ticks. Carrying any of that into a new round starts the
         # next exit already believing it has turned out.
         self._bay_start_checked = False
+        self._bay_start_checks = 0
         self._exiting_bay = False
         self._bay_exit_ticks = 0
         self._bay_exit = BayExit()

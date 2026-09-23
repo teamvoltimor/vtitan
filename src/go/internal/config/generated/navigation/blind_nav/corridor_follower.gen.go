@@ -132,6 +132,14 @@ type NavigationBlindNavCorridorFollower struct {
 	// to leave; in the pocket rotation is the only working signal.
 	BayExitTargetYawDeg float64 `json:"bay_exit_target_yaw_deg" yaml:"bay_exit_target_yaw_deg" mapstructure:"bay_exit_target_yaw_deg"`
 
+	// Scans the placement test may be retried over before it is given up for the
+	// round; 1 restores the tick-1-only test.
+	BayStartMaxChecks int `json:"bay_start_max_checks" yaml:"bay_start_max_checks" mapstructure:"bay_start_max_checks"`
+
+	// Half-angle (deg) of the sector whose MEDIAN range stands in for the single
+	// +/-90 deg ray in direction_from_parking_bay; 0.0 restores the single ray.
+	BayStartSectorDeg float64 `json:"bay_start_sector_deg" yaml:"bay_start_sector_deg" mapstructure:"bay_start_sector_deg"`
+
 	// Side clearance below which a start counts as boxed against the bay wall, for
 	// direction_from_parking_bay's wall-against-open test.
 	BayWallClearanceM float64 `json:"bay_wall_clearance_m" yaml:"bay_wall_clearance_m" mapstructure:"bay_wall_clearance_m"`

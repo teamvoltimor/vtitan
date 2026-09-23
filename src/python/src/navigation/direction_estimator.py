@@ -42,10 +42,11 @@ from __future__ import annotations
 import math
 from typing import TYPE_CHECKING
 
+from shared.config.constants.robot import RobotSpecs
 from shared.domain.enums import Direction
 
 from src.config.tuning_helpers import get_tuning
-from src.navigation.utils import _forward_clearance, _nearest_ray, axis_error_rad
+from src.navigation.utils import _forward_clearance, _nearest_ray, _wedge_median, axis_error_rad
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
@@ -217,8 +218,49 @@ def direction_from_parking_bay(
     follower = get_tuning(tuning).corridor_follower
     if _forward_clearance(ranges_m, angles_rad, tuning) >= follower.min_forward_clearance_m:
         return None
-    left = _nearest_ray(ranges_m, angles_rad, math.pi / 2)
-    right = _nearest_ray(ranges_m, angles_rad, -math.pi / 2)
+    left = _bay_side_range(ranges_m, angles_rad, math.pi / 2, follower.bay_start_sector_deg)
+    right = _bay_side_range(ranges_m, angles_rad, -math.pi / 2, follower.bay_start_sector_deg)
     if min(left, right) > follower.bay_wall_clearance_m or max(left, right) <= follower.turn_clearance_m:
         return None
     return Direction.COUNTERCLOCKWISE if left > right else Direction.CLOCKWISE
+
+
+def _bay_side_range(
+    ranges_m: Sequence[float],
+    angles_rad: Sequence[float],
+    center_rad: float,
+    sector_deg: float,
+) -> float:
+    """Range to whatever is abeam, read off a sector rather than one ray.
+
+    A SINGLE DROPPED RAY DECIDED THE ROUND. The gateway substitutes
+    ``LIDAR_MAX_RANGE`` for every no-return, and the pocket wall sits close
+    enough that the C1 drops rays on it: two of the eighteen recorded in-bay
+    starts had the wall side reading 12.000 m, which is "wide open corridor" to
+    the test above. One of those two would have been answered BACKWARDS had the
+    ``bay_wall_clearance_m`` gate not abstained first, so the abstention was
+    load-bearing and widening the gate would have bought errors, not answers.
+
+    The substituted max is excluded rather than averaged in, because it is not a
+    long reading but an absent one: with it the median of a mostly-good wedge is
+    still dragged to the ceiling. An open side here reads 0.82-0.87 m against a
+    wall side at 0.10-0.18 m, both far under the ceiling, so nothing real is
+    discarded by the cap. Measured on the same eighteen: the two dropped-ray
+    sides come back as 0.125 m and 0.133 m and the rule goes 15/18 -> 17/18,
+    still with zero wrong answers.
+
+    Falls back to the single ray when the whole wedge is absent, so the caller's
+    gates see the same value they always did and abstain the same way; the
+    retry in the caller is what covers that case. ``sector_deg = 0.0`` restores
+    the single-ray reading outright.
+    """
+    if sector_deg <= 0.0:
+        return _nearest_ray(ranges_m, angles_rad, center_rad)
+    median = _wedge_median(
+        ranges_m,
+        angles_rad,
+        center_rad,
+        math.radians(sector_deg),
+        max_valid_range_m=RobotSpecs.LIDAR_MAX_RANGE * 0.99,
+    )
+    return median if median is not None else _nearest_ray(ranges_m, angles_rad, center_rad)
