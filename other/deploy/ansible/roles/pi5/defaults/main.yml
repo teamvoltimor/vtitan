@@ -9,7 +9,7 @@ pi5_systemd_units:
   - vtitan-race.service
   # Recovers a matched-but-silent DDS participant pair (state_machine_node /
   # sllidar_node) stuck in BOOT_CHECK -- confirmed on hardware 2026-08-09,
-  # same signature as docs/dds-shm-transport-disabled.md, reproduced even
+  # same signature as the SHM stale lock (adr:0065-fastdds-udp-only), reproduced even
   # with SHM disabled and on a genuinely fresh cold boot, not just a partial
   # restart. See scripts/provisioning/boot-check-watchdog.sh.
   - vtitan-boot-check-watchdog.service

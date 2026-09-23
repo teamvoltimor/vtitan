@@ -44,7 +44,7 @@ vars:
   # (16 obstacles, 28 open) is the unit-test battery and has to stay fast, so
   # it is far too small to attribute a failure to a cause -- measured: the
   # aggregate rate generalised from 16 to 200, but two ATTRIBUTIONS taken off
-  # the 16 were wrong (see src/python/docs/sign-avoidance-investigation.md).
+  # the 16 were wrong (adr:0087-test-methodology).
   # Regenerate rather than commit: same generator, pinned seed, identical
   # output every time.
   CORPUS_SIZE: '{{.CORPUS_SIZE | default "256"}}'
@@ -362,7 +362,7 @@ tasks:
     # Blind navigation with realistic sensor error -- RViz draws the TRUE track and pose
     # while the robot steers on its estimate, so any divergence is state-estimation error
     # reaching control. Measured pass rates and where each axis breaks down:
-    # src/docs/blind-navigation-evaluation.md
+    # adr:0079-imu-6axis-and-yaw-reference
     #
     #   BNO085 at datasheet spec (27/28 fixtures, 0 collisions):
     #     task sim:navigate:visualize:all -- --challenge open --interactive --blind \

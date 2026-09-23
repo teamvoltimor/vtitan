@@ -6,7 +6,7 @@
 # and sllidar_node both discover and MATCH each other correctly on /scan --
 # `ros2 topic info /scan --verbose` shows the subscription listed, no error on
 # either side -- but no data ever actually crosses. Same signature as the
-# already-documented SHM stale-lock bug (docs/dds-shm-transport-disabled.md),
+# already-documented SHM stale-lock bug (adr:0065-fastdds-udp-only),
 # reproduced even with SHM disabled: confirmed both on a partial restart
 # (only vtitan-pi5.service restarted, vtitan-lidar.service left running) and
 # on a genuinely fresh simultaneous cold boot of both boards, so it is not

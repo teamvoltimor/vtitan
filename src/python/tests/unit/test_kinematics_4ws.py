@@ -13,7 +13,7 @@ hotter on the real robot than in sim. Nothing failed at the time -- the sim was
 simply a different vehicle. There was no test covering it until this file.
 
 The geometry that the Obstacles sign-clearance analysis rests on
-(docs/sign-avoidance-investigation.md) assumes all of the below: a centre
+(adr:0051-sign-lane-planner) assumes all of the below: a centre
 reference point, a symmetric footprint, and rear swing-out equal to nose swing-in.
 See adr:0076-drivetrain-and-steering-hardware.
 """

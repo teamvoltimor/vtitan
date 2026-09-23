@@ -2,19 +2,3 @@
 # is missing or gitignored, as of 2026-09-22 when the check was introduced.
 # This list may only shrink. Fixing an entry makes the check fail until the
 # entry is deleted here; adding one is never the fix. adr:0097-doc-ownership-and-drift-checks
-other/apps/auto-annotator/ml-service/src/model_server.py: docs/internal/audits/2026-07-08-auto-annotator-ml-service.md (missing)
-other/apps/auto-annotator/ml-service/src/server/dispatch.py: docs/internal/audits/2026-07-08-auto-annotator-ml-service.md (missing)
-other/deploy/ansible/roles/pi5/defaults/main.yml: docs/dds-shm-transport-disabled.md (missing)
-other/tasks/platform.yml: src/docs/blind-navigation-evaluation.md (missing)
-other/tasks/platform.yml: src/python/docs/sign-avoidance-investigation.md (missing)
-src/config/navigation-challenges/obstacles/README.md: src/docs/sign-avoidance-investigation.md (missing)
-src/python/scripts/common/sim_defaults.py: docs/sign-avoidance-investigation.md (missing)
-src/python/scripts/provisioning/boot-check-watchdog.sh: docs/dds-shm-transport-disabled.md (missing)
-src/python/scripts/sim/diag_failure_split.py: docs/sign-avoidance-investigation.md (missing)
-src/python/scripts/sim/diag_sign_sweep.py: docs/sign-avoidance-investigation.md (missing)
-src/python/scripts/sim/diag_sign_sweep.py: src/docs/sign-avoidance-investigation.md (missing)
-src/python/scripts/sim/run_scenario.py: src/go/docs/go-migration-plan.md (missing)
-src/python/tests/unit/test_core_navigator_escape.py: docs/known-issues-backlog.md (missing)
-src/python/tests/unit/test_core_navigator_escape.py: docs/sign-avoidance-investigation.md (missing)
-src/python/tests/unit/test_kinematics_4ws.py: docs/sign-avoidance-investigation.md (missing)
-src/python/tests/unit/test_obstacles_challenge_sim.py: docs/sign-avoidance-investigation.md (missing)

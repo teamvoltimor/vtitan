@@ -3,9 +3,9 @@
 Runs all 16 Go-generated obstacles fixtures under a parameterised
 ``NavigationTuning`` / ``SignRouterConfig`` and reports the four metrics that
 must always be read together (see
-``src/docs/sign-avoidance-investigation.md``): collisions, laps>=1,
+``adr:0087-test-methodology``): collisions, laps>=1,
 laps>=3 and timeouts. Tracking collisions alone has already produced one wrong
-conclusion in that log.
+conclusion.
 
 ``pass-side`` is a FIFTH number that must be read with them. The simulator ends
 a run the moment a sign is retired on its forbidden side (``cef75f2a``), and
@@ -5170,7 +5170,7 @@ _SWEPT_MODES: dict[str, Callable[[float], SweepConfig]] = {
     # question without blinding the safety layer to a whole obstacle class: it
     # toggles only whether a ROUTED sign can trigger the escape. Prefer it.
     # `masked-offset` is kept because the historical table in
-    # docs/sign-avoidance-investigation.md cites it -- but note that table was
+    # the since-removed sign-avoidance notes cite it -- but note that table was
     # taken while the offset override was silently disconnected, so it does not
     # currently reproduce and should not be trusted without re-measuring.
     "masked-offset": lambda v: SweepConfig(

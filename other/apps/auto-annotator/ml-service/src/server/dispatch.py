@@ -2,8 +2,8 @@
 
 Each function below runs one command directly against a :class:`~src.server.context.ServerContext`
 and returns a typed response model. These used to be routed by command string
-from a pickled TCP request dict (see docs/internal/audits/2026-07-08-auto-annotator-ml-service.md,
-finding M6); the TCP layer is gone, so callers now import and call the
+from a pickled TCP request dict (finding M6 of the 2026-07-08
+ml-service audit); the TCP layer is gone, so callers now import and call the
 function they need directly (see :class:`src.model_server.LocalModelClient`).
 """
 

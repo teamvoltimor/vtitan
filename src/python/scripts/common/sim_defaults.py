@@ -10,7 +10,7 @@ CORPUS_DIR = Path(__file__).resolve().parents[2] / ".corpus" / "obstacles" / "sc
 Gitignored and regenerated rather than committed -- same generator, same seed,
 identical output. Pass ``--corpus`` to use it instead of the committed 16.
 Attributions must come from here: the 16 gave the right aggregate but two wrong
-diagnoses (see docs/sign-avoidance-investigation.md).
+diagnoses (adr:0087-test-methodology).
 """
 
 OBSTACLES_MAX_STEPS = 6000

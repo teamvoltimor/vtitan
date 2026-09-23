@@ -138,7 +138,7 @@ class TestMappedObstacleEscapeSplit:
     for. Measured over the 16 obstacles fixtures, that decided the run before
     the router's aim could matter: the lateral_offset knob was byte-identical
     from 0.20 to 0.32 with the split off, and 16/16 -> 14/16 with 2/16
-    completing three laps once it was on (docs/sign-avoidance-investigation.md).
+    completing three laps once it was on (adr:0056-raw-and-masked-scan).
     """
 
     _FRONT_RANGE = 0.06
@@ -347,7 +347,7 @@ class TestStuckEscapeRearBlocked:
     """A robot wedged with reverse blocked used to just hold and
     reset the stuck detector forever, re-arming the same forward command that
     had already failed -- confirmed on real hardware as frozen at one
-    position for a long stretch (see docs/known-issues-backlog.md). When
+    position for a long stretch. When
     forward has room, it should get a real forward escape at full steering
     lock instead of an indefinite hold. See
     adr:0055-escape-maneuver-selection.

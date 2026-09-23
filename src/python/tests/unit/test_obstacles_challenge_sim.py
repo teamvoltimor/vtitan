@@ -368,7 +368,7 @@ class TestBlindSignDiscovery:
     already withholds the corridor widths and the travel direction. These pin
     that the withholding is real and that what replaces it is accurate enough
     to route on — the driving outcome is a separate question, currently blocked
-    upstream (see ``docs/sign-avoidance-investigation.md``).
+    upstream (see ``adr:0058-sign-discovery-range-and-barrier-belief``).
     """
 
     def test_blind_router_starts_with_no_signs(self) -> None:

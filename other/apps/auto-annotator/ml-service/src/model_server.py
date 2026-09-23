@@ -3,7 +3,7 @@
 The gRPC compute server and the SAM/YOLO model state used to live in separate
 "servers" (a TCP socket loop and a gRPC service) that only ever talked to
 each other over localhost, in the same process
-(see docs/internal/audits/2026-07-08-auto-annotator-ml-service.md, finding M6).
+(finding M6 of the 2026-07-08 ml-service audit).
 That socket/pickle boundary bought no isolation and is gone: :class:`LocalModelClient`
 wraps a :class:`~src.server.context.ServerContext` directly and satisfies the
 same :class:`~src.models.SAMClientProtocol` the deleted TCP client did.

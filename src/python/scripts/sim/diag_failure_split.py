@@ -1,6 +1,6 @@
 """Split the surviving sign collisions between the two known failure modes.
 
-Both modes are diagnosed (see docs/sign-avoidance-investigation.md) but their
+Both modes are diagnosed but their
 SHARE is not, and that is what decides where the next fix goes. Fixing the
 geometry (Mode A) is worthless if most runs die with no deformation at all. See
 ``adr:0051-sign-lane-planner``.
@@ -196,7 +196,7 @@ class OffsetSeries:
         line that moved steadily and one that alternated between two positions
         identically, and only the first is something pure pursuit can converge
         onto. The sign-corridor label can flip between two axes on consecutive
-        ticks (``docs/sign-avoidance-investigation.md``), which deforms along
+        ticks (``adr:0063-corridor-flip-and-sense-guards``), which deforms along
         the depth axis instead of the lateral one and drops the commanded
         lateral line back onto the path every other tick -- so this is not a
         hypothetical.
