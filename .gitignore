@@ -248,3 +248,21 @@ schemes/flowcharts/common/svg-editorial/
 # toolchain's own throwaway output stays ignored by the nested
 # schemes/wiring/tscircuit/.gitignore.
 
+
+# Run detritus that keeps reappearing at the repo root. Anchored to the root
+# so a deliberate log under other/data/ is unaffected: the ones this catches
+# (err.log, .pin_guard_sweep.log at 12 MB) sat in the working tree for weeks
+# because nothing ignored them and nobody committed them either.
+/*.log
+/.alias_scan.json
+/.diag/
+
+# Session exports and handoff notes kept at the root while working. They are
+# per-session scratch, not repo content.
+/sessions/
+/HANDOFF_*.md
+# Ad-hoc Go binaries built at the module root (the build task writes to dist/).
+/src/go/pi5
+/src/go/pi-zero
+# A stray pytest log left at src/python.
+/src/python/u.txt
