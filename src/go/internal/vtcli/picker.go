@@ -1,6 +1,7 @@
 package vtcli
 
 import (
+	"slices"
 	"strings"
 
 	"github.com/charmbracelet/bubbles/list"
@@ -46,7 +47,10 @@ type pickerModel struct {
 func (a *App) buildPickerRoot() []pickItem {
 	// childLevel already separates leaves from namespaces (a root command with
 	// children, such as lint, must open rather than run); drop its back row.
-	items := append(a.recentItems(), a.childLevel(nil)[1:]...)
+	domains := a.childLevel(nil)[1:]
+	slices.SortStableFunc(domains, func(x, y pickItem) int { return rootRank(x.title) - rootRank(y.title) })
+
+	items := append(a.recentItems(), domains...)
 
 	items = append(items, pickItem{
 		title:  catchAllName,
@@ -123,14 +127,29 @@ func (a *App) taskLevel() []pickItem {
 	return items
 }
 
-// segmentDesc describes a namespace row: first-level domains have their own
-// table, deeper segments share segmentHelp.
+// segmentDesc describes a namespace row by its full path.
 func segmentDesc(parent []string, segment string) string {
-	if len(parent) == 0 {
-		return rootDomainShort[segment]
+	return namespaceShort[strings.Join(append(slices.Clone(parent), segment), " ")]
+}
+
+// rootRank is a first-level name's position in rootGroups, so the picker's
+// root follows the same order as --help and the home menu rather than the
+// order the spec tables happen to be concatenated in. Unlisted names sort
+// last, in spec order.
+func rootRank(name string) int {
+	rank := 0
+
+	for _, group := range rootGroups {
+		for _, member := range group.members {
+			if member == name {
+				return rank
+			}
+
+			rank++
+		}
 	}
 
-	return segmentHelp[segment]
+	return rank
 }
 
 // backRow is the row that returns to the parent level.

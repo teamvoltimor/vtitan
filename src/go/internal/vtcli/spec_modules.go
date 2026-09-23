@@ -6,22 +6,37 @@ package vtcli
 // own build/test/lint cycles, so they get the same typed treatment as go and
 // robot rather than being reachable only through the catch-all.
 //
-// Each follows the same shape (build, test, lint, and a dev server or a
-// generator), so a reader who knows one knows the others.
+// Every domain orders its commands the same way: running it (dev, build),
+// then the quality gates (test, lint, typecheck, fmt), then setup and
+// maintenance (install, clean). A reader who knows one knows the others.
 
 // frontendSpec wraps the frontend:* tasks (other/apps/frontend/Taskfile.yml).
 var frontendSpec = []Command{
-	{Path: []string{"frontend", "install"}, Task: "frontend:install", Short: "Install frontend dependencies (Node.js)"},
-	{Path: []string{"frontend", "dev"}, Task: "frontend:dev", Short: "Vite dev server on http://localhost:5173", Heavy: true},
+	{
+		Path:  []string{"frontend", "dev"},
+		Task:  "frontend:dev",
+		Short: "Vite dev server on http://localhost:5173",
+		Heavy: true,
+	},
 	{Path: []string{"frontend", "build"}, Task: "frontend:build", Short: "Type-check and build for production"},
-	{Path: []string{"frontend", "preview"}, Task: "frontend:preview", Short: "Preview the production build locally", Heavy: true},
-	{Path: []string{"frontend", "typecheck"}, Task: "frontend:typecheck", Short: "Type-check without emitting (tsc -b)"},
-	{Path: []string{"frontend", "lint"}, Task: "frontend:lint", Short: "Lint the frontend (ESLint)"},
+	{
+		Path:  []string{"frontend", "preview"},
+		Task:  "frontend:preview",
+		Short: "Preview the production build locally",
+		Heavy: true,
+	},
 	{
 		Path:  []string{"frontend", "api"},
 		Task:  "frontend:api:generate",
 		Short: "Generate the TypeScript API client from the OpenAPI specs",
 	},
+	{Path: []string{"frontend", "lint"}, Task: "frontend:lint", Short: "Lint the frontend (ESLint)"},
+	{
+		Path:  []string{"frontend", "typecheck"},
+		Task:  "frontend:typecheck",
+		Short: "Type-check without emitting (tsc -b)",
+	},
+	{Path: []string{"frontend", "install"}, Task: "frontend:install", Short: "Install frontend dependencies (Node.js)"},
 	{
 		Path:      []string{"frontend", "docker", "build"},
 		Task:      "frontend:docker:build",
@@ -38,20 +53,30 @@ var frontendSpec = []Command{
 }
 
 // backendSpec wraps the backend:* tasks (other/apps/backend/Taskfile.yml), the
-// Go telemetry backend.
+// Go telemetry backend. The two code generators sit under `gen` and the two
+// module chores under `mod`, so the top level stays the daily verbs.
 var backendSpec = []Command{
-	{Path: []string{"backend", "install"}, Task: "backend:install", Short: "Bootstrap the backend: buf deps, proto, sqlc, tidy"},
+	{
+		Path:  []string{"backend", "dev"},
+		Task:  "backend:dev",
+		Short: "Dev mode with synthetic feeds (:8010 HTTP, :9010 gRPC)",
+		Heavy: true,
+	},
+	{
+		Path:  []string{"backend", "run"},
+		Task:  "backend:run",
+		Short: "Production mode (expects a real robot feed on :9010)",
+		Heavy: true,
+	},
 	{Path: []string{"backend", "build"}, Task: "backend:build", Short: "Compile the backend binary"},
-	{Path: []string{"backend", "dev"}, Task: "backend:dev", Short: "Dev mode with synthetic feeds (:8010 HTTP, :9010 gRPC)", Heavy: true},
-	{Path: []string{"backend", "run"}, Task: "backend:run", Short: "Production mode (expects a real robot feed on :9010)", Heavy: true},
 	{Path: []string{"backend", "test"}, Task: "backend:test", Short: "Run the backend tests"},
-	{Path: []string{"backend", "typecheck"}, Task: "backend:typecheck", Short: "Run go vet on the backend"},
 	{
 		Path:     []string{"backend", "lint"},
 		Task:     "backend:lint",
 		Short:    "Lint the backend (golangci-lint)",
 		Variants: []Variant{fixVariant("backend:lint:fix")},
 	},
+	{Path: []string{"backend", "typecheck"}, Task: "backend:typecheck", Short: "Run go vet on the backend"},
 	{Path: []string{"backend", "fmt"}, Task: "backend:fmt", Short: "Format the backend (goimports + gofmt)"},
 	{
 		Path:     []string{"backend", "align"},
@@ -59,16 +84,29 @@ var backendSpec = []Command{
 		Short:    "Check Go struct field alignment (betteralign)",
 		Variants: []Variant{fixVariant("backend:align:fix")},
 	},
-	{Path: []string{"backend", "deps"}, Task: "backend:deps", Short: "Download the backend's Go dependencies"},
-	{Path: []string{"backend", "tidy"}, Task: "backend:tidy", Short: "Tidy the backend's Go modules"},
-	{Path: []string{"backend", "clean"}, Task: "backend:clean", Short: "Remove the build cache and the binary"},
-	{Path: []string{"backend", "sqlc"}, Task: "backend:sqlc", Short: "Regenerate the DB access layer from the schema"},
 	{
-		Path:     []string{"backend", "openapi"},
+		Path:  []string{"backend", "gen", "sqlc"},
+		Task:  "backend:sqlc",
+		Short: "Regenerate the DB access layer from the schema",
+	},
+	{
+		Path:     []string{"backend", "gen", "openapi"},
 		Task:     "backend:openapi:generate",
 		Short:    "Regenerate Go types from the context OpenAPI specs",
 		Variants: []Variant{{Flag: "validate", Task: "backend:openapi:validate", Usage: "check them instead"}},
 	},
+	{
+		Path:  []string{"backend", "install"},
+		Task:  "backend:install",
+		Short: "Bootstrap the backend: buf deps, proto, sqlc, tidy",
+	},
+	{
+		Path:  []string{"backend", "mod", "download"},
+		Task:  "backend:deps",
+		Short: "Download the backend's Go dependencies",
+	},
+	{Path: []string{"backend", "mod", "tidy"}, Task: "backend:tidy", Short: "Tidy the backend's Go modules"},
+	{Path: []string{"backend", "clean"}, Task: "backend:clean", Short: "Remove the build cache and the binary"},
 }
 
 // configSpec wraps the config:* tasks (other/tasks/platform.yml): the one
@@ -84,8 +122,16 @@ var configSpec = []Command{
 		},
 	},
 	{Path: []string{"config", "verify"}, Task: "config:verify", Short: "Fail if the generated artifacts are stale"},
-	{Path: []string{"config", "check"}, Task: "config:check", Short: "Every TOML key is described and every x-journal ref resolves"},
-	{Path: []string{"config", "validate"}, Task: "config:validate", Short: "Validate the shared TOML tree against its schemas"},
+	{
+		Path:  []string{"config", "check"},
+		Task:  "config:check",
+		Short: "Every TOML key is described and every x-journal ref resolves",
+	},
+	{
+		Path:  []string{"config", "validate"},
+		Task:  "config:validate",
+		Short: "Validate the shared TOML tree against its schemas",
+	},
 	{Path: []string{"config", "lint"}, Task: "config:lint", Short: "Validate config TOML with Taplo"},
 	{Path: []string{"config", "fmt"}, Task: "config:fmt", Short: "Format config TOML with Taplo"},
 }
@@ -94,8 +140,16 @@ var configSpec = []Command{
 // the generators and the recorder, kept apart from the single-step domains.
 var workflowSpec = []Command{
 	{Path: []string{"workflow", "dev"}, Task: "workflow:dev", Short: "install → lint → test"},
-	{Path: []string{"workflow", "generate"}, Task: "workflow:generate", Short: "Generate the track, then both challenges' scenarios"},
-	{Path: []string{"workflow", "record"}, Task: "workflow:record", Short: "Record, convert the bags and extract frames"},
+	{
+		Path:  []string{"workflow", "generate"},
+		Task:  "workflow:generate",
+		Short: "Generate the track, then both challenges' scenarios",
+	},
+	{
+		Path:  []string{"workflow", "record"},
+		Task:  "workflow:record",
+		Short: "Record, convert the bags and extract frames",
+	},
 }
 
 // cliSpec wraps the cli:* tasks (src/go/Taskfile.yml): how vt itself is

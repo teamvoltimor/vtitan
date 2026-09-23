@@ -306,9 +306,9 @@ task test             # Python + Go, todos los módulos (ver Pruebas, más abajo
 
 `vt` es una capa sobre los mismos Taskfiles: organiza las tareas en subcomandos agrupados, les da flags tipados y ejecuta `task` por debajo, devolviendo su mismo código de salida. `task X` sigue funcionando exactamente igual y es lo que usa CI; `vt` solo existe en el computador de desarrollo, las placas siguen con `task`. Los comandos que solo existen en Windows (enlace Ethernet directo, rutas) se ocultan en Linux y macOS.
 
-La regla de reparto es **los Taskfiles deciden qué se ejecuta, `vt` decide cómo se escribe**: un cambio que altere lo que hace una tarea va en el Taskfile (y así lo heredan `task` y CI); uno que cambie cómo se descubre, se parametriza o se confirma va en `vt`. Hoy son ~160 comandos tipados sobre 14 dominios, y cualquier tarea sigue alcanzable por `vt task`.
+La regla de reparto es **los Taskfiles deciden qué se ejecuta, `vt` decide cómo se escribe**: un cambio que altere lo que hace una tarea va en el Taskfile (y así lo heredan `task` y CI); uno que cambie cómo se descubre, se parametriza o se confirma va en `vt`. Hoy son ~160 comandos tipados sobre 19 dominios, y cualquier tarea sigue alcanzable por `vt task`.
 
-Dominios (`vt --help` los agrupa): `sim`, `robot`, `go`, `fleet`, `gen`, `simgen`; las apps `frontend`, `backend`, `annotator`, `hailo`; los contratos `config`, `proto`, `openapi`, `models`; y `docs`, `docker`. Transversales: `setup`, `test`, `lint`, `clean`; y sobre el propio `vt`: `cli`.
+Dominios (`vt --help`, el menú y el selector usan el mismo orden): robot y simulación `sim`, `robot`, `go`, `fleet`, `gen`; las apps `frontend`, `backend`, `annotator`, `hailo`; contratos y modelos `config`, `proto`, `openapi`, `models`; transversales `setup`, `test`, `lint`, `clean`, `workflow`, `docker`, `docs`; y herramientas `cli`, `simgen`, `shared`. Dentro de cada dominio el orden es siempre el mismo: ejecutar (`dev`, `build`), luego calidad (`test`, `lint`, `typecheck`, `fmt`) y al final instalación y limpieza.
 
 ```bash
 task cli:build                      # Compila src/go/bin/vt (recomendado)

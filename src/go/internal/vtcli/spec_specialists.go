@@ -13,50 +13,20 @@ package vtcli
 // for anything new.
 
 // autoAnnotatorSpec wraps the daily auto-annotator tasks
-// (other/apps/auto-annotator/Taskfile.yml).
+// (other/apps/auto-annotator/Taskfile.yml). The whole-stack verbs come first;
+// each of the three services then has its own namespace, because that is how
+// the app is split and how its Taskfile names them.
 var autoAnnotatorSpec = []Command{
-	{Path: []string{"annotator", "dev", "init"}, Task: "auto-annotator:dev:init", Short: "Initialize the development environment"},
 	{
-		Path:      []string{"annotator", "dev", "serve"},
+		Path:      []string{"annotator", "dev"},
 		Task:      "auto-annotator:dev:serve",
 		Short:     "Run ml-service + api + frontend concurrently",
 		Heavy:     true,
 		Platforms: []string{"linux", "darwin"},
+		Variants: []Variant{{
+			Flag: "install", Task: "auto-annotator:dev:local", Usage: "install the dependencies first",
+		}},
 	},
-	{
-		Path:      []string{"annotator", "dev", "local"},
-		Task:      "auto-annotator:dev:local",
-		Short:     "Install deps, then start the whole local stack",
-		Heavy:     true,
-		Platforms: []string{"linux", "darwin"},
-	},
-	{
-		Path:  []string{"annotator", "ml", "dev"},
-		Task:  "auto-annotator:ml-service:dev",
-		Short: "Start the SAM model server + gRPC compute service",
-		Heavy: true,
-		Flags: []Flag{{Name: "model-id", Var: "MODEL_ID", Usage: "pre-load a specific model"}},
-	},
-	{Path: []string{"annotator", "ml", "sync"}, Task: "auto-annotator:ml-service:sync", Short: "Install the ML service dependencies (uv)"},
-	{Path: []string{"annotator", "ml", "test"}, Task: "auto-annotator:ml-service:test", Short: "ML service unit tests (no GPU or weights)"},
-	{Path: []string{"annotator", "ml", "typecheck"}, Task: "auto-annotator:ml-service:typecheck", Short: "mypy on the ML service"},
-	{
-		Path:  []string{"annotator", "api", "dev"},
-		Task:  "auto-annotator:api:dev",
-		Short: "Run the Go orchestration API (Gin + SQLite + gRPC)",
-		Heavy: true,
-		Flags: []Flag{{Name: "model-id", Var: "MODEL_ID", Usage: "pre-load a specific model"}},
-	},
-	{Path: []string{"annotator", "api", "build"}, Task: "auto-annotator:api:build", Short: "Build the Go API binary"},
-	{Path: []string{"annotator", "api", "deps"}, Task: "auto-annotator:api:deps", Short: "Download the Go API dependencies"},
-	{Path: []string{"annotator", "api", "test"}, Task: "auto-annotator:api:test", Short: "Run the Go API tests"},
-	{Path: []string{"annotator", "api", "typecheck"}, Task: "auto-annotator:api:typecheck", Short: "go vet the Go API"},
-	{Path: []string{"annotator", "api", "align"}, Task: "auto-annotator:align:api", Short: "Check Go struct alignment (betteralign)",
-		Variants: []Variant{fixVariant("auto-annotator:align:fix:api")}},
-	{Path: []string{"annotator", "frontend", "install"}, Task: "auto-annotator:frontend:install", Short: "Install the frontend dependencies"},
-	{Path: []string{"annotator", "frontend", "dev"}, Task: "auto-annotator:frontend:dev", Short: "Vite dev server on :5173", Heavy: true},
-	{Path: []string{"annotator", "frontend", "build"}, Task: "auto-annotator:frontend:build", Short: "Build the frontend for production"},
-	{Path: []string{"annotator", "frontend", "test"}, Task: "auto-annotator:frontend:test", Short: "Frontend parity tests (Vitest)"},
 	{
 		Path:  []string{"annotator", "lint"},
 		Task:  "auto-annotator:lint:all",
@@ -68,16 +38,82 @@ var autoAnnotatorSpec = []Command{
 		Short: "Format ml-service, frontend, the Go API and the proto",
 	},
 	{
-		Path:      []string{"annotator", "clean", "build"},
+		Path:  []string{"annotator", "install"},
+		Task:  "auto-annotator:dev:init",
+		Short: "Install the ML service and frontend dependencies",
+	},
+	{
+		Path:      []string{"annotator", "clean"},
 		Task:      "auto-annotator:clean:build",
 		Short:     "Remove build artifacts and caches",
 		Platforms: []string{"linux", "darwin"},
+		Variants: []Variant{{
+			Flag: "deep", Task: "auto-annotator:clean:deep", Usage: "the dependencies too",
+		}},
 	},
 	{
-		Path:      []string{"annotator", "clean", "deep"},
-		Task:      "auto-annotator:clean:deep",
-		Short:     "Remove everything including dependencies",
-		Platforms: []string{"linux", "darwin"},
+		Path:  []string{"annotator", "ml", "dev"},
+		Task:  "auto-annotator:ml-service:dev",
+		Short: "Start the SAM model server + gRPC compute service",
+		Heavy: true,
+		Flags: []Flag{{Name: "model-id", Var: "MODEL_ID", Usage: "pre-load a specific model"}},
+	},
+	{
+		Path:  []string{"annotator", "ml", "test"},
+		Task:  "auto-annotator:ml-service:test",
+		Short: "ML service unit tests (no GPU or weights)",
+	},
+	{
+		Path:  []string{"annotator", "ml", "typecheck"},
+		Task:  "auto-annotator:ml-service:typecheck",
+		Short: "mypy on the ML service",
+	},
+	{
+		Path:  []string{"annotator", "ml", "install"},
+		Task:  "auto-annotator:ml-service:sync",
+		Short: "Install the ML service dependencies (uv)",
+	},
+	{
+		Path:  []string{"annotator", "api", "dev"},
+		Task:  "auto-annotator:api:dev",
+		Short: "Run the Go orchestration API (Gin + SQLite + gRPC)",
+		Heavy: true,
+		Flags: []Flag{{Name: "model-id", Var: "MODEL_ID", Usage: "pre-load a specific model"}},
+	},
+	{Path: []string{"annotator", "api", "build"}, Task: "auto-annotator:api:build", Short: "Build the Go API binary"},
+	{Path: []string{"annotator", "api", "test"}, Task: "auto-annotator:api:test", Short: "Run the Go API tests"},
+	{Path: []string{"annotator", "api", "typecheck"}, Task: "auto-annotator:api:typecheck", Short: "go vet the Go API"},
+	{
+		Path:     []string{"annotator", "api", "align"},
+		Task:     "auto-annotator:align:api",
+		Short:    "Check Go struct alignment (betteralign)",
+		Variants: []Variant{fixVariant("auto-annotator:align:fix:api")},
+	},
+	{
+		Path:  []string{"annotator", "api", "install"},
+		Task:  "auto-annotator:api:deps",
+		Short: "Download the Go API dependencies",
+	},
+	{
+		Path:  []string{"annotator", "frontend", "dev"},
+		Task:  "auto-annotator:frontend:dev",
+		Short: "Vite dev server on :5173",
+		Heavy: true,
+	},
+	{
+		Path:  []string{"annotator", "frontend", "build"},
+		Task:  "auto-annotator:frontend:build",
+		Short: "Build the frontend for production",
+	},
+	{
+		Path:  []string{"annotator", "frontend", "test"},
+		Task:  "auto-annotator:frontend:test",
+		Short: "Frontend parity tests (Vitest)",
+	},
+	{
+		Path:  []string{"annotator", "frontend", "install"},
+		Task:  "auto-annotator:frontend:install",
+		Short: "Install the frontend dependencies",
 	},
 }
 
@@ -117,43 +153,41 @@ var autoAnnotatorExclusions = map[string]string{
 }
 
 // hailoSpec wraps the daily Hailo/ML tasks (other/ml/hailo/Taskfile.yml).
+// Single-task namespaces are flattened (`hailo test`, not `hailo test unit`)
+// and the three cleans are one command with two narrowing switches.
 var hailoSpec = []Command{
-	{Path: []string{"hailo", "env", "setup"}, Task: "hailo:env:setup", Short: "Install the Python dependencies (uv)"},
-	{Path: []string{"hailo", "env", "list"}, Task: "hailo:env:list", Short: "Show the installed packages"},
-	{Path: []string{"hailo", "check"}, Task: "hailo:check", Short: "Format check + lint + typecheck + unit tests"},
-	{Path: []string{"hailo", "test", "unit"}, Task: "hailo:test:unit", Short: "Run the pytest unit suite"},
-	{Path: []string{"hailo", "typecheck"}, Task: "hailo:typecheck", Short: "mypy over the toolchain"},
-	{
-		Path:     []string{"hailo", "lint"},
-		Task:     "hailo:lint",
-		Short:    "Lint the toolchain (ruff)",
-		Variants: []Variant{fixVariant("hailo:lint:fix")},
-	},
-	{Path: []string{"hailo", "format"}, Task: "hailo:format", Short: "Format the toolchain (ruff)"},
 	{
 		Path:     []string{"hailo", "model", "export"},
 		Task:     "hailo:model:export",
 		Short:    "Export a YOLO checkpoint to ONNX",
 		Variants: []Variant{{Flag: "all", Task: "hailo:model:export-all", Usage: "every registered model (n/s/m)"}},
 	},
-	{Path: []string{"hailo", "model", "inspect"}, Task: "hailo:model:inspect", Short: "Inspect an ONNX model's graph and I/O"},
 	{
-		Path:      []string{"hailo", "clean", "output"},
-		Task:      "hailo:clean:output",
-		Short:     "Remove the generated test output and exported models",
-		Platforms: []string{"linux", "darwin"},
+		Path:  []string{"hailo", "model", "inspect"},
+		Task:  "hailo:model:inspect",
+		Short: "Inspect an ONNX model's graph and I/O",
 	},
+	{Path: []string{"hailo", "check"}, Task: "hailo:check", Short: "Format check + lint + typecheck + unit tests"},
+	{Path: []string{"hailo", "test"}, Task: "hailo:test:unit", Short: "Run the pytest unit suite"},
 	{
-		Path:      []string{"hailo", "clean", "calib"},
-		Task:      "hailo:clean:calib",
-		Short:     "Remove the downloaded calibration data",
-		Platforms: []string{"linux", "darwin"},
+		Path:     []string{"hailo", "lint"},
+		Task:     "hailo:lint",
+		Short:    "Lint the toolchain (ruff)",
+		Variants: []Variant{fixVariant("hailo:lint:fix")},
 	},
+	{Path: []string{"hailo", "typecheck"}, Task: "hailo:typecheck", Short: "mypy over the toolchain"},
+	{Path: []string{"hailo", "format"}, Task: "hailo:format", Short: "Format the toolchain (ruff)"},
+	{Path: []string{"hailo", "install"}, Task: "hailo:env:setup", Short: "Install the Python dependencies (uv)"},
+	{Path: []string{"hailo", "packages"}, Task: "hailo:env:list", Short: "Show the installed Python packages"},
 	{
-		Path:      []string{"hailo", "clean", "all"},
+		Path:      []string{"hailo", "clean"},
 		Task:      "hailo:clean:all",
 		Short:     "Remove every generated file",
 		Platforms: []string{"linux", "darwin"},
+		Variants: []Variant{
+			{Flag: "output", Task: "hailo:clean:output", Usage: "only the test output and exported models"},
+			{Flag: "calib", Task: "hailo:clean:calib", Usage: "only the downloaded calibration data"},
+		},
 	},
 }
 

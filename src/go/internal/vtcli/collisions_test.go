@@ -123,16 +123,6 @@ func collectOrigins(t *testing.T, path, prefix string, origins map[string][]task
 	}
 }
 
-// mapsKeys returns the keys of a set, for a sorted message.
-func mapsKeys(set map[string]bool) []string {
-	keys := make([]string, 0, len(set))
-	for key := range set {
-		keys = append(keys, key)
-	}
-
-	return keys
-}
-
 // repoRootOr walks up from path to the checkout root, for display purposes.
 func repoRootOr(t *testing.T, path string) string {
 	t.Helper()

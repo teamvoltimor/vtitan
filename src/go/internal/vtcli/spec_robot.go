@@ -12,27 +12,26 @@ var patternArg = Arg{Name: "pattern", Var: "PATTERN", Usage: "run name prefix, e
 // the install/build ones live under `vt setup`.
 var robotSpec = []Command{
 	{
-		Path:  []string{"robot", "test"},
-		Task:  "robot:test",
-		Short: "Robot tests in parallel (pixi dev env)",
+		Path:  []string{"robot", "deploy"},
+		Task:  "robot:deploy",
+		Short: "Deploy the Python/ROS2 stack + detector to the Pi 5; go deploy ships the Go binaries",
+		Heavy: true,
 		Flags: []Flag{
+			pi5HostFlag,
 			{
-				Name:    "scope",
-				Var:     "SCOPE",
-				Default: "all",
-				Usage:   "all|unit|fast|hardware|navigation|vision|drivers|slow",
+				Name:  "hef",
+				Var:   "HEF",
+				Usage: "detector .hef to ship instead of the default; code only: vt task robot:deploy HEF=",
 			},
-			{Name: "test", Var: "TEST", Usage: "run one test path instead of a scope"},
-			{Name: "workers", Var: "WORKERS", Default: "auto", Usage: "auto|N|serial"},
+			{
+				Name:    "skip-restart",
+				Var:     "SKIP_RESTART",
+				Kind:    FlagBool,
+				Default: "false",
+				Usage:   "do not restart the service",
+			},
 		},
 	},
-	{
-		Path:     []string{"robot", "lint"},
-		Task:     "robot:lint",
-		Short:    "Lint the robot code",
-		Variants: []Variant{fixVariant("robot:lint:fix")},
-	},
-	{Path: []string{"robot", "typecheck"}, Task: "robot:typecheck", Short: "mypy over src/ and the ros2_ws packages"},
 	{
 		Path:  []string{"robot", "launch"},
 		Task:  "robot:launch",
@@ -59,27 +58,6 @@ var robotSpec = []Command{
 		}},
 	},
 	{
-		Path:  []string{"robot", "deploy"},
-		Task:  "robot:deploy",
-		Short: "Deploy the Python/ROS2 stack + detector to the Pi 5; go deploy ships the Go binaries",
-		Heavy: true,
-		Flags: []Flag{
-			pi5HostFlag,
-			{
-				Name:  "hef",
-				Var:   "HEF",
-				Usage: "detector .hef to ship instead of the default; code only: vt task robot:deploy HEF=",
-			},
-			{
-				Name:    "skip-restart",
-				Var:     "SKIP_RESTART",
-				Kind:    FlagBool,
-				Default: "false",
-				Usage:   "do not restart the service",
-			},
-		},
-	},
-	{
 		Path:  []string{"robot", "vision", "record"},
 		Task:  "robot:record-vision",
 		Short: "Record the annotated detection video on the Pi 5 and copy it back",
@@ -103,6 +81,29 @@ var robotSpec = []Command{
 		Short: "Print live detections, one line per frame (read-only)",
 		Flags: []Flag{
 			{Name: flagSeconds, Var: "SECONDS_TO_RECORD", Default: "60", Usage: "how long to watch"},
+			pi5HostFlag,
+		},
+	},
+	{
+		Path:  []string{"robot", "bench-hud", "start"},
+		Task:  "robot:bench-hud:start",
+		Short: "Start a bench vision/HUD session (stops the race service)",
+		Heavy: true,
+		Flags: []Flag{pi5HostFlag},
+	},
+	{
+		Path:  []string{"robot", "bench-hud", "stop"},
+		Task:  "robot:bench-hud:stop",
+		Short: "Stop the bench vision/HUD session",
+		Flags: []Flag{pi5HostFlag},
+	},
+	{
+		Path:  []string{"robot", "bench-hud", "record"},
+		Task:  "robot:bench-hud:record",
+		Short: "Start, record, stop and pull a bench vision/HUD video",
+		Heavy: true,
+		Flags: []Flag{
+			{Name: flagSeconds, Var: "SECONDS_TO_RECORD", Default: "20", Usage: "recording length"},
 			pi5HostFlag,
 		},
 	},
@@ -135,28 +136,27 @@ var robotSpec = []Command{
 		Flags: []Flag{pi5HostFlag, videosDirFlag},
 	},
 	{
-		Path:  []string{"robot", "bench-hud", "start"},
-		Task:  "robot:bench-hud:start",
-		Short: "Start a bench vision/HUD session (stops the race service)",
-		Heavy: true,
-		Flags: []Flag{pi5HostFlag},
-	},
-	{
-		Path:  []string{"robot", "bench-hud", "stop"},
-		Task:  "robot:bench-hud:stop",
-		Short: "Stop the bench vision/HUD session",
-		Flags: []Flag{pi5HostFlag},
-	},
-	{
-		Path:  []string{"robot", "bench-hud", "record"},
-		Task:  "robot:bench-hud:record",
-		Short: "Start, record, stop and pull a bench vision/HUD video",
-		Heavy: true,
+		Path:  []string{"robot", "test"},
+		Task:  "robot:test",
+		Short: "Robot tests in parallel (pixi dev env)",
 		Flags: []Flag{
-			{Name: flagSeconds, Var: "SECONDS_TO_RECORD", Default: "20", Usage: "recording length"},
-			pi5HostFlag,
+			{
+				Name:    "scope",
+				Var:     "SCOPE",
+				Default: "all",
+				Usage:   "all|unit|fast|hardware|navigation|vision|drivers|slow",
+			},
+			{Name: "test", Var: "TEST", Usage: "run one test path instead of a scope"},
+			{Name: "workers", Var: "WORKERS", Default: "auto", Usage: "auto|N|serial"},
 		},
 	},
+	{
+		Path:     []string{"robot", "lint"},
+		Task:     "robot:lint",
+		Short:    "Lint the robot code",
+		Variants: []Variant{fixVariant("robot:lint:fix")},
+	},
+	{Path: []string{"robot", "typecheck"}, Task: "robot:typecheck", Short: "mypy over src/ and the ros2_ws packages"},
 }
 
 // runsDirFlag and videosDirFlag override where the sync tasks read and write.

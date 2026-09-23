@@ -9,7 +9,7 @@ package vtcli
 // simgenSpec wraps the simgen:* tasks (src/go/Taskfile.yml): the Go scenario
 // generator, a real module with its own build and test.
 var simgenSpec = []Command{
-	{Path: []string{"simgen", "install"}, Task: "simgen:install", Short: "Build the simgen binary to src/go/bin"},
+	{Path: []string{"simgen", "build"}, Task: "simgen:build", Short: "Compile the simgen binary to src/go/bin"},
 	{Path: []string{"simgen", "test"}, Task: "simgen:test", Short: "Run the simgen tests"},
 	{
 		Path:     []string{"simgen", "lint"},
@@ -26,24 +26,36 @@ var simgenSpec = []Command{
 	},
 }
 
-// simgenExclusions are the simgen tasks left out: `build` is what install
-// already is, and the rest are aliases of the pair above.
+// simgenExclusions are the simgen tasks left out: `install` only calls
+// `build`, so wrapping both would list the same build twice.
 var simgenExclusions = map[string]string{
-	"simgen:build": "the same build as simgen:install; use vt simgen install",
+	"simgen:install": "only calls simgen:build; use vt simgen build",
 }
 
 // docsSpec wraps the prose and diagram gates (src/Taskfile.yml and the root
 // Taskfile.yml). These run in CI, so they are worth reaching by name.
 var docsSpec = []Command{
-	{Path: []string{"docs", "check"}, Task: "docs:check", Short: "Fail if tracked prose points at missing paths or docs"},
-	{Path: []string{"docs", "adr-refs"}, Task: "docs:adr-refs", Short: "Fail if a recorded measurement has no adr:NNNN ref"},
+	{
+		Path:  []string{"docs", "check"},
+		Task:  "docs:check",
+		Short: "Fail if tracked prose points at missing paths or docs",
+	},
+	{
+		Path:  []string{"docs", "adr-refs"},
+		Task:  "docs:adr-refs",
+		Short: "Fail if a recorded measurement has no adr:NNNN ref",
+	},
 	{Path: []string{"docs", "mermaid"}, Task: "docs:mermaid", Short: "Refresh the Mermaid blocks inlined in README.md"},
 	{
 		Path:  []string{"docs", "diagrams"},
 		Task:  "docs:diagrams",
 		Short: "Render every scheme .mmd to a lossless WebP",
 	},
-	{Path: []string{"docs", "blueprints"}, Task: "docs:blueprints", Short: "Re-encode models/*/blueprints to lossy WebP"},
+	{
+		Path:  []string{"docs", "blueprints"},
+		Task:  "docs:blueprints",
+		Short: "Re-encode models/*/blueprints to lossy WebP",
+	},
 }
 
 // sharedSpec wraps the shared Python platform lint (src/python/Taskfile.yml).
@@ -60,7 +72,7 @@ var sharedSpec = []Command{
 // the contracts shared with the app frontends.
 var contractsSpec = []Command{
 	{
-		Path:  []string{"proto", "run"},
+		Path:  []string{"proto"},
 		Task:  "proto",
 		Short: "Buf toolchain ops on the shared proto contract",
 		Args:  []Arg{{Name: "action", Var: "ACTION", Required: true, Usage: "update|generate|lint|breaking|format"}},
@@ -104,15 +116,35 @@ var modelsSpec = []Command{
 // The auto-annotator app has its own stack under `annotator`; these are the
 // repo-level ones.
 var dockerSpec = []Command{
-	{Path: []string{"docker", "build"}, Task: "docker:build", Short: "Build the Docker images", Platforms: []string{"linux", "darwin"}},
-	{Path: []string{"docker", "up"}, Task: "docker:up", Short: "Start the Docker Compose services", Platforms: []string{"linux", "darwin"}},
-	{Path: []string{"docker", "down"}, Task: "docker:down", Short: "Stop the Docker Compose services", Platforms: []string{"linux", "darwin"}},
-	{Path: []string{"docker", "restart"}, Task: "docker:restart", Short: "Restart the Docker Compose services", Platforms: []string{"linux", "darwin"}},
+	{
+		Path:      []string{"docker", "up"},
+		Task:      "docker:up",
+		Short:     "Start the Docker Compose services",
+		Platforms: []string{"linux", "darwin"},
+	},
+	{
+		Path:      []string{"docker", "down"},
+		Task:      "docker:down",
+		Short:     "Stop the Docker Compose services",
+		Platforms: []string{"linux", "darwin"},
+	},
+	{
+		Path:      []string{"docker", "restart"},
+		Task:      "docker:restart",
+		Short:     "Restart the Docker Compose services",
+		Platforms: []string{"linux", "darwin"},
+	},
 	{
 		Path:      []string{"docker", "logs"},
 		Task:      "docker:logs",
 		Short:     "Follow the Docker Compose logs",
 		Heavy:     true,
+		Platforms: []string{"linux", "darwin"},
+	},
+	{
+		Path:      []string{"docker", "build"},
+		Task:      "docker:build",
+		Short:     "Build the Docker images",
 		Platforms: []string{"linux", "darwin"},
 	},
 }

@@ -45,66 +45,67 @@ type rootGroup struct {
 	members []string
 }
 
-// rootGroups orders the first level: the domains people work in, the verbs
-// that span every module, then the escape hatch. The members list is also the
-// help order, so a new domain belongs in exactly one group here.
+// rootGroups orders the first level by how often it is reached for: the robot
+// and the simulator, then the apps, the contracts they share, the verbs and
+// stacks that span the repo, the tooling that builds the tooling, and the
+// escape hatch. The members list is also the help, home-menu and picker order,
+// so a new domain belongs in exactly one group here (see TestRootGroups).
 var rootGroups = []rootGroup{
+	{id: "robot", title: "Robot and simulation:", members: []string{"sim", "robot", "go", "fleet", "gen"}},
+	{id: "apps", title: "Apps:", members: []string{"frontend", "backend", "annotator", "hailo"}},
+	{id: "contracts", title: "Contracts and models:", members: []string{"config", "proto", "openapi", "models"}},
 	{
-		id:    "domains",
-		title: "Domains:",
-		members: []string{
-			"sim", "robot", "go", "fleet", "gen", "simgen",
-			"frontend", "backend", "annotator", "hailo",
-			"config", "models", "openapi", "proto", "docs", "docker",
-		},
+		id:      "repo",
+		title:   "Across the repo:",
+		members: []string{"setup", "test", "lint", "clean", "workflow", "docker", "docs"},
 	},
-	{id: "repo", title: "Across modules:", members: []string{"setup", "test", "lint", "clean"}},
-	{id: "self", title: "vt and the shared code:", members: []string{"cli", "shared", "workflow"}},
+	{id: "tooling", title: "Tooling:", members: []string{"cli", "simgen", "shared"}},
 	{id: "any", title: "Any task:", members: []string{catchAllName}},
 }
 
-// rootDomainShort gives each first-level namespace its one-line description.
-// A namespace missing here renders with an empty description, so this map and
-// rootGroups are updated together.
-var rootDomainShort = map[string]string{
+// namespaceShort describes every node that is not itself a command, keyed by
+// its full path ("go build"), so two namespaces sharing a last segment can
+// say different things. A namespace missing here renders with an empty
+// description, which TestNamespacesDescribed catches.
+var namespaceShort = map[string]string{
 	"sim":       "Simulation: headless sim + RViz, Gazebo, sim tests",
 	"robot":     "The robot, from the dev machine: deploy, runs, vision, ROS2",
 	"go":        "Go module: build, deploy, hardware tests",
 	"fleet":     "Boards over SSH and network",
 	"gen":       "Generate tracks, scenarios, recordings and the sweep corpus",
 	"frontend":  "The web frontend: dev server, build, lint",
-	"backend":   "The Go telemetry backend: build, dev, sqlc, OpenAPI",
+	"backend":   "The Go telemetry backend: dev, build, codegen, tests",
+	"annotator": "The auto-annotator app: whole stack, or one service",
+	"hailo":     "The Hailo model toolchain: export, check, clean",
 	"config":    "The shared config schemas: generate, verify, validate",
-	"workflow":  "Multi-step pipelines that chain the domains",
-	"cli":       "vt itself: build, run, test, lint, completions",
-	"annotator": "The auto-annotator app: ML service, API, frontend",
-	"hailo":     "The Hailo model toolchain: export, compile, evaluate",
-	"simgen":    "The Go scenario generator: build, test, lint",
-	"docs":      "Prose and diagrams: the drift checks and the renders",
-	"shared":    "The shared Python platform code",
 	"openapi":   "The aggregated OpenAPI contract",
-	"proto":     "The shared proto contract (buf)",
-	"docker":    "The repo's docker compose stack",
 	"models":    "Tracked model versions: promote, deploy",
 	"setup":     "Install and one-time setup",
-	"lint":      "Lint every module",
-	"clean":     "Clean generated data",
-}
+	"workflow":  "Multi-step pipelines that chain the domains",
+	"docker":    "The repo's docker compose stack",
+	"docs":      "Prose and diagrams: the drift checks and the renders",
+	"cli":       "vt itself: build, run, test, lint, completions",
+	"simgen":    "The Go scenario generator: build, test, lint",
+	"shared":    "The shared Python platform code",
 
-// segmentHelp gives the intermediate tree nodes a one-line description.
-var segmentHelp = map[string]string{
-	"build":      "Build",
-	"hw":         "Cross-compile a hardware test for a Pi (does not run it)",
-	"view":       "Watch a run in RViz",
-	"parts":      "The two halves of view, for separate terminals",
-	"vision":     "Detections from the Pi 5 camera",
-	"pull":       "Pull from the Pi 5",
-	"push":       "Push to the Pi 5",
-	"bench-hud":  "Bench vision/HUD session",
-	"setup":      "One-time network and SSH setup",
-	"ethernet":   "Direct Ethernet link (Windows, admin)",
-	"route":      "Persistent routes (Windows, admin)",
-	"ssh-config": "~/.ssh/config entries",
+	"sim view parts":         "The two halves of view, for separate terminals",
+	"robot vision":           "Detections from the Pi 5 camera",
+	"robot bench-hud":        "Bench vision/HUD session",
+	"robot pull":             "Pull runs or videos from the Pi 5",
+	"robot push":             "Push runs or videos to the Pi 5",
+	"go build":               "Cross-compile the robot binaries: static, or the camera ones",
+	"go hw":                  "Hardware tests: build, run one on a Pi, free the ports",
+	"fleet setup":            "One-time network and SSH setup",
+	"fleet setup ethernet":   "Direct Ethernet link (Windows, admin)",
+	"fleet setup route":      "Persistent routes (Windows, admin)",
+	"fleet setup ssh-config": "~/.ssh/config entries",
+	"frontend docker":        "The frontend container: build, serve",
+	"backend gen":            "Regenerate code: sqlc DB layer, OpenAPI types",
+	"backend mod":            "Go modules: download, tidy",
+	"annotator ml":           "The ML service (Python, SAM + gRPC)",
+	"annotator api":          "The orchestration API (Go, Gin + SQLite)",
+	"annotator frontend":     "The annotator's own web frontend",
+	"hailo model":            "ONNX models: export, inspect",
 }
 
 // NewApp attaches the curated spec and the generated catch-all to root.
@@ -208,15 +209,10 @@ func (a *App) addCurated(command Command) error {
 func (a *App) ensurePath(path []string) *cobra.Command {
 	current := a.Root
 
-	for _, segment := range path {
+	for depth, segment := range path {
 		child := findChild(current, segment)
 		if child == nil {
-			child = &cobra.Command{Use: segment}
-			if current == a.Root {
-				child.Short = rootDomainShort[segment]
-			} else {
-				child.Short = segmentHelp[segment]
-			}
+			child = &cobra.Command{Use: segment, Short: namespaceShort[strings.Join(path[:depth+1], " ")]}
 
 			current.AddCommand(child)
 		}

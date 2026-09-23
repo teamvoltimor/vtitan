@@ -137,13 +137,15 @@ var curatedDomains = []Domain{
 }
 
 // curatedSpec is the single declarative table the tree is built from, one
-// table per domain. One entry per wrapped command; nothing here duplicates how
-// a task runs. Within a table a command precedes its children.
-var curatedSpec = slices.Concat(simSpec, robotSpec, goSpec, fleetSpec, genSpec,
-	frontendSpec, backendSpec, configSpec, workflowSpec, cliSpec,
-	autoAnnotatorSpec, hailoSpec,
-	simgenSpec, docsSpec, sharedSpec, contractsSpec, modelsSpec, dockerSpec,
-	umbrellaSpec)
+// table per domain, concatenated in rootGroups order. One entry per wrapped
+// command; nothing here duplicates how a task runs. Within a table a command
+// precedes its children, and table order is help and picker order.
+var curatedSpec = slices.Concat(
+	simSpec, robotSpec, goSpec, fleetSpec, genSpec,
+	frontendSpec, backendSpec, autoAnnotatorSpec, hailoSpec,
+	configSpec, contractsSpec, modelsSpec,
+	umbrellaSpec, workflowSpec, dockerSpec, docsSpec,
+	cliSpec, simgenSpec, sharedSpec)
 
 // exclusions records the tasks deliberately left out of the typed tree and
 // why. Adding a task to a curated domain without deciding anything here fails

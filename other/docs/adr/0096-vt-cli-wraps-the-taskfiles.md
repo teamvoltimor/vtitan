@@ -198,6 +198,20 @@ bubbles v0.21.0.
   is flat, so two includes defining `lint` collide and include order decides
   the winner -- invisible today only because the four colliding files happen
   to be included without `flatten: true`.
+- 2026-09-22, navigation pass: the root is grouped by use (robot and
+  simulation, apps, contracts and models, across the repo, tooling) and the
+  picker now follows that order; it used to follow spec concatenation order,
+  so `--help` and the picker disagreed. Every domain orders its commands the
+  same way: run it, then the quality gates, then install and clean.
+  Single-task namespaces were flattened (`hailo test`, `proto <action>`),
+  sibling cleans and dev modes became switches (`hailo clean --calib`,
+  `annotator clean --deep`, `annotator dev --install`), and backend's 14 flat
+  rows became 10 with `backend gen` and `backend mod`. Namespace descriptions
+  are keyed by full path, since `build` under `go` and under `backend` mean
+  different things; the old per-segment table had left eight namespaces
+  blank. Checks 8 and 9 (`TestNamespacesDescribed`, `TestRootGroups`) fail on
+  a namespace without a description, a stale one, or a first-level command
+  outside the root groups.
 - The boundary rule, now written down: **Taskfiles own what runs, `vt` owns
   how it is spelled.** A change that alters what a task does belongs in the
   Taskfile, so `task` and CI get it too; a change to discovery, flags or
