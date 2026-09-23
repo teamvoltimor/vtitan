@@ -163,6 +163,14 @@ jobs:
       - name: Docs check
         run: python src/tools/doc_audit.py check
 
+      # The sweep results store (src/tools/sweep_results.py) and the sweep
+      # scripts' syntax, the two halves of the harness that replaced the /tmp
+      # habit. Stdlib only; pytest is the one install.
+      - name: Sweep tooling tests
+        run: |
+          python -m pip install --quiet pytest
+          python -m pytest src/tools/tests -q
+
   backend:
     name: Backend — build + test (Go)
     runs-on: ubuntu-latest
