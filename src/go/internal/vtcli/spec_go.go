@@ -6,12 +6,14 @@ var goSpec = []Command{
 	{
 		Path:  []string{"go", "build", "static"},
 		Task:  "go:build:static",
+		Group: groupRun,
 		Short: "Build the robot binaries (linux/arm64, CGO off)",
 		Flags: []Flag{{Name: flagOut, Var: "OUT", Default: "dist", Usage: "output directory"}},
 	},
 	{
 		Path:      []string{"go", "build", "capture"},
 		Task:      "go:build:capture",
+		Group:     groupRun,
 		Short:     "Build the camera binaries with gocv/OpenCV (CGO on)",
 		Platforms: []string{"linux", "windows"},
 		Flags: []Flag{
@@ -22,6 +24,7 @@ var goSpec = []Command{
 	{
 		Path:  []string{"go", "deploy"},
 		Task:  "go:deploy",
+		Group: groupRun,
 		Short: "Deploy the Go binaries to a Pi (/opt/vtitan-go); robot deploy ships the Python stack",
 		Heavy: true,
 		Flags: []Flag{
@@ -30,15 +33,17 @@ var goSpec = []Command{
 			{Name: "skip-restart", Var: "SKIP_RESTART", Usage: "do not restart services"},
 		},
 	},
-	{Path: []string{"go", "test"}, Task: "go:test", Short: "Run the Go module tests"},
+	{Path: []string{"go", "test"}, Task: "go:test", Group: groupCheck, Short: "Run the Go module tests"},
 	{
 		Path:  []string{"go", "tinygo-check"},
 		Task:  "go:tinygo-check",
+		Group: groupCheck,
 		Short: "Build pkg/portable for the Pico 2 under TinyGo",
 	},
 	{
 		Path:  []string{"go", "hw", "build"},
 		Task:  "go:hw:build",
+		Group: groupRun,
 		Short: "Cross-compile the hardware tests for linux/arm64 (builds, does not run)",
 		Variants: []Variant{{
 			Flag: "interactive", Task: "go:hw:build:interactive", Usage: "the interactive tests instead",
@@ -55,6 +60,7 @@ var goSpec = []Command{
 	{
 		Path:  []string{"go", "hw", "run"},
 		Task:  "go:hw:run",
+		Group: groupRun,
 		Short: "Build, ship and run an interactive hardware test on a Pi",
 		Flags: []Flag{
 			{Name: flagPkg, Var: "PKG", Default: "lidar", Usage: "motor|imu|lidar|ssd1306"},
@@ -69,6 +75,7 @@ var goSpec = []Command{
 	{
 		Path:  []string{"go", "hw", "stop"},
 		Task:  "go:hw:stop",
+		Group: groupClean,
 		Short: "Stop the robot services so the Pi ports are free",
 		Args:  []Arg{{Name: argHost, Var: "HOST", Required: true, Usage: "SSH alias of the Pi"}},
 	},

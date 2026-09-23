@@ -29,12 +29,14 @@ var fleetSpec = []Command{
 	{
 		Path:  []string{"fleet", "ping"},
 		Task:  "windows:ping",
+		Group: groupRun,
 		Short: "Ping a board",
 		Args:  []Arg{{Name: argHost, Var: "PING_HOST", Required: true, Usage: "board address"}},
 	},
 	{
 		Path:  []string{"fleet", "ssh"},
 		Task:  "windows:ssh",
+		Group: groupRun,
 		Short: "Open an SSH session on a board",
 		Args:  []Arg{{Name: argHost, Var: "SSH_HOST", Required: true, Usage: "SSH alias of the Pi"}},
 		// A remote shell reads raw keys and redraws its own screen.
@@ -43,12 +45,14 @@ var fleetSpec = []Command{
 	{
 		Path:  []string{"fleet", "run"},
 		Task:  "windows:run",
+		Group: groupRun,
 		Short: "Run a command on a board over SSH",
 		Args:  []Arg{{Name: argHost, Var: "SSH_HOST", Required: true, Usage: "SSH alias of the Pi"}},
 		Flags: []Flag{{Name: "cmd", Var: "CMD", Required: true, Usage: "command to run"}},
 	},
 	{
 		Path:  []string{"fleet", "set-wifi"},
+		Group: groupSetup,
 		Short: "Set a board's WiFi credentials; the Zero is reached through the Pi 5",
 		Args:  []Arg{boardArg("windows:set-wifi:pi5", "windows:set-wifi:zero")},
 		Flags: []Flag{
@@ -59,6 +63,7 @@ var fleetSpec = []Command{
 	},
 	{
 		Path:  []string{"fleet", "audit"},
+		Group: groupCheck,
 		Short: "Pull and run a board's provisioning audit",
 		Args:  []Arg{boardArg("windows:audit:pi5", "windows:audit:zero")},
 		Flags: []Flag{
@@ -68,6 +73,7 @@ var fleetSpec = []Command{
 	{
 		Path:  []string{"fleet", "provision"},
 		Task:  "windows:provision:pi5",
+		Group: groupSetup,
 		Short: "Provision the Pi 5 (Ansible runs on the Pi itself)",
 		Heavy: true,
 		Flags: []Flag{
@@ -80,6 +86,7 @@ var fleetSpec = []Command{
 	{
 		Path:      []string{"fleet", "setup", "ethernet", "configure"},
 		Task:      "windows:ethernet:configure",
+		Group:     groupSetup,
 		Short:     "Set the Windows Ethernet adapter for a direct Pi link (admin)",
 		Platforms: windowsOnly,
 		Args:      []Arg{{Name: "mode", Var: "MODE", Required: true, Usage: "static|remove|dhcp"}},
@@ -87,6 +94,7 @@ var fleetSpec = []Command{
 	{
 		Path:      []string{"fleet", "setup", "ethernet", "link"},
 		Task:      "windows:ethernet:setup-link",
+		Group:     groupSetup,
 		Short:     "Direct Ethernet link: Windows IP + Pi IP (admin)",
 		Platforms: windowsOnly,
 		Flags:     []Flag{{Name: flagSSHHost, Var: "SSH_HOST", Default: "rpi-5-remote", Usage: "SSH alias"}},
@@ -94,6 +102,7 @@ var fleetSpec = []Command{
 	{
 		Path:      []string{"fleet", "setup", "ethernet", "unlink"},
 		Task:      "windows:ethernet:unlink",
+		Group:     groupClean,
 		Short:     "Tear down the direct link, both ends back to DHCP (admin)",
 		Platforms: windowsOnly,
 		Flags:     []Flag{{Name: flagSSHHost, Var: "SSH_HOST", Default: "rpi-5-remote", Usage: "SSH alias"}},
@@ -101,12 +110,14 @@ var fleetSpec = []Command{
 	{
 		Path:      []string{"fleet", "setup", "route", "add"},
 		Task:      "windows:route:add",
+		Group:     groupSetup,
 		Short:     "Add the WiFi and Ethernet persistent routes (admin)",
 		Platforms: windowsOnly,
 	},
 	{
 		Path:      []string{"fleet", "setup", "route", "delete"},
 		Task:      "windows:route:delete",
+		Group:     groupClean,
 		Short:     "Remove a persistent route (admin)",
 		Platforms: windowsOnly,
 		Flags:     []Flag{{Name: "subnet", Var: "SUBNET", Default: "192.168.251.0", Usage: "route subnet"}},
@@ -114,12 +125,14 @@ var fleetSpec = []Command{
 	{
 		Path:  []string{"fleet", "setup", "ssh-config", "print"},
 		Task:  "windows:ssh:print-config",
+		Group: groupRun,
 		Short: "Print the recommended ~/.ssh/config entries",
 		Flags: sshConfigFlags,
 	},
 	{
 		Path:      []string{"fleet", "setup", "ssh-config", "write"},
 		Task:      "windows:ssh:setup-config",
+		Group:     groupSetup,
 		Short:     "Append the missing host entries to ~/.ssh/config",
 		Platforms: windowsOnly,
 		Flags:     sshConfigFlags,
@@ -127,6 +140,7 @@ var fleetSpec = []Command{
 	{
 		Path:  []string{"fleet", "setup", "windscribe-deb"},
 		Task:  "windows:stage-windscribe-deb",
+		Group: groupSetup,
 		Short: "Stage the windscribe-cli arm64 .deb on the Pi 5 for Ansible",
 		Args:  []Arg{{Name: "deb", Var: "DEB", Required: true, Usage: "local path of the downloaded .deb"}},
 		Flags: []Flag{sshHostFlag},
@@ -134,18 +148,21 @@ var fleetSpec = []Command{
 	{
 		Path:  []string{"fleet", "setup", "migrate-data"},
 		Task:  "rpi:migrate-data",
+		Group: groupSetup,
 		Short: "One-off: move a pre-relayout ~/vtitan/data tree on a board",
 		Flags: []Flag{sshHostFlag},
 	},
 	{
 		Path:  []string{"fleet", "vpn"},
 		Task:  "vpn",
+		Group: groupRun,
 		Short: "Windscribe VPN on this machine",
 		Args:  []Arg{{Name: "action", Var: "ACTION", Required: true, Usage: "connect|disconnect|status"}},
 	},
 	{
 		Path:  []string{"fleet", "cloudflare"},
 		Task:  "cloudflare",
+		Group: groupRun,
 		Short: "Cloudflare tunnel service on this machine",
 		Args:  []Arg{{Name: "action", Var: "ACTION", Required: true, Usage: "status|restart|logs"}},
 	},

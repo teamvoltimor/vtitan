@@ -55,6 +55,12 @@ type pickerRowsDelegate struct {
 	ui    UI
 }
 
+// childRow is one child of a level and the command group it belongs to.
+type childRow struct {
+	item  pickItem
+	group CommandGroup
+}
+
 // recentGroupTitle heads the picker's recent rows.
 const recentGroupTitle = "Recent:"
 
@@ -124,20 +130,24 @@ func groupHeaderRow(title string) pickItem {
 }
 
 // childLevel returns the rows shown after descending into segments: a back
-// row, then the level's own leaf action (if the path itself is a command), its
-// leaf children, and the sub-namespaces to descend into. A name that has both
-// children and its own action is shown as a namespace, with its action as a
-// "(run) ..." row inside it.
+// row, then the level's own leaf action (if the path itself is a command), then
+// its children. A name that has both children and its own action is shown as a
+// namespace, with its action as a "(run) ..." row inside it. Children are
+// sectioned by their command group -- run, check, setup, clean -- with a header
+// per group, but only when the level spans more than one group.
 func (a *App) childLevel(segments []string) []pickItem {
-	hasChildren := make(map[string]struct{})
-	for i := range a.spec {
-		path := a.spec[i].Path
-		if a.spec[i].Available(a.goos) && hasPrefixPath(path, segments) && len(path) > len(segments)+1 {
-			hasChildren[path[len(segments)]] = struct{}{}
-		}
-	}
+	actions, children := a.childRows(segments)
+	items := append([]pickItem{backRow()}, actions...)
 
-	items := make([]pickItem, 0)
+	return append(items, sectionChildren(segments, children)...)
+}
+
+// childRows splits a level into its own action rows and its children.
+func (a *App) childRows(segments []string) ([]pickItem, []childRow) {
+	hasChildren := a.childNamespaces(segments)
+
+	actions := make([]pickItem, 0)
+	children := make([]childRow, 0)
 	seen := make(map[string]struct{})
 
 	for i := range a.spec {
@@ -148,7 +158,7 @@ func (a *App) childLevel(segments []string) []pickItem {
 		}
 
 		if len(path) == len(segments) {
-			items = append(items, pickItem{
+			actions = append(actions, pickItem{
 				title: "(run) " + path[len(path)-1],
 				desc:  command.Short,
 				spec:  command,
@@ -172,15 +182,101 @@ func (a *App) childLevel(segments []string) []pickItem {
 				desc = command.Short
 			}
 
-			items = append(items, pickItem{title: child, desc: desc, segment: child})
+			children = append(children, childRow{
+				item:  pickItem{title: child, desc: desc, segment: child},
+				group: a.childGroup(segments, child),
+			})
 
 			continue
 		}
 
-		items = append(items, pickItem{title: child, desc: command.Short, spec: command})
+		children = append(children, childRow{
+			item:  pickItem{title: child, desc: command.Short, spec: command},
+			group: command.Group,
+		})
 	}
 
-	return append([]pickItem{backRow()}, items...)
+	return actions, children
+}
+
+// childNamespaces are the names at a level that have children of their own.
+func (a *App) childNamespaces(segments []string) map[string]struct{} {
+	names := make(map[string]struct{})
+
+	for i := range a.spec {
+		path := a.spec[i].Path
+		if a.spec[i].Available(a.goos) && hasPrefixPath(path, segments) && len(path) > len(segments)+1 {
+			names[path[len(segments)]] = struct{}{}
+		}
+	}
+
+	return names
+}
+
+// sectionChildren orders a level's children by command group and inserts a
+// header per group, or returns them flat when the level spans fewer than two
+// groups (or is the root, which buildPickerRoot sections by rootGroups).
+func sectionChildren(segments []string, children []childRow) []pickItem {
+	groups := make(map[CommandGroup]struct{}, len(children))
+	for _, child := range children {
+		groups[child.group] = struct{}{}
+	}
+
+	items := make([]pickItem, 0, len(children))
+
+	if len(segments) == 0 || len(groups) < 2 {
+		for _, child := range children {
+			items = append(items, child.item)
+		}
+
+		return items
+	}
+
+	for _, group := range commandGroupOrder {
+		members := make([]pickItem, 0, len(children))
+
+		for _, child := range children {
+			if child.group == group {
+				members = append(members, child.item)
+			}
+		}
+
+		if len(members) == 0 {
+			continue
+		}
+
+		items = append(items, groupHeaderRow(commandGroupTitles[group]+":"))
+		items = append(items, members...)
+	}
+
+	return items
+}
+
+// childGroup is the section a child belongs to: the group of the command at
+// that path, or of the first command beneath it when the child is a namespace.
+func (a *App) childGroup(segments []string, child string) CommandGroup {
+	path := append(slices.Clone(segments), child)
+	first := CommandGroup("")
+
+	for i := range a.spec {
+		if !a.spec[i].Available(a.goos) || !hasPrefixPath(a.spec[i].Path, path) {
+			continue
+		}
+
+		if len(a.spec[i].Path) == len(path) {
+			return a.spec[i].Group
+		}
+
+		if first == "" {
+			first = a.spec[i].Group
+		}
+	}
+
+	if first != "" {
+		return first
+	}
+
+	return groupRun
 }
 
 // taskLevel lists every task in the inventory, for the escape hatch: this is

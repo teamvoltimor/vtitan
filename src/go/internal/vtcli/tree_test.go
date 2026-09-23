@@ -176,6 +176,30 @@ func TestPickerSkipsHeaders(t *testing.T) {
 	}
 }
 
+// TestNestedLevelsAreGrouped checks a level whose children span groups is
+// sectioned by command group, while the root keeps its rootGroups sections.
+func TestNestedLevelsAreGrouped(t *testing.T) {
+	t.Parallel()
+
+	app := newSpecApp(t)
+	app.recentPath = ""
+
+	headers := func(level []pickItem) map[string]bool {
+		found := make(map[string]bool)
+		for _, row := range level {
+			if row.groupHeader {
+				found[row.title] = true
+			}
+		}
+
+		return found
+	}
+
+	if got := headers(app.childLevel([]string{"go"})); !got["Run:"] || !got["Check:"] {
+		t.Errorf("the go level is not sectioned: %v", got)
+	}
+}
+
 // TestPickerRowsDescribed walks every picker level on every dev platform and
 // checks that no row is blank and no namespace opens onto nothing, since the
 // picker builds its levels from the spec rather than from the cobra tree.

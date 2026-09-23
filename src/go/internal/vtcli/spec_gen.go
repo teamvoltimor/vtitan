@@ -16,6 +16,7 @@ var genSpec = []Command{
 	{
 		Path:     []string{"gen", "corpus"},
 		Task:     "gen:corpus",
+		Group:    groupRun,
 		Short:    "The pinned-seed sweep corpus",
 		Variants: []Variant{{Flag: "both", Task: "gen:corpus:all", Usage: "both challenges"}},
 		Flags: []Flag{
@@ -27,6 +28,7 @@ var genSpec = []Command{
 	{
 		Path:     []string{"gen", "scenarios"},
 		Task:     "gen:scenarios",
+		Group:    groupRun,
 		Short:    "Random scenarios for a challenge",
 		Variants: []Variant{{Flag: "both", Task: "gen:all", Usage: "both challenges"}},
 		Flags: []Flag{
@@ -34,21 +36,24 @@ var genSpec = []Command{
 			{Name: "count", Var: "SCENARIOS", Kind: FlagInt, Default: "10", Usage: "how many"},
 		},
 	},
-	{Path: []string{"gen", "track"}, Task: "gen:track", Short: "The WRO 2026 base track SDF world"},
+	{Path: []string{"gen", "track"}, Task: "gen:track", Group: groupRun, Short: "The WRO 2026 base track SDF world"},
 	{
 		Path:  []string{"gen", "constants"},
 		Task:  "gen:track-constants",
+		Group: groupRun,
 		Short: "Go mat-geometry constants from track.toml",
 	},
 	{
 		Path:  []string{"gen", "preview"},
 		Task:  "gen:preview",
+		Group: groupRun,
 		Short: "SVG top-down preview of a scenario",
 		Args:  []Arg{metadataArg},
 	},
 	{
 		Path:     []string{"gen", "view"},
 		Task:     "gen:rviz:all",
+		Group:    groupRun,
 		Short:    "A scenario's static layout in RViz (launches RViz too)",
 		Heavy:    true,
 		Args:     []Arg{metadataArg},
@@ -58,11 +63,13 @@ var genSpec = []Command{
 	{
 		Path:  []string{"gen", "grpc-client"},
 		Task:  "gen:robot-command-client",
+		Group: groupRun,
 		Short: "Regenerate src/go's telemetry command gRPC client stubs",
 	},
 	{
 		Path:  []string{"gen", "record"},
 		Task:  "record:run",
+		Group: groupRun,
 		Short: "Record scenario videos from Gazebo (needs the sim running)",
 		Heavy: true,
 		Flags: []Flag{challengeFlag, outputDirFlag},
@@ -70,12 +77,14 @@ var genSpec = []Command{
 	{
 		Path:  []string{"gen", "record", "convert"},
 		Task:  "record:convert",
+		Group: groupRun,
 		Short: "Convert the recorded ROS2 bags to MP4",
 		Flags: []Flag{challengeFlag, outputDirFlag},
 	},
 	{
 		Path:  []string{"gen", "record", "frames"},
 		Task:  "record:frames",
+		Group: groupRun,
 		Short: "Extract and annotate frames from the recorded bags",
 		Flags: []Flag{challengeFlag, outputDirFlag},
 	},

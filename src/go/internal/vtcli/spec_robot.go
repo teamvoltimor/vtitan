@@ -14,6 +14,7 @@ var robotSpec = []Command{
 	{
 		Path:  []string{"robot", "deploy"},
 		Task:  "robot:deploy",
+		Group: groupRun,
 		Short: "Deploy the Python/ROS2 stack + detector to the Pi 5; go deploy ships the Go binaries",
 		Heavy: true,
 		Flags: []Flag{
@@ -35,6 +36,7 @@ var robotSpec = []Command{
 	{
 		Path:  []string{"robot", "launch"},
 		Task:  "robot:launch",
+		Group: groupRun,
 		Short: "Launch a node set (needs setup ros-ws)",
 		Heavy: true,
 		Args: []Arg{{
@@ -47,6 +49,7 @@ var robotSpec = []Command{
 	{
 		Path:        []string{"robot", "run"},
 		Task:        "robot:run",
+		Group:       groupRun,
 		Short:       "Run a single node (needs setup ros-ws)",
 		Heavy:       true,
 		Passthrough: true,
@@ -60,6 +63,7 @@ var robotSpec = []Command{
 	{
 		Path:  []string{"robot", "vision", "record"},
 		Task:  "robot:record-vision",
+		Group: groupRun,
 		Short: "Record the annotated detection video on the Pi 5 and copy it back",
 		Heavy: true,
 		Flags: []Flag{
@@ -78,6 +82,7 @@ var robotSpec = []Command{
 	{
 		Path:  []string{"robot", "vision", "watch"},
 		Task:  "robot:watch-vision",
+		Group: groupRun,
 		Short: "Print live detections, one line per frame (read-only)",
 		Flags: []Flag{
 			{Name: flagSeconds, Var: "SECONDS_TO_RECORD", Default: "60", Usage: "how long to watch"},
@@ -87,6 +92,7 @@ var robotSpec = []Command{
 	{
 		Path:  []string{"robot", "bench-hud", "start"},
 		Task:  "robot:bench-hud:start",
+		Group: groupRun,
 		Short: "Start a bench vision/HUD session (stops the race service)",
 		Heavy: true,
 		Flags: []Flag{pi5HostFlag},
@@ -94,12 +100,14 @@ var robotSpec = []Command{
 	{
 		Path:  []string{"robot", "bench-hud", "stop"},
 		Task:  "robot:bench-hud:stop",
+		Group: groupClean,
 		Short: "Stop the bench vision/HUD session",
 		Flags: []Flag{pi5HostFlag},
 	},
 	{
 		Path:  []string{"robot", "bench-hud", "record"},
 		Task:  "robot:bench-hud:record",
+		Group: groupRun,
 		Short: "Start, record, stop and pull a bench vision/HUD video",
 		Heavy: true,
 		Flags: []Flag{
@@ -110,6 +118,7 @@ var robotSpec = []Command{
 	{
 		Path:  []string{"robot", "pull", "runs"},
 		Task:  "robot:pull-runs",
+		Group: groupRun,
 		Short: "Pull recorded bags from the Pi 5 into other/data/live/runs",
 		Args:  []Arg{patternArg},
 		Flags: []Flag{pi5HostFlag, runsDirFlag},
@@ -117,6 +126,7 @@ var robotSpec = []Command{
 	{
 		Path:  []string{"robot", "pull", "videos"},
 		Task:  "robot:pull-videos",
+		Group: groupRun,
 		Short: "Pull per-run videos from the Pi 5 into other/data/live/videos",
 		Args:  []Arg{patternArg},
 		Flags: []Flag{pi5HostFlag, videosDirFlag},
@@ -124,6 +134,7 @@ var robotSpec = []Command{
 	{
 		Path:  []string{"robot", "push", "runs"},
 		Task:  "robot:push-runs",
+		Group: groupRun,
 		Short: "Push local bags back up to the Pi 5",
 		Args:  []Arg{patternArg},
 		Flags: []Flag{pi5HostFlag, runsDirFlag},
@@ -131,6 +142,7 @@ var robotSpec = []Command{
 	{
 		Path:  []string{"robot", "push", "videos"},
 		Task:  "robot:push-videos",
+		Group: groupRun,
 		Short: "Push local per-run videos back up to the Pi 5",
 		Args:  []Arg{patternArg},
 		Flags: []Flag{pi5HostFlag, videosDirFlag},
@@ -138,6 +150,7 @@ var robotSpec = []Command{
 	{
 		Path:  []string{"robot", "test"},
 		Task:  "robot:test",
+		Group: groupCheck,
 		Short: "Robot tests in parallel (pixi dev env)",
 		Flags: []Flag{
 			{
@@ -153,10 +166,16 @@ var robotSpec = []Command{
 	{
 		Path:     []string{"robot", "lint"},
 		Task:     "robot:lint",
+		Group:    groupCheck,
 		Short:    "Lint the robot code",
 		Variants: []Variant{fixVariant("robot:lint:fix")},
 	},
-	{Path: []string{"robot", "typecheck"}, Task: "robot:typecheck", Short: "mypy over src/ and the ros2_ws packages"},
+	{
+		Path:  []string{"robot", "typecheck"},
+		Task:  "robot:typecheck",
+		Group: groupCheck,
+		Short: "mypy over src/ and the ros2_ws packages",
+	},
 }
 
 // runsDirFlag and videosDirFlag override where the sync tasks read and write.

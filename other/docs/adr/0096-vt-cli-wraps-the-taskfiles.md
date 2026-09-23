@@ -267,6 +267,12 @@ bubbles v0.21.0.
   cursor skips them. This needed a custom row delegate and a cursor nudge
   because bubbles/list has no non-selectable rows; the header is a rule plus
   its title, using the delegate's two-line height.
+- 2026-09-23, nested sections: every command carries a `Group` (run, check,
+  setup, clean), and a nested level whose children span more than one group
+  draws a header per group in that order -- the rule above ("run it, then the
+  quality gates, then install and clean") made explicit. The root keeps its
+  `rootGroups` sections. Check 10 (`TestCommandsGrouped`) rejects a command
+  with no known group, so nothing falls into a default.
 
 - The boundary rule, now written down: **Taskfiles own what runs, `vt` owns
   how it is spelled.** A change that alters what a task does belongs in the

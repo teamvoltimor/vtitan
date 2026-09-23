@@ -43,11 +43,19 @@ type Variant struct {
 	Usage string
 }
 
+// CommandGroup is where a command sits in its level's section order: what you
+// run, the checks that gate it, the setup it needs, and the cleanup after it.
+type CommandGroup string
+
 // Command is one wrapped leaf: a path in the CLI tree that runs one Task.
 type Command struct {
-	Path        []string
-	Task        string
-	Short       string
+	Path  []string
+	Task  string
+	Short string
+	// Group places the command in its level's section, and is required: the
+	// picker draws a header per group, and a check rejects an unclassified
+	// command rather than letting it fall into a default.
+	Group       CommandGroup
 	Flags       []Flag
 	Args        []Arg
 	Passthrough bool
@@ -105,6 +113,26 @@ const (
 	// (ADR 0096) and the boards keep using task directly.
 	reasonOnBoard = "runs on a Pi; vt is dev-machine only, use task there"
 )
+
+// The command groups, in the order a level shows them: what you run, the
+// quality gates, the setup it needs, and the cleanup after it (ADR 0096).
+const (
+	groupRun   CommandGroup = "run"
+	groupCheck CommandGroup = "check"
+	groupSetup CommandGroup = "setup"
+	groupClean CommandGroup = "clean"
+)
+
+// commandGroupOrder is how a level's sections are ordered.
+var commandGroupOrder = []CommandGroup{groupRun, groupCheck, groupSetup, groupClean}
+
+// commandGroupTitles labels each section header.
+var commandGroupTitles = map[CommandGroup]string{
+	groupRun:   "Run",
+	groupCheck: "Check",
+	groupSetup: "Setup",
+	groupClean: "Clean",
+}
 
 // profileFlag selects the hardware profile a sim task models. Task's default
 // lives in the root Taskfile.yml.

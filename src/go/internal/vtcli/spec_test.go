@@ -135,3 +135,23 @@ func checkCuratedCoverage(
 
 	return problems
 }
+
+// TestCommandsGrouped is anti-drift check 10: every command declares one of the
+// known groups, so the picker's sections have no unclassified row to fall back
+// on.
+func TestCommandsGrouped(t *testing.T) {
+	t.Parallel()
+
+	known := make(map[CommandGroup]bool, len(commandGroupOrder))
+	for _, group := range commandGroupOrder {
+		known[group] = true
+	}
+
+	spec := CuratedSpec()
+	for i := range spec {
+		if !known[spec[i].Group] {
+			t.Errorf("vt %s has group %q, not one of %v",
+				strings.Join(spec[i].Path, " "), spec[i].Group, commandGroupOrder)
+		}
+	}
+}
