@@ -119,6 +119,24 @@ var namespaceShort = map[string]string{
 	"annotator api":          "The orchestration API (Go, Gin + SQLite)",
 	"annotator frontend":     "The annotator's own web frontend",
 	"hailo model":            "ONNX models: export, inspect",
+
+	"annotator proto":        "The shared proto contract: generate, lint, breaking",
+	"annotator openapi":      "The OpenAPI contract: validate, generate types",
+	"annotator db":           "The SQLite database: codegen and migrations",
+	"annotator db migrate":   "Goose migrations: new, status",
+	"annotator docker":       "The compose stack and images: up, down, logs, build, run",
+	"annotator docker build": "Build one image",
+	"annotator docker run":   "Run one container",
+	"hailo docker":           "The AI Software Suite container: run, load, logs, stop",
+	"hailo compile":          "Compile ONNX to Hailo HEF",
+	"hailo profile":          "Profile a HEF model",
+	"hailo eval":             "Evaluate a model on the target",
+	"hailo calib":            "Calibration data: download, convert, prepare",
+	"hailo stage":            "Stage the model for the Docker mount",
+	"hailo gmr":              "The GMR sign-detector pipeline",
+	"hailo accuracy":         "Accuracy sweeps: the float ceiling and the compiled HARs",
+	"hailo workflow":         "Multi-step pipelines over the other verbs",
+	"hailo log":              "Run a command with a chosen log level",
 }
 
 // String implements fmt.Stringer.

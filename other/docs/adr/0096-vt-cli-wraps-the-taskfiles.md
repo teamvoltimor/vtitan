@@ -273,6 +273,13 @@ bubbles v0.21.0.
   quality gates, then install and clean") made explicit. The root keeps its
   `rootGroups` sections. Check 10 (`TestCommandsGrouped`) rejects a command
   with no known group, so nothing falls into a default.
+- 2026-09-23, the specialist trees wrapped: the ~60 hailo and auto-annotator
+  container, contract, database and pipeline tasks that were reachable only
+  through `vt task` are now curated under `annotator proto / openapi / db /
+  docker` and `hailo docker / compile / profile / eval / calib / stage / gmr /
+  accuracy / workflow / log`. Only Task's own `default`, one ambiguous alias,
+  and the per-service lint/format leaves the aggregate verbs already cover stay
+  excluded, so a new task there still needs a decision.
 
 - The boundary rule, now written down: **Taskfiles own what runs, `vt` owns
   how it is spelled.** A change that alters what a task does belongs in the

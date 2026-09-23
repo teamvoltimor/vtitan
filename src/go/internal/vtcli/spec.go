@@ -229,7 +229,8 @@ var curatedDomains = []Domain{
 // precedes its children, and table order is help and picker order.
 var curatedSpec = slices.Concat(
 	simSpec, robotSpec, goSpec, fleetSpec, genSpec,
-	frontendSpec, backendSpec, autoAnnotatorSpec, hailoSpec,
+	frontendSpec, backendSpec, autoAnnotatorSpec, autoAnnotatorToolsSpec,
+	hailoSpec, hailoToolsSpec,
 	configSpec, contractsSpec, modelsSpec,
 	umbrellaSpec, workflowSpec, dockerSpec, docsSpec,
 	cliSpec, simgenSpec, sharedSpec)
