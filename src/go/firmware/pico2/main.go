@@ -57,7 +57,7 @@ func main() {
 		Link:    usbLink{serial: machine.Serial},
 		Drive:   setupDrive(),
 		Servo:   setupServo(),
-		Encoder: nil, // TODO(encoder): see pinEncoderA in board.go.
+		Encoder: setupEncoder(),
 		Button:  setupButton(),
 	}, boardloop.Options{BootID: bootID(), BootFaults: bootFaults})
 	if err != nil {
@@ -133,6 +133,25 @@ func setupServo() boardloop.Servo {
 func setupButton() boardloop.Button {
 	pinButton.Configure(machine.PinConfig{Mode: machine.PinInputPullup})
 	return buttonPin{pin: pinButton}
+}
+
+// setupEncoder brings the wheel encoder's A/B channels up as pulled-up
+// inputs (matching the other digital inputs on this board; PROVISIONAL like
+// the whole pin map, see board.go) and decodes them on GPIO edge interrupts.
+// A failed SetInterrupt leaves the board with no encoder rather than
+// stopping it: boardloop.Hardware documents Encoder as optional, and no
+// odometry is exactly the behavior before this was wired.
+func setupEncoder() boardloop.Encoder {
+	enc := &encoderPins{a: pinEncoderA, b: pinEncoderB}
+	enc.a.Configure(machine.PinConfig{Mode: machine.PinInputPullup})
+	enc.b.Configure(machine.PinConfig{Mode: machine.PinInputPullup})
+	if err := enc.a.SetInterrupt(machine.PinToggle, enc.onEdge); err != nil {
+		return nil
+	}
+	if err := enc.b.SetInterrupt(machine.PinToggle, enc.onEdge); err != nil {
+		return nil
+	}
+	return enc
 }
 
 // startWatchdogTick sets the RP2350 watchdog tick to 1 us. TinyGo enables

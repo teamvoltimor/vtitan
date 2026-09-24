@@ -30,10 +30,15 @@ const (
 	// raw edges; the host runs the debounce and hold evaluator.
 	pinButton = machine.GP17
 
-	// Reserved for the wheel encoder's A and B channels, not yet used.
-	// TODO(encoder): count quadrature on a PIO state machine (the RP2350's
-	// hardware quadrature path, adr:0098), expose it as a boardloop.Encoder,
-	// and pass it in Hardware.Encoder instead of nil.
+	// pinEncoderA and pinEncoderB are the wheel encoder's quadrature
+	// channels, decoded on GPIO edge interrupts by encoderPins (hw.go).
+	// TODO(encoder-pio): adr:0098 asked for the RP2350's hardware PIO to
+	// count quadrature; TinyGo 0.42.0 ships no PIO API (no program loader,
+	// no register wrapper) and this module carries no PIO driver
+	// dependency, so this is the interrupt-driven fallback the toolchain
+	// supports today, not the hardware path the ADR measured against.
+	// Revisit if bench numbers show the CPU-driven decode losing edges
+	// under load, or once a PIO driver becomes available.
 	pinEncoderA = machine.GP14
 	pinEncoderB = machine.GP15
 )
@@ -53,7 +58,3 @@ var (
 	servoSlice = machine.PWM0
 	driveSlice = machine.PWM1
 )
-
-// Keep the reserved encoder pins referenced so moving them is a
-// compile-visible change here, not a silent clash elsewhere.
-var _ = [...]machine.Pin{pinEncoderA, pinEncoderB}

@@ -128,6 +128,18 @@ packets for the host.
   still gated on measuring heading drift first, per section 18.3.
 - Nothing here is on the Go cutover's critical path (0068). The Zero remains the
   race board until the Pico passes the same bench criteria.
+- The encoder does not count quadrature in PIO hardware as this ADR assumed.
+  TinyGo 0.42.0 ships no PIO API for rp2040/rp2350 (no program loader, no
+  register wrapper), and this module carries no PIO driver dependency, so
+  `firmware/pico2` decodes A/B edges on the CPU instead: `machine.Pin.SetInterrupt`
+  feeding the same portable `pkg/portable/quadrature` decoder the Pi Zero's
+  driver uses (its own doc comment already names "pin interrupts on the Pico 2"
+  as the anticipated split). This keeps the watchdog and pin-retention wins
+  this ADR is really about, but not the hardware-counted, jitter-free edge
+  timing the Context section credits PIO for -- that gap is
+  `TODO(encoder-pio)` in `firmware/pico2/board.go`, to revisit once a PIO
+  driver exists or bench numbers show the CPU-driven decode losing edges
+  under load.
 
 ## History
 
@@ -139,6 +151,10 @@ packets for the host.
   around two TinyGo 0.42 gaps that need a bench check.
 - 2026-09-22: the board is selected by the `pico2` hardware profile
   (`board.toml`), replacing `cmd/pi5`'s `--pico-port` flag.
+- 2026-09-24: `firmware/pico2` wires `Hardware.Encoder` to GPIO-interrupt
+  decoding (see Consequences) instead of the PIO path this ADR assumed;
+  `internal/node/picolink` publishes `button_hold` (already specified,
+  previously unwired) alongside `button_event`.
 
 ## Cross-references
 

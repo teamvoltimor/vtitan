@@ -6,6 +6,9 @@ import (
 	"context"
 	"errors"
 	"machine"
+	"runtime/interrupt"
+
+	"github.com/teamvoltimor/vtitan/src/go/pkg/portable/quadrature"
 )
 
 // pwmSlice is the part of TinyGo's RP2 PWM slice (an unexported type) the
@@ -50,6 +53,22 @@ type usbLink struct {
 	serial machine.Serialer
 }
 
+// encoderPins is the wheel encoder's A/B channels as a boardloop.Encoder,
+// decoded on the CPU from GPIO edge interrupts with the portable
+// quadrature.Decoder -- the split that package's own doc comment names
+// "pin interrupts on the Pico 2" as the intended plumbing. See
+// TODO(encoder-pio) in board.go: adr:0098 asked for hardware PIO counting
+// instead, which TinyGo 0.42.0 cannot do.
+//
+// Sample runs in interrupt context on every A or B edge; Counts is read
+// from the main loop. Both cross a runtime/interrupt critical section
+// rather than relying on an int64 read/write being atomic on this 32-bit
+// core.
+type encoderPins struct {
+	decoder quadrature.Decoder
+	a, b    machine.Pin
+}
+
 const nsPerUS = 1000
 
 var errDutyRange = errors.New("pico2: duty fraction outside [0, 1]")
@@ -76,6 +95,26 @@ func (s *servoPWM) SetPulseUS(pulseUS float64) error {
 	level := pulseUS * nsPerUS / servoPeriodNS * float64(s.slice.Top())
 	s.slice.Set(s.channel, uint32(level))
 	return nil
+}
+
+// onEdge re-samples both channels and feeds the decoder, inside a critical
+// section so a Counts read on the main loop cannot observe a torn update.
+// Both pins are read regardless of which one interrupted, since a fast
+// transition can leave the other channel already at its new level by the
+// time this callback runs.
+func (e *encoderPins) onEdge(machine.Pin) {
+	a, b := e.a.Get(), e.b.Get()
+	state := interrupt.Disable()
+	e.decoder.Sample(a, b)
+	interrupt.Restore(state)
+}
+
+// Counts implements boardloop.Encoder.
+func (e *encoderPins) Counts() int64 {
+	state := interrupt.Disable()
+	counts := e.decoder.Counts()
+	interrupt.Restore(state)
+	return counts
 }
 
 // Read copies what the CDC receive buffer already holds, without waiting.
