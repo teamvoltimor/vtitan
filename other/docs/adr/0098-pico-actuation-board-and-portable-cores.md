@@ -155,6 +155,10 @@ packets for the host.
   decoding (see Consequences) instead of the PIO path this ADR assumed;
   `internal/node/picolink` publishes `button_hold` (already specified,
   previously unwired) alongside `button_event`.
+- 2026-09-24: `pkg/boardsim`, a virtual board running the real `boardloop`
+  on in-memory hardware, and end-to-end tests of `picolink` against it. It
+  models any board behind the `boardloop` interfaces, not the Pico 2
+  specifically; the per-board adapter layer still needs the bench.
 
 ## Cross-references
 

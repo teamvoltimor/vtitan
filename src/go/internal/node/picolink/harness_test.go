@@ -217,6 +217,19 @@ func startSession(t *testing.T, cfg picolink.SessionConfig) *harness {
 func startSessionRaw(t *testing.T, cfg picolink.SessionConfig) *harness {
 	t.Helper()
 
+	hostEnd, boardEnd := net.Pipe()
+	// Registered first so it runs last, after the session has stopped.
+	t.Cleanup(func() { _ = boardEnd.Close() })
+	h := startSessionOn(t, cfg, hostEnd)
+	h.board = newFakeBoard(boardEnd)
+	return h
+}
+
+// startSessionOn runs a Session over hostEnd until the test ends, leaving
+// the board end of the link to the caller (h.board stays nil).
+func startSessionOn(t *testing.T, cfg picolink.SessionConfig, hostEnd net.Conn) *harness {
+	t.Helper()
+
 	logs := &logBuffer{}
 	logger := slog.New(slog.NewTextHandler(logs, &slog.HandlerOptions{Level: slog.LevelDebug}))
 	h := &harness{
@@ -244,9 +257,6 @@ func startSessionRaw(t *testing.T, cfg picolink.SessionConfig) *harness {
 	}
 	h.session = session
 
-	hostEnd, boardEnd := net.Pipe()
-	h.board = newFakeBoard(boardEnd)
-
 	ctx, cancel := context.WithCancel(context.Background())
 	h.cancel = cancel
 	go func() { h.done <- session.Run(ctx, hostEnd, h.cmds) }()
@@ -259,7 +269,6 @@ func startSessionRaw(t *testing.T, cfg picolink.SessionConfig) *harness {
 			t.Error("Session.Run did not return after cancellation")
 		}
 		_ = hostEnd.Close()
-		_ = boardEnd.Close()
 	})
 	return h
 }
