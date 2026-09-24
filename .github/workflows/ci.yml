@@ -157,6 +157,26 @@ jobs:
       - name: Config check
         run: python src/tools/configgen.py check
 
+      # The generated Go DTOs must match their schemas. check above only proves
+      # each TOML key is described; it let five navigation DTOs fall behind
+      # their schemas unnoticed. Regenerate with the pinned go-jsonschema and
+      # fail on any difference.
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: src/go/go.mod
+          cache-dependency-path: src/go/go.sum
+
+      - name: Generated DTOs are current
+        run: |
+          python src/tools/configgen.py generate-go
+          git diff --exit-code -- src/go/internal/config/generated
+          untracked=$(git ls-files --others --exclude-standard -- src/go/internal/config/generated)
+          if [ -n "$untracked" ]; then
+            echo "generated DTOs not committed:" >&2
+            echo "$untracked" >&2
+            exit 1
+          fi
+
       # The prose equivalent (ADR 0097): accepted ADRs' Decision/Consequences
       # paths, golangci exclusion scopes, and citations of missing or ignored
       # docs, the last against a baseline that may only shrink.

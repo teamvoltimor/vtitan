@@ -52,6 +52,12 @@ class GoOutput:
     package: str
 
 
+# Pinned so the generated DTOs are reproducible: CI regenerates them and fails
+# on any diff, which a floating @latest would break on every upstream release.
+# Bump deliberately, regenerate, and commit the result in the same change.
+GO_JSONSCHEMA_VERSION = "v0.24.1"
+
+
 # --- pure helpers ----------------------------------------------------------
 
 
@@ -427,7 +433,7 @@ class ConfigTool:
         args = [
             "go",
             "run",
-            "github.com/atombender/go-jsonschema@latest",
+            f"github.com/atombender/go-jsonschema@{GO_JSONSCHEMA_VERSION}",
             "--struct-name-from-title",
             "--only-models",
             "--package",

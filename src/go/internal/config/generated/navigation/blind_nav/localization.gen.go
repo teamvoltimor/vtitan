@@ -24,32 +24,34 @@ type NavigationBlindNavLocalization struct {
 	// consecutive bad scans before re-solving globally (~1.5 s)
 	RelocalizeAfterScans int `json:"relocalize_after_scans" yaml:"relocalize_after_scans" mapstructure:"relocalize_after_scans"`
 
-	// Distance (m) beyond which a global relocalization winner is HELD instead of taken on
-	// the scan that found it, and accepted only when a later global search lands within
-	// jump_confirm_tolerance_m of it. relocalize_min_width_spread_m tests max-min of the
-	// four believed widths, which is not the same question as whether the model is
-	// SYMMETRIC: run_20260915_160804 believed 0.600/0.600/1.000/1.000, a spread of 0.400
-	// that passes easily while the model is exactly mirror-symmetric about both axes, so
-	// every pose has twins that explain the scan as well as it does. (0.63/0.955/0.958 are
-	// that round's TRUE spans measured off /scan; an earlier version of this text cited them
-	// as the belief, which was wrong.) The estimate teleported 2.06 m in 1.26 s, the
+	// Distance (m) beyond which a global relocalization winner is HELD instead of
+	// taken on the scan that found it, and accepted only when a later global search
+	// lands within jump_confirm_tolerance_m of it. relocalize_min_width_spread_m
+	// tests max-min of the four believed widths, which is not the same question as
+	// whether the model is SYMMETRIC: run_20260915_160804 believed
+	// 0.600/0.600/1.000/1.000, a spread of 0.400 that passes easily while the model
+	// is exactly mirror-symmetric about both axes, so every pose has twins that
+	// explain the scan as well as it does. (0.63/0.955/0.958 are that round's TRUE
+	// spans measured off /scan; an earlier version of this text cited them as the
+	// belief, which was wrong.) The estimate teleported 2.06 m in 1.26 s, the
 	// corridor label flipped east to west, the cost fell 0.0316 to 0.0100 so
-	// relocalize_accept_ratio was satisfied, and the planner then replanned 26 waypoints
-	// backwards and swept 213 degrees of yaw in 4.8 s inside an 8 x 26 cm box: the U-turn on
-	// the round that scored 6. WHAT IT ACTUALLY IS, measured over every scan of both
-	// available bags rather than intended: NOT a reconvergence test. At one scan's lag the
-	// genuine rescue reconverges within 5 cm on 95.5% of 555 pairs and the twin on 80-95% of
-	// its own, so both would confirm. It works because the second search is at least
-	// relocalize_after_scans later, and by then the winner has moved WITH the robot (median
-	// 0.309 m against the robot's 0.335 m) against an uncompensated 5 cm tolerance: at its
-	// real cadence it is a STATIONARITY test, and the 160804 twin episode lasted 3 scans
-	// while the car moved 0.3 m. Do NOT add motion compensation, which would restore the
-	// refuted test and accept the twin. COST: on the one genuine rescue
-	// (run_20260907_205830) the first confirmation lands at 10.5 s, not 1.5 s; still far
-	// better than the 48 s divergence it recovered. The real lever is upstream and is not
-	// fixed here: the event only reproduces when a post-stall yaw is paired with a pre-stall
-	// scan, and 1 degree of yaw flips the winner between twins 2.0 m apart at costs 6%
-	// apart. Set to 0.0 to restore the unconditional behaviour.
+	// relocalize_accept_ratio was satisfied, and the planner then replanned 26
+	// waypoints backwards and swept 213 degrees of yaw in 4.8 s inside an 8 x 26 cm
+	// box: the U-turn on the round that scored 6. WHAT IT ACTUALLY IS, measured over
+	// every scan of both available bags rather than intended: NOT a reconvergence
+	// test. At one scan's lag the genuine rescue reconverges within 5 cm on 95.5% of
+	// 555 pairs and the twin on 80-95% of its own, so both would confirm. It works
+	// because the second search is at least relocalize_after_scans later, and by then
+	// the winner has moved WITH the robot (median 0.309 m against the robot's 0.335
+	// m) against an uncompensated 5 cm tolerance: at its real cadence it is a
+	// STATIONARITY test, and the 160804 twin episode lasted 3 scans while the car
+	// moved 0.3 m. Do NOT add motion compensation, which would restore the refuted
+	// test and accept the twin. COST: on the one genuine rescue (run_20260907_205830)
+	// the first confirmation lands at 10.5 s, not 1.5 s; still far better than the 48
+	// s divergence it recovered. The real lever is upstream and is not fixed here:
+	// the event only reproduces when a post-stall yaw is paired with a pre-stall
+	// scan, and 1 degree of yaw flips the winner between twins 2.0 m apart at costs
+	// 6% apart. Set to 0.0 to restore the unconditional behaviour.
 	RelocalizeConfirmDistM float64 `json:"relocalize_confirm_dist_m" yaml:"relocalize_confirm_dist_m" mapstructure:"relocalize_confirm_dist_m"`
 
 	// Mean clipped squared residual (m^2, real returns only) at which a scan counts

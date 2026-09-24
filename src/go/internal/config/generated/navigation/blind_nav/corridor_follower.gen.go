@@ -46,16 +46,6 @@ type NavigationBlindNavCorridorFollower struct {
 	// implies; refuted, ships false.
 	BayExitDrUsesMeasuredYaw bool `json:"bay_exit_dr_uses_measured_yaw" yaml:"bay_exit_dr_uses_measured_yaw" mapstructure:"bay_exit_dr_uses_measured_yaw"`
 
-	// Hold the chassis still until the servo has swung to the FIRST leg's angle, the
-	// way every leg after the first is already budgeted. The opening leg has always
-	// started from centred wheels and driven while the servo slewed.
-	BayExitPrimeSteer bool `json:"bay_exit_prime_steer" yaml:"bay_exit_prime_steer" mapstructure:"bay_exit_prime_steer"`
-
-	// Back straight on the guarded ratchet's reverse leg, rather than mirroring the
-	// lock (a full lock-to-lock servo swing per cycle) or holding it (which
-	// accumulates nothing).
-	BayExitGuardReverseStraight bool `json:"bay_exit_guard_reverse_straight" yaml:"bay_exit_guard_reverse_straight" mapstructure:"bay_exit_guard_reverse_straight"`
-
 	// Ticks before switching to the other legacy exit / handing over; 0 = never.
 	BayExitFallbackFrames int `json:"bay_exit_fallback_frames" yaml:"bay_exit_fallback_frames" mapstructure:"bay_exit_fallback_frames"`
 
@@ -78,6 +68,15 @@ type NavigationBlindNavCorridorFollower struct {
 	// Let a leg that improves an already-violated fin gap run, so the guard does not
 	// veto motion away from the overlap.
 	BayExitGuardOverlapRecovery bool `json:"bay_exit_guard_overlap_recovery" yaml:"bay_exit_guard_overlap_recovery" mapstructure:"bay_exit_guard_overlap_recovery"`
+
+	// Back STRAIGHT on the guarded ratchet's reverse leg. The alternatives are
+	// measured and both cost: mirroring the lock buys rotation but pays a full
+	// lock-to-lock servo swing (1.23 s at servo_slew_rate_rad_s, against legs of
+	// about 0.3 s), while holding the lock is free and accumulates nothing, since at
+	// constant steering magnitude the lateral displacement is a state function of
+	// heading and a closed cycle returns both. A straight reverse keeps the heading
+	// the arc won and buys back the room it spent.
+	BayExitGuardReverseStraight bool `json:"bay_exit_guard_reverse_straight" yaml:"bay_exit_guard_reverse_straight" mapstructure:"bay_exit_guard_reverse_straight"`
 
 	// Hold the forward leg's steering lock through the reverse leg, instead of
 	// re-commanding centre or opposite lock.
@@ -109,6 +108,16 @@ type NavigationBlindNavCorridorFollower struct {
 	// Ticks polled before latching the open side; 1 restores the old tick-1 latch.
 	BayExitOpenSideVotes int `json:"bay_exit_open_side_votes" yaml:"bay_exit_open_side_votes" mapstructure:"bay_exit_open_side_votes"`
 
+	// Hold the chassis still until the servo has swung to the FIRST leg's angle, the
+	// way every leg after the first is already budgeted by _begin_leg. The opening
+	// leg has always started from centred wheels and driven while the servo slewed:
+	// measured inside the pocket the wheel needs 0.62 s to reach lock at
+	// servo_slew_rate_rad_s, the chassis covers the pocket's 6.5 cm of along-wall
+	// slack in about that time, and the exit turns 1.3 degrees instead of the 8 its
+	// turn radius allows, so it reaches the fin ahead with the wheel still on its
+	// way.
+	BayExitPrimeSteer bool `json:"bay_exit_prime_steer" yaml:"bay_exit_prime_steer" mapstructure:"bay_exit_prime_steer"`
+
 	// Distance (m) the reverse-then-swing exit reverses before its forward leg
 	// begins.
 	BayExitReverseM float64 `json:"bay_exit_reverse_m" yaml:"bay_exit_reverse_m" mapstructure:"bay_exit_reverse_m"`
@@ -133,7 +142,8 @@ type NavigationBlindNavCorridorFollower struct {
 	BayExitTargetYawDeg float64 `json:"bay_exit_target_yaw_deg" yaml:"bay_exit_target_yaw_deg" mapstructure:"bay_exit_target_yaw_deg"`
 
 	// Scans the placement test may be retried over before it is given up for the
-	// round; 1 restores the tick-1-only test.
+	// round; 1 restores the tick-1-only test. Bounded so it cannot fire mid-creep at
+	// a corner.
 	BayStartMaxChecks int `json:"bay_start_max_checks" yaml:"bay_start_max_checks" mapstructure:"bay_start_max_checks"`
 
 	// Half-angle (deg) of the sector whose MEDIAN range stands in for the single

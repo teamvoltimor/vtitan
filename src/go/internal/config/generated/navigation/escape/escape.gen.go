@@ -6,6 +6,11 @@ type NavigationEscapeEscape struct {
 	// Consecutive escapes before escalating (longer duration, opposite side)
 	EscalateAfterAttempts int `json:"escalate_after_attempts" yaml:"escalate_after_attempts" mapstructure:"escalate_after_attempts"`
 
+	// Whether an escalated escape also DOUBLES its duration (capped at max_escape_s)
+	// on top of switching side. Doubling a locked reverse doubles the arc it sweeps
+	// blind through the rear occlusion band.
+	EscalateDoublesDuration bool `json:"escalate_doubles_duration" yaml:"escalate_doubles_duration" mapstructure:"escalate_doubles_duration"`
+
 	// Minimum seconds between two side switches from the dwell gate. Without it the
 	// gate fires on nearly every latch once the dwell threshold is met -- measured
 	// 137 firings in one round -- which is the same runaway the naive proximity
@@ -38,11 +43,6 @@ type NavigationEscapeEscape struct {
 	// firing 2-7 times in every round with a 35-170 s stall.
 	EscapeDwellSeconds float64 `json:"escape_dwell_seconds" yaml:"escape_dwell_seconds" mapstructure:"escape_dwell_seconds"`
 
-	// Obstacles-only override of escape_dwell_seconds. ON at 12.0 since 2026-09-17:
-	// the gate switches the escape's committed side, which only Obstacles has, and
-	// the corpus cannot score it because the simulator reproduces no wedge.
-	ObstaclesEscapeDwellSeconds float64 `json:"obstacles_escape_dwell_seconds" yaml:"obstacles_escape_dwell_seconds" mapstructure:"obstacles_escape_dwell_seconds"`
-
 	// Steer the opposite way on an escape's reverse leg so forward and reverse arcs
 	// accumulate rotation. False shared, true for Obstacles.
 	EscapeMirrorsReverse bool `json:"escape_mirrors_reverse" yaml:"escape_mirrors_reverse" mapstructure:"escape_mirrors_reverse"`
@@ -70,24 +70,36 @@ type NavigationEscapeEscape struct {
 	// Maximum K-turn duration (CRITICAL risk)
 	KTurnMaxS float64 `json:"k_turn_max_s" yaml:"k_turn_max_s" mapstructure:"k_turn_max_s"`
 
-	// Decline the locked K-turn and reverse STRAIGHT when anything (raw scan or a
-	// mapped sign) sits in the strip the TAIL sweeps: from the rear bumper back by the
-	// manoeuvre's reverse distance, and out from the tail-side flank by this lateral
-	// reach (m). In reverse the tail curves toward the steer side while the nose
-	// swings away; the wanted-side gate only checks the nose side. Kept locked when
-	// the rear room is under one minimum K-turn, since the straight leg would be cut
-	// to nothing. 0 disables.
-	KTurnTailClearanceM float64 `json:"k_turn_tail_clearance_m" yaml:"k_turn_tail_clearance_m" mapstructure:"k_turn_tail_clearance_m"`
-
 	// Minimum K-turn duration (s) at OBSTACLE risk; converted to control ticks at
 	// load.
 	KTurnMinS float64 `json:"k_turn_min_s" yaml:"k_turn_min_s" mapstructure:"k_turn_min_s"`
+
+	// Decline the locked K-turn and reverse STRAIGHT when anything (raw scan or a
+	// mapped sign) sits in the strip the TAIL sweeps: from the rear bumper back by
+	// the manoeuvre's reverse distance, and out from the tail-side flank by this
+	// lateral reach (m). In reverse the tail curves toward the steer side while the
+	// nose swings away; the wanted-side gate only checks the nose side. Kept locked
+	// when the rear room is under one minimum K-turn, since the straight leg would be
+	// cut to nothing. 0 disables.
+	KTurnTailClearanceM float64 `json:"k_turn_tail_clearance_m" yaml:"k_turn_tail_clearance_m" mapstructure:"k_turn_tail_clearance_m"`
 
 	// Hard cap on any single escalated escape duration
 	MaxEscapeS float64 `json:"max_escape_s" yaml:"max_escape_s" mapstructure:"max_escape_s"`
 
 	// Position samples needed before recent-movement distance is trusted.
 	MinHistoryForDistance int `json:"min_history_for_distance" yaml:"min_history_for_distance" mapstructure:"min_history_for_distance"`
+
+	// Obstacles-only override of escalate_doubles_duration. Off: escalation only
+	// switches the side. Measured 2026-09-16: the escalated (doubled) K-turn is the
+	// one that shoves an unmapped pillar 57 mm in one manoeuvre, and the wedged
+	// rounds are already 56-95% K-turn, so more of it adds nothing.
+	ObstaclesEscalateDoublesDuration bool `json:"obstacles_escalate_doubles_duration" yaml:"obstacles_escalate_doubles_duration" mapstructure:"obstacles_escalate_doubles_duration"`
+
+	// Obstacles-only override of escape_dwell_seconds. ON at 12.0 since 2026-09-17:
+	// the gate switches the escape's committed side, which only Obstacles has, and
+	// the corpus cannot score it because the simulator reproduces no wedge -- the
+	// ruler is the recorded session the threshold was fitted on.
+	ObstaclesEscapeDwellSeconds float64 `json:"obstacles_escape_dwell_seconds" yaml:"obstacles_escape_dwell_seconds" mapstructure:"obstacles_escape_dwell_seconds"`
 
 	// Obstacles-only override of escape_mirrors_reverse: steer the opposite way on
 	// the escape's reverse leg.
@@ -105,6 +117,14 @@ type NavigationEscapeEscape struct {
 	// passing sits beside the rear flank, inside the LIDAR's rear occlusion band, so
 	// the mapped sign positions are often the only thing that can see it.
 	ObstaclesKTurnTailClearanceM float64 `json:"obstacles_k_turn_tail_clearance_m" yaml:"obstacles_k_turn_tail_clearance_m" mapstructure:"obstacles_k_turn_tail_clearance_m"`
+
+	// Obstacles-only override of post_escape_creep_s.
+	ObstaclesPostEscapeCreepS float64 `json:"obstacles_post_escape_creep_s" yaml:"obstacles_post_escape_creep_s" mapstructure:"obstacles_post_escape_creep_s"`
+
+	// Obstacles-only override of setup_reverse_room_m. Measured 2026-09-15: after an
+	// escape the planner hands back the same target 97% of the time and 62% re-fire
+	// within 2 s; the escape gains 9.8 cm, which is not a turning radius.
+	ObstaclesSetupReverseRoomM float64 `json:"obstacles_setup_reverse_room_m" yaml:"obstacles_setup_reverse_room_m" mapstructure:"obstacles_setup_reverse_room_m"`
 
 	// Obstacles value for side_correction_follows_committed_sign; only Obstacles has
 	// a committed pass side. SHIPS ON, and it is the key that carries the effect:
@@ -130,12 +150,30 @@ type NavigationEscapeEscape struct {
 	// retrace-reverse as known-free.
 	PoseTrailMinStepM float64 `json:"pose_trail_min_step_m" yaml:"pose_trail_min_step_m" mapstructure:"pose_trail_min_step_m"`
 
+	// Seconds of creep-speed cap after a FRONT-threat reverse escape ends. Measured
+	// 2026-09-16 on the corpus: at re-approach the lane target sits 0.17-0.25 m ahead
+	// with 0.06-0.18 m of lateral offset, and at the 0.35 m capped turn radius the
+	// chassis can shift only 0.06 m in that depth; at creep the radius is 0.24 m and
+	// the reach 0.11 m. Speed IS the alignment authority on this chassis. 0 disables.
+	PostEscapeCreepS float64 `json:"post_escape_creep_s" yaml:"post_escape_creep_s" mapstructure:"post_escape_creep_s"`
+
 	// Reverse speed during escapes (m/s)
 	RevSpeed float64 `json:"rev_speed" yaml:"rev_speed" mapstructure:"rev_speed"`
 
 	// Road-wheel steering angle (deg) held while reversing out; was a normalised
 	// fraction of full lock.
 	RevSteerDeg float64 `json:"rev_steer_deg" yaml:"rev_steer_deg" mapstructure:"rev_steer_deg"`
+
+	// Maximum straight setup reverses chained after one K-turn before the chassis
+	// re-approaches regardless.
+	SetupReverseLegs int `json:"setup_reverse_legs" yaml:"setup_reverse_legs" mapstructure:"setup_reverse_legs"`
+
+	// Forward bumper gap the chassis needs before it re-approaches after a
+	// FRONT-threat K-turn. While the gap is under this, the escape chains STRAIGHT
+	// setup reverses (up to setup_reverse_legs, each one k_turn_min_s long,
+	// authorised like any reverse) instead of driving back at what it just escaped.
+	// On this chassis the turn radius is what the room has to fit. 0 disables.
+	SetupReverseRoomM float64 `json:"setup_reverse_room_m" yaml:"setup_reverse_room_m" mapstructure:"setup_reverse_room_m"`
 
 	// Let a FORWARD side correction bias the planned steering instead of replacing
 	// it. Ships off; refuted.

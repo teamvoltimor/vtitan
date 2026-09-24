@@ -40,6 +40,31 @@ type NavigationSignsSignRouter struct {
 	// Speed fraction during the exploratory first lap. 1.0 = no reduction.
 	ExploreLapSpeedFrac float64 `json:"explore_lap_speed_frac" yaml:"explore_lap_speed_frac" mapstructure:"explore_lap_speed_frac"`
 
+	// Replay the sign detections taken DURING the bay exit into the map once the
+	// travel direction settles, instead of discarding them. The node returns out of
+	// the control tick while the exit manoeuvre holds the chassis (`if
+	// self._resolve_direction(): return`), so CoreNavigator.step and its ingest never
+	// run and the sign map is EMPTY for the 8-14 s the pocket costs: MEASURED over 18
+	// in-bay rounds, the first pillar's first sighting and its commitment are the
+	// same instant in 13 of them, which is why that pass fails 33.3% against ~10% for
+	// every later one, and 56% when it must cross. The evidence is already there to
+	// take: over 11 clockwise rounds, 820 of 2,199 accepted observations (37.3%) land
+	// within 0.35 m of the exact pillar the round then commits to, in 9 of 11 rounds.
+	// Buffered rather than ingested live because `direction` is None for the whole
+	// exit and the published yaw then moves by pi at the hand-over in every
+	// counterclockwise round (-111 to +73.5 degrees measured), so a live projection
+	// files every counterclockwise sighting on the far side of the mat: as published
+	// only 1.4% land on the pillar against 37.3% clockwise, and replaying
+	// counterclockwise with the yaw turned by pi recovers 5.5% to 44.2% on any real
+	// pillar while destroying the clockwise figure (71.2% to 0.1%). So the samples
+	// carry the yaw they were taken at and are re-stamped by the same heading_delta
+	// _commit_direction already applies to the creep WIDTH samples. Ships OFF: 63% of
+	// those observations land somewhere OTHER than the pillar, and this map is
+	// already known to invent pillars, so the flag needs its junk measured on the
+	// bags before it can be trusted. The corpus cannot score it at all -- its
+	// scenarios start outside the bay.
+	IngestDuringBayExit bool `json:"ingest_during_bay_exit" yaml:"ingest_during_bay_exit" mapstructure:"ingest_during_bay_exit"`
+
 	// minimum confidence to accept a camera color update
 	MinConfidence float64 `json:"min_confidence" yaml:"min_confidence" mapstructure:"min_confidence"`
 
@@ -81,6 +106,9 @@ type NavigationSignsSignRouter struct {
 	// Obstacles-only.
 	SignAwareSpeed bool `json:"sign_aware_speed" yaml:"sign_aware_speed" mapstructure:"sign_aware_speed"`
 
+	// Extra margin (m) beyond the chassis and sign half-widths when passing a sign.
+	SignClearanceMarginM float64 `json:"sign_clearance_margin_m" yaml:"sign_clearance_margin_m" mapstructure:"sign_clearance_margin_m"`
+
 	// Lowest speed sign_commit_fit_speed may command, in m/s. Below ~0.06 m/s the fit
 	// is asking for a radius the chassis cannot deliver at all, and a crawl that slow
 	// costs the round clock more than it buys.
@@ -96,19 +124,6 @@ type NavigationSignsSignRouter struct {
 	// Obstacles-only by construction (needs a committed sign).
 	SignCommitFitSpeed bool `json:"sign_commit_fit_speed" yaml:"sign_commit_fit_speed" mapstructure:"sign_commit_fit_speed"`
 
-	// Speed, in m/s, at which sign_crossing_reverse_legs judges the arc: the turn
-	// radius is a speed curve on this chassis, so the run-up a crossing needs depends
-	// on the speed it is driven at.
-	SignCrossingReverseFitMps float64 `json:"sign_crossing_reverse_fit_mps" yaml:"sign_crossing_reverse_fit_mps" mapstructure:"sign_crossing_reverse_fit_mps"`
-
-	// Straight reverse legs the navigator may spend per committed sign, before any
-	// contact, while the committed crossing's single arc does not fit the run-up
-	// left. 0 disables.
-	SignCrossingReverseLegs int `json:"sign_crossing_reverse_legs" yaml:"sign_crossing_reverse_legs" mapstructure:"sign_crossing_reverse_legs"`
-
-	// Extra margin (m) beyond the chassis and sign half-widths when passing a sign.
-	SignClearanceMarginM float64 `json:"sign_clearance_margin_m" yaml:"sign_clearance_margin_m" mapstructure:"sign_clearance_margin_m"`
-
 	// Along-track distance (m) within which a routed sign predicted to clip the
 	// chassis triggers the OFF sign-contact evade.
 	SignContactDistM float64 `json:"sign_contact_dist_m" yaml:"sign_contact_dist_m" mapstructure:"sign_contact_dist_m"`
@@ -119,6 +134,21 @@ type NavigationSignsSignRouter struct {
 	// Road-wheel angle (degrees) steered away from the offending sign by the OFF
 	// sign-contact evade.
 	SignContactSteerDeg float64 `json:"sign_contact_steer_deg" yaml:"sign_contact_steer_deg" mapstructure:"sign_contact_steer_deg"`
+
+	// Speed, in m/s, at which sign_crossing_reverse_legs judges the arc: the turn
+	// radius is a speed curve on this chassis, so the run-up a crossing needs depends
+	// on the speed it is driven at. Defaults to the slow tier committed passes are
+	// driven at.
+	SignCrossingReverseFitMps float64 `json:"sign_crossing_reverse_fit_mps" yaml:"sign_crossing_reverse_fit_mps" mapstructure:"sign_crossing_reverse_fit_mps"`
+
+	// Straight reverse legs (each k_turn_min_s at rev_speed) the navigator may spend
+	// per committed sign, BEFORE any contact, while the committed crossing's single
+	// arc does not fit the run-up left: shortfall = sqrt(2 * lateral *
+	// R(sign_crossing_reverse_fit_mps)) - nose run-up, with lateral = (chassis
+	// half-diagonal + sign half-width) - the offset already held on the legal side.
+	// The budget re-arms when the committed sign changes; a reverse into unseen
+	// ground spends it. 0 disables.
+	SignCrossingReverseLegs int `json:"sign_crossing_reverse_legs" yaml:"sign_crossing_reverse_legs" mapstructure:"sign_crossing_reverse_legs"`
 
 	// Drop the deform when it pushes the aim point against the path's direction of
 	// travel; inert while the lane suppresses the deform.
@@ -150,29 +180,6 @@ type NavigationSignsSignRouter struct {
 
 	// Fraction of the full lane offset actually applied.
 	SignLaneOffsetFrac float64 `json:"sign_lane_offset_frac" yaml:"sign_lane_offset_frac" mapstructure:"sign_lane_offset_frac"`
-
-	// Replay the sign detections taken DURING the bay exit into the map once the travel
-	// direction settles, instead of discarding them. The node returns out of the control
-	// tick while the exit manoeuvre holds the chassis (`if self._resolve_direction():
-	// return`), so CoreNavigator.step and its ingest never run and the sign map is EMPTY for
-	// the 8-14 s the pocket costs: MEASURED over 18 in-bay rounds, the first pillar's first
-	// sighting and its commitment are the same instant in 13 of them, which is why that pass
-	// fails 33.3% against ~10% for every later one, and 56% when it must cross. The evidence
-	// is already there to take: over 11 clockwise rounds, 820 of 2,199 accepted observations
-	// (37.3%) land within 0.35 m of the exact pillar the round then commits to, in 9 of 11
-	// rounds. Buffered rather than ingested live because `direction` is None for the whole
-	// exit and the published yaw then moves by pi at the hand-over in every counterclockwise
-	// round (-111 to +73.5 degrees measured), so a live projection files every
-	// counterclockwise sighting on the far side of the mat: as published only 1.4% land on
-	// the pillar against 37.3% clockwise, and replaying counterclockwise with the yaw turned
-	// by pi recovers 5.5% to 44.2% on any real pillar while destroying the clockwise figure
-	// (71.2% to 0.1%). So the samples carry the yaw they were taken at and are re-stamped by
-	// the same heading_delta _commit_direction already applies to the creep WIDTH samples.
-	// Ships OFF: 63% of those observations land somewhere OTHER than the pillar, and this
-	// map is already known to invent pillars, so the flag needs its junk measured on the
-	// bags before it can be trusted. The corpus cannot score it at all -- its scenarios
-	// start outside the bay.
-	IngestDuringBayExit bool `json:"ingest_during_bay_exit" yaml:"ingest_during_bay_exit" mapstructure:"ingest_during_bay_exit"`
 
 	// Lane planner (the shipped sign-avoidance path)
 	SignLanePlanner bool `json:"sign_lane_planner" yaml:"sign_lane_planner" mapstructure:"sign_lane_planner"`
@@ -236,6 +243,13 @@ type NavigationSignsSignRouter struct {
 	// How close (m) an observation must be to a legal sign-lattice cell to claim it.
 	SlotAcceptRadiusM float64 `json:"slot_accept_radius_m" yaml:"slot_accept_radius_m" mapstructure:"slot_accept_radius_m"`
 
+	// A section may not hold beliefs at ADJACENT depth lines (0.5 m apart): the WRO
+	// table never pairs depth 1.5 with 1.0 or 2.0, so such a pair is one pillar whose
+	// reading straddles the midpoint between two rows. The adjacent cell is treated
+	// like the other lateral of the same depth: heaviest wins, re-pointed without the
+	// hysteresis margin. Depths 1.0 and 2.0 stay two pillars.
+	SlotExclusiveAdjacentDepths bool `json:"slot_exclusive_adjacent_depths" yaml:"slot_exclusive_adjacent_depths" mapstructure:"slot_exclusive_adjacent_depths"`
+
 	// Summed detection confidence a lattice cell needs before it may hold a sign
 	// slot.
 	SlotMinEvidence float64 `json:"slot_min_evidence" yaml:"slot_min_evidence" mapstructure:"slot_min_evidence"`
@@ -243,13 +257,6 @@ type NavigationSignsSignRouter struct {
 	// Factor by which a challenger cell must out-weigh the incumbent cell to take its
 	// sign slot.
 	SlotRepointMargin float64 `json:"slot_repoint_margin" yaml:"slot_repoint_margin" mapstructure:"slot_repoint_margin"`
-
-	// A section may not hold beliefs at ADJACENT depth lines (0.5 m apart): the WRO
-	// table never pairs depth 1.5 with 1.0 or 2.0, so such a pair is one pillar whose
-	// reading straddles the midpoint between two rows. The adjacent cell is treated
-	// like the other lateral of the same depth: heaviest wins, re-pointed without the
-	// hysteresis margin. Depths 1.0 and 2.0 stay two pillars.
-	SlotExclusiveAdjacentDepths bool `json:"slot_exclusive_adjacent_depths" yaml:"slot_exclusive_adjacent_depths" mapstructure:"slot_exclusive_adjacent_depths"`
 
 	// Assign sign evidence to the rulebook's 24 legal grid cells instead of
 	// clustering camera reports freely. ON; the simulator cannot screen it.

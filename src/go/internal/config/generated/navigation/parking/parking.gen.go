@@ -15,8 +15,13 @@ type NavigationParkingParking struct {
 	DeriveLotFromInBayStart bool `json:"derive_lot_from_in_bay_start" yaml:"derive_lot_from_in_bay_start" mapstructure:"derive_lot_from_in_bay_start"`
 
 	// Extra metres, beyond the fins' own depth and the chassis half-width, the
-	// pursuit target is held off the parking lot while driving past it. 0.0 disables
-	// it.
+	// pursuit target is held off the parking lot while driving PAST it: the target's
+	// depth from the lot's wall is raised to ParkingLotSpecs.LENGTH +
+	// RobotSpecs.WIDTH/2 + this. Acts only inside the lot's along-wall span (widened
+	// by half a chassis length), only in the lot's own corridor, never once the park
+	// manoeuvre has engaged, and never when it would move the target toward the
+	// illegal side of a committed sign -- a wrong-side pass ends the round and a
+	// scrape does not. 0.0 disables it.
 	LotKeepOutM float64 `json:"lot_keep_out_m" yaml:"lot_keep_out_m" mapstructure:"lot_keep_out_m"`
 
 	// closest approach to a parking-bay marker fin
