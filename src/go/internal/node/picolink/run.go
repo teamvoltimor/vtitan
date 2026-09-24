@@ -116,8 +116,10 @@ func Serve(ctx context.Context, cfg Config, logger *slog.Logger, link io.ReadWri
 		joints = nats.NewPublisher[*actuationv1.JointStates](conn, actuationv1.JointStatesSubject)
 	}
 	var button ButtonPublisher
+	var buttonHold ButtonHoldPublisher
 	if cfg.Session.Button != nil {
 		button = nats.NewPublisher[*uiv1.ButtonEvent](conn, uiv1.ButtonEventSubject)
+		buttonHold = nats.NewPublisher[*uiv1.ButtonHold](conn, uiv1.ButtonHoldSubject)
 	}
 	session, err := NewSession(
 		logger,
@@ -125,6 +127,7 @@ func Serve(ctx context.Context, cfg Config, logger *slog.Logger, link io.ReadWri
 		nats.NewPublisher[*actuationv1.MotorStatus](conn, actuationv1.MotorStatusSubject),
 		joints,
 		button,
+		buttonHold,
 	)
 	if err != nil {
 		return err

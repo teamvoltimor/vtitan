@@ -43,6 +43,13 @@ type ButtonPublisher interface {
 	Publish(msg *uiv1.ButtonEvent) error
 }
 
+// ButtonHoldPublisher is the transport call Session makes for the
+// continuous hold-progress signal; *nats.Publisher[*uiv1.ButtonHold]
+// satisfies it.
+type ButtonHoldPublisher interface {
+	Publish(msg *uiv1.ButtonHold) error
+}
+
 // SessionConfig is what a Session needs besides its transport.
 type SessionConfig struct {
 	// Board is the Config sent on every Hello (see BoardConfig).
@@ -119,9 +126,12 @@ type Session struct {
 
 	// buttonEval runs on the host clock, exactly as the Zero's button
 	// driver does; buttonPressed is the last raw edge the board sent.
-	buttonEval    *driverbutton.Evaluator
-	buttonPressed bool
-	buttonPub     ButtonPublisher
+	buttonEval       *driverbutton.Evaluator
+	buttonPressed    bool
+	buttonPub        ButtonPublisher
+	buttonThresholds driverbutton.Thresholds
+	buttonHoldPub    ButtonHoldPublisher
+	buttonWasPressed bool
 
 	clockMu   sync.Mutex
 	clock     ClockSync
@@ -178,6 +188,7 @@ func NewSession(
 	status StatusPublisher,
 	joints JointStatesPublisher,
 	button ButtonPublisher,
+	buttonHold ButtonHoldPublisher,
 ) (*Session, error) {
 	if status == nil {
 		return nil, errors.New("picolink: a MotorStatus publisher is required")
@@ -215,8 +226,13 @@ func NewSession(
 		if button == nil {
 			return nil, errors.New("picolink: button thresholds are configured but no ButtonEvent publisher was given")
 		}
+		if buttonHold == nil {
+			return nil, errors.New("picolink: button thresholds are configured but no ButtonHold publisher was given")
+		}
 		s.buttonEval = driverbutton.NewEvaluator(cfg.Button.Thresholds)
+		s.buttonThresholds = cfg.Button.Thresholds
 		s.buttonPub = button
+		s.buttonHoldPub = buttonHold
 	}
 	return s, nil
 }
@@ -581,12 +597,37 @@ func (s *Session) pollButton(now time.Time) {
 	if s.buttonEval == nil {
 		return
 	}
-	event := s.buttonEval.Sample(s.buttonPressed, now)
-	if event == nil {
+	if event := s.buttonEval.Sample(s.buttonPressed, now); event != nil {
+		if err := s.buttonPub.Publish(nodebutton.EventMessageFor(*event)); err != nil {
+			s.logger.Error("picolink: publishing ButtonEvent", "error", err)
+		}
+	}
+	s.publishButtonHold(now)
+}
+
+// publishButtonHold tells the display how long the button has been held and
+// what comes next, the Go analog of button_node.py's
+// _publish_hold_progress: published every tick while the button is down,
+// plus one final empty frame on release so the display clears instead of
+// freezing on the last number.
+func (s *Session) publishButtonHold(now time.Time) {
+	held, pressed := s.buttonEval.Held(now)
+	if !pressed {
+		if s.buttonWasPressed {
+			s.buttonWasPressed = false
+			if err := s.buttonHoldPub.Publish(nodebutton.HoldMessageFor(0, nil)); err != nil {
+				s.logger.Error("picolink: publishing ButtonHold", "error", err)
+			}
+		}
 		return
 	}
-	if err := s.buttonPub.Publish(nodebutton.EventMessageFor(*event)); err != nil {
-		s.logger.Error("picolink: publishing ButtonEvent", "error", err)
+	s.buttonWasPressed = true
+	thresholds := []nodebutton.HoldThreshold{
+		{At: s.buttonThresholds.LongPressThreshold, Kind: "long"},
+		{At: s.buttonThresholds.ShutdownPressThreshold, Kind: "shutdown"},
+	}
+	if err := s.buttonHoldPub.Publish(nodebutton.HoldMessageFor(held, thresholds)); err != nil {
+		s.logger.Error("picolink: publishing ButtonHold", "error", err)
 	}
 }
 

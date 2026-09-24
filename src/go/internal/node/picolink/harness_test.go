@@ -46,17 +46,20 @@ type commandSource chan *actuationv1.AckermannCmd
 
 type buttonSink chan *uiv1.ButtonEvent
 
+type buttonHoldSink chan *uiv1.ButtonHold
+
 // harness is one running Session over a pipe to a fakeBoard.
 type harness struct {
-	board   *fakeBoard
-	session *picolink.Session
-	status  statusSink
-	joints  jointSink
-	cmds    commandSource
-	button  buttonSink
-	logs    *logBuffer
-	cancel  context.CancelFunc
-	done    chan error
+	board      *fakeBoard
+	session    *picolink.Session
+	status     statusSink
+	joints     jointSink
+	cmds       commandSource
+	button     buttonSink
+	buttonHold buttonHoldSink
+	logs       *logBuffer
+	cancel     context.CancelFunc
+	done       chan error
 }
 
 const (
@@ -72,6 +75,11 @@ func (s statusSink) Publish(msg *actuationv1.MotorStatus) error {
 
 func (j jointSink) Publish(msg *actuationv1.JointStates) error {
 	j <- msg
+	return nil
+}
+
+func (b buttonHoldSink) Publish(msg *uiv1.ButtonHold) error {
+	b <- msg
 	return nil
 }
 
@@ -212,22 +220,25 @@ func startSessionRaw(t *testing.T, cfg picolink.SessionConfig) *harness {
 	logs := &logBuffer{}
 	logger := slog.New(slog.NewTextHandler(logs, &slog.HandlerOptions{Level: slog.LevelDebug}))
 	h := &harness{
-		status: make(statusSink, sinkDepth),
-		joints: make(jointSink, sinkDepth),
-		cmds:   make(commandSource),
-		button: make(buttonSink, sinkDepth),
-		logs:   logs,
-		done:   make(chan error, 1),
+		status:     make(statusSink, sinkDepth),
+		joints:     make(jointSink, sinkDepth),
+		cmds:       make(commandSource),
+		button:     make(buttonSink, sinkDepth),
+		buttonHold: make(buttonHoldSink, sinkDepth),
+		logs:       logs,
+		done:       make(chan error, 1),
 	}
 	var joints picolink.JointStatesPublisher
 	if cfg.Encoder != nil {
 		joints = h.joints
 	}
 	var button picolink.ButtonPublisher
+	var buttonHold picolink.ButtonHoldPublisher
 	if cfg.Button != nil {
 		button = h.button
+		buttonHold = h.buttonHold
 	}
-	session, err := picolink.NewSession(logger, cfg, h.status, joints, button)
+	session, err := picolink.NewSession(logger, cfg, h.status, joints, button, buttonHold)
 	if err != nil {
 		t.Fatalf("NewSession: %v", err)
 	}

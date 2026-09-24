@@ -102,6 +102,18 @@ func (e *Evaluator) Sample(rawPressed bool, now time.Time) *Event {
 	return nil
 }
 
+// Held reports how long the current press has lasted at now, and whether the
+// button is currently pressed (the debounced state, not the raw pin). It
+// returns false, zero while released -- the continuous counterpart to
+// Sample's one-shot Event, for a poll loop that wants to report hold
+// progress every tick rather than only at a debounce or threshold crossing.
+func (e *Evaluator) Held(now time.Time) (time.Duration, bool) {
+	if !e.state.pressed {
+		return 0, false
+	}
+	return now.Sub(e.state.pressedSince), true
+}
+
 // debouncedTransition handles a raw press/release that has just cleared the
 // debounce window -- the direct analog of _on_pressed/_on_released.
 func (e *Evaluator) debouncedTransition(pressed bool, now time.Time) *Event {

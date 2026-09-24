@@ -200,6 +200,34 @@ func TestEvaluator_Sample(t *testing.T) {
 	}
 }
 
+// Held is the continuous counterpart to Sample: it must report the
+// in-progress duration while pressed (even between events) and fall back to
+// zero, false once released.
+func TestEvaluator_Held(t *testing.T) {
+	t.Parallel()
+
+	eval := button.NewEvaluator(testThresholds)
+	t0 := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+
+	if held, pressed := eval.Held(t0); pressed || held != 0 {
+		t.Fatalf("Held before any sample = %v, %v, want 0, false", held, pressed)
+	}
+
+	eval.Sample(true, t0)
+	eval.Sample(true, t0.Add(25*time.Millisecond)) // debounced press at 25ms
+
+	if held, pressed := eval.Held(t0.Add(60 * time.Millisecond)); !pressed || held != 35*time.Millisecond {
+		t.Fatalf("Held mid-press = %v, %v, want 35ms, true", held, pressed)
+	}
+
+	eval.Sample(false, t0.Add(80*time.Millisecond))
+	eval.Sample(false, t0.Add(105*time.Millisecond)) // debounced release at 105ms
+
+	if held, pressed := eval.Held(t0.Add(200 * time.Millisecond)); pressed || held != 0 {
+		t.Fatalf("Held after release = %v, %v, want 0, false", held, pressed)
+	}
+}
+
 func assertEvents(t *testing.T, got, want []wantEvent) {
 	t.Helper()
 
