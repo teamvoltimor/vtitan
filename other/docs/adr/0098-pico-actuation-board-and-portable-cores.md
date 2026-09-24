@@ -159,6 +159,9 @@ packets for the host.
   on in-memory hardware, and end-to-end tests of `picolink` against it. It
   models any board behind the `boardloop` interfaces, not the Pico 2
   specifically; the per-board adapter layer still needs the bench.
+- 2026-09-24: `boardsim` emulates the link (latency, jitter, byte
+  corruption) and the loop tick from `board_sim.toml`. The shipped link
+  values are USB full-speed estimates, not measurements.
 
 ## Cross-references
 

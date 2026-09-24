@@ -1,0 +1,70 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://vtitan.local/schemas/hardware/board_sim.schema.json",
+  "title": "HardwareBoardSim",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "loop_tick_ms": {
+      "type": "number",
+      "exclusiveMinimum": 0,
+      "description": "Period in milliseconds at which the virtual actuation board (pkg/boardsim) steps boardloop. Emulates the firmware's loop rate; read only in simulation, never by a real board.",
+      "x-journal": "adr:0098-pico-actuation-board-and-portable-cores"
+    },
+    "seed": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Seed of the link emulation's jitter and byte corruption, so a simulated run repeats.",
+      "x-journal": "adr:0098-pico-actuation-board-and-portable-cores"
+    },
+    "to_board": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Emulation of the host-to-board direction of the link (Config, Command, Ping).",
+      "properties": {
+        "latency_ms": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Fixed delay in milliseconds added to every chunk of bytes sent to the board."
+        },
+        "jitter_ms": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Maximum extra delay in milliseconds, drawn uniformly per chunk; chunks are never reordered."
+        },
+        "corrupt_rate": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Probability per byte that one random bit is flipped, to exercise the boardlink decoder's resynchronization."
+        }
+      },
+      "required": ["latency_ms", "jitter_ms", "corrupt_rate"]
+    },
+    "to_host": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Emulation of the board-to-host direction of the link (Hello, Status, Odometry, Button, Pong).",
+      "properties": {
+        "latency_ms": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Fixed delay in milliseconds added to every frame the board sends."
+        },
+        "jitter_ms": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Maximum extra delay in milliseconds, drawn uniformly per frame; frames are never reordered."
+        },
+        "corrupt_rate": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Probability per byte that one random bit is flipped, to exercise the host's boardlink decoder."
+        }
+      },
+      "required": ["latency_ms", "jitter_ms", "corrupt_rate"]
+    }
+  },
+  "required": ["loop_tick_ms", "seed", "to_board", "to_host"]
+}

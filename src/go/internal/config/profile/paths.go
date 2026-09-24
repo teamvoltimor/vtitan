@@ -71,6 +71,12 @@ const DefaultLidarLaunchTOMLPath = "src/config/hardware/lidar.toml"
 // is the generated hardware.HardwareBoard DTO.
 const DefaultBoardTOMLPath = "src/config/hardware/board.toml"
 
+// DefaultBoardSimTOMLPath is src/config/hardware/board_sim.toml, relative
+// to the repo root: the virtual actuation board's loop rate and link
+// emulation (pkg/boardsim), read only in simulation. The file's shape is the
+// generated hardware.HardwareBoardSim DTO.
+const DefaultBoardSimTOMLPath = "src/config/hardware/board_sim.toml"
+
 // DefaultMotorsTOMLPath is
 // src/config/hardware/motors/motors.toml, relative to the repo
 // root. The file's shape is the generated motors.HardwareMotorsMotors DTO.

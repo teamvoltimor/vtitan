@@ -21,6 +21,13 @@
 // drains it into a buffer, because boardloop requires a Read that never
 // blocks.
 //
+// Options.Link emulates the link per direction: a fixed latency, a jitter
+// that never reorders bytes (the link is a stream), and a per-byte bit-flip
+// rate that exercises the boardlink decoders' resynchronization, all from
+// one Seed so a run repeats. The zero value is an ideal link. In this
+// repository the values come from src/config/hardware/board_sim.toml
+// through internal/hwconfig.BoardSim; this package reads no files itself.
+//
 // The Encoder can follow a simple wheel model: with
 // Options.CountsPerSecondAtFullDuty set, every Step advances the count by
 // the duty the Loop actually wrote to the Drive (after InvertDrive), so a

@@ -5,9 +5,12 @@ import (
 	"errors"
 	"math"
 	"net"
+	"path/filepath"
 	"testing"
 	"time"
 
+	"github.com/teamvoltimor/vtitan/src/go/internal/config/profile"
+	"github.com/teamvoltimor/vtitan/src/go/internal/hwconfig"
 	"github.com/teamvoltimor/vtitan/src/go/internal/node/picolink"
 	actuationv1 "github.com/teamvoltimor/vtitan/src/go/internal/schema/pb/vtitan/actuation/v1"
 	uiv1 "github.com/teamvoltimor/vtitan/src/go/internal/schema/pb/vtitan/ui/v1"
@@ -237,4 +240,46 @@ func TestVirtualBoard_DriveFailureReportsFault(t *testing.T) {
 	v.keepCommanding(t, &actuationv1.AckermannCmd{Speed: 0.5})
 	v.waitState(t, actuationv1.MotorStatus_STATE_FAULT)
 	v.waitLog(t, "actuator write failure")
+}
+
+// The session configures the board and drives it over the link emulation
+// shipped in board_sim.toml, loaded the way a simulation would load it.
+func TestVirtualBoard_ShippedLinkEmulation(t *testing.T) {
+	t.Setenv(profile.EnvVar, "")
+
+	opts, err := hwconfig.BoardSim(filepath.Join("..", "..", "..", "..", ".."))
+	if err != nil {
+		t.Fatalf("hwconfig.BoardSim: %v", err)
+	}
+	v := startVirtual(t, picolink.SessionConfig{Board: sampleBoard}, opts)
+	v.waitState(t, actuationv1.MotorStatus_STATE_IDLE)
+
+	v.keepCommanding(t, &actuationv1.AckermannCmd{Speed: 0.5})
+	waitFor(t, "a nonzero duty over the shipped link", func() bool {
+		return v.board.Drive.Duty() != 0
+	})
+}
+
+// A slow, jittery link that corrupts bytes in both directions still
+// converges: the board drops the damaged frames, resynchronizes on the
+// frame delimiter, answers Hello until a Config survives, and a clean
+// Command eventually lands. At 2% per byte roughly half of all frames are
+// damaged, and the test insists some were, so it cannot pass vacuously.
+func TestVirtualBoard_SurvivesACorruptLink(t *testing.T) {
+	t.Parallel()
+
+	noisy := boardsim.Direction{Latency: 5 * time.Millisecond, Jitter: 5 * time.Millisecond, CorruptRate: 0.02}
+	v := startVirtual(t, picolink.SessionConfig{Board: sampleBoard},
+		boardsim.Options{Link: boardsim.LinkConfig{ToBoard: noisy, ToHost: noisy, Seed: 11}})
+	v.waitState(t, actuationv1.MotorStatus_STATE_IDLE)
+
+	const speedMPS = 0.5
+	want := -actuation.SpeedToNormalized(speedMPS, float64(sampleBoard.SpeedScalePctPerMPS)) // InvertDrive
+	v.keepCommanding(t, &actuationv1.AckermannCmd{Speed: speedMPS})
+	waitFor(t, "the board to drop a corrupted frame", func() bool {
+		return v.board.Counters().FramesDropped > 0
+	})
+	waitFor(t, "the commanded duty through a corrupting link", func() bool {
+		return math.Abs(v.board.Drive.Duty()-want) < 1e-9
+	})
 }

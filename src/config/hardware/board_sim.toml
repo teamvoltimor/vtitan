@@ -1,0 +1,21 @@
+#:schema ../../model/hardware/board_sim.schema.json
+# Emulation of the virtual actuation board (pkg/boardsim): its loop rate and
+# its link to the host. Read only in simulation, never by a real board.
+# The link values are ESTIMATES, not measurements: USB full-speed CDC polls
+# in 1 ms frames, so about 1 ms each way plus up to one frame of jitter, and
+# USB's own CRC makes byte corruption rare. Replace them with the RTT that
+# picolink's ClockSync measures on the bench once a board exists.
+# Rationale: adr:0098-pico-actuation-board-and-portable-cores
+
+loop_tick_ms = 1.0
+seed = 1
+
+[to_board]
+latency_ms = 1.0
+jitter_ms = 1.0
+corrupt_rate = 0.0
+
+[to_host]
+latency_ms = 1.0
+jitter_ms = 1.0
+corrupt_rate = 0.0

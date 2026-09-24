@@ -20,6 +20,9 @@ type Options struct {
 	BootFaults boardlink.Faults
 	// Tick is the step period; zero means DefaultTick.
 	Tick time.Duration
+	// Link emulates the link's delay and corruption; the zero value is an
+	// ideal link.
+	Link LinkConfig
 	// CountsPerSecondAtFullDuty drives the Encoder from the commanded
 	// duty; zero leaves the count to the test (Encoder.Add).
 	CountsPerSecondAtFullDuty float64
@@ -46,47 +49,42 @@ type Board struct {
 	loop *boardloop.Loop
 }
 
-// link adapts an io.ReadWriter to boardloop.Link: a goroutine drains the
-// read side into buf, so Read never blocks.
-type link struct {
-	rw io.ReadWriter
-
-	mu   sync.Mutex
-	buf  []byte
-	err  error
-	done chan struct{}
-}
-
-// writeDeadliner is the part of net.Conn a link uses when it has it.
-type writeDeadliner interface {
-	SetWriteDeadline(t time.Time) error
-}
-
 // DefaultTick is how often Run steps the Loop. The firmware steps in a
 // tight loop; 1 ms is well under every boardlink interval and command
 // timeout the host configures.
 const DefaultTick = time.Millisecond
 
-// writeTimeout bounds one frame write, so a host that stopped reading makes
-// Run return instead of hanging it.
-const writeTimeout = time.Second
+const (
+	// writeTimeout bounds one frame write, so a host that stopped reading
+	// ends the link instead of hanging it.
+	writeTimeout = time.Second
+	// readChunk is the read size a board's link reader asks for.
+	readChunk = boardlink.ReadChunkSize
+)
 
 // ErrLinkClosed is returned by Run when the link's read side ends.
 var ErrLinkClosed = errors.New("boardsim: link closed")
 
-// New builds an unconfigured Board over rw. It starts reading rw at once.
+// New builds an unconfigured Board over rw. It starts reading rw at once;
+// close rw to release the link's goroutines.
 func New(rw io.ReadWriter, opts Options) (*Board, error) {
-	if opts.Tick <= 0 {
+	if opts.Tick < 0 {
+		return nil, fmt.Errorf("boardsim: tick %v must not be negative", opts.Tick)
+	}
+	if opts.Tick == 0 {
 		opts.Tick = DefaultTick
+	}
+	if err := opts.Link.Validate(); err != nil {
+		return nil, err
 	}
 	b := &Board{
 		Drive:   &Drive{},
 		Servo:   &Servo{},
 		Encoder: &Encoder{},
 		Button:  &Button{},
-		link:    &link{rw: rw, done: make(chan struct{})},
 		opts:    opts,
 	}
+	b.link = newLink(rw, opts.Link)
 	hw := boardloop.Hardware{Link: b.link, Drive: b.Drive, Servo: b.Servo}
 	if !opts.NoEncoder {
 		hw.Encoder = b.Encoder
@@ -99,7 +97,6 @@ func New(rw io.ReadWriter, opts Options) (*Board, error) {
 		return nil, fmt.Errorf("boardsim: %w", err)
 	}
 	b.loop = loop
-	go b.link.pump()
 	return b, nil
 }
 
@@ -150,50 +147,4 @@ func (b *Board) step(now, dt time.Duration) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	b.loop.Step(now)
-}
-
-// Read copies buffered bytes into p without blocking. Once the read side
-// has ended and the buffer is empty it returns the read error.
-func (l *link) Read(p []byte) (int, error) {
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	n := copy(p, l.buf)
-	l.buf = l.buf[n:]
-	if n == 0 && l.err != nil {
-		return 0, l.err
-	}
-	return n, nil
-}
-
-// Write sends one frame, bounded by writeTimeout when rw supports
-// deadlines.
-func (l *link) Write(p []byte) (int, error) {
-	if d, ok := l.rw.(writeDeadliner); ok {
-		if err := d.SetWriteDeadline(time.Now().Add(writeTimeout)); err != nil {
-			return 0, fmt.Errorf("boardsim: write deadline: %w", err)
-		}
-	}
-	n, err := l.rw.Write(p)
-	if err != nil {
-		return n, fmt.Errorf("boardsim: write: %w", err)
-	}
-	return n, nil
-}
-
-// pump drains rw into buf until it fails, then closes done.
-func (l *link) pump() {
-	defer close(l.done)
-	chunk := make([]byte, boardlink.ReadChunkSize)
-	for {
-		n, err := l.rw.Read(chunk)
-		l.mu.Lock()
-		l.buf = append(l.buf, chunk[:n]...)
-		if err != nil {
-			l.err = fmt.Errorf("boardsim: read: %w", err)
-		}
-		l.mu.Unlock()
-		if err != nil {
-			return
-		}
-	}
 }
