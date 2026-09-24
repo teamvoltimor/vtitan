@@ -28,6 +28,24 @@ has a board binary to cut over TO (0095) and its composition is verified off
 the robot (`test/smoke`); the missing criterion is unchanged. A hybrid migration is
 explicitly forbidden.
 
+Parity target (defined 2026-09-24). "Verified full parity" is FUNCTIONAL
+parity, not bit-for-bit equality with Python. Go is ready to cut over when all
+of these hold:
+
+1. On the Open and Obstacles corpora, same scenarios and seeds, Go meets or
+   beats the frozen Python oracle on EACH outcome separately: laps completed,
+   finished in time, wrong-side passes, contacts. A better aggregate that
+   loses on any one of them is not parity.
+2. The corpus validity gaps listed under Evidence are closed first, since a
+   comparison on an invalid corpus proves nothing.
+3. The Go navigator completes a full Open round and a full Obstacles round on
+   the robot (the criterion already named above).
+
+The bag-replay gate stays as a regression check on the components where equal
+outputs are meaningful; it is not the cutover criterion. After the cutover
+Python is frozen as a read-only rollback and new work, including generalizing
+the platform beyond WRO 2026, happens in Go only.
+
 Both stacks read the SAME `src/config` TOML tree; Go has no separate config tree
 and loads the same paths through its own profile loader.
 
@@ -80,6 +98,9 @@ real maintenance cost.
 - f0f13549 2026-09-11: wire the Go track navigator for blind-mode racing; add
   `--config-root` and `--profiles`; add the Go systemd units.
 - d6f01332 2026-09-14: source every Go config from TOML, not code defaults.
+- 2026-09-24: define the parity target as functional parity per outcome, with
+  Python frozen after the cutover. The team is not competing again in WRO 2026,
+  so the cutover no longer races a competition date.
 
 ## Cross-references
 
