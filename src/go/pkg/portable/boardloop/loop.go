@@ -89,7 +89,10 @@ type Counters struct {
 	CommandsApplied  uint32
 	CommandsIgnored  uint32
 	CommandsRejected uint32
-	WatchdogStops    uint32
+	// CommandsSuperseded counts commands dropped unapplied because a newer
+	// one arrived in the same Step (see the package doc's Commands).
+	CommandsSuperseded uint32
+	WatchdogStops      uint32
 }
 
 // Loop is the board's control loop. Build it with New and call Step in a
@@ -121,6 +124,11 @@ type Loop struct {
 
 	buttonPressed bool
 	haveButton    bool
+
+	// pendingCmd is the newest Command received in the current Step, applied
+	// once the Step has read everything (see the package doc's Commands).
+	pendingCmd  boardlink.Command
+	havePending bool
 
 	nextHello    time.Duration
 	nextStatus   time.Duration
@@ -174,8 +182,10 @@ func (l *Loop) Counters() Counters {
 }
 
 // receive drains up to maxReadsPerStep reads from the link through the
-// decoder and handles every complete frame.
+// decoder, handles every complete frame, then applies the newest Command
+// among them.
 func (l *Loop) receive(now time.Duration) {
+	defer l.flushCommand(now)
 	for range maxReadsPerStep {
 		n, err := l.hw.Link.Read(l.rxBuf[:])
 		if err != nil {
@@ -202,9 +212,15 @@ func (l *Loop) receive(now time.Duration) {
 func (l *Loop) handle(now time.Duration) {
 	switch l.rx.Type {
 	case boardlink.TypeConfig:
+		// A Command sent before this Config is applied first, as it would
+		// have been had they arrived in separate Steps.
+		l.flushCommand(now)
 		l.applyConfig(now, l.rx.Config)
 	case boardlink.TypeCommand:
-		l.applyCommand(now, l.rx.Command)
+		if l.havePending {
+			l.counters.CommandsSuperseded++
+		}
+		l.pendingCmd, l.havePending = l.rx.Command, true
 	case boardlink.TypePing:
 		l.tx.Type = boardlink.TypePong
 		l.tx.Pong = boardlink.Pong{HostTimeUS: l.rx.Ping.HostTimeUS, BoardTimeUS: micros(now)}
@@ -259,6 +275,15 @@ func (l *Loop) unconfigure(now time.Duration) {
 		l.configured = false
 	}
 	l.nextHello = now
+}
+
+// flushCommand applies the pending Command, if any.
+func (l *Loop) flushCommand(now time.Duration) {
+	if !l.havePending {
+		return
+	}
+	l.havePending = false
+	l.applyCommand(now, l.pendingCmd)
 }
 
 // applyCommand is internal/node/motor's applyCommand: reject a non-finite

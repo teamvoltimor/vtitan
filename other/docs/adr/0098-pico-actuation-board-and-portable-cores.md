@@ -168,6 +168,10 @@ packets for the host.
   `picolink` now reports it as a reset. They also found that commands carry
   no send time, so the board applies a stall's backlog as if fresh (open,
   platform plan item 2.6).
+- 2026-09-24: `boardloop` applies only the newest Command of each Step and
+  counts the rest in `CommandsSuperseded`, so a stall's released backlog is
+  no longer replayed; the residual case is in the package doc. Firmware
+  78,484 -> 79,052 B flash.
 
 ## Cross-references
 

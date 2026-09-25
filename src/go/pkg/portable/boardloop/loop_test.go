@@ -458,3 +458,72 @@ func TestStep_DoesNotAllocate(t *testing.T) {
 		t.Errorf("Step allocates %v times per call, want 0", allocs)
 	}
 }
+
+// A backlog released at once (a link that stalled) is not replayed: only
+// the newest command of the Step reaches the actuators.
+func TestCommand_BacklogAppliesOnlyTheNewest(t *testing.T) {
+	t.Parallel()
+
+	h := newHarness(t, 0, false)
+	h.configure()
+	h.queueCommand(0.9, -0.3)
+	h.queueCommand(0.8, 0.3)
+	h.queueCommand(testSpeedMPS, testSteerRad)
+	h.step()
+
+	if len(h.servo.pulses) != 1 || len(h.drive.speeds) != 1 {
+		t.Fatalf("writes = %v, want one servo and one drive write", h.ev.list)
+	}
+	if !near(h.servo.pulses[0], wantPulseUS) || !near(h.drive.speeds[0], wantDuty) {
+		t.Errorf("applied pulse %v, duty %v; want the newest command's %v, %v",
+			h.servo.pulses[0], h.drive.speeds[0], wantPulseUS, wantDuty)
+	}
+	c := h.loop.Counters()
+	if c.CommandsApplied != 1 || c.CommandsSuperseded != 2 {
+		t.Errorf("counters applied %d, superseded %d; want 1 and 2", c.CommandsApplied, c.CommandsSuperseded)
+	}
+}
+
+// A newest command that is non-finite is rejected, and the older ones in
+// its batch are not applied in its place.
+func TestCommand_NonFiniteNewestIsNotReplacedByOlder(t *testing.T) {
+	t.Parallel()
+
+	h := newHarness(t, 0, false)
+	h.configure()
+	h.queueCommand(testSpeedMPS, testSteerRad)
+	h.queueCommand(float32(math.NaN()), 0)
+	h.step()
+
+	if len(h.ev.list) != 0 {
+		t.Fatalf("writes = %v, want none", h.ev.list)
+	}
+	if c := h.loop.Counters(); c.CommandsRejected != 1 || c.CommandsSuperseded != 1 {
+		t.Errorf("counters rejected %d, superseded %d; want 1 and 1", c.CommandsRejected, c.CommandsSuperseded)
+	}
+}
+
+// A Command followed by a Config in the same Step is applied before the
+// Config, which then stops and centers, exactly as in separate Steps.
+func TestCommand_BeforeConfigInOneStepKeepsOrder(t *testing.T) {
+	t.Parallel()
+
+	h := newHarness(t, 0, false)
+	h.configure()
+	h.queueCommand(testSpeedMPS, testSteerRad)
+	h.queueConfig(validConfig())
+	h.step()
+
+	want := []string{"servo", "drive", "drive", "servo"}
+	if len(h.ev.list) != len(want) {
+		t.Fatalf("writes = %v, want command (servo, drive) then the Config's stop (drive, servo)", h.ev.list)
+	}
+	for i, w := range want {
+		if h.ev.list[i][:len(w)] != w {
+			t.Fatalf("writes = %v, want %v order", h.ev.list, want)
+		}
+	}
+	if !near(h.drive.speeds[len(h.drive.speeds)-1], 0) {
+		t.Errorf("final duty = %v, want 0 after the Config", h.drive.speeds[len(h.drive.speeds)-1])
+	}
+}

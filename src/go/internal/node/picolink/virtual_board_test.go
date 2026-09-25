@@ -334,9 +334,9 @@ func TestFailsafe_ShortStallKeepsDriving(t *testing.T) {
 
 // A stall longer than the board's command timeout stops the car on the
 // board's own authority, around CommandTimeoutMS after the last command
-// got through, and driving resumes when the link does. The backlog is then
-// applied as it arrives: commands carry no send time, so the board cannot
-// tell a stale command from a fresh one.
+// got through, and driving resumes when the link does. The backlog the
+// stall released is not replayed: the board applies only the newest
+// command of each Step and supersedes the rest.
 func TestFailsafe_LongStallStopsThenRecovers(t *testing.T) {
 	t.Parallel()
 
@@ -358,8 +358,13 @@ func TestFailsafe_LongStallStopsThenRecovers(t *testing.T) {
 	waitFor(t, "driving to resume after the stall", func() bool {
 		return math.Abs(v.board.Drive.Duty()-drivingDuty()) < 1e-9
 	})
-	t.Logf("stopped %v into the stall; commands applied during/after it: %d",
-		stoppedAfter.Round(time.Millisecond), v.board.Counters().CommandsApplied-applied)
+	c := v.board.Counters()
+	// About 24 commands queue behind a 1.2 s stall at one per 50 ms.
+	if c.CommandsSuperseded < 10 {
+		t.Errorf("CommandsSuperseded = %d, want the released backlog (about 24) collapsed", c.CommandsSuperseded)
+	}
+	t.Logf("stopped %v into the stall; applied %d, superseded %d since it began",
+		stoppedAfter.Round(time.Millisecond), c.CommandsApplied-applied, c.CommandsSuperseded)
 }
 
 // When the board goes silent past the host's link timeout, the host

@@ -47,6 +47,25 @@
 // its Config was refused. Keeping the old configuration instead would leave
 // the board driving on a profile the host no longer has.
 //
+// # Commands
+//
+// Of the Commands received in one Step, only the newest is applied; the
+// others count in Counters.CommandsSuperseded. Commands carry no send time,
+// so the board cannot judge a command's age, but it can see when several
+// arrive at once: that is a link that stalled and then released its
+// backlog, and applying the backlog in order would replay seconds-old
+// steering after the board's own watchdog had already stopped the car. The
+// newest command of a released backlog is the one the host sent last, just
+// before the link recovered. The rule is judged on that newest command
+// alone: if it is non-finite it is rejected as usual and the older ones are
+// not applied in its place. A Config ends the batch: a Command received
+// before it is applied first, as it would have been in an earlier Step.
+//
+// What this does not cover: a host that stopped sending during the stall.
+// Then the newest queued command is itself stale and is applied once, until
+// the watchdog stops the car again. Closing that needs a send time on
+// Command and a clock the board can compare it with.
+//
 // # Status
 //
 // Status goes out every StatusIntervalMS, and immediately on configuration
