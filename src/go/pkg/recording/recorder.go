@@ -217,6 +217,24 @@ func (r *RunRecorder) Photos() *PhotoCapture {
 	return r.photos
 }
 
+// WriteMetadata appends an MCAP metadata record, name mapped to entries,
+// for facts about the run as a whole rather than a message stream: what a
+// test or a simulation injected, so the bag says it. Opens the bag first.
+func (r *RunRecorder) WriteMetadata(name string, entries map[string]string) error {
+	if err := r.Open(); err != nil {
+		return err
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.mcapW == nil {
+		return fmt.Errorf("recording: writing metadata %s: recorder closed", name)
+	}
+	if err := r.mcapW.WriteMetadata(&mcap.Metadata{Name: name, Metadata: entries}); err != nil {
+		return fmt.Errorf("recording: writing metadata %s: %w", name, err)
+	}
+	return nil
+}
+
 // Close finalizes the bag, video, and any open handles. Safe to call once.
 func (r *RunRecorder) Close() error {
 	r.mu.Lock()

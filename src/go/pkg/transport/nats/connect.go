@@ -29,6 +29,9 @@ func Connect(ctx context.Context, cfg Config) (*nats.Conn, error) {
 	if err := validator.New().Struct(cfg); err != nil {
 		return nil, fmt.Errorf("nats: invalid config: %w", err)
 	}
+	if err := cfg.Faults.Validate(); err != nil {
+		return nil, err
+	}
 
 	opts := []nats.Option{
 		nats.Name(cfg.Name),
@@ -39,6 +42,7 @@ func Connect(ctx context.Context, cfg Config) (*nats.Conn, error) {
 		nats.PingInterval(cfg.PingInterval),
 		nats.MaxPingsOutstanding(cfg.MaxPingsOutstanding),
 	}
+	opts = append(opts, faultOptions(cfg.Faults)...)
 	if cfg.Logger != nil {
 		log := cfg.Logger
 		opts = append(opts,
@@ -61,6 +65,7 @@ func Connect(ctx context.Context, cfg Config) (*nats.Conn, error) {
 		attempts++
 		conn, err := nats.Connect(cfg.URL, opts...)
 		if err == nil {
+			registerFaults(conn, cfg)
 			return conn, nil
 		}
 		lastErr = err
@@ -83,4 +88,25 @@ func Connect(ctx context.Context, cfg Config) (*nats.Conn, error) {
 		}
 	}
 	return nil, fmt.Errorf("nats: connecting to %s (after %d attempt(s)): %w", cfg.URL, attempts, lastErr)
+}
+
+// faultOptions forgets a connection's fault plan when it closes.
+func faultOptions(f Faults) []nats.Option {
+	if !f.active() {
+		return nil
+	}
+	return []nats.Option{nats.ClosedHandler(func(c *nats.Conn) { plans.Delete(c) })}
+}
+
+// registerFaults makes cfg's fault plan the one NewSubscriber applies on
+// conn, and says so loudly: a faulty connection in a race would be a bug.
+func registerFaults(conn *nats.Conn, cfg Config) {
+	if !cfg.Faults.active() {
+		return
+	}
+	plans.Store(conn, cfg.Faults)
+	if cfg.Logger != nil {
+		cfg.Logger.Warn("nats: injecting faults into subscriptions",
+			"seed", cfg.Faults.Seed, "subjects", len(cfg.Faults.Subjects))
+	}
 }

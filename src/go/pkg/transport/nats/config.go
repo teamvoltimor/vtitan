@@ -56,6 +56,10 @@ type Config struct {
 	// operator can see (and the navigator can react to) link state changes.
 	// Optional; nil disables callbacks.
 	Logger *slog.Logger
+	// Faults is injected into every Subscriber opened on the connection,
+	// for tests and simulation. The zero value injects nothing and leaves
+	// the plain synchronous subscription in place.
+	Faults Faults
 }
 
 const (

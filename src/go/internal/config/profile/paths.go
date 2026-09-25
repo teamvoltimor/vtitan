@@ -77,6 +77,12 @@ const DefaultBoardTOMLPath = "src/config/hardware/board.toml"
 // generated hardware.HardwareBoardSim DTO.
 const DefaultBoardSimTOMLPath = "src/config/hardware/board_sim.toml"
 
+// DefaultNATSFaultsTOMLPath is src/config/hardware/nats_faults.toml,
+// relative to the repo root: the faults injected into the NATS messages a
+// node receives (pkg/transport/nats Faults), for tests and simulation. The
+// file's shape is the generated hardware.HardwareNatsFaults DTO.
+const DefaultNATSFaultsTOMLPath = "src/config/hardware/nats_faults.toml"
+
 // DefaultMotorsTOMLPath is
 // src/config/hardware/motors/motors.toml, relative to the repo
 // root. The file's shape is the generated motors.HardwareMotorsMotors DTO.

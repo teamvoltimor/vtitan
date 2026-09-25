@@ -2,6 +2,7 @@ package nats
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/nats-io/nats.go"
@@ -14,10 +15,15 @@ import (
 // the blocking Read(ctx) shape already used by driver.Driver[T] and
 // button.Driver -- one consistent pattern for "block until the next value
 // arrives or ctx is done" across the whole module.
+//
+// When the connection's fault plan (Config.Faults) names the subject, the
+// messages go through a faultQueue instead, fed by an async subscription so
+// each message is stamped when it arrives rather than when Read asks.
 type Subscriber[T proto.Message] struct {
 	sub     *nats.Subscription
-	subject string
+	faults  *faultQueue
 	newT    func() T
+	subject string
 }
 
 // NewSubscriber subscribes to subject on conn. M is the concrete protobuf
@@ -30,14 +36,22 @@ func NewSubscriber[M any, P interface {
 	*M
 	proto.Message
 }](conn *nats.Conn, subject string) (*Subscriber[P], error) {
-	sub, err := conn.SubscribeSync(subject)
+	s := &Subscriber[P]{subject: subject, newT: func() P {
+		var m M
+		return &m
+	}}
+
+	var err error
+	if sf, seed, ok := faultsFor(conn, subject); ok {
+		s.faults = newFaultQueue(subject, sf, seed)
+		s.sub, err = conn.Subscribe(subject, s.faults.receive)
+	} else {
+		s.sub, err = conn.SubscribeSync(subject)
+	}
 	if err != nil {
 		return nil, fmt.Errorf("nats: subscribing to subject %s: %w", subject, err)
 	}
-	return &Subscriber[P]{sub: sub, subject: subject, newT: func() P {
-		var m M
-		return &m
-	}}, nil
+	return s, nil
 }
 
 // Read blocks until the next message arrives on the Subscriber's subject,
@@ -46,16 +60,43 @@ func NewSubscriber[M any, P interface {
 func (s *Subscriber[T]) Read(ctx context.Context) (T, error) {
 	var zero T
 
-	msg, err := s.sub.NextMsgWithContext(ctx)
+	data, err := s.next(ctx)
 	if err != nil {
 		return zero, fmt.Errorf("nats: reading from subject %s: %w", s.subject, err)
 	}
 
 	out := s.newT()
-	if err = proto.Unmarshal(msg.Data, out); err != nil {
+	if err = proto.Unmarshal(data, out); err != nil {
 		return zero, fmt.Errorf("nats: unmarshaling message from subject %s: %w", s.subject, err)
 	}
+	if s.faults != nil {
+		s.faults.addNoise(out)
+	}
 	return out, nil
+}
+
+func (s *Subscriber[T]) next(ctx context.Context) ([]byte, error) {
+	if s.faults == nil {
+		msg, err := s.sub.NextMsgWithContext(ctx)
+		if err != nil {
+			return nil, err //nolint:wrapcheck // wrapped by Read
+		}
+		return msg.Data, nil
+	}
+	data, err := s.faults.next(ctx.Done())
+	if errors.Is(err, errReadDone) {
+		return nil, ctx.Err() //nolint:wrapcheck // wrapped by Read
+	}
+	return data, err
+}
+
+// FaultStats reports what the connection's fault plan did to this
+// subject, and false when the plan does not name it.
+func (s *Subscriber[T]) FaultStats() (FaultStats, bool) {
+	if s.faults == nil {
+		return FaultStats{}, false
+	}
+	return s.faults.snapshot(), true
 }
 
 // Close unsubscribes. Safe to call at most once.

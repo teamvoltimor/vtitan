@@ -1,0 +1,20 @@
+#:schema ../../model/hardware/nats_faults.schema.json
+# Faults injected into the NATS messages each Go node receives
+# (pkg/transport/nats Faults): delay, jitter, bursty loss, freezes that
+# repeat the last message, reordering and Gaussian noise, per subject.
+# For tests and the virtual robot only. Ships with NO subjects: a default
+# that invents faults would bias every run. Enable them per experiment from
+# a profile overlay, for example:
+#
+#   [[subjects]]
+#   subject = "vtitan.sensor.v1.scan"
+#   delay_ms = 40.0
+#   drop_rate = 0.05
+#   drop_burst = 3.0
+#
+# The seed and the plan are written into the run's MCAP as the
+# "nats_faults" metadata record, so a bag says what was injected.
+# Rationale: adr:0086-simulator-realism
+
+seed = 1
+subjects = []

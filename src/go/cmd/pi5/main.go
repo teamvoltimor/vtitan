@@ -172,6 +172,20 @@ func runMain() int {
 	}
 	logger.Info("pi5: actuation board", "kind", board.Kind, "serial_port", board.SerialPort)
 
+	// Every subsystem connects with the same fault plan, so a faulty run is
+	// faulty the same way in each of them. Nav loads its own from the same
+	// file and records it.
+	faults, err := hwconfig.NATSFaults(cfg.ConfigRoot, profile.ParseNames(cfg.Profiles))
+	if err != nil {
+		logger.Error("pi5: resolving the NATS fault plan", "error", err)
+		return 1
+	}
+	natsConfig := func() nats.Config {
+		c := nats.DefaultConfig(cfg.NATSURL, cfg.NodeName)
+		c.Faults = faults
+		return c
+	}
+
 	supervisor, err := supervise.New(supervise.DefaultConfig(), logger)
 	if err != nil {
 		logger.Error("pi5: creating supervisor", "error", err)
@@ -188,7 +202,7 @@ func runMain() int {
 	// publishing by the time it first steps.
 	captureCfg := capture.Config{
 		Camera:          camCfg,
-		NATS:            nats.DefaultConfig(cfg.NATSURL, cfg.NodeName),
+		NATS:            natsConfig(),
 		RunsRoot:        cfg.RunsRoot,
 		FPS:             cfg.fps,
 		Video:           cfg.video,
@@ -198,7 +212,7 @@ func runMain() int {
 	}
 	imuCfg := nodeimu.Config{
 		Driver: imu.Config{Port: imu.DefaultPort, BaudRate: imu.DefaultBaudRate},
-		NATS:   nats.DefaultConfig(cfg.NATSURL, cfg.NodeName),
+		NATS:   natsConfig(),
 	}
 	// The IMU wiring is a hardware fact, so it comes from the active profile
 	// rather than from a pi5 flag: --config-root plus VTITAN_HARDWARE_PROFILE
@@ -208,7 +222,7 @@ func runMain() int {
 	// is restarted with backoff, which is the intended behavior, not an error).
 	lidarCfg := nodelidar.Config{
 		Driver: lidar.Config{Port: lidar.DefaultPort, BaudRate: lidar.DefaultBaudRate},
-		NATS:   nats.DefaultConfig(cfg.NATSURL, cfg.NodeName),
+		NATS:   natsConfig(),
 	}
 	if cfg.ConfigRoot != "" {
 		imuCfg.Driver = hwconfig.IMU(logger, cfg.ConfigRoot)
@@ -216,7 +230,7 @@ func runMain() int {
 	}
 
 	telemetryCfg := nodetelemetry.Config{
-		NATS:   nats.DefaultConfig(cfg.NATSURL, cfg.NodeName),
+		NATS:   natsConfig(),
 		RateHz: nodetelemetry.DefaultRateHz,
 	}
 
@@ -262,7 +276,7 @@ func runMain() int {
 			}
 			return picolink.Run(ctx, picolink.Config{
 				Port:    board.SerialPort,
-				NATS:    nats.DefaultConfig(cfg.NATSURL, cfg.NodeName),
+				NATS:    natsConfig(),
 				Session: sessionCfg,
 			}, logger)
 		}})
@@ -278,7 +292,7 @@ func runMain() int {
 	// configured, so it joins only when one is given.
 	if cfg.robotID != "" {
 		smCfg := nodestatemachine.Config{
-			NATS:        nats.DefaultConfig(cfg.NATSURL, cfg.NodeName),
+			NATS:        natsConfig(),
 			BackendAddr: cfg.backendAddr,
 			RobotID:     cfg.robotID,
 		}

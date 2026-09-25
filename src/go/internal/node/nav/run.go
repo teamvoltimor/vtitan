@@ -16,6 +16,7 @@ import (
 	"github.com/teamvoltimor/vtitan/src/go/internal/config/generated"
 	"github.com/teamvoltimor/vtitan/src/go/internal/config/generated/navigation/sensors"
 	"github.com/teamvoltimor/vtitan/src/go/internal/config/profile"
+	"github.com/teamvoltimor/vtitan/src/go/internal/hwconfig"
 	"github.com/teamvoltimor/vtitan/src/go/internal/nav/bayexit"
 	"github.com/teamvoltimor/vtitan/src/go/internal/nav/controllers"
 	"github.com/teamvoltimor/vtitan/src/go/internal/nav/corridorestimator"
@@ -296,9 +297,9 @@ func Run(ctx context.Context, logger *slog.Logger, cfg Config) error {
 		return err
 	}
 	profiles := profile.ParseNames(cfg.Profiles)
-	conn, err := nats.Connect(ctx, nats.DefaultConfig(cfg.NATSURL, cfg.NodeName))
+	conn, faults, err := connect(ctx, cfg, profiles, logger)
 	if err != nil {
-		return err //nolint:wrapcheck // Connect already wraps with "nats: ..." context
+		return err
 	}
 	defer conn.Close()
 
@@ -409,7 +410,7 @@ func Run(ctx context.Context, logger *slog.Logger, cfg Config) error {
 
 	logger.Info("track-navigator: connected", "nats_url", cfg.NATSURL, "rate_hz", cfg.RateHz)
 
-	rec, closeRec, err := startRecording(cfg, logger)
+	rec, closeRec, err := startRecording(cfg, faults, logger)
 	if err != nil {
 		return err
 	}
@@ -548,7 +549,9 @@ func loadStaleTimeout(logger *slog.Logger, configRoot string) time.Duration {
 // startRecording opens a run recorder when --record is set, returning the
 // recorder and a cleanup function that closes it. With --record off it
 // returns a no-op cleanup and a nil recorder.
-func startRecording(cfg Config, logger *slog.Logger) (rec *recording.RunRecorder, closeRec func(), err error) {
+func startRecording(
+	cfg Config, faults nats.Faults, logger *slog.Logger,
+) (rec *recording.RunRecorder, closeRec func(), err error) {
 	if !cfg.Record {
 		return nil, func() {}, nil
 	}
@@ -560,11 +563,41 @@ func startRecording(cfg Config, logger *slog.Logger) (rec *recording.RunRecorder
 		return nil, nil, fmt.Errorf("track-navigator: opening run: %w", err)
 	}
 	logger.Info("track-navigator: recording run", "dir", rec.Dir())
-	return rec, func() {
+	closeRec = func() {
 		if closeErr := rec.Close(); closeErr != nil {
 			logger.Error("track-navigator: closing run", "error", closeErr)
 		}
-	}, nil
+	}
+	// A faulty run's bag says what was injected, so nobody mistakes it for
+	// a clean one.
+	if entries := faults.Metadata(); entries != nil {
+		if err = rec.WriteMetadata("nats_faults", entries); err != nil {
+			closeRec()
+			return nil, nil, fmt.Errorf("track-navigator: recording the fault plan: %w", err)
+		}
+	}
+	return rec, closeRec, nil
+}
+
+// connect opens nav's NATS connection with the fault plan of cfg's config
+// root, returning the plan too so the run's recording can state it.
+func connect(
+	ctx context.Context, cfg Config, profiles []string, logger *slog.Logger,
+) (*natsio.Conn, nats.Faults, error) {
+	faults, err := hwconfig.NATSFaults(cfg.ConfigRoot, profiles)
+	if err != nil {
+		return nil, nats.Faults{}, err //nolint:wrapcheck // already wrapped with "nats faults: ..." context
+	}
+	natsCfg := nats.DefaultConfig(cfg.NATSURL, cfg.NodeName)
+	natsCfg.Faults = faults
+	conn, err := nats.Connect(ctx, natsCfg)
+	if err != nil {
+		return nil, nats.Faults{}, err //nolint:wrapcheck // Connect already wraps with "nats: ..." context
+	}
+	if entries := faults.Metadata(); entries != nil {
+		logger.Warn("track-navigator: injecting NATS faults", "plan", entries)
+	}
+	return conn, faults, nil
 }
 
 // stepLoop drives nav.Step at rateHz until ctx is done. When rec is non-nil it

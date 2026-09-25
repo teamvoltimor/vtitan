@@ -1,0 +1,89 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://vtitan.local/schemas/hardware/nats_faults.schema.json",
+  "title": "HardwareNatsFaults",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "seed": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Seed of every random fault draw, so a faulty run repeats. Each subject draws from its own stream derived from the seed and the subject.",
+      "x-journal": "adr:0086-simulator-realism"
+    },
+    "subjects": {
+      "type": "array",
+      "description": "Faults injected into the messages a process receives, one entry per NATS subject (pkg/transport/nats Faults). Empty injects nothing. Read by every Go node that loads this file; for tests and simulation, never for a race.",
+      "x-journal": "adr:0086-simulator-realism",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "subject": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Exact NATS subject the faults apply to; wildcards are rejected."
+          },
+          "delay_ms": {
+            "type": "number",
+            "minimum": 0,
+            "default": 0,
+            "description": "Fixed delay in milliseconds before a received message is handed to the reader."
+          },
+          "jitter_ms": {
+            "type": "number",
+            "minimum": 0,
+            "default": 0,
+            "description": "Maximum extra delay in milliseconds, drawn uniformly per message; order is kept."
+          },
+          "drop_rate": {
+            "type": "number",
+            "minimum": 0,
+            "exclusiveMaximum": 1,
+            "default": 0,
+            "description": "Long-run fraction of messages lost, in bursts (Gilbert-Elliott); 0 disables loss."
+          },
+          "drop_burst": {
+            "type": "number",
+            "minimum": 1,
+            "default": 1,
+            "description": "Mean number of consecutive messages lost once a loss starts; 1 gives independent losses."
+          },
+          "freeze_rate_hz": {
+            "type": "number",
+            "minimum": 0,
+            "default": 0,
+            "description": "Average number of freezes starting per second (Poisson); while frozen every message is replaced by the last one let through, as a stuck driver republishing its last reading. 0 disables freezes."
+          },
+          "freeze_ms": {
+            "type": "number",
+            "minimum": 0,
+            "default": 0,
+            "description": "How long each freeze lasts, in milliseconds."
+          },
+          "reorder_rate": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1,
+            "default": 0,
+            "description": "Probability that a message is held back and delivered right after the next one."
+          },
+          "noise_sigma": {
+            "type": "number",
+            "minimum": 0,
+            "default": 0,
+            "description": "Standard deviation of zero-mean Gaussian noise added to float and double fields, in each field's own units."
+          },
+          "noise_fields": {
+            "type": "array",
+            "items": { "type": "string" },
+            "default": [],
+            "description": "Names of the fields noise_sigma applies to, at any depth; empty applies it to every float and double field."
+          }
+        },
+        "required": ["subject"]
+      }
+    }
+  },
+  "required": ["seed", "subjects"]
+}
