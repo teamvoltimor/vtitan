@@ -1,6 +1,6 @@
 # vTitan platform plan
 
-Date: 2026-09-24. Status: accepted 2026-09-24; phase 0 done except 0.5 (deferred); open decisions in section 10.
+Date: 2026-09-24. Status: accepted 2026-09-24; phase 0 done except 0.5 (deferred); open decisions in section 10. Updated 2026-09-25 with the reference study (section 15) and the context-aware board proposal (section 16).
 
 Context: the team is not competing again in WRO 2026 (did not win the national).
 The goal is to turn vTitan into a platform ready for whatever the next challenge
@@ -11,7 +11,10 @@ is: reusable, measurable, and testable without the car. This plan consolidates:
 - the Pico / board work already shipped (`948f49dc`, `55d854f8`, `233f94ae`,
   `f6e67f89`);
 - two research passes on how other projects do SITL/HIL and latency / fault
-  testing (sources in section 12).
+  testing (sources in section 12);
+- a reference study of MuJoCo, robosuite, robomimic and the JCIIOT 2026
+  platform that uses all three (2026-09-25, section 15; full analysis in
+  `2026-09-25-mujoco-robosuite-robomimic-comparison.md`, same folder).
 
 ## 1. Principles adopted from the research
 
@@ -34,13 +37,21 @@ is: reusable, measurable, and testable without the car. This plan consolidates:
    several seeds (single-scenario verdicts here are knife-edge).
 7. **Separate the challenge from the platform, and the board role from the
    chip.** The board contract is `boardloop` + `boardlink`, not "the Pico".
+8. **The world owns the score, and physics violations are invariants.**
+   Scoring reads simulator ground truth, never an artefact written by the
+   stack under test. A body that jumps further than its limits allow, or
+   sinks into a surface, fails the run automatically. Exemptions are
+   declared with a reason, never silent ignore lists. (JCIIOT 2026 broke
+   all three rules; 15 teams tied at 100/100 and humans had to catch
+   teleports and wall pass-through. Section 15.)
 
 ## 2. Where we are
 
 | Area | State |
 |---|---|
 | Virtual actuation board | `pkg/boardsim`: real `boardloop` on in-memory hardware, link latency/jitter/bit flips from `board_sim.toml`, end-to-end tests against `picolink`. On `origin/master` (`233f94ae`, `f6e67f89`) |
-| In-process world sim | `internal/sim/harness` + `kinematics` + `collision` + `sensorerrors`: drivetrain lag and servo slew, **no transport or compute delay** |
+| In-process world sim | `internal/sim/harness` + `kinematics` + `collision` + `sensorerrors`: drivetrain lag and servo slew; transport delays since 2.3/2.7. **No contact response**: `collision.AllowedStep` is ported but never called, so the chassis passes through walls and pillars and contact is only scored (`harness/gateway.go:233`); the Python oracle slides. **No snapshot/restore** of state mid-run (neither sim) |
+| Go vs Python sim realism | Go lacks what Python has: LIDAR chassis occlusion and self-returns, vision colour flips / bearing scatter / range falloff, the IMU error budget on by default, tick jitter, the reverse-run rule 9.21, solid walls. Go-vs-Python parity (ADR 0068) is partly parity with an easier world |
 | Recording | MCAP of real runs has `/ackermann_cmd`, `/joint_states`, `/imu/data`, `/vision/detections`, `/nav_debug`, ... but **no `motor_status`** (so no `command_age_ms`) and no CPU/thermal health |
 | Known fidelity gaps | vision latency 0 in sim vs 0.85 s measured; LIDAR return loss 1% vs 25%; sim under-rotates 40-50% in escapes; sim never saturates the steering |
 | Timing observability | none end to end: no capture time / causal chain across messages |
@@ -73,6 +84,7 @@ old the data behind a steering command is.
 | 1.3 | Offline Go tool over MCAP: per-stage p50/p95/p99, **data age** at the actuator command (`command.publish - min(input capture)`), drops/duplicates/reorders from sequence gaps. Never use `log_time` as event time | report on the September bags (where fields exist) and on new bags |
 | 1.4 | Declared **latency budget** per chain (camera -> Hailo -> decoder -> planner -> link -> PWM; LIDAR -> localizer -> planner -> link) with alert thresholds | ADR with the budget; tool flags violations |
 | 1.5 | Clock sync hardening in `picolink`: min-RTT window filter, drift (skew) by linear regression, stamps as close to the wire as possible; document that offset error is bounded by half the path asymmetry | tests in `boardsim` with **asymmetric** delay assert the bound |
+| 1.6 | **Run tags** (robomimic dataset filter keys): an index over `other/data/live/runs` with challenge, direction, deploy commit, hardware profile and outcome, written once by the classification scripts; diagnostics accept `--tag` instead of path lists | the fidelity scripts select their run sets by tag |
 
 ## 5. Phase 2: fault models (cheap, high value)
 
@@ -88,6 +100,12 @@ old the data behind a steering command is.
 | 2.8 | **Decision needed (found by 2.3):** the corpus baseline assumes a command acts in the tick it is computed. Once phase 1 measures the real command delay, decide whether to re-baseline the corpus at it (every existing number moves) | decision recorded in ADR 0087 |
 | 2.9 | **Blind laps (found by 2.7):** in `--blind` Obstacles completes 0 laps in 256/256 scenarios while driving and discovering signs | DIAGNOSED, NOT FIXED (section 14). Two confirmed defects in how the sim meets the blind stack; a naive fix made blind worse and was reverted. Needs a frame-contract decision (2.10) |
 | 2.10 | **Frame contract for blind rounds:** decide which frame every blind consumer works in (pose, lap detector, path, sign discovery, parking, pass-side scorer), how the real `natsgw` + localizer produce it, and make the sim present exactly that. Compare against the Python oracle, which reportedly rotates the believed pose into the canonical frame | ADR; blind Open and Obstacles count laps without regressing collisions or wrong-side passes |
+| 2.11 | **Solid walls in the Go sim (found by the section 15 study):** call `collision.AllowedStep` from `SimHardwareGateway.Advance` behind `contact_slides_along_surfaces` (same key as Python); add per-tick **physics invariants** (teleport: displacement and rotation within the kinematic limits for `dt`; penetration: depth above a tolerance outside a declared exemption) that fail the run as "invalid sim". Run before re-running any sweep, since it moves every Go baseline | Go and Python agree on blocked steps on the fixtures; invariants pass with the key on and fail with it off; corpus delta recorded; reuse doc section 1.4 corrected (it says Go slides) |
+| 2.12 | **Port Python's measured sensor models to the Go harness:** LIDAR chassis occlusion and self-returns (model the chassis in the raycast, exclude it, add the measured returns explicitly), vision colour flips / bearing scatter / range falloff / confidence quantiles, IMU budget on by default, tick jitter, reverse-run rule 9.21 | ADR 0068 parity runs on equally realistic worlds |
+| 2.13 | **Command lease** (section 16): each Command carries its host send time (synced clock, 1.5), a validity window chosen by the host from its situation (short near a wall or pillar, longer on a clear straight) and an expiry action (hold, ramp to stop, straighten and stop). The board executes a command only while it is valid and runs the expiry action after. Leases can only **tighten** the board's hard limits, never relax them. Closes the 2.6 residual | `boardsim` tests: a stall near an obstacle stops within the short lease, the same stall on a straight coasts to a controlled stop; a lease longer than the board maximum is clamped; stale commands after a stall are never applied |
+| 2.14 | **Link health report** board → host: command age at apply (p50/p99), gaps, lease expiries, in Status. The host adapts (speed cap and larger margins when the link is degraded) | visible in MCAP; a netem/`boardsim` degradation lowers the host speed cap |
+| 2.15 | **Setpoint horizon** (after 2.13, only if 1.3 shows link jitter matters): the host sends the next ~200-500 ms of timed speed/steering setpoints instead of one; the board plays the one due at its clock, so jitter does not reach the actuators and a stall follows the plan and then the expiry action | jitter sweep in `boardsim`: actuator timing error bounded by the board loop period, not by link jitter |
+| 2.16 | **Board reflexes** (optional, hardware-dependent): local detection the board can do faster than the host round trip, such as encoder speed far below command (blocked wheel) or motor current if the hardware can sense it, with a bounded local reaction (limit or stop) reported as an event to the host | bench test on the car; the reflex never fires in clean corpus-equivalent runs |
 
 ## 6. Phase 3: platform seams
 
@@ -97,6 +115,8 @@ old the data behind a steering command is.
 | 3.2 | ADR "the challenge is a plugin" + inventory; move WRO 2026 to `internal/challenge/wro2026/` | corpus **identical** before and after |
 | 3.3 | Board role vs chip: `board.toml` `kind` names the protocol (`boardlink` or NATS/Zero), the chip is a separate field; `picolink` becomes a generic `boardlink` host session; `firmware/pico2` is one adapter among possible others | ADR 0098 amended; `cmd/pi5` and profiles updated |
 | 3.4 | Track described in data; remove `[4]Section` | a non-square test track generates and runs |
+| 3.5 | **World/state split with snapshot and restore** (MuJoCo `mjModel`/`mjData`, `mjSTATE_INTEGRATION`): immutable `World` (track, obstacles, robot geometry, config) vs `WorldState` (kinematics, clock, every RNG stream position, delay queues, contact / pass-side / lap bookkeeping, navigator state via a `Snapshot` interface). Written as `/sim/state` in the sim MCAP with scenario and resolved config as attachments. Fallback if the navigator cannot snapshot: resume by deterministic replay to tick N | `sim-runner --resume <bag> --at-tick N` continues bit-identically; a knob can be changed at resume to branch knife-edge verdicts |
+| 3.6 | **Determinism check** (robomimic `playback_dataset.py`): replay a sim bag by re-applying `/ackermann_cmd` from the recorded initial state, compare every tick's pose, report the first divergence | in CI on one Open and one Obstacles fixture |
 
 ## 7. Phase 4: virtual robot (SITL)
 
@@ -113,6 +133,10 @@ old the data behind a steering command is.
 | 4.9 | **Live parameter tuning** through Studio's Parameters panel: add the protocol's parameter capability to `pkg/foxglove`; the bridge maps get/set to NATS (`vtitan.param.*`); nodes hold a parameter store over the TOML config and read a snapshot at the **start of a tick** (deterministic in lockstep); a key is tunable only if its schema says `x-tunable`, bounded by the schema's `minimum`/`maximum`; every change (key, old, new, tick) is recorded in the MCAP; "save as overlay" writes a TOML profile overlay, nothing is written back automatically | a value changed in Studio shows its effect in the running sim, is in the bag, and can be saved as an overlay |
 | 4.10 | Hardware rules for 4.9: failsafe keys (command timeout, watchdogs, link timeout) never tunable live; on the real car changes apply only while stopped or to a short allow-list | enforced in the store, tested |
 | 4.11 | **Spike (right after phase 0, before the rest of phase 4):** in-process sim + Foxglove scene + one tunable knob (e.g. lookahead) end to end | a short demo: tweak in Studio, see the car's behaviour change |
+| 4.12 | **Sensor profile descriptors** for 4.5, one per sensor (LIDAR, IMU, camera detections, command link): source rate, corrupter (noise, dropout, bursts), filter, **FIFO** delay with distribution and tail, seed salt (shape from robosuite `Observable`; semantics from MuJoCo 3.5 delays, which are true queues and part of the saved state; **not** robosuite's delay, a phase offset capped under one sampling period, nor its global RNG). TOML under `src/config/navigation/simulation/profiles/`, schema-validated; CLI flags stay as overrides; add `--seed` to native runs | every Go transport and sensor-error knob reproducible from a config file |
+| 4.13 | **Sweeps as generated overlays** (robomimic config locking and `hyperparam_helper.py`): one overlay TOML per arm in the run directory, run against `--config-root` plus overlay, unknown keys rejected, resolved config hashed into the `sweep_results.py` row. Replaces the Python sweeps that sed-edit the shipped TOML in place | shipped tree untouched during a sweep (checked with `git status` in the script) |
+| 4.14 | **Scoring ownership in SITL:** when the stack runs out of process (4.1), the world process owns scoring and invariants (principle 8); the stack cannot write to them. Also report continuous margins per run (minimum clearance, contact time, time to finish) next to the pass/fail predicates, so that "all passed" still ranks | predicates, invariants and margins computed only by the world process |
+| 4.15 | Smaller adoptions: named start states in scenarios (MuJoCo keyframes: in-bay, section starts) with 4.6; contact points, normals and surface id as Foxglove markers (MuJoCo viewer) with 4.8 | with those items |
 
 Workflow rule for 4.9: live tuning builds intuition, the corpus decides. A value
 found live is saved as an overlay and goes through the corpus sweep; it is kept
@@ -145,6 +169,38 @@ lockstep sim (2D, pure Go). For native 3D later, raylib-go (cgo) over g3n.
 Any time, not blocking: sim fidelity (escape rotation, steering saturation,
 vision emulator rate/latency/colour errors).
 
+- **MuJoCo contact-fidelity spike (F.1)**
+  - **Scope:** time-boxed to 1-2 weeks, in the Python `sim` pixi
+    environment only (`mujoco` ~27 MB wheel, pinned version), after 2.11.
+  - **Model:**
+    - The chassis is a 0.30 x 0.194 m, 1.3 kg box on planar joints
+      (slide x, slide y, hinge yaw).
+    - `velocity` actuators track the 4WS kinematics' body velocity, with
+      `forcerange` from the measured stall force, so contact saturates
+      the force and the solver slides, rotates or pushes. The template is
+      robosuite's `null_mobile_base.xml` (kv 1000, forcerange ±600,
+      frictionloss 250, sized for a Tiago; re-measure for our car).
+    - No wheel contacts, and never write the chassis `qpos` directly.
+    - Pillars are free 50 x 50 x 100 mm boxes. **Measure their mass and
+      mat friction first.**
+    - Contact settings: `condim=3`, elliptic cone, `implicitfast`,
+      timestep 0.002 s.
+  - **Experiments against bags:**
+    - wall-slide progress at 10-30 deg
+    - escape yaw (the 40-50% under-rotation)
+    - pillar displacement per contact
+    - the reverse pivot at about 1 rad/s
+  - **Done when:** a report recommends one of three outcomes:
+    - (a) a friction coefficient added to `AllowedStep` closes the gap:
+      port it to Go
+    - (b) it needs real dynamics: evaluate a cgo layer or a MuJoCo side
+      process (no Go bindings exist)
+    - (c) MuJoCo does not close it either: the gap is in the drive or
+      servo model
+- **MuJoCo for 3D physics:** only if a rulebook adds ramps or terrain, and
+  only after F.1 shows it matches this chassis. Gazebo keeps the
+  camera-image role.
+
 ## 10. Decisions needed
 
 1. ~~ADR 0068 parity target (0.3).~~ Decided 2026-09-24: functional parity
@@ -157,6 +213,21 @@ vision emulator rate/latency/colour errors).
    tuning keys in sim only, or mark broadly and restrict on hardware.
 6. Whether to re-baseline the corpus at the measured command delay once
    phase 1 has it (2.8): the zero-delay baseline is optimistic by one tick.
+7. Where 2.11 (solid walls) goes in the build order. It moves every Go
+   baseline, so the recommendation is before any further sweep and before
+   re-running section 13, and together with decision 6, so the corpus is
+   re-baselined once rather than twice.
+8. Whether to run F.1 (MuJoCo spike) at all, and when. It needs the pillar
+   mass and mat friction measured on the bench first.
+9. Context-aware board (section 16).
+   - The recommendation is to build 2.13 and 2.14 now: they are small, and
+     2.13 closes a known defect.
+   - Gate 2.15 on phase 1 data showing link jitter matters next to the
+     rest of the pipeline.
+   - Gate 2.16 on what the hardware can sense.
+   - Decide also whether the lease fields go into `boardlink.Command`
+     (protocol version bump, ADR 0098 amended) or into a separate
+     message.
 
 ## 11. Not adopting (and why)
 
@@ -173,6 +244,23 @@ vision emulator rate/latency/colour errors).
   unverified) no Go SDK; Foxglove is already integrated.
 - g3n for native 3D: development has slowed; raylib-go if native 3D is ever
   needed.
+- MuJoCo inside the Go corpus loop: no Go bindings exist, a cgo layer
+  would be ours to maintain, and bit-exactness holds only per MuJoCo
+  version and architecture. Revisit only if F.1 ends in outcome (b).
+- robosuite as a dependency: manipulation-centric. Its saved state
+  (`time, qpos, qvel`) is not bit-exact, its delay is not a latency
+  queue, and it draws noise from the global RNG. Its designs are adopted
+  (4.12, 6.1), not the code.
+- robomimic, behaviour cloning, offline RL: no learning problem on the
+  plan. The would-be demonstrations come from our own policy, there are
+  hundreds of runs rather than tens of thousands, and deployment would
+  need ONNX in Go. JCIIOT's BC grasp only worked from its trained poses.
+  Revisit only with trusted contact physics (2.11, F.1), 3.5 and 4.12 in
+  place, and a behaviour that resists hand tuning (the escape / K-turn
+  family is the candidate). Its designs are adopted (3.6, 4.13, 1.6).
+- Domain randomisation as a training tool. Sampling physical parameters
+  from **measured** ranges per seed is fine as a robustness sweep.
+- HDF5 datasets: MCAP stays the single recording format.
 
 ## 12. Research sources
 
@@ -202,6 +290,13 @@ Latency, contention, faults:
   https://dl.acm.org/doi/10.1145/3703630
 - Asymmetric delay in NTP: https://blog.meinbergglobal.com/2014/05/12/asymmetric-network-delay-ntp/
 - ROS-RVFT fault injection: https://ros-rvft.github.io/guidelines/guideline-mta1
+
+Reference study (section 15; full list of URLs in the comparison doc):
+- MuJoCo docs: https://mujoco.readthedocs.io/en/latest/ (computation,
+  modeling, APIreference, changelog); repo https://github.com/google-deepmind/mujoco
+- robosuite: https://robosuite.ai/docs/ ; https://github.com/ARISE-Initiative/robosuite
+- robomimic: https://robomimic.github.io/docs/ ; https://github.com/ARISE-Initiative/robomimic
+- JCIIOT 2026 platform: https://github.com/JCIIOT2026/JCIIOT2026 (studied at `48ab492`)
 
 Research findings came from two delegated passes; the specific figures quoted
 from them (for example Pi 5 PREEMPT_RT latencies, netem options) should be
@@ -337,3 +432,180 @@ relative latency effects there are still informative (same sim for every
 arm), but absolute blind outcomes are not. Whether the real robot shares
 defect 2 depends on the frame the real localizer reports after the heading
 correction, which the sim cannot answer: that is 2.10.
+
+## 15. Reference study: MuJoCo, robosuite, robomimic, JCIIOT 2026 (2026-09-25)
+
+Full analysis, with verified library facts, sources and the per-concern
+comparison: `2026-09-25-mujoco-robosuite-robomimic-comparison.md` (same
+folder). This section keeps the conclusions and where each one landed in
+the plan.
+
+### 15.1 What the three are
+
+- **MuJoCo** (DeepMind, Apache-2.0, 3.14.0 on 2026-09-22): a physics
+  engine with a plain C API and Python bindings.
+  - Constraint-based contact with a friction cone.
+  - `mjModel`/`mjData` split.
+  - Full-state save/restore (`mjSTATE_INTEGRATION`), deterministic per
+    version and architecture.
+  - Batched ray casting that can exclude the own body.
+  - Since 3.5, native FIFO actuator and sensor delays saved with the
+    state.
+  - No simulator-side noise.
+  - **No Go bindings** of any kind.
+  - The official car model is a differential drive.
+- **robosuite** (ARISE, MIT, v1.5.2): MuJoCo environments for
+  manipulation.
+  - A task is composed of an arena, robots and objects.
+  - Per-sensor `Observable` pipeline (sensor, corrupter, filter,
+    delayer, sampling rate).
+  - Placement samplers with collision rejection.
+  - Domain-randomisation and data-collection wrappers.
+  - v1.5 adds mobile bases.
+- **robomimic** (ARISE, MIT, v0.5.0 from source; PyPI still ships 0.3.0):
+  imitation learning and offline RL (BC, BC-RNN, BC-Transformer,
+  Diffusion Policy, IQL, CQL...).
+  - HDF5 demonstration datasets that store sim states, actions,
+    observations and filter masks.
+  - Two-way playback with a divergence report.
+  - Locked JSON configs and a sweep generator.
+
+They are layers of one stack. vTitan already has its own upper layers:
+scenarios with separate predicates, sensor and transport emulation, MCAP
+and bag tooling, sweeps. What it lacks is the bottom layer's strengths:
+contact dynamics and a restorable state.
+
+### 15.2 Findings about vTitan
+
+1. **The Go sim has no solid walls.** Only tests call
+   `collision.AllowedStep`, and the gateway always moves to the candidate
+   pose. Python slides. This confounds ADR 0068 parity for any
+   non-terminal contact, and section 13's sweeps ran without contact
+   response. The reuse doc's section 1.4 says Go slides; it does not.
+   → 2.11.
+2. **No snapshot/restore in either sim.** Knife-edge verdicts can only be
+   replayed from tick 0. → 3.5, 3.6.
+3. **Go's sensor world is easier than Python's** (section 2). → 2.12.
+4. **Go knobs are CLI-only.** There is no `--seed` for native runs. The
+   `cmd/sim-runner/main.go` header still says "Python oracle
+   orchestrator". → 4.12.
+5. **Python sweeps sed-edit the shipped TOML in place**, restored by a
+   trap. A crash or a parallel session can leave `src/config` modified.
+   → 4.13.
+
+### 15.3 Findings from the JCIIOT 2026 platform
+
+The official platform of the JCIIOT 2026 "RunningRobot" competition: a
+simulated Tiago mobile manipulator doing pick-and-place in five factory
+scenes. An LLM planner turns a prompt into skills, and grasping is a
+robomimic BC policy. It is the only project found that integrates all
+three libraries.
+
+1. The default drive mode writes the base `qpos` directly each step.
+   Collisions are printed, then "navigation continues". Contacts with
+   tables, conveyors, shelves, containers and similar are ignored by
+   substring. This is the same defect as finding 15.2.1.
+2. Because the base is teleported, a held object does not follow it. A
+   second hack pins the object's pose to the base during transport.
+3. The scorer reads the last frame of a trajectory JSON written by the
+   contestant's pipeline, not the sim state.
+4. Result: 15 of 20 teams scored 100/100 automatically. The ranking came
+   from human review deducting for collisions, teleportation or wall
+   pass-through, and grasps without contact. → principle 8, 2.11
+   invariants, 4.14.
+5. The BC grasp runs in a separate, freshly built environment. The robot
+   heading is forced to the trained poses, and the demonstrations come
+   from a scripted teacher using privileged object positions. BC
+   generalises only near its training data. → section 11 (robomimic).
+6. robosuite's mobile base uses planar joints driven by force-limited
+   velocity actuators. → template for F.1.
+
+### 15.4 Adopted as design (code stays ours)
+
+| Pattern | Source | Plan item |
+|---|---|---|
+| Constraint-style contact response, physics invariants, declared exemptions | MuJoCo; JCIIOT counter-example | 2.11, principle 8 |
+| Port measured sensor models, own-body ray exclusion | MuJoCo `mj_ray` `bodyexclude` | 2.12 |
+| World/state split, full snapshot and restore | MuJoCo `mjModel`/`mjData`, `mjSTATE_INTEGRATION` | 3.5 |
+| Two-way playback determinism check | robomimic `playback_dataset.py` | 3.6 |
+| Per-sensor descriptor with FIFO delay | robosuite `Observable` (shape), MuJoCo 3.5 delays (semantics) | 4.12 |
+| Locked config, generated sweep overlays | robomimic `Config`, `hyperparam_helper.py` | 4.13 |
+| World process owns scoring; continuous margins beside predicates | JCIIOT counter-example | 4.14 |
+| Keyframe start states; contact markers in Foxglove | MuJoCo keyframes, viewer | 4.15 |
+| Run tags | robomimic filter keys | 1.6 |
+| Arena / objects / robot composition | robosuite `Task` | 6.1 |
+| Planar base with force-limited velocity actuators | robosuite `null_mobile_base.xml` | F.1 |
+
+Suggested order, pending decision 7:
+1. 2.11 first, because it re-baselines.
+2. Then 3.5 + 3.6, since everything after benefits from resume and
+   determinism.
+3. Then 2.12 + 4.12 together (the same code).
+4. 4.13 and 1.6 whenever convenient.
+5. F.1 once the pillar mass and mat friction are measured.
+
+## 16. Context-aware board (proposal 2026-09-25)
+
+**Idea (operator).** Tell the actuation board what is happening, so it can
+react to latency, jitter and link loss according to the situation instead
+of with one fixed rule.
+
+**Today.**
+- `boardlink.Command` is only `{SpeedMPS, SteeringAngleRad}`.
+- The board applies the newest command, and stops the car after a fixed
+  500 ms of silence (`CommandTimeoutMS`) plus the hardware watchdog.
+- That single rule is too loose near a pillar: at 0.5 m/s, 500 ms is
+  0.25 m of blind travel. It is too strict on a clear straight, where a
+  short stall does not need a full stop.
+- After a stall, the newest command may be stale and is applied once
+  (2.6 residual).
+
+**Design rules.**
+1. **Constraints, not semantics.**
+   - The board stays challenge-agnostic (principle 7). The host translates
+     its situation into numbers the board can enforce: a validity window
+     for each command, an expiry action, and speed/steering caps.
+   - Wall, pillar and escape knowledge stays on the host.
+   - No WRO vocabulary crosses the link.
+2. **Monotonic safety.**
+   - Host constraints can only **tighten** the board's compiled-in limits.
+   - A lease longer than the board maximum is clamped. A missing or
+     corrupt lease means the board default.
+   - A bug or stale message on the host can therefore make the car more
+     cautious, never less.
+3. **Everything is time-stamped against the synced clock** (1.5), so the
+   board judges freshness itself.
+4. **Context is itself subject to latency.** The host's view of the world
+   is up to 0.85 s old on the vision path. The host must size the lease
+   from the **data age** of what it saw (1.3), not from the moment it
+   sends.
+
+**What it fixes and what it does not.**
+- It fixes:
+  - link stalls and jitter
+  - stale commands after a stall
+  - the one-size timeout
+- It does **not** fix perception latency. The 0.85 s camera path and the
+  one-tick command delay (section 13) happen before the command exists.
+- For those the matching item is **host-side latency compensation**:
+  propagate the pose forward by the measured data age before planning.
+  That belongs with phase 1 numbers, and should be considered alongside
+  this proposal.
+
+**Items:**
+- 2.13 command lease with expiry action
+- 2.14 link health reported back to the host, so the host adapts too
+- 2.15 setpoint horizon, only if jitter is shown to matter
+- 2.16 local reflexes the board can detect faster than a host round trip
+
+**Testing.** All of it is testable without the car: `boardsim` with
+scripted stalls, bursts and asymmetric delay (2.1), on the sim clock
+(3.1). The in-process harness can emulate the lease by giving each
+emulated command an expiry.
+
+**Prior art to check before designing** (not yet researched, verify
+first):
+- ROS 2 QoS deadline and lifespan
+- PX4 offboard-mode timeouts and failsafe actions
+- ArduPilot GCS and throttle failsafe actions
+- AUTOSAR E2E protection (counter plus timeout on each message)
