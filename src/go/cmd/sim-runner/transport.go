@@ -35,13 +35,28 @@ func registerTransportFlags(flags *pflag.FlagSet, cfg *cliConfig) {
 		0,
 		"--runner native only: age of the LIDAR sweep the navigator reads",
 	)
+	flags.Float64Var(
+		&cfg.detectDelayS,
+		"detection-delay-s",
+		0,
+		"--runner native only: camera-to-detection latency; a detection is seen from the pose this long ago "+
+			"and placed through the current one (about 0.85 on hardware)",
+	)
+	flags.Float64Var(
+		&cfg.detectDropRate,
+		"detection-drop-rate",
+		0,
+		"--runner native only: probability a camera frame yields no detections (about 0.79 matches hardware)",
+	)
 }
 
 func transportFor(cfg cliConfig) harness.TransportConfig {
 	return harness.TransportConfig{
-		CommandDelayS:   cfg.cmdDelayS,
-		CommandDropRate: cfg.cmdDropRate,
-		CommandTimeoutS: cfg.cmdTimeoutS,
-		ScanDelayS:      cfg.scanDelayS,
+		CommandDelayS:     cfg.cmdDelayS,
+		CommandDropRate:   cfg.cmdDropRate,
+		CommandTimeoutS:   cfg.cmdTimeoutS,
+		ScanDelayS:        cfg.scanDelayS,
+		DetectionDelayS:   cfg.detectDelayS,
+		DetectionDropRate: cfg.detectDropRate,
 	}
 }

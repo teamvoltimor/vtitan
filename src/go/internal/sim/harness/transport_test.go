@@ -24,6 +24,9 @@ func TestTransportConfig_AnyAndValidate(t *testing.T) {
 		"negative delay":   {TransportConfig{CommandDelayS: -0.1}, false},
 		"negative scan":    {TransportConfig{ScanDelayS: -0.1}, false},
 		"drop rate of one": {TransportConfig{CommandDropRate: 1}, false},
+		"negative detect":  {TransportConfig{DetectionDelayS: -0.1}, false},
+		"detect drop one":  {TransportConfig{DetectionDropRate: 1}, false},
+		"detection only":   {TransportConfig{DetectionDelayS: 0.85, DetectionDropRate: 0.79}, true},
 	} {
 		if err := tc.cfg.Validate(); (err == nil) != tc.valid {
 			t.Errorf("%s: Validate = %v, want valid %v", name, err, tc.valid)
@@ -115,5 +118,37 @@ func TestTransport_ScanDelay(t *testing.T) {
 	fresh.recordScan(scanAtTime(0), 0)
 	if _, ok = fresh.scanAt(0.1); ok {
 		t.Error("a scan younger than ScanDelayS was returned")
+	}
+}
+
+// A delay that is an exact multiple of the tick lands on that tick even
+// though sim time is accumulated by addition and drifts off the grid.
+func TestTransport_DelayOnAccumulatedClock(t *testing.T) {
+	t.Parallel()
+
+	const dt, delayTicks = 0.05, 6
+	tr := newTransport(TransportConfig{CommandDelayS: delayTicks * dt, ScanDelayS: delayTicks * dt}, 1)
+	now := 0.0
+	var published float64
+	cur := controllers.DriveCommand{}
+	for tick := range 40 {
+		if tick == 3 {
+			published = now
+			tr.publish(driveForward, now)
+		}
+		tr.recordScan(controllers.LidarScan{RangesM: []float64{float64(tick)}}, now)
+		cur = tr.commandAt(cur, now)
+		if tick == 3+delayTicks-1 && cur == driveForward {
+			t.Fatalf("command arrived a tick early at %v (published %v)", now, published)
+		}
+		if tick == 3+delayTicks && cur != driveForward {
+			t.Fatalf("command not arrived at tick %d (now %v, published %v)", tick, now, published)
+		}
+		if tick >= delayTicks {
+			if s, ok := tr.scanAt(now); !ok || s.RangesM[0] != float64(tick-delayTicks) {
+				t.Fatalf("tick %d: scan from tick %v, want %d", tick, s.RangesM, tick-delayTicks)
+			}
+		}
+		now += dt
 	}
 }

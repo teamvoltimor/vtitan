@@ -38,35 +38,37 @@ import (
 // (dev box vs. CI vs. a future pixi-managed runner) may reasonably want to
 // override any of it.
 type cliConfig struct {
-	corpusPath   string
-	command      string
-	baseArgs     string
-	scriptPath   string
-	workDir      string
-	pythonPath   string
-	extraArgs    string
-	openSpace    string
-	openDir      string
-	configRoot   string
-	hwProfiles   string
-	recordDir    string
-	openSeed     uint64
-	yawBiasDeg   float64
-	imuDriftDPM  float64
-	gyroScaleErr float64
-	imuNoiseDeg  float64
-	startPosErr  float64
-	cmdDelayS    float64
-	cmdDropRate  float64
-	cmdTimeoutS  float64
-	scanDelayS   float64
-	concurrency  int
-	timeout      time.Duration
-	jsonOutput   bool
-	localize     bool
-	record       bool
-	runner       string
-	blind        bool
+	corpusPath     string
+	command        string
+	baseArgs       string
+	scriptPath     string
+	workDir        string
+	pythonPath     string
+	extraArgs      string
+	openSpace      string
+	openDir        string
+	configRoot     string
+	hwProfiles     string
+	recordDir      string
+	openSeed       uint64
+	yawBiasDeg     float64
+	imuDriftDPM    float64
+	gyroScaleErr   float64
+	imuNoiseDeg    float64
+	startPosErr    float64
+	cmdDelayS      float64
+	cmdDropRate    float64
+	cmdTimeoutS    float64
+	scanDelayS     float64
+	detectDelayS   float64
+	detectDropRate float64
+	concurrency    int
+	timeout        time.Duration
+	jsonOutput     bool
+	localize       bool
+	record         bool
+	runner         string
+	blind          bool
 }
 
 // Runner backend names accepted by --runner.

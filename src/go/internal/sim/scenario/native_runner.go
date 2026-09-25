@@ -24,7 +24,6 @@ import (
 	"github.com/teamvoltimor/vtitan/src/go/internal/sim/harness"
 	"github.com/teamvoltimor/vtitan/src/go/internal/sim/kinematics"
 	"github.com/teamvoltimor/vtitan/src/go/internal/sim/sensorerrors"
-	"github.com/teamvoltimor/vtitan/src/go/internal/sim/visionsim"
 	"github.com/teamvoltimor/vtitan/src/go/internal/simgen/generate"
 )
 
@@ -429,7 +428,7 @@ func (r *NativeRunner) Run(_ context.Context, sc corpus.Scenario) (Result, error
 		if err != nil {
 			return Result{}, fmt.Errorf("native runner: building sign router %s: %w", sc.ID, err)
 		}
-		vision = &simVisionGateway{gw: gw, signs: signs, cfg: visionsim.ConfigFrom(r.srCfg, r.cfg.DetectionConfidence)}
+		vision = r.newVisionGateway(gw, signs)
 	}
 
 	// Rule 9.24.5 is enforced from the TRUE layout against the TRUE pose,

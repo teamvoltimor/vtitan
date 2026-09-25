@@ -28,10 +28,16 @@ import (
 // reprojection): the native runner's Localize is unsupported (see
 // harness.Config.Localize's doc comment), so there is no separate believed
 // pose to diverge from the true one yet.
+//
+// With a camera configured (newSimCamera), detections are also late and
+// may be dropped, as on the robot: see simCamera.
 type simVisionGateway struct {
 	gw    simGateway
 	signs []signrouter.SignSpec
 	cfg   visionsim.Config
+	// camera is nil unless detection latency or drops are configured, so
+	// the default run takes exactly the old path.
+	camera *simCamera
 }
 
 // signNudgeState accumulates each sign's push-displacement across ticks,
@@ -44,6 +50,9 @@ type signNudgeState struct {
 
 func (v *simVisionGateway) GetVisionDetections() ([]signrouter.TrafficSignObservation, bool) {
 	st := v.gw.State()
+	if v.camera != nil {
+		return v.camera.detections(v.signs, st, v.cfg)
+	}
 	obs := visionsim.EmulateSignObservations(v.signs, st.X, st.Y, st.Yaw, v.cfg, nil)
 	return obs, len(obs) > 0
 }

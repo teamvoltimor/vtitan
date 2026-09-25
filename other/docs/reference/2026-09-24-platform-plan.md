@@ -82,10 +82,11 @@ old the data behind a steering command is.
 | 2.2 | Scripted failsafe tests asserting "drive at zero within X ms": link stall of 499 ms and 501 ms around the 500 ms board watchdog, host link timeout around 1 s, reconnect mid-command | DONE: short stall keeps driving, long stall stops at the 500 ms timeout (measured 499 ms) and recovers, board silence reported as link lost, board reset reconfigured, bursty loss converges. Exact 499/501 ms edges need the sim clock (3.1) |
 | 2.3 | **Quick win before the virtual robot:** configurable command delay/drop and sensor staleness inside the in-process world sim (`harness`), then a corpus **delay sweep** | DONE: `harness.TransportConfig` (command delay, drop, emulated board watchdog, scan delay; zero is the old behaviour, verified identical), sim-runner flags, `scripts/transport-sweep.sh`. Results in section 13 |
 | 2.4 | NATS fault shim: per subject drop / delay / freeze (repeat last) / reorder / noise, from TOML, seed logged into the MCAP | usable by tests and by the virtual robot |
-| 2.6 | **Stale command burst (found by 2.2):** `boardlink.Command` carries no send time, so after a stall the board applies the whole backlog as if fresh (24 queued commands after a 1.2 s stall). Add a host send time to Command and a board-side maximum command age, or have the host drop queued commands on a stall | MOSTLY DONE: the board applies only the newest command of each Step (1 applied, 23 superseded after a 1.2 s stall, was 24 applied). Residual: a host that stopped sending during the stall leaves a stale newest command, applied once until the watchdog stops the car again; closing it needs a send time on Command plus a board-side clock reference |
-| 2.7 | **Vision latency in the sim (found by 2.3):** the measured 0.85 s from camera to detection is the largest latency in the robot and the in-process sim models none of it; add a detection delay to `visionsim`/the runner and sweep it like 2.3 | curve for Obstacles with detection delay |
-| 2.8 | **Decision needed (found by 2.3):** the corpus baseline assumes a command acts in the tick it is computed. Once phase 1 measures the real command delay, decide whether to re-baseline the corpus at it (every existing number moves) | decision recorded in ADR 0087 |
 | 2.5 | Host-side robustness from the research: udev symlink by serial number for the board; close the fd on error before reopening | reconnect test passes with a renamed device |
+| 2.6 | **Stale command burst (found by 2.2):** `boardlink.Command` carries no send time, so after a stall the board applies the whole backlog as if fresh (24 queued commands after a 1.2 s stall). Add a host send time to Command and a board-side maximum command age, or have the host drop queued commands on a stall | MOSTLY DONE: the board applies only the newest command of each Step (1 applied, 23 superseded after a 1.2 s stall, was 24 applied). Residual: a host that stopped sending during the stall leaves a stale newest command, applied once until the watchdog stops the car again; closing it needs a send time on Command plus a board-side clock reference |
+| 2.7 | **Vision latency in the sim (found by 2.3):** the measured 0.85 s from camera to detection is the largest latency in the robot | DONE: `DetectionDelayS` (seen from the old pose, placed through the current one) and `DetectionDropRate`, sim-runner flags; results in section 13. Also fixed a one-tick boundary error in all latency emulation |
+| 2.8 | **Decision needed (found by 2.3):** the corpus baseline assumes a command acts in the tick it is computed. Once phase 1 measures the real command delay, decide whether to re-baseline the corpus at it (every existing number moves) | decision recorded in ADR 0087 |
+| 2.9 | **Blind laps (found by 2.7):** in `--blind` the Go navigator completes 0 laps in 256/256 scenarios while driving and discovering signs. Find whether the navigator never counts laps blind (a real-round defect) or the blind harness withholds something it needs | root cause named; blind runs count laps |
 
 ## 6. Phase 3: platform seams
 
@@ -205,14 +206,20 @@ Research findings came from two delegated passes; the specific figures quoted
 from them (for example Pi 5 PREEMPT_RT latencies, netem options) should be
 rechecked against the source before they drive a decision.
 
-## 13. Results: transport sweep (2.3)
+## 13. Results: latency sweeps (2.3, 2.7)
 
-Conditions: commit `b2bf364a` plus the uncommitted 2.3 work (the transport
-emulation itself), native runner, `src/python/.corpus/{obstacles,open}`
-(256 scenarios each), shipped TOML tree, profiles
-`270deg-hiwonder-35kg,rev-hd-hex-motor-6000rpm`, 20 Hz control. Runs are
-deterministic; resolution is one control tick (50 ms), so every delay in
-(0, 0.05] s gives the same result (checked at 0.005, 0.01, 0.02, 0.03, 0.04).
+Conditions: native runner, `src/python/.corpus/{obstacles,open}` (256
+scenarios each), shipped TOML tree, profiles
+`270deg-hiwonder-35kg,rev-hd-hex-motor-6000rpm`, 20 Hz control, runs
+deterministic. Resolution is one control tick (50 ms): every delay in
+(0, 0.05] s gives the same result (checked at 0.005 to 0.04).
+
+CORRECTION 2026-09-24: the first version of this section (in `59b5ed78`)
+was measured with exact time comparisons on an accumulated sim clock, which
+delivered delays that are exact multiples of the tick one tick late. Those
+rows were too pessimistic (Obstacles 0.2 s: 66 collisions, now 31; Open
+0.3 s: 186, now 32). Fixed with a tolerance (`harness.TimeEpsilonS`) and a
+regression test; the tables below are re-measured.
 
 Obstacles, command delay:
 
@@ -220,29 +227,59 @@ Obstacles, command delay:
 |---|---|---|---|---|---|
 | 0 | 176 | 11 | 56 | 12 | 27 |
 | 0.05 | 154 | 9 | 72 | 21 | 33 |
-| 0.1 | 178 | 19 | 50 | 9 | 29 |
-| 0.15 | 183 | 25 | 28 | 20 | 48 |
-| 0.2 | 144 | 66 | 17 | 29 | 100 |
-| 0.3 | 57 | 171 | 1 | 27 | 218 |
+| 0.1 | 166 | 13 | 59 | 18 | 31 |
+| 0.15 | 174 | 22 | 49 | 11 | 51 |
+| 0.2 | 189 | 31 | 27 | 9 | 52 |
+| 0.3 | 108 | 129 | 1 | 18 | 171 |
 
-Open, command delay: 256/256 succeed with no collision up to 0.2 s; at 0.3 s
-only 70 succeed and 186 collide.
+Open, command delay: 256/256 succeed with no collision up to 0.25 s; at 0.3 s
+224 succeed and 32 collide.
 
-Obstacles, LIDAR scan delay: collisions 11 / 4 / 11 / 29 / 43 / 88 at 0 /
-0.05 / 0.1 / 0.2 / 0.3 / 0.5 s, while timeouts fall 56 -> 0 and mean run time
-130 -> 85 s (the robot reacts later and runs faster into contact).
+Obstacles, LIDAR scan delay: collisions 11 / 7 / 3 / 32 / 36 / 75 at 0 / 0.05
+/ 0.1 / 0.2 / 0.3 / 0.5 s, while timeouts fall 56 -> 0 and mean run time
+130 -> 86 s.
 
-Obstacles, command drops with the board watchdog at 0.5 s: collisions stay
-10-14 up to 50% drops (successes 176 -> 157-161, mostly extra timeouts), then
-42 at 70% and 65 at 90%.
+Obstacles, command drops with the board watchdog at 0.5 s: collisions 11-14
+up to 50% drops (successes 176 -> 157-159, mostly extra timeouts), 44 at 70%,
+65 at 90%.
+
+Obstacles, detection (camera) latency, 2.7:
+
+- **Sighted (default) corpus: no effect at all.** 0 to 1.2 s give
+  byte-identical results, because the sighted runner hands the sign router
+  the true layout and the camera only confirms it. The default Obstacles
+  corpus cannot measure anything about vision.
+- **Blind (`--blind`), where the robot must discover the signs:**
+
+| detection delay s | collided | timed out | wrong side | contact runs |
+|---|---|---|---|---|
+| 0 | 19 | 229 | 8 | 34 |
+| 0.25 | 30 | 212 | 14 | 40 |
+| 0.5 | 40 | 194 | 22 | 60 |
+| 0.85 (measured) | 74 | 140 | 42 | 91 |
+| 1.2 | 76 | 108 | 71 | 111 |
+
+- Frame drops alone barely matter (collisions 16-21, wrong side 8 at 0 to 90%
+  drops): detections still arrive often enough. With the hardware-like drop
+  rate 0.79, delay 0.85 s gives 72 collisions and 41 wrong-side passes.
+- **Blind runs complete 0 laps in all 256 scenarios**, even at zero latency,
+  although the robot drives and discovers 4.6 of 5 signs on average. Laps
+  come from the navigator's own `LapsCompleted()`, so either the Go
+  navigator never counts a lap in blind mode (the mode a real round runs in)
+  or the blind harness misses what it needs. "succeeded" is therefore 0 in
+  every blind row; collisions and wrong-side passes remain meaningful.
+  Tracked as 2.9.
 
 Readings:
 
-- Collisions are the clean signal: monotonic past about 0.15 s of command
-  delay in Obstacles and a cliff between 0.2 and 0.3 s in Open.
+- Collisions are the clean signal for command delay: roughly flat to 0.1 s,
+  rising from 0.15 s, steep between 0.2 and 0.3 s in Obstacles; Open is
+  clean to 0.25 s.
 - "Succeeded" is not monotonic because collisions end runs that would
   otherwise have timed out: exactly why outcomes are kept separate.
-- One tick of delay alone costs Obstacles 22 successes and 9 more wrong-side
-  passes. The zero-delay baseline is an idealization no robot has (2.8).
-- The real command delay is not measured yet (phase 1); the Open margin
-  (fine at 0.2 s) is comfortable, the Obstacles one is not.
+- One tick of command delay alone costs Obstacles 22 successes and 9 more
+  wrong-side passes; the zero-delay baseline is an idealization (2.8).
+- Vision latency is the largest measured delay on the robot and, in blind
+  mode, multiplies wrong-side passes (8 -> 42 at 0.85 s), which end a round.
+  Any vision-dependent work must be judged in blind mode, not on the default
+  corpus.
