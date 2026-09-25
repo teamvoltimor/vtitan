@@ -56,6 +56,10 @@ type cliConfig struct {
 	gyroScaleErr float64
 	imuNoiseDeg  float64
 	startPosErr  float64
+	cmdDelayS    float64
+	cmdDropRate  float64
+	cmdTimeoutS  float64
+	scanDelayS   float64
 	concurrency  int
 	timeout      time.Duration
 	jsonOutput   bool
@@ -263,6 +267,7 @@ func newRootCmd(cfg *cliConfig, logger *slog.Logger, stdout io.Writer) *cobra.Co
 		0,
 		"--runner native only: per-reading Gaussian yaw noise (stddev)",
 	)
+	registerTransportFlags(flags, cfg)
 	flags.StringVar(
 		&cfg.openSpace,
 		"open-space",
@@ -317,9 +322,12 @@ func validate(cfg cliConfig) error {
 
 	switch cfg.runner {
 	case runnerNative:
-		// Nothing to check: the native runner shells out to nothing, so
-		// --script, --workdir, --command, --base-args and --python-path are
-		// all inert.
+		// The native runner shells out to nothing, so --script, --workdir,
+		// --command, --base-args and --python-path are all inert; only the
+		// transport emulation has values to reject.
+		if err := transportFor(cfg).Validate(); err != nil {
+			return fmt.Errorf("sim-runner: %w", err)
+		}
 	case runnerPython, "":
 		if cfg.scriptPath == "" || cfg.workDir == "" {
 			return errors.New("sim-runner: --runner python needs --script and --workdir")
@@ -452,6 +460,7 @@ func run(ctx context.Context, logger *slog.Logger, cfg cliConfig, stdout io.Writ
 			ConfigRoot:       cfg.configRoot,
 			HardwareProfiles: splitCSV(cfg.hwProfiles),
 			SensorErrors:     sensorErrorsFor(cfg),
+			Transport:        transportFor(cfg),
 		})
 	case runnerPython, "":
 		r, rerr := scenario.NewSubprocessRunner(scenario.Config{

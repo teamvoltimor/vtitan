@@ -65,6 +65,10 @@ type SimHardwareGateway struct {
 	collided   bool
 	collisionX float64
 	collisionY float64
+
+	// transport is nil unless cfg.Transport switches something on, so the
+	// default run takes exactly the paths it always took.
+	transport *transport
 }
 
 // sensorErrorStreamSalt separates the sensor-error RNG stream from the LIDAR
@@ -96,6 +100,9 @@ func NewSimHardwareGateway(
 		prevTrueYaw: initial.Yaw,
 	}
 	g.initSensorErrors(seed)
+	if cfg.Transport.Any() {
+		g.transport = newTransport(cfg.Transport, seed)
+	}
 	g.buildAngles()
 	if cfg.Localize {
 		locCfg := localization.DefaultConfig()
@@ -118,9 +125,23 @@ func (g *SimHardwareGateway) State() kinematics.AckermannState {
 	return g.state
 }
 
-// PublishDrive stores the latest command; applied on the next Advance.
+// PublishDrive stores the latest command; applied on the next Advance, or
+// CommandDelayS later (possibly never) when transport emulation is on.
 func (g *SimHardwareGateway) PublishDrive(command controllers.DriveCommand) {
+	if g.transport != nil {
+		g.transport.publish(command, g.elapsedS)
+		return
+	}
 	g.command = command
+}
+
+// TransportStats reports what the transport emulation did; zero when it is
+// off.
+func (g *SimHardwareGateway) TransportStats() TransportStats {
+	if g.transport == nil {
+		return TransportStats{}
+	}
+	return g.transport.stats
 }
 
 // GetCurrentPose returns the pose the robot believes it has: the LIDAR
@@ -141,8 +162,12 @@ func (g *SimHardwareGateway) GetCurrentPose() (trackmodel.Pose, bool) {
 	}, true
 }
 
-// GetLidarScan returns the most recent simulated sweep (ranges + angles).
+// GetLidarScan returns the most recent simulated sweep (ranges + angles),
+// or the newest one ScanDelayS old when transport emulation delays it.
 func (g *SimHardwareGateway) GetLidarScan() (controllers.LidarScan, bool) {
+	if g.transport != nil && g.cfg.Transport.ScanDelayS > 0 {
+		return g.transport.scanAt(g.elapsedS)
+	}
 	if len(g.scan.RangesM) == 0 {
 		return controllers.LidarScan{}, false
 	}
@@ -181,6 +206,9 @@ func (g *SimHardwareGateway) CorrectHeadingForDirectionChange(deltaRad float64) 
 func (g *SimHardwareGateway) Advance(dt float64) {
 	if dt <= 0 {
 		dt = g.cfg.dt()
+	}
+	if g.transport != nil {
+		g.command = g.transport.commandAt(g.command, g.elapsedS)
 	}
 	g.elapsedS += dt
 
@@ -339,6 +367,9 @@ func (g *SimHardwareGateway) refreshSensors() {
 	ranges = controllers.SanitizeLidarRanges(ranges, g.cfg.LidarMaxRangeM)
 
 	g.scan = controllers.LidarScan{RangesM: ranges, AnglesRad: g.angles}
+	if g.transport != nil {
+		g.transport.recordScan(g.scan, g.elapsedS)
+	}
 
 	g.updateBelievedPose()
 }

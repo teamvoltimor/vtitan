@@ -80,9 +80,11 @@ old the data behind a steering command is.
 |---|---|---|
 | 2.1 | `boardsim` realistic link faults, config driven and seeded: **Gilbert-Elliott** chunk/frame loss (rate + mean burst length), **stall windows**, **disconnect/reconnect** (EIO, optional new device name), **reader starvation** (buffer overflow drops oldest), asymmetric delay. Keep bit flips for decoder tests | PARTLY DONE: bursty loss, random and scripted stalls, board reboot, per-direction stats, all in `board_sim.toml` (shipped OFF until measured). Disconnect with a renamed device and reader starvation move to phase 4, where the pty exists |
 | 2.2 | Scripted failsafe tests asserting "drive at zero within X ms": link stall of 499 ms and 501 ms around the 500 ms board watchdog, host link timeout around 1 s, reconnect mid-command | DONE: short stall keeps driving, long stall stops at the 500 ms timeout (measured 499 ms) and recovers, board silence reported as link lost, board reset reconfigured, bursty loss converges. Exact 499/501 ms edges need the sim clock (3.1) |
-| 2.3 | **Quick win before the virtual robot:** configurable command delay/drop and sensor staleness inside the in-process world sim (`harness`), then a corpus **delay sweep** | curve "corpus score vs added latency" for Open and Obstacles |
+| 2.3 | **Quick win before the virtual robot:** configurable command delay/drop and sensor staleness inside the in-process world sim (`harness`), then a corpus **delay sweep** | DONE: `harness.TransportConfig` (command delay, drop, emulated board watchdog, scan delay; zero is the old behaviour, verified identical), sim-runner flags, `scripts/transport-sweep.sh`. Results in section 13 |
 | 2.4 | NATS fault shim: per subject drop / delay / freeze (repeat last) / reorder / noise, from TOML, seed logged into the MCAP | usable by tests and by the virtual robot |
 | 2.6 | **Stale command burst (found by 2.2):** `boardlink.Command` carries no send time, so after a stall the board applies the whole backlog as if fresh (24 queued commands after a 1.2 s stall). Add a host send time to Command and a board-side maximum command age, or have the host drop queued commands on a stall | MOSTLY DONE: the board applies only the newest command of each Step (1 applied, 23 superseded after a 1.2 s stall, was 24 applied). Residual: a host that stopped sending during the stall leaves a stale newest command, applied once until the watchdog stops the car again; closing it needs a send time on Command plus a board-side clock reference |
+| 2.7 | **Vision latency in the sim (found by 2.3):** the measured 0.85 s from camera to detection is the largest latency in the robot and the in-process sim models none of it; add a detection delay to `visionsim`/the runner and sweep it like 2.3 | curve for Obstacles with detection delay |
+| 2.8 | **Decision needed (found by 2.3):** the corpus baseline assumes a command acts in the tick it is computed. Once phase 1 measures the real command delay, decide whether to re-baseline the corpus at it (every existing number moves) | decision recorded in ADR 0087 |
 | 2.5 | Host-side robustness from the research: udev symlink by serial number for the board; close the fd on error before reopening | reconnect test passes with a renamed device |
 
 ## 6. Phase 3: platform seams
@@ -151,6 +153,8 @@ vision emulator rate/latency/colour errors).
    the protos, not NATS headers.
 5. Which keys are tunable live (4.9): start with a small set of navigation
    tuning keys in sim only, or mark broadly and restrict on hardware.
+6. Whether to re-baseline the corpus at the measured command delay once
+   phase 1 has it (2.8): the zero-delay baseline is optimistic by one tick.
 
 ## 11. Not adopting (and why)
 
@@ -200,3 +204,45 @@ Latency, contention, faults:
 Research findings came from two delegated passes; the specific figures quoted
 from them (for example Pi 5 PREEMPT_RT latencies, netem options) should be
 rechecked against the source before they drive a decision.
+
+## 13. Results: transport sweep (2.3)
+
+Conditions: commit `b2bf364a` plus the uncommitted 2.3 work (the transport
+emulation itself), native runner, `src/python/.corpus/{obstacles,open}`
+(256 scenarios each), shipped TOML tree, profiles
+`270deg-hiwonder-35kg,rev-hd-hex-motor-6000rpm`, 20 Hz control. Runs are
+deterministic; resolution is one control tick (50 ms), so every delay in
+(0, 0.05] s gives the same result (checked at 0.005, 0.01, 0.02, 0.03, 0.04).
+
+Obstacles, command delay:
+
+| delay s | succeeded | collided | timed out | wrong side | contact runs |
+|---|---|---|---|---|---|
+| 0 | 176 | 11 | 56 | 12 | 27 |
+| 0.05 | 154 | 9 | 72 | 21 | 33 |
+| 0.1 | 178 | 19 | 50 | 9 | 29 |
+| 0.15 | 183 | 25 | 28 | 20 | 48 |
+| 0.2 | 144 | 66 | 17 | 29 | 100 |
+| 0.3 | 57 | 171 | 1 | 27 | 218 |
+
+Open, command delay: 256/256 succeed with no collision up to 0.2 s; at 0.3 s
+only 70 succeed and 186 collide.
+
+Obstacles, LIDAR scan delay: collisions 11 / 4 / 11 / 29 / 43 / 88 at 0 /
+0.05 / 0.1 / 0.2 / 0.3 / 0.5 s, while timeouts fall 56 -> 0 and mean run time
+130 -> 85 s (the robot reacts later and runs faster into contact).
+
+Obstacles, command drops with the board watchdog at 0.5 s: collisions stay
+10-14 up to 50% drops (successes 176 -> 157-161, mostly extra timeouts), then
+42 at 70% and 65 at 90%.
+
+Readings:
+
+- Collisions are the clean signal: monotonic past about 0.15 s of command
+  delay in Obstacles and a cliff between 0.2 and 0.3 s in Open.
+- "Succeeded" is not monotonic because collisions end runs that would
+  otherwise have timed out: exactly why outcomes are kept separate.
+- One tick of delay alone costs Obstacles 22 successes and 9 more wrong-side
+  passes. The zero-delay baseline is an idealization no robot has (2.8).
+- The real command delay is not measured yet (phase 1); the Open margin
+  (fine at 0.2 s) is comfortable, the Obstacles one is not.

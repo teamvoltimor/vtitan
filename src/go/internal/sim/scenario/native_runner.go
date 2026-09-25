@@ -115,6 +115,10 @@ type NativeRunnerConfig struct {
 	// pose and its heading -- on top of whatever Blind withholds about the
 	// track. Zero (a perfect robot) is Python's default too.
 	SensorErrors sensorerrors.Errors
+	// Transport is the latency and loss between the navigator and the body
+	// and sensors (harness.TransportConfig). Zero is none, every existing
+	// number's condition.
+	Transport harness.TransportConfig
 	// Seed is the RNG seed for LIDAR noise/dropout (parity default 0, matching
 	// the Python np.random.default_rng(0)).
 	Seed uint64
@@ -286,6 +290,9 @@ func NewNativeRunner(cfg NativeRunnerConfig) *NativeRunner {
 	// with a caller-supplied Config rather than being erased by it.
 	if cfg.SensorErrors.Any() {
 		hc.SensorErrors = cfg.SensorErrors
+	}
+	if cfg.Transport.Any() {
+		hc.Transport = cfg.Transport
 	}
 	// Every ConfigFor already treats an empty root as "use the literal
 	// defaults" and logs its own reason on a load failure, so there is no

@@ -65,6 +65,10 @@ type Config struct {
 	// where it was placed and which way it thinks it points. The zero value
 	// is a perfect robot, and switching any of it on is an explicit A/B.
 	SensorErrors sensorerrors.Errors
+	// Transport is the latency and loss between the navigator and the body
+	// and sensors. The zero value is none, every existing number's
+	// condition.
+	Transport TransportConfig
 
 	// DetectionConfidence is the fixed confidence internal/sim/visionsim
 	// reports for every emulated sign detection. Mirrors simulation.toml's
