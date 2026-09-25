@@ -415,6 +415,24 @@ response and should be re-run on this baseline (decision 7).
   the chassis is pinned. Physically it would; changing it is a separate
   realism A/B on both sims.
 
+### 13.2 The sweeps re-measured on solid walls (`e6564c50`)
+
+Same conditions as 13.1. Every reading above still holds; the numbers move
+by a few runs at most. Columns: succeeded / collided / timed out / wrong
+side / contact runs.
+
+| Sweep | Values | Results |
+|---|---|---|
+| Obstacles, command delay s | 0 / 0.05 / 0.1 / 0.15 / 0.2 / 0.3 | 173/11/57/13/27, 155/9/73/19/33, 166/13/60/17/31, 174/22/49/11/51, 189/31/27/9/52, 101/131/1/23/171 |
+| Open, command delay s | 0 / 0.2 / 0.25 / 0.3 | 256/0, 256/0, 252/4, 221/35 (succeeded/collided) |
+| Obstacles, scan delay s | 0 / 0.05 / 0.1 / 0.2 / 0.3 / 0.5 | collided 11 / 7 / 4 / 32 / 36 / 75, timed out 57 / 66 / 65 / 20 / 6 / 0 |
+| Obstacles, command drops, watchdog 0.5 s | 0 / 0.5 / 0.7 / 0.9 | 173/11, 159/14, 153/42, 75/66 (succeeded/collided) |
+| Obstacles blind, detection delay s | 0 / 0.25 / 0.5 / 0.85 / 1.2 | collided 17 / 30 / 40 / 72 / 78, wrong side 6 / 11 / 23 / 44 / 67 |
+| Obstacles blind, 0.85 s + 0.79 drops | | collided 73, wrong side 41 |
+
+Differences worth noting: Open at 0.25 s now loses 4 runs to collisions
+(0 before), and at 0.3 s 35 (32 before).
+
 ## 14. Diagnosis: blind runs do not count laps (2.9)
 
 Investigated 2026-09-24 on `17ff7ce1`, native runner, shipped config.
