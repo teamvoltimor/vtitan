@@ -61,12 +61,17 @@ type Result struct {
 	Steps         int `json:"steps"`
 	ContactCount  int `json:"contact_count"`
 
-	Collided          bool `json:"collided"`
-	TimedOut          bool `json:"timed_out"`
-	Stuck             bool `json:"stuck"`
-	PassSideViolation bool `json:"pass_side_violation"`
-	Success           bool `json:"success"`
-	OverTime          bool `json:"over_time"`
+	Collided bool `json:"collided"`
+	TimedOut bool `json:"timed_out"`
+	Stuck    bool `json:"stuck"`
+	// InvalidSim names the physics invariant the simulator broke (a
+	// teleport, invented motion, or penetration of a solid surface), which
+	// voids the run: it is never a success, and whatever it would have
+	// scored says nothing about the robot. Empty for a valid run; Go only.
+	InvalidSim        string `json:"invalid_sim,omitempty"`
+	PassSideViolation bool   `json:"pass_side_violation"`
+	Success           bool   `json:"success"`
+	OverTime          bool   `json:"over_time"`
 }
 
 // parseResult decodes one line of JSON produced by

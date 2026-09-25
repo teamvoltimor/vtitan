@@ -130,6 +130,18 @@ func (k *AckermannKinematics) Step(state AckermannState, targetSpeed, targetStee
 	return AckermannState{X: x, Y: y, Yaw: geom.WrapAngle(yaw), V: v, Steer: steer}
 }
 
+// StepBounds is the most a single Step of dt can move the body: distance
+// traveled and absolute yaw change, starting from a speed of |v0|. Speed
+// never leaves [-max(|v0|, MaxSpeedMPS), +same] inside Step, so these are
+// hard limits, which a physics invariant can hold the simulator to: a pose
+// that moved further than this in one tick was teleported, not driven.
+func (k *AckermannKinematics) StepBounds(v0, dt float64) (distanceM, yawRad float64) {
+	speed := math.Max(math.Abs(v0), k.maxSpeed)
+	distanceM = speed * dt
+	yawRad = math.Abs(k.yawGain) * (speed / k.turnReferenceLen) * math.Tan(k.maxSteer) * dt
+	return distanceM, yawRad
+}
+
 // approach moves current toward target by at most maxDelta, matching the
 // private _approach slew-rate helper.
 func approach(current, target, maxDelta float64) float64 {

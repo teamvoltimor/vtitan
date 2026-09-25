@@ -1,6 +1,7 @@
 package harness
 
 import (
+	"fmt"
 	"math"
 	"math/rand/v2"
 
@@ -65,6 +66,15 @@ type SimHardwareGateway struct {
 	collided   bool
 	collisionX float64
 	collisionY float64
+	// blocked is whether the last step was cut short by a solid surface,
+	// and contactSurface what that tick scores: the surface the settled
+	// pose touches, else the one the refused step would have entered,
+	// since the pose actually held is by construction clear of it.
+	blocked        bool
+	contactSurface collision.ContactSurface
+	// violation is the first physics invariant the run broke, empty while
+	// the simulation is still physically valid. See checkInvariants.
+	violation string
 
 	// transport is nil unless cfg.Transport switches something on, so the
 	// default run takes exactly the paths it always took.
@@ -81,6 +91,10 @@ const sensorErrorStreamSalt = 0xa076_1d64_78bd_642f
 // stream from the raw run seed, so a stream seeded with 0 is still distinct
 // from the sensor-error one above.
 const lidarStreamSalt = 0x9e3779b97f4a7c15
+
+// invariantTolerance absorbs floating-point rounding in the comparisons
+// below; anything a physics defect produces is orders of magnitude larger.
+const invariantTolerance = 1e-9
 
 // NewSimHardwareGateway builds a gateway from a kinematic state, the track
 // model, and the harness config.
@@ -197,8 +211,21 @@ func (g *SimHardwareGateway) ResetPosition(x, y float64) {
 func (g *SimHardwareGateway) ResetHeadingReference() {}
 
 // CorrectHeadingForDirectionChange shifts the kinematic yaw by deltaRad.
+//
+// That turns the chassis in place, where the real robot only corrects its
+// belief: the known defect of platform plan item 2.9. The rotation itself is
+// a declared exemption from the teleport invariant until item 2.10 removes
+// it, but a turn that lands the chassis inside a solid surface voids the
+// run, since everything after it (the body held there, refused every step)
+// is the simulator's doing, not the robot's.
 func (g *SimHardwareGateway) CorrectHeadingForDirectionChange(deltaRad float64) {
+	wasClear := !g.cfg.SolidSurfaces.Contains(g.surfaceAt(g.state))
 	g.state.Yaw = geom.WrapAngle(g.state.Yaw + deltaRad)
+	if landed := g.surfaceAt(g.state); wasClear && g.violation == "" && g.cfg.SolidSurfaces.Contains(landed) {
+		g.violation = fmt.Sprintf(
+			"teleport at t=%.2fs: the heading correction turned the chassis %.2f rad in place, into solid %s "+
+				"(platform plan 2.9)", g.elapsedS, deltaRad, landed)
+	}
 }
 
 // Advance integrates the last command over dt (defaulting to the control
@@ -212,14 +239,16 @@ func (g *SimHardwareGateway) Advance(dt float64) {
 	}
 	g.elapsedS += dt
 
-	prevX, prevY, prevYaw := g.state.X, g.state.Y, g.state.Yaw
+	prev := g.state
+	prevX, prevY, prevYaw := prev.X, prev.Y, prev.Yaw
 	candidate := g.kin.Step(g.state, g.command.SpeedMPS, g.command.SteeringNorm, dt)
-	g.state = candidate
+	g.state = g.settle(prev, candidate)
 
 	// Signed along the heading, not unsigned path length: a quadrature
 	// encoder counts down in reverse, so the real distance_m is signed.
 	// Accumulating hypot() here would make a reversing robot report travel
-	// forwards, matching the Python oracle's _wheel_distance_m update.
+	// forwards, matching the Python oracle's _wheel_distance_m update. Taken
+	// from the SETTLED pose, so a chassis held by a wall reports no travel.
 	g.distanceM += (g.state.X-prevX)*math.Cos(prevYaw) + (g.state.Y-prevY)*math.Sin(prevYaw)
 
 	// Unwrapped so a one-way round accumulates: the gyro scale error scales
@@ -228,19 +257,16 @@ func (g *SimHardwareGateway) Advance(dt float64) {
 	g.rotationRad += geom.WrapAngle(g.state.Yaw - g.prevTrueYaw)
 	g.prevTrueYaw = g.state.Yaw
 
-	// The chassis is allowed to graze a wall; the integrated pose is kept
-	// (the Python allowed_step logic is ported separately and applied by the
-	// runner via FootprintCollides when scoring). Here the body always moves
-	// to the candidate pose, matching the no-solid-walls default.
-
-	surface := g.track.ContactSurfaceAt(
-		g.state.X, g.state.Y, g.state.Yaw,
-		g.cfg.ChassisLengthM, g.cfg.ChassisWidthM,
-	)
-	g.collided = surface != collision.SurfaceNone
+	settled := g.surfaceAt(g.state)
+	g.collided = settled != collision.SurfaceNone
 	if g.collided {
 		g.collisionX, g.collisionY = g.state.X, g.state.Y
 	}
+	g.contactSurface = settled
+	if !g.collided && g.blocked {
+		g.contactSurface = g.surfaceAt(candidate)
+	}
+	g.checkInvariants(prev, candidate, dt)
 
 	// Regenerate the scan only when a sweep period has elapsed (or every tick
 	// when LidarHz <= 0, the always-fresh default).
@@ -248,6 +274,25 @@ func (g *SimHardwareGateway) Advance(dt float64) {
 		g.lastScanS = g.elapsedS
 		g.refreshSensors()
 	}
+}
+
+// PhysicsViolation is the first physics invariant the run broke, empty
+// while the simulation is valid. See checkInvariants.
+func (g *SimHardwareGateway) PhysicsViolation() string {
+	return g.violation
+}
+
+// Blocked reports whether the last step was cut short by a solid surface.
+func (g *SimHardwareGateway) Blocked() bool {
+	return g.blocked
+}
+
+// ContactSurface is what the last tick scores: the surface the chassis
+// touches, or, when a solid surface cut the step short and the held pose is
+// clear, the surface the refused step would have entered. SurfaceNone when
+// there was no contact.
+func (g *SimHardwareGateway) ContactSurface() collision.ContactSurface {
+	return g.contactSurface
 }
 
 // Collided reports whether the chassis is currently touching a terminal
@@ -259,6 +304,77 @@ func (g *SimHardwareGateway) Collided() bool {
 // CollisionXY returns the last collision point, or (0,0) if never collided.
 func (g *SimHardwareGateway) CollisionXY() (x, y float64) {
 	return g.collisionX, g.collisionY
+}
+
+// settle is the pose the body actually reaches this tick: candidate itself
+// without solid surfaces, else as far along it as collision.AllowedStep
+// lets it go, holding still with zero speed when no part of it fits.
+func (g *SimHardwareGateway) settle(prev, candidate kinematics.AckermannState) kinematics.AckermannState {
+	g.blocked = false
+	if len(g.cfg.SolidSurfaces) == 0 || g.cfg.NoContactResponse {
+		return candidate
+	}
+	allowed := collision.AllowedStep(
+		g.track, g.cfg.SolidSurfaces, g.cfg.ChassisLengthM, g.cfg.ChassisWidthM,
+		prev, candidate, g.cfg.SlideOnContact,
+	)
+	if allowed == nil {
+		// The whole previous state is held, steering included, exactly as
+		// Python's replace(state, v=0.0): a refused step does not slew the
+		// servo either. Physically the servo would keep turning; kept for
+		// parity (ADR 0068) and noted in the platform plan, item 2.11.
+		g.blocked = true
+		held := prev
+		held.V = 0
+		return held
+	}
+	g.blocked = *allowed != candidate
+	return *allowed
+}
+
+func (g *SimHardwareGateway) surfaceAt(st kinematics.AckermannState) collision.ContactSurface {
+	return g.track.ContactSurfaceAt(st.X, st.Y, st.Yaw, g.cfg.ChassisLengthM, g.cfg.ChassisWidthM)
+}
+
+// checkInvariants records the first way this tick broke physics, so the
+// runner can fail the run as an invalid simulation instead of scoring it
+// (platform plan principle 8). A simulator that teleports the body or lets
+// it sink into a solid wall produces a score that says nothing about the
+// robot, and it would otherwise pass silently.
+//
+//   - teleport: the body moved or turned further than the kinematics can in
+//     dt (kinematics.StepBounds);
+//   - invented motion: contact made the body move or turn further than the
+//     kinematics commanded, when it may only take motion away;
+//   - penetration: the body entered a solid surface it was clear of.
+//
+// Declared exemption: CorrectHeadingForDirectionChange rotates the body
+// outside Advance, so it never reaches these checks; it holds itself only
+// to not landing in a solid surface. It is the known defect of platform
+// plan item 2.9 (the sim turns the chassis where the real robot only
+// corrects its belief), to be removed by item 2.10, not a behaviour these
+// checks accept.
+func (g *SimHardwareGateway) checkInvariants(prev, candidate kinematics.AckermannState, dt float64) {
+	if g.violation != "" {
+		return
+	}
+	maxDist, maxYaw := g.kin.StepBounds(prev.V, dt)
+	moved := math.Hypot(g.state.X-prev.X, g.state.Y-prev.Y)
+	turned := math.Abs(geom.WrapAngle(g.state.Yaw - prev.Yaw))
+	commandedMove := math.Hypot(candidate.X-prev.X, candidate.Y-prev.Y)
+	commandedTurn := math.Abs(geom.WrapAngle(candidate.Yaw - prev.Yaw))
+	switch {
+	case moved > maxDist+invariantTolerance || turned > maxYaw+invariantTolerance:
+		g.violation = fmt.Sprintf("teleport at t=%.2fs: moved %.4f m and turned %.4f rad, limits %.4f m and %.4f rad",
+			g.elapsedS, moved, turned, maxDist, maxYaw)
+	case moved > commandedMove+invariantTolerance || turned > commandedTurn+invariantTolerance:
+		g.violation = fmt.Sprintf(
+			"invented motion at t=%.2fs: moved %.4f m and turned %.4f rad, commanded %.4f m and %.4f rad",
+			g.elapsedS, moved, turned, commandedMove, commandedTurn)
+	case g.cfg.SolidSurfaces.Contains(g.surfaceAt(g.state)) && !g.cfg.SolidSurfaces.Contains(g.surfaceAt(prev)):
+		g.violation = fmt.Sprintf("penetration at t=%.2fs: entered solid %s at (%.3f, %.3f)",
+			g.elapsedS, g.surfaceAt(g.state), g.state.X, g.state.Y)
+	}
 }
 
 // initSensorErrors builds the IMU model and draws the start-pose offset,

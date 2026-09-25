@@ -14,6 +14,11 @@ type Config struct {
 	// |cos(yaw)| below this counts as a quarter-turn for
 	// NewObstacleBoxFromPose.
 	AxisAlignTolerance float64
+	// SlideOnContact matches simulation.toml's
+	// contact_slides_along_surfaces: a blocked translation slides along the
+	// surface it hit instead of being scaled to nothing (AllowedStep's
+	// slide).
+	SlideOnContact bool
 }
 
 // Default* match
@@ -23,9 +28,16 @@ type Config struct {
 const (
 	DefaultCollisionMarginM   = 0.0
 	DefaultAxisAlignTolerance = 1e-6
+	// DefaultSlideOnContact is the shipped simulation.toml value; the
+	// Pydantic field is required and has no default of its own.
+	DefaultSlideOnContact = true
 )
 
 // DefaultConfig returns the Config matching the Python tuning defaults.
 func DefaultConfig() Config {
-	return Config{CollisionMarginM: DefaultCollisionMarginM, AxisAlignTolerance: DefaultAxisAlignTolerance}
+	return Config{
+		CollisionMarginM:   DefaultCollisionMarginM,
+		AxisAlignTolerance: DefaultAxisAlignTolerance,
+		SlideOnContact:     DefaultSlideOnContact,
+	}
 }

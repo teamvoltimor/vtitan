@@ -204,7 +204,7 @@ func TestAllowedStep_ClearMoveIsUnrestricted(t *testing.T) {
 	state := kinematics.AckermannState{X: 0.5, Y: 0.5, Yaw: 0.0}
 	candidate := kinematics.AckermannState{X: 0.55, Y: 0.5, Yaw: 0.0, V: 0.1}
 
-	got := collision.AllowedStep(tm, solid, chassisLengthM, chassisWidthM, state, candidate)
+	got := collision.AllowedStep(tm, solid, chassisLengthM, chassisWidthM, state, candidate, false)
 	if got == nil {
 		t.Fatal("AllowedStep() = nil for a clear move, want the candidate unchanged")
 	}
@@ -226,7 +226,7 @@ func TestAllowedStep_HeadOnIntoAWallDoesNotMove(t *testing.T) {
 	state := kinematics.AckermannState{X: chassisLengthM / 2, Y: 0.5, Yaw: 0.0}
 	candidate := kinematics.AckermannState{X: state.X - 0.05, Y: 0.5, Yaw: 0.0, V: 0.1}
 
-	got := collision.AllowedStep(tm, solid, chassisLengthM, chassisWidthM, state, candidate)
+	got := collision.AllowedStep(tm, solid, chassisLengthM, chassisWidthM, state, candidate, false)
 	if got != nil {
 		t.Errorf("AllowedStep() = %+v, want nil (head-on contact makes no progress)", *got)
 	}
@@ -252,7 +252,7 @@ func TestAllowedStep_GrazingTurnStillMovesForward(t *testing.T) {
 	state := kinematics.AckermannState{X: 1.5, Y: 0.12, Yaw: 0.0}
 	candidate := kinematics.AckermannState{X: 1.55, Y: 0.12, Yaw: 1.0, V: 0.1}
 
-	got := collision.AllowedStep(tm, solid, chassisLengthM, chassisWidthM, state, candidate)
+	got := collision.AllowedStep(tm, solid, chassisLengthM, chassisWidthM, state, candidate, false)
 	if got == nil {
 		t.Fatal("AllowedStep() = nil, want a pose that still advances (translation was clear)")
 	}
@@ -262,5 +262,95 @@ func TestAllowedStep_GrazingTurnStillMovesForward(t *testing.T) {
 	}
 	if got.Yaw == candidate.Yaw {
 		t.Error("AllowedStep() yaw = full candidate yaw, want it bisected down to what still fits")
+	}
+}
+
+// TestAllowedStep_SlideKeepsTheAlongWallComponent is the sliding branch
+// (collision_stepping.py's _slide_along): a chassis 1 mm off the south
+// wall stepping forward and slightly into it keeps its whole forward
+// motion when sliding, where scaling the step along its own vector stops
+// it after a quarter of it.
+func TestAllowedStep_SlideKeepsTheAlongWallComponent(t *testing.T) {
+	t.Parallel()
+
+	tm := symmetricTrackModel(t)
+	solid := collision.NewSurfaceSet(collision.SurfaceOuterWall, collision.SurfaceInnerWall)
+	state := kinematics.AckermannState{X: 1.5, Y: chassisWidthM/2 + 0.001, Yaw: 0.0}
+	candidate := kinematics.AckermannState{X: 1.51, Y: state.Y - 0.004, Yaw: 0.0, V: 0.2}
+
+	scaled := collision.AllowedStep(tm, solid, chassisLengthM, chassisWidthM, state, candidate, false)
+	slid := collision.AllowedStep(tm, solid, chassisLengthM, chassisWidthM, state, candidate, true)
+	if scaled == nil || slid == nil {
+		t.Fatalf("AllowedStep() = %v (scaled), %v (slid), want both to move", scaled, slid)
+	}
+	// The bisection resolves the step to 1/256 of it, as Python's does.
+	if math.Abs(slid.X-candidate.X) > (candidate.X-state.X)/100 || slid.Y != state.Y {
+		t.Errorf("slid to (%v, %v), want about the full forward step (%v, %v) with no move into the wall",
+			slid.X, slid.Y, candidate.X, state.Y)
+	}
+	if slidMove, scaledMove := slid.X-state.X, scaled.X-state.X; slidMove < 3*scaledMove {
+		t.Errorf("forward progress %v sliding against %v scaled, want sliding far ahead", slidMove, scaledMove)
+	}
+	commanded := math.Hypot(candidate.X-state.X, candidate.Y-state.Y)
+	if want := candidate.V * (slid.X - state.X) / commanded; math.Abs(slid.V-want) > 1e-12 {
+		t.Errorf("slid V = %v, want the speed scaled by the distance kept, %v", slid.V, want)
+	}
+}
+
+// Sliding does not change head-on contact: the into-wall axis is blocked
+// and the along-wall one is zero, so there is still no progress.
+func TestAllowedStep_SlideHeadOnStillDoesNotMove(t *testing.T) {
+	t.Parallel()
+
+	tm := symmetricTrackModel(t)
+	solid := collision.NewSurfaceSet(collision.SurfaceOuterWall, collision.SurfaceInnerWall)
+	state := kinematics.AckermannState{X: chassisLengthM / 2, Y: 0.5, Yaw: 0.0}
+	candidate := kinematics.AckermannState{X: state.X - 0.05, Y: 0.5, Yaw: 0.0, V: -0.1}
+
+	if got := collision.AllowedStep(tm, solid, chassisLengthM, chassisWidthM, state, candidate, true); got != nil {
+		t.Errorf("AllowedStep(slide) = %+v, want nil (head-on contact makes no progress)", *got)
+	}
+}
+
+func TestSolidSurfacesFor(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		terminal collision.SurfaceSet
+		want     []collision.ContactSurface
+	}{
+		{
+			name:     "open: the outer wall ends the run, the rest is solid",
+			terminal: collision.NewSurfaceSet(collision.SurfaceOuterWall),
+			want: []collision.ContactSurface{
+				collision.SurfaceInnerWall, collision.SurfaceObstacle, collision.SurfaceParkingLot,
+			},
+		},
+		{
+			name: "obstacles: the outer wall and the parking fins are solid",
+			terminal: collision.NewSurfaceSet(
+				collision.SurfaceInnerWall, collision.SurfaceObstacle, collision.SurfaceParkingLot),
+			want: []collision.ContactSurface{collision.SurfaceOuterWall, collision.SurfaceParkingLot},
+		},
+	}
+	all := []collision.ContactSurface{
+		collision.SurfaceNone, collision.SurfaceOuterWall, collision.SurfaceInnerWall,
+		collision.SurfaceObstacle, collision.SurfaceParkingLot,
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			got := collision.SolidSurfacesFor(tt.terminal)
+			for _, c := range all {
+				want := false
+				for _, w := range tt.want {
+					want = want || w == c
+				}
+				if got.Contains(c) != want {
+					t.Errorf("solid contains %v = %v, want %v", c, got.Contains(c), want)
+				}
+			}
+		})
 	}
 }

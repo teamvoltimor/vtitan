@@ -69,6 +69,7 @@ type cliConfig struct {
 	record         bool
 	runner         string
 	blind          bool
+	noSolidWalls   bool
 }
 
 // Runner backend names accepted by --runner.
@@ -202,6 +203,14 @@ func newRootCmd(cfg *cliConfig, logger *slog.Logger, stdout io.Writer) *cobra.Co
 		false,
 		"--runner native only: withhold the scenario's direction and corridor widths, "+
 			"so the robot infers both from LIDAR as it does in a real round",
+	)
+	flags.BoolVar(
+		&cfg.noSolidWalls,
+		"no-solid-walls",
+		false,
+		"--runner native only: let the body pass through every surface, the model Go corpus "+
+			"numbers before platform plan item 2.11 were measured on; a run that goes through a "+
+			"solid one is voided (invalid_sim)",
 	)
 
 	flags.StringVar(
@@ -458,6 +467,7 @@ func run(ctx context.Context, logger *slog.Logger, cfg cliConfig, stdout io.Writ
 		runner = scenario.NewNativeRunner(scenario.NativeRunnerConfig{
 			RecordRoot:       recordRoot,
 			Blind:            cfg.blind,
+			NoSolidWalls:     cfg.noSolidWalls,
 			Localize:         cfg.localize,
 			ConfigRoot:       cfg.configRoot,
 			HardwareProfiles: splitCSV(cfg.hwProfiles),

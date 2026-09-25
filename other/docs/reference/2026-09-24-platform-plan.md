@@ -50,8 +50,8 @@ is: reusable, measurable, and testable without the car. This plan consolidates:
 | Area | State |
 |---|---|
 | Virtual actuation board | `pkg/boardsim`: real `boardloop` on in-memory hardware, link latency/jitter/bit flips from `board_sim.toml`, end-to-end tests against `picolink`. On `origin/master` (`233f94ae`, `f6e67f89`) |
-| In-process world sim | `internal/sim/harness` + `kinematics` + `collision` + `sensorerrors`: drivetrain lag and servo slew; transport delays since 2.3/2.7. **No contact response**: `collision.AllowedStep` is ported but never called, so the chassis passes through walls and pillars and contact is only scored (`harness/gateway.go:233`); the Python oracle slides. **No snapshot/restore** of state mid-run (neither sim) |
-| Go vs Python sim realism | Go lacks what Python has: LIDAR chassis occlusion and self-returns, vision colour flips / bearing scatter / range falloff, the IMU error budget on by default, tick jitter, the reverse-run rule 9.21, solid walls. Go-vs-Python parity (ADR 0068) is partly parity with an easier world |
+| In-process world sim | `internal/sim/harness` + `kinematics` + `collision` + `sensorerrors`: drivetrain lag and servo slew; transport delays since 2.3/2.7. Solid walls and sliding as in Python since 2.11, with physics invariants that void a run (`invalid_sim`). **No snapshot/restore** of state mid-run (neither sim) |
+| Go vs Python sim realism | Go lacks what Python has: LIDAR chassis occlusion and self-returns, vision colour flips / bearing scatter / range falloff, the IMU error budget on by default, tick jitter, the reverse-run rule 9.21. Go-vs-Python parity (ADR 0068) is partly parity with an easier world |
 | Recording | MCAP of real runs has `/ackermann_cmd`, `/joint_states`, `/imu/data`, `/vision/detections`, `/nav_debug`, ... but **no `motor_status`** (so no `command_age_ms`) and no CPU/thermal health |
 | Known fidelity gaps | vision latency 0 in sim vs 0.85 s measured; LIDAR return loss 1% vs 25%; sim under-rotates 40-50% in escapes; sim never saturates the steering |
 | Timing observability | none end to end: no capture time / causal chain across messages |
@@ -100,7 +100,7 @@ old the data behind a steering command is.
 | 2.8 | **Decision needed (found by 2.3):** the corpus baseline assumes a command acts in the tick it is computed. Once phase 1 measures the real command delay, decide whether to re-baseline the corpus at it (every existing number moves) | decision recorded in ADR 0087 |
 | 2.9 | **Blind laps (found by 2.7):** in `--blind` Obstacles completes 0 laps in 256/256 scenarios while driving and discovering signs | DIAGNOSED, NOT FIXED (section 14). Two confirmed defects in how the sim meets the blind stack; a naive fix made blind worse and was reverted. Needs a frame-contract decision (2.10) |
 | 2.10 | **Frame contract for blind rounds:** decide which frame every blind consumer works in (pose, lap detector, path, sign discovery, parking, pass-side scorer), how the real `natsgw` + localizer produce it, and make the sim present exactly that. Compare against the Python oracle, which reportedly rotates the believed pose into the canonical frame | ADR; blind Open and Obstacles count laps without regressing collisions or wrong-side passes |
-| 2.11 | **Solid walls in the Go sim (found by the section 15 study):** call `collision.AllowedStep` from `SimHardwareGateway.Advance` behind `contact_slides_along_surfaces` (same key as Python); add per-tick **physics invariants** (teleport: displacement and rotation within the kinematic limits for `dt`; penetration: depth above a tolerance outside a declared exemption) that fail the run as "invalid sim". Run before re-running any sweep, since it moves every Go baseline | Go and Python agree on blocked steps on the fixtures; invariants pass with the key on and fail with it off; corpus delta recorded; reuse doc section 1.4 corrected (it says Go slides) |
+| 2.11 | **Solid walls in the Go sim (found by the section 15 study):** call `collision.AllowedStep` from `SimHardwareGateway.Advance` behind `contact_slides_along_surfaces` (same key as Python); add per-tick **physics invariants** (teleport: displacement and rotation within the kinematic limits for `dt`; penetration: depth above a tolerance outside a declared exemption) that fail the run as "invalid sim". Run before re-running any sweep, since it moves every Go baseline | Go and Python agree on blocked steps on the fixtures; invariants pass with the key on and fail with it off; corpus delta recorded; reuse doc section 1.4 corrected (it says Go slides) | DONE: `collision.AllowedStep` now carries Python's sliding branch and the gateway applies it. The solid set is Python's: every non-terminal surface plus the parking fins (`collision.SolidSurfacesFor`), and sliding is read from `contact_slides_along_surfaces`. A refused step scores the surface it would have entered. Checked against 1,616 golden steps from the Python oracle (`testdata/allowed_step_python.json`, generator `scripts/sim/gen_allowed_step_golden.py`). Per-tick invariants (teleport against `kinematics.StepBounds`, invented motion, penetration) void a run as `invalid_sim`. `--no-solid-walls` restores pass-through and is byte-identical to the old results until the invariant voids a run. Corpus delta in section 13.1 |
 | 2.12 | **Port Python's measured sensor models to the Go harness:** LIDAR chassis occlusion and self-returns (model the chassis in the raycast, exclude it, add the measured returns explicitly), vision colour flips / bearing scatter / range falloff / confidence quantiles, IMU budget on by default, tick jitter, reverse-run rule 9.21 | ADR 0068 parity runs on equally realistic worlds |
 | 2.13 | **Command lease** (section 16): each Command carries its host send time (synced clock, 1.5), a validity window chosen by the host from its situation (short near a wall or pillar, longer on a clear straight) and an expiry action (hold, ramp to stop, straighten and stop). The board executes a command only while it is valid and runs the expiry action after. Leases can only **tighten** the board's hard limits, never relax them. Closes the 2.6 residual | `boardsim` tests: a stall near an obstacle stops within the short lease, the same stall on a straight coasts to a controlled stop; a lease longer than the board maximum is clamped; stale commands after a stall are never applied |
 | 2.14 | **Link health report** board → host: command age at apply (p50/p99), gaps, lease expiries, in Status. The host adapts (speed cap and larger margins when the link is degraded) | visible in MCAP; a netem/`boardsim` degradation lowers the host speed cap |
@@ -381,6 +381,40 @@ Readings:
   Any vision-dependent work must be judged in blind mode, not on the default
   corpus.
 
+### 13.1 Solid walls (2.11), 2026-09-25
+
+Same conditions, zero latency. The sweeps above ran WITHOUT contact
+response and should be re-run on this baseline (decision 7).
+
+| Corpus | Model | Succeeded | Collided | Timed out | Stuck | Wrong side | Contact runs | Invalid |
+|---|---|---|---|---|---|---|---|---|
+| Open | pass-through (old) | 256 | 0 | 0 | 0 | 0 | 70 | - |
+| Open | solid walls | 256 | 0 | 0 | 0 | 0 | 70 | 0 |
+| Open | pass-through + invariants | 186 | 0 | 0 | 0 | 0 | 0 | 70 |
+| Obstacles | pass-through (old) | 176 | 11 | 56 | 1 | 12 | 27 | - |
+| Obstacles | solid walls | 173 | 11 | 57 | 2 | 13 | 27 | 0 |
+| Obstacles | pass-through + invariants | 172 | 11 | 53 | 1 | 10 | 18 | 9 |
+| Open, blind | pass-through (old) | 41 | 14 | 201 | 0 | 0 | 70 | - |
+| Open, blind | solid walls | 29 | 14 | 173 | 0 | 0 | 30 | 40 |
+| Obstacles, blind | pass-through (old) | 0 | 19 | 229 | 0 | 8 | 34 | - |
+| Obstacles, blind | solid walls | 0 | 17 | 233 | 0 | 6 | 34 | 0 |
+
+- **The old Open result hid 70 wall penetrations.** 70 of 256 sighted Open
+  runs drove through the inner wall. They still succeed with solid walls,
+  sliding along it, so the headline 256/256 holds, but the old model
+  could not have told.
+- **Obstacles moves 176 -> 173**, from 5 scenarios changing outcome. All 9
+  old penetrations were through the outer wall.
+- **Blind Open 41 -> 29 is entirely the 2.9 defect.** 40 heading
+  corrections turn the chassis in place into the (now solid) inner wall.
+  Those runs are voided rather than scored as stuck. All 12 lost
+  successes are among them: under the old model they drove out through
+  the wall. No other blind outcome changed.
+- **Parity detail kept from Python:** a refused step holds the whole
+  previous state, steering included, so the servo does not slew while
+  the chassis is pinned. Physically it would; changing it is a separate
+  realism A/B on both sims.
+
 ## 14. Diagnosis: blind runs do not count laps (2.9)
 
 Investigated 2026-09-24 on `17ff7ce1`, native runner, shipped config.
@@ -478,7 +512,7 @@ contact dynamics and a restorable state.
 
 ### 15.2 Findings about vTitan
 
-1. **The Go sim has no solid walls.** Only tests call
+1. **The Go sim had no solid walls** (fixed by 2.11). Only tests called
    `collision.AllowedStep`, and the gateway always moves to the candidate
    pose. Python slides. This confounds ADR 0068 parity for any
    non-terminal contact, and section 13's sweeps ran without contact

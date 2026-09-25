@@ -23,6 +23,7 @@ func ConfigFor(logger *slog.Logger, configRoot string) Config {
 		func(sim simulation.NavigationSimulationSimulation) {
 			cfg.CollisionMarginM = sim.CollisionMarginM
 			cfg.AxisAlignTolerance = sim.AxisAlignTolerance
+			cfg.SlideOnContact = sim.ContactSlidesAlongSurfaces
 		})
 	return cfg
 }

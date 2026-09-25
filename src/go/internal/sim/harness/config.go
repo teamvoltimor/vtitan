@@ -2,6 +2,7 @@ package harness
 
 import (
 	"github.com/teamvoltimor/vtitan/src/go/internal/nav/localization"
+	"github.com/teamvoltimor/vtitan/src/go/internal/sim/collision"
 	"github.com/teamvoltimor/vtitan/src/go/internal/sim/sensorerrors"
 )
 
@@ -61,6 +62,23 @@ type Config struct {
 	// adr:0068-go-parallel-track-single-cutover.
 	ChassisLengthM float64
 	ChassisWidthM  float64
+	// SolidSurfaces are the surfaces that physically stop the chassis:
+	// a step that would enter one is cut short by collision.AllowedStep,
+	// and a body found inside one it was clear of breaks a physics
+	// invariant (SimHardwareGateway.PhysicsViolation). The native runner
+	// sets collision.SolidSurfacesFor the challenge, as Python does. Nil
+	// is a world with nothing solid.
+	SolidSurfaces collision.SurfaceSet
+	// NoContactResponse lets the body pass through SolidSurfaces anyway,
+	// the model every Go number before platform plan item 2.11 was
+	// measured on. The penetration invariant still holds the world to
+	// SolidSurfaces, so a run that drives through one is voided: that is
+	// how many of those numbers were physically impossible.
+	NoContactResponse bool
+	// SlideOnContact lets a blocked translation slide along the surface
+	// instead of stopping dead (simulation.toml's
+	// contact_slides_along_surfaces). Read only with SolidSurfaces.
+	SlideOnContact bool
 	// SensorErrors is what the robot may be wrong about regarding ITSELF:
 	// where it was placed and which way it thinks it points. The zero value
 	// is a perfect robot, and switching any of it on is an explicit A/B.

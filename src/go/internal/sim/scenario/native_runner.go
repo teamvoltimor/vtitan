@@ -86,6 +86,7 @@ type NativeRunner struct {
 	seed            uint64
 	maxSteps        int
 	blind           bool
+	noSolidWalls    bool
 }
 
 // NativeRunnerConfig configures a NativeRunner.
@@ -135,6 +136,12 @@ type NativeRunnerConfig struct {
 	// corpus sweep measured, so turning this on is an explicit A/B rather
 	// than a silent change to what "the native runner" means.
 	Blind bool
+	// NoSolidWalls lets the body pass through every surface, the model
+	// every Go corpus number before platform plan item 2.11 was measured
+	// on. Off (solid walls, as Python) by default; on only to compare
+	// against those numbers. A run that drives through a solid surface
+	// is still voided (Result.InvalidSim) by the penetration invariant.
+	NoSolidWalls bool
 	// Localize navigates on the LIDAR scan-matcher's estimate instead of
 	// ground truth -- ScenarioSimulator's own default, and the harder
 	// condition, so a cross-stack comparison needs it set.
@@ -151,12 +158,13 @@ type simMotion interface {
 }
 
 // simContact is the collision half: whether the chassis has hit a wall this
-// step and, if so, where.
+// step and, if so, where, and how the world held up (simPhysics).
 type simContact interface {
 	// Collided reports whether the chassis has hit a wall this step.
 	Collided() bool
 	// CollisionXY returns the contact point of the latest collision, if any.
 	CollisionXY() (float64, float64)
+	simPhysics
 }
 
 // simGateway is the simulation-only hardware surface the native runner's
@@ -360,6 +368,7 @@ func NewNativeRunner(cfg NativeRunnerConfig) *NativeRunner {
 		seed:            cfg.Seed,
 		maxSteps:        maxSteps,
 		blind:           cfg.Blind,
+		noSolidWalls:    cfg.NoSolidWalls,
 	}
 }
 
@@ -397,7 +406,7 @@ func (r *NativeRunner) Run(_ context.Context, sc corpus.Scenario) (Result, error
 	kin := kinematics.NewAckermannKinematics(r.kinParams)
 
 	gw := harness.NewSimHardwareGateway(
-		r.cfg, track,
+		r.gatewayConfig(len(signs) > 0), track,
 		kinematics.AckermannState{X: startPose.X, Y: startPose.Y, Yaw: startPose.Yaw},
 		kin, r.seed,
 	)
@@ -531,10 +540,7 @@ func (r *NativeRunner) loop(
 	// Which wall this challenge forbids: a non-nil SignRouter is what
 	// identifies an Obstacles Challenge run to the native runner elsewhere in
 	// this file, so it is the same signal used here.
-	forbidden := OpenForbiddenSurfaces
-	if nav.SignRouter() != nil {
-		forbidden = ObstaclesForbiddenSurfaces
-	}
+	forbidden := forbiddenSurfaces(nav.SignRouter() != nil)
 	contacts := newContactTracker(dt, r.cfg.StartCollisionWindowS, r.cfg.StartCollisionGraceS, forbidden)
 
 	// No-progress bailout, mirroring the Python run's NO_PROGRESS_* policy.
@@ -579,9 +585,13 @@ func (r *NativeRunner) loop(
 		gw.Advance(dt)
 		acc.steps++
 
+		if res, void := voided(gw, scoreRun, passSide); void {
+			return res, nil
+		}
+
 		st := gw.State()
 		acc.observe(st, gw)
-		if gw.Collided() {
+		if gw.Collided() || gw.Blocked() { // a refused step counts too, as in Python's tracker
 			acc.contactCount++
 		}
 
@@ -614,7 +624,9 @@ func (r *NativeRunner) loop(
 		// no start-of-run grace either: SurfaceParkingLot is in
 		// unforgivableContactSurfaces, so contacts.update reports it terminal
 		// on the very first tick regardless of when it began.
-		surface := track.ContactSurfaceAt(st.X, st.Y, st.Yaw, r.cfg.ChassisLengthM, r.cfg.ChassisWidthM)
+		// The gateway's surface: a pose held short of a solid surface is
+		// clear of it, so reading the pose here would score no contact.
+		surface := gw.ContactSurface()
 		surface = nudge.score(track, surface, st.X, st.Y, st.Yaw, r.cfg.ChassisLengthM, r.cfg.ChassisWidthM)
 		if contacts.update(acc.steps, surface) {
 			return scoreRun(contacts.surface, false, passSide.violations()), nil

@@ -88,12 +88,12 @@ Todo esto sirve para cualquier robot con el mismo hardware, compita o no.
 
 - `internal/sim/kinematics`: cinemática del chasis con la curva de radio real.
 - `internal/sim/sensorerrors`: errores realistas de LIDAR e IMU.
-- `internal/sim/collision`: detección por rectángulos orientados. La parte geométrica es
-  genérica; la parte que sabe de pilares y paredes WRO no. Ojo: en el sim Go las paredes
-  NO son sólidas, porque `AllowedStep` no tiene llamador y el chasis atraviesa paredes y
-  pilares. Solo el sim Python desliza por la superficie
-  (`contact_slides_along_surfaces = true` desde `86bee47f`, ADR 0062/0086). Paredes sólidas
-  en Go es el ítem 2.11 del plan de plataforma.
+- `internal/sim/collision`: detección por rectángulos orientados y contacto que desliza por
+  la superficie, en Go desde el ítem 2.11 del plan de plataforma y en Python desde
+  `86bee47f` (`contact_slides_along_surfaces = true`, ADR 0062/0086). Invariantes físicos
+  (teletransporte, movimiento inventado, penetración) anulan una corrida inválida. La parte
+  geométrica es genérica, pero el deslizamiento es por eje, exacto solo con paredes
+  alineadas a los ejes; la parte que sabe de pilares y paredes WRO no es genérica.
 
 ### 1.5 Metodología (probablemente lo más valioso)
 

@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/teamvoltimor/vtitan/src/go/internal/sim/kinematics"
+	"github.com/teamvoltimor/vtitan/src/go/pkg/geom"
 )
 
 // dtS is the 20 Hz control interval the simulator runs at, matching
@@ -281,5 +282,28 @@ func TestTheNamesMatchTheURDFLinks(t *testing.T) {
 		if got[i] != want[i] {
 			t.Errorf("names[%d] = %q, want %q", i, got[i], want[i])
 		}
+	}
+}
+
+// No command, however extreme, moves the body past StepBounds in one step,
+// which is what lets the simulator's teleport invariant use them.
+func TestStepBounds_HoldForAnyCommand(t *testing.T) {
+	t.Parallel()
+
+	k := kinematics.NewAckermannKinematics(kinematics.DefaultParams())
+	const dt = 0.05
+	state := kinematics.AckermannState{X: 1, Y: 1}
+	for i := range 2000 {
+		speed := float64(i%7-3) * 2 // -6..6 m/s, beyond any clamp
+		steer := float64(i%5-2) * 3 // beyond +-1
+		next := k.Step(state, speed, steer, dt)
+		maxDist, maxYaw := k.StepBounds(state.V, dt)
+		if d := math.Hypot(next.X-state.X, next.Y-state.Y); d > maxDist+1e-12 {
+			t.Fatalf("step %d moved %v, bound %v", i, d, maxDist)
+		}
+		if y := math.Abs(geom.WrapAngle(next.Yaw - state.Yaw)); y > maxYaw+1e-12 {
+			t.Fatalf("step %d turned %v, bound %v", i, y, maxYaw)
+		}
+		state = next
 	}
 }
