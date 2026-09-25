@@ -86,7 +86,8 @@ old the data behind a steering command is.
 | 2.6 | **Stale command burst (found by 2.2):** `boardlink.Command` carries no send time, so after a stall the board applies the whole backlog as if fresh (24 queued commands after a 1.2 s stall). Add a host send time to Command and a board-side maximum command age, or have the host drop queued commands on a stall | MOSTLY DONE: the board applies only the newest command of each Step (1 applied, 23 superseded after a 1.2 s stall, was 24 applied). Residual: a host that stopped sending during the stall leaves a stale newest command, applied once until the watchdog stops the car again; closing it needs a send time on Command plus a board-side clock reference |
 | 2.7 | **Vision latency in the sim (found by 2.3):** the measured 0.85 s from camera to detection is the largest latency in the robot | DONE: `DetectionDelayS` (seen from the old pose, placed through the current one) and `DetectionDropRate`, sim-runner flags; results in section 13. Also fixed a one-tick boundary error in all latency emulation |
 | 2.8 | **Decision needed (found by 2.3):** the corpus baseline assumes a command acts in the tick it is computed. Once phase 1 measures the real command delay, decide whether to re-baseline the corpus at it (every existing number moves) | decision recorded in ADR 0087 |
-| 2.9 | **Blind laps (found by 2.7):** in `--blind` the Go navigator completes 0 laps in 256/256 scenarios while driving and discovering signs. Find whether the navigator never counts laps blind (a real-round defect) or the blind harness withholds something it needs | root cause named; blind runs count laps |
+| 2.9 | **Blind laps (found by 2.7):** in `--blind` Obstacles completes 0 laps in 256/256 scenarios while driving and discovering signs | DIAGNOSED, NOT FIXED (section 14). Two confirmed defects in how the sim meets the blind stack; a naive fix made blind worse and was reverted. Needs a frame-contract decision (2.10) |
+| 2.10 | **Frame contract for blind rounds:** decide which frame every blind consumer works in (pose, lap detector, path, sign discovery, parking, pass-side scorer), how the real `natsgw` + localizer produce it, and make the sim present exactly that. Compare against the Python oracle, which reportedly rotates the believed pose into the canonical frame | ADR; blind Open and Obstacles count laps without regressing collisions or wrong-side passes |
 
 ## 6. Phase 3: platform seams
 
@@ -283,3 +284,56 @@ Readings:
   mode, multiplies wrong-side passes (8 -> 42 at 0.85 s), which end a round.
   Any vision-dependent work must be judged in blind mode, not on the default
   corpus.
+
+## 14. Diagnosis: blind runs do not count laps (2.9)
+
+Investigated 2026-09-24 on `17ff7ce1`, native runner, shipped config.
+
+What happens (traced from the recorded navigator debug of Obstacles
+scenario 0): the blind robot drives complete laps, its waypoint index wraps
+about four times in 200 s, but `laps_completed` never moves. Sighted runs
+count laps through the waypoint-only fallback; blind runs install a
+`racetracker.LapDetector` when direction inference settles, so a wrap only
+arms it and the geometric start/finish crossing must confirm the lap. It
+never does in Obstacles.
+
+Confirmed defects:
+
+1. **The sim applies a belief correction to the physical chassis.**
+   `Navigator.ApplyBelievedStart` corrects the heading through
+   `CorrectHeadingForDirectionChange`. The real gateway (`natsgw`) adds it to
+   the estimator's heading offset; `harness.SimHardwareGateway` instead
+   rotates the simulated body (`state.Yaw += delta`). A blind round starting
+   in the North corridor is physically spun 180 degrees the moment it infers
+   its direction (visible as about 20 s of manoeuvring right after the start).
+2. **The lap detector and the pose live in different frames.**
+   `adoptDirection` measures the start and builds the detector assuming the
+   canonical South start section (`trackmodel.South` hardcoded, per ADR 0053).
+   Logged values: scenario 0 measures the start at (2.05, 0.51), the true
+   start (1.05, 2.50) rotated 180 degrees, while the sim reports the pose in
+   the true frame, in the North corridor. The detector's section guard and
+   finish line then rarely line up with where the robot actually crosses.
+
+Refuted:
+
+- **"Rotate the reported frame" as the fix.** Making the sim rotate the pose
+  it reports (and place detections through the same rotation) instead of
+  the body removes the spin and puts the pose in the canonical frame, and
+  leaves the sighted corpus byte-identical, but blind gets worse: Open
+  successes 41 -> 26, Obstacles wrong-side passes 8 -> 67, still 0 laps in
+  Obstacles. Other blind consumers (the provisional-direction path, sign
+  lanes) evidently depend on the current mixed frames; in scenario 5 the
+  robot then followed its path backwards from the start. Reverted, not
+  committed.
+- **"Only South starts count laps."** At HEAD, blind Open counts at least
+  one lap in 19/86 East, 6/48 North, 8/67 South and 13/55 West starts: no
+  section is special.
+- **The parking controller**, built from the true metadata in blind mode:
+  removing it changed nothing.
+
+Consequence: every blind number in section 13 comes from a sim that spins
+the chassis on direction inference and cannot count Obstacles laps. The
+relative latency effects there are still informative (same sim for every
+arm), but absolute blind outcomes are not. Whether the real robot shares
+defect 2 depends on the frame the real localizer reports after the heading
+correction, which the sim cannot answer: that is 2.10.
