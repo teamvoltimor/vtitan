@@ -94,7 +94,11 @@ type MotorStatus struct {
 	MeasuredSpeed float32 `protobuf:"fixed32,6,opt,name=measured_speed,json=measuredSpeed,proto3" json:"measured_speed,omitempty"`
 	// Milliseconds since the last accepted AckermannCmd — mirrors the
 	// deadline watchdog in internal/node/motor (DefaultCommandTimeout).
-	CommandAgeMs  uint32 `protobuf:"varint,7,opt,name=command_age_ms,json=commandAgeMs,proto3" json:"command_age_ms,omitempty"`
+	CommandAgeMs uint32 `protobuf:"varint,7,opt,name=command_age_ms,json=commandAgeMs,proto3" json:"command_age_ms,omitempty"`
+	// How the command link to the actuation board is holding up, from the
+	// board's own report. Set only by a board that reports it (the Pico 2);
+	// absent on the Zero.
+	Link          *LinkHealth `protobuf:"bytes,8,opt,name=link,proto3" json:"link,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -178,11 +182,119 @@ func (x *MotorStatus) GetCommandAgeMs() uint32 {
 	return 0
 }
 
+func (x *MotorStatus) GetLink() *LinkHealth {
+	if x != nil {
+		return x.Link
+	}
+	return nil
+}
+
+// LinkHealth is the actuation board's view of the commands it received
+// since its previous status, and what the host did about it.
+type LinkHealth struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Longest time between two applied commands in the window [ms].
+	MaxCommandGapMs uint32 `protobuf:"varint,1,opt,name=max_command_gap_ms,json=maxCommandGapMs,proto3" json:"max_command_gap_ms,omitempty"`
+	// Least lease any applied command had left on arrival [ms]; meaningful
+	// only when has_lease_margin.
+	MinLeaseMarginMs int32 `protobuf:"varint,2,opt,name=min_lease_margin_ms,json=minLeaseMarginMs,proto3" json:"min_lease_margin_ms,omitempty"`
+	HasLeaseMargin   bool  `protobuf:"varint,3,opt,name=has_lease_margin,json=hasLeaseMargin,proto3" json:"has_lease_margin,omitempty"`
+	// Commands refused for arriving past their lease, this boot.
+	CommandsExpired uint32 `protobuf:"varint,4,opt,name=commands_expired,json=commandsExpired,proto3" json:"commands_expired,omitempty"`
+	// Leases that ran out and ended their command, this boot.
+	LeaseExpiries uint32 `protobuf:"varint,5,opt,name=lease_expiries,json=leaseExpiries,proto3" json:"lease_expiries,omitempty"`
+	// Whether the host judges the link degraded and is capping speed.
+	Degraded bool `protobuf:"varint,6,opt,name=degraded,proto3" json:"degraded,omitempty"`
+	// The speed cap in force while degraded [m/s].
+	SpeedCapMps   float32 `protobuf:"fixed32,7,opt,name=speed_cap_mps,json=speedCapMps,proto3" json:"speed_cap_mps,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *LinkHealth) Reset() {
+	*x = LinkHealth{}
+	mi := &file_vtitan_actuation_v1_motor_status_proto_msgTypes[1]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *LinkHealth) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*LinkHealth) ProtoMessage() {}
+
+func (x *LinkHealth) ProtoReflect() protoreflect.Message {
+	mi := &file_vtitan_actuation_v1_motor_status_proto_msgTypes[1]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use LinkHealth.ProtoReflect.Descriptor instead.
+func (*LinkHealth) Descriptor() ([]byte, []int) {
+	return file_vtitan_actuation_v1_motor_status_proto_rawDescGZIP(), []int{1}
+}
+
+func (x *LinkHealth) GetMaxCommandGapMs() uint32 {
+	if x != nil {
+		return x.MaxCommandGapMs
+	}
+	return 0
+}
+
+func (x *LinkHealth) GetMinLeaseMarginMs() int32 {
+	if x != nil {
+		return x.MinLeaseMarginMs
+	}
+	return 0
+}
+
+func (x *LinkHealth) GetHasLeaseMargin() bool {
+	if x != nil {
+		return x.HasLeaseMargin
+	}
+	return false
+}
+
+func (x *LinkHealth) GetCommandsExpired() uint32 {
+	if x != nil {
+		return x.CommandsExpired
+	}
+	return 0
+}
+
+func (x *LinkHealth) GetLeaseExpiries() uint32 {
+	if x != nil {
+		return x.LeaseExpiries
+	}
+	return 0
+}
+
+func (x *LinkHealth) GetDegraded() bool {
+	if x != nil {
+		return x.Degraded
+	}
+	return false
+}
+
+func (x *LinkHealth) GetSpeedCapMps() float32 {
+	if x != nil {
+		return x.SpeedCapMps
+	}
+	return 0
+}
+
 var File_vtitan_actuation_v1_motor_status_proto protoreflect.FileDescriptor
 
 const file_vtitan_actuation_v1_motor_status_proto_rawDesc = "" +
 	"\n" +
-	"&vtitan/actuation/v1/motor_status.proto\x12\x13vtitan.actuation.v1\x1a\x1fgoogle/protobuf/timestamp.proto\"\x81\x03\n" +
+	"&vtitan/actuation/v1/motor_status.proto\x12\x13vtitan.actuation.v1\x1a\x1fgoogle/protobuf/timestamp.proto\"\xb6\x03\n" +
 	"\vMotorStatus\x120\n" +
 	"\x05stamp\x18\x01 \x01(\v2\x1a.google.protobuf.TimestampR\x05stamp\x12\x19\n" +
 	"\bframe_id\x18\x02 \x01(\tR\aframeId\x12<\n" +
@@ -191,14 +303,24 @@ const file_vtitan_actuation_v1_motor_status_proto_rawDesc = "" +
 	"\n" +
 	"duty_cycle\x18\x05 \x01(\x02R\tdutyCycle\x12%\n" +
 	"\x0emeasured_speed\x18\x06 \x01(\x02R\rmeasuredSpeed\x12$\n" +
-	"\x0ecommand_age_ms\x18\a \x01(\rR\fcommandAgeMs\"c\n" +
+	"\x0ecommand_age_ms\x18\a \x01(\rR\fcommandAgeMs\x123\n" +
+	"\x04link\x18\b \x01(\v2\x1f.vtitan.actuation.v1.LinkHealthR\x04link\"c\n" +
 	"\x05State\x12\x15\n" +
 	"\x11STATE_UNSPECIFIED\x10\x00\x12\x0e\n" +
 	"\n" +
 	"STATE_IDLE\x10\x01\x12\x11\n" +
 	"\rSTATE_RUNNING\x10\x02\x12\x0f\n" +
 	"\vSTATE_FAULT\x10\x03\x12\x0f\n" +
-	"\vSTATE_ESTOP\x10\x04BFZDgithub.com/teamvoltimor/vtitan/src/go/internal/schema/pb/actuationv1b\x06proto3"
+	"\vSTATE_ESTOP\x10\x04\"\xa4\x02\n" +
+	"\n" +
+	"LinkHealth\x12+\n" +
+	"\x12max_command_gap_ms\x18\x01 \x01(\rR\x0fmaxCommandGapMs\x12-\n" +
+	"\x13min_lease_margin_ms\x18\x02 \x01(\x05R\x10minLeaseMarginMs\x12(\n" +
+	"\x10has_lease_margin\x18\x03 \x01(\bR\x0ehasLeaseMargin\x12)\n" +
+	"\x10commands_expired\x18\x04 \x01(\rR\x0fcommandsExpired\x12%\n" +
+	"\x0elease_expiries\x18\x05 \x01(\rR\rleaseExpiries\x12\x1a\n" +
+	"\bdegraded\x18\x06 \x01(\bR\bdegraded\x12\"\n" +
+	"\rspeed_cap_mps\x18\a \x01(\x02R\vspeedCapMpsBFZDgithub.com/teamvoltimor/vtitan/src/go/internal/schema/pb/actuationv1b\x06proto3"
 
 var (
 	file_vtitan_actuation_v1_motor_status_proto_rawDescOnce sync.Once
@@ -213,20 +335,22 @@ func file_vtitan_actuation_v1_motor_status_proto_rawDescGZIP() []byte {
 }
 
 var file_vtitan_actuation_v1_motor_status_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_vtitan_actuation_v1_motor_status_proto_msgTypes = make([]protoimpl.MessageInfo, 1)
+var file_vtitan_actuation_v1_motor_status_proto_msgTypes = make([]protoimpl.MessageInfo, 2)
 var file_vtitan_actuation_v1_motor_status_proto_goTypes = []any{
 	(MotorStatus_State)(0),        // 0: vtitan.actuation.v1.MotorStatus.State
 	(*MotorStatus)(nil),           // 1: vtitan.actuation.v1.MotorStatus
-	(*timestamppb.Timestamp)(nil), // 2: google.protobuf.Timestamp
+	(*LinkHealth)(nil),            // 2: vtitan.actuation.v1.LinkHealth
+	(*timestamppb.Timestamp)(nil), // 3: google.protobuf.Timestamp
 }
 var file_vtitan_actuation_v1_motor_status_proto_depIdxs = []int32{
-	2, // 0: vtitan.actuation.v1.MotorStatus.stamp:type_name -> google.protobuf.Timestamp
+	3, // 0: vtitan.actuation.v1.MotorStatus.stamp:type_name -> google.protobuf.Timestamp
 	0, // 1: vtitan.actuation.v1.MotorStatus.state:type_name -> vtitan.actuation.v1.MotorStatus.State
-	2, // [2:2] is the sub-list for method output_type
-	2, // [2:2] is the sub-list for method input_type
-	2, // [2:2] is the sub-list for extension type_name
-	2, // [2:2] is the sub-list for extension extendee
-	0, // [0:2] is the sub-list for field type_name
+	2, // 2: vtitan.actuation.v1.MotorStatus.link:type_name -> vtitan.actuation.v1.LinkHealth
+	3, // [3:3] is the sub-list for method output_type
+	3, // [3:3] is the sub-list for method input_type
+	3, // [3:3] is the sub-list for extension type_name
+	3, // [3:3] is the sub-list for extension extendee
+	0, // [0:3] is the sub-list for field type_name
 }
 
 func init() { file_vtitan_actuation_v1_motor_status_proto_init() }
@@ -240,7 +364,7 @@ func file_vtitan_actuation_v1_motor_status_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_vtitan_actuation_v1_motor_status_proto_rawDesc), len(file_vtitan_actuation_v1_motor_status_proto_rawDesc)),
 			NumEnums:      1,
-			NumMessages:   1,
+			NumMessages:   2,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

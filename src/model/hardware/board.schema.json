@@ -54,11 +54,40 @@
         "max_ms",
         "on_expiry"
       ]
+    },
+    "link_health": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "How the Pi 5 reacts when the Pico 2 reports a degraded command link (platform plan item 2.14): a command that arrived past its lease, a lease that ran out, or a command that arrived with less than margin_floor_ms of lease left. From the last such report and for hold_ms, picolink caps every command's speed at speed_cap_mps. Read only when kind is pico2.",
+      "x-journal": "adr:0098-pico-actuation-board-and-portable-cores",
+      "properties": {
+        "margin_floor_ms": {
+          "type": "number",
+          "minimum": 0,
+          "description": "A command arriving with less lease left than this, in milliseconds, counts as a degraded link."
+        },
+        "hold_ms": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "description": "How long the speed cap stays after the last sign of a degraded link, in milliseconds."
+        },
+        "speed_cap_mps": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Speed limit while the link is degraded, in m/s; 0 never caps."
+        }
+      },
+      "required": [
+        "margin_floor_ms",
+        "hold_ms",
+        "speed_cap_mps"
+      ]
     }
   },
   "required": [
     "kind",
     "serial_port",
-    "lease"
+    "lease",
+    "link_health"
   ]
 }

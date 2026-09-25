@@ -25,7 +25,7 @@ _sym_db = _symbol_database.Default()
 from google.protobuf import timestamp_pb2 as google_dot_protobuf_dot_timestamp__pb2
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n&vtitan/actuation/v1/motor_status.proto\x12\x13vtitan.actuation.v1\x1a\x1fgoogle/protobuf/timestamp.proto\"\x81\x03\n\x0bMotorStatus\x12\x30\n\x05stamp\x18\x01 \x01(\x0b\x32\x1a.google.protobuf.TimestampR\x05stamp\x12\x19\n\x08\x66rame_id\x18\x02 \x01(\tR\x07\x66rameId\x12<\n\x05state\x18\x03 \x01(\x0e\x32&.vtitan.actuation.v1.MotorStatus.StateR\x05state\x12\x16\n\x06\x64\x65tail\x18\x04 \x01(\tR\x06\x64\x65tail\x12\x1d\n\nduty_cycle\x18\x05 \x01(\x02R\tdutyCycle\x12%\n\x0emeasured_speed\x18\x06 \x01(\x02R\rmeasuredSpeed\x12$\n\x0e\x63ommand_age_ms\x18\x07 \x01(\rR\x0c\x63ommandAgeMs\"c\n\x05State\x12\x15\n\x11STATE_UNSPECIFIED\x10\x00\x12\x0e\n\nSTATE_IDLE\x10\x01\x12\x11\n\rSTATE_RUNNING\x10\x02\x12\x0f\n\x0bSTATE_FAULT\x10\x03\x12\x0f\n\x0bSTATE_ESTOP\x10\x04\x42\x46ZDgithub.com/teamvoltimor/vtitan/src/go/internal/schema/pb/actuationv1b\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n&vtitan/actuation/v1/motor_status.proto\x12\x13vtitan.actuation.v1\x1a\x1fgoogle/protobuf/timestamp.proto\"\xb6\x03\n\x0bMotorStatus\x12\x30\n\x05stamp\x18\x01 \x01(\x0b\x32\x1a.google.protobuf.TimestampR\x05stamp\x12\x19\n\x08\x66rame_id\x18\x02 \x01(\tR\x07\x66rameId\x12<\n\x05state\x18\x03 \x01(\x0e\x32&.vtitan.actuation.v1.MotorStatus.StateR\x05state\x12\x16\n\x06\x64\x65tail\x18\x04 \x01(\tR\x06\x64\x65tail\x12\x1d\n\nduty_cycle\x18\x05 \x01(\x02R\tdutyCycle\x12%\n\x0emeasured_speed\x18\x06 \x01(\x02R\rmeasuredSpeed\x12$\n\x0e\x63ommand_age_ms\x18\x07 \x01(\rR\x0c\x63ommandAgeMs\x12\x33\n\x04link\x18\x08 \x01(\x0b\x32\x1f.vtitan.actuation.v1.LinkHealthR\x04link\"c\n\x05State\x12\x15\n\x11STATE_UNSPECIFIED\x10\x00\x12\x0e\n\nSTATE_IDLE\x10\x01\x12\x11\n\rSTATE_RUNNING\x10\x02\x12\x0f\n\x0bSTATE_FAULT\x10\x03\x12\x0f\n\x0bSTATE_ESTOP\x10\x04\"\xa4\x02\n\nLinkHealth\x12+\n\x12max_command_gap_ms\x18\x01 \x01(\rR\x0fmaxCommandGapMs\x12-\n\x13min_lease_margin_ms\x18\x02 \x01(\x05R\x10minLeaseMarginMs\x12(\n\x10has_lease_margin\x18\x03 \x01(\x08R\x0ehasLeaseMargin\x12)\n\x10\x63ommands_expired\x18\x04 \x01(\rR\x0f\x63ommandsExpired\x12%\n\x0elease_expiries\x18\x05 \x01(\rR\rleaseExpiries\x12\x1a\n\x08\x64\x65graded\x18\x06 \x01(\x08R\x08\x64\x65graded\x12\"\n\rspeed_cap_mps\x18\x07 \x01(\x02R\x0bspeedCapMpsBFZDgithub.com/teamvoltimor/vtitan/src/go/internal/schema/pb/actuationv1b\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
@@ -34,7 +34,9 @@ if not _descriptor._USE_C_DESCRIPTORS:
   _globals['DESCRIPTOR']._loaded_options = None
   _globals['DESCRIPTOR']._serialized_options = b'ZDgithub.com/teamvoltimor/vtitan/src/go/internal/schema/pb/actuationv1'
   _globals['_MOTORSTATUS']._serialized_start=97
-  _globals['_MOTORSTATUS']._serialized_end=482
-  _globals['_MOTORSTATUS_STATE']._serialized_start=383
-  _globals['_MOTORSTATUS_STATE']._serialized_end=482
+  _globals['_MOTORSTATUS']._serialized_end=535
+  _globals['_MOTORSTATUS_STATE']._serialized_start=436
+  _globals['_MOTORSTATUS_STATE']._serialized_end=535
+  _globals['_LINKHEALTH']._serialized_start=538
+  _globals['_LINKHEALTH']._serialized_end=830
 # @@protoc_insertion_point(module_scope)

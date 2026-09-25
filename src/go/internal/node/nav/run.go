@@ -420,6 +420,9 @@ func Run(ctx context.Context, logger *slog.Logger, cfg Config) error {
 	group.Go(func() error { return gw.Run(gctx, subs.scan, subs.imu, subs.joint) })
 	group.Go(func() error { return visionGW.Run(gctx, subs.detections) })
 	group.Go(func() error { return stepLoop(gctx, logger, nav, gw, layout, rec, cfg.RateHz) })
+	if rec != nil {
+		group.Go(func() error { return recordMotorStatus(gctx, conn, rec, logger) })
+	}
 
 	if err = group.Wait(); err != nil {
 		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {

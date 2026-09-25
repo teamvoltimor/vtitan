@@ -84,13 +84,23 @@ type Pong struct {
 }
 
 // Status is the board's periodic report.
+//
+// The link health fields (protocol version 2) describe the commands the
+// board applied since the previous Status: MaxGapMS is the longest time
+// between two of them, and MinLeaseMarginMS the least lease any had left
+// when applied (NoLeaseMargin when none carried a lease). CommandsExpired
+// and LeaseExpiries are running totals for the boot, wrapping at 2^16.
 type Status struct {
-	BoardTimeUS   uint64
-	State         State
-	Faults        Faults
-	Duty          float32
-	ServoAngleDeg float32
-	CommandAgeMS  uint32
+	BoardTimeUS      uint64
+	State            State
+	Faults           Faults
+	Duty             float32
+	ServoAngleDeg    float32
+	CommandAgeMS     uint32
+	MaxGapMS         uint16
+	MinLeaseMarginMS int16
+	CommandsExpired  uint16
+	LeaseExpiries    uint16
 }
 
 // Odometry is the raw signed quadrature count at BoardTimeUS. The host turns
@@ -172,6 +182,10 @@ const (
 	ExpiryHold Expiry = 2
 )
 
+// NoLeaseMargin is Status.MinLeaseMarginMS when no leased command was
+// applied since the previous Status.
+const NoLeaseMargin int16 = 0x7FFF
+
 // Fault bits, reported in Status.Faults.
 const (
 	// FaultWatchdogReset: the board's last reset was its hardware watchdog.
@@ -191,7 +205,7 @@ const (
 	commandLen  = 8 + 4 + 4 + 1
 	pingLen     = 8
 	pongLen     = 8 + 8
-	statusLen   = 8 + 1 + 1 + 4 + 4 + 4
+	statusLen   = 8 + 1 + 1 + 4 + 4 + 4 + 2 + 2 + 2 + 2
 	odometryLen = 8 + 8
 	buttonLen   = 8 + 1
 	maxBodyLen  = configLen
@@ -300,6 +314,10 @@ func appendBody(w *writer, p *Packet) {
 		w.f32(s.Duty)
 		w.f32(s.ServoAngleDeg)
 		w.u32(s.CommandAgeMS)
+		w.u16(s.MaxGapMS)
+		w.u16(uint16(s.MinLeaseMarginMS))
+		w.u16(s.CommandsExpired)
+		w.u16(s.LeaseExpiries)
 	case TypeOdometry:
 		w.u64(p.Odometry.BoardTimeUS)
 		w.u64(uint64(p.Odometry.Counts))
@@ -347,6 +365,10 @@ func readBody(r *reader, p *Packet) {
 			ServoAngleDeg: r.f32(),
 			CommandAgeMS:  r.u32(),
 		}
+		p.Status.MaxGapMS = r.u16()
+		p.Status.MinLeaseMarginMS = int16(r.u16())
+		p.Status.CommandsExpired = r.u16()
+		p.Status.LeaseExpiries = r.u16()
 	case TypeOdometry:
 		p.Odometry = Odometry{BoardTimeUS: r.u64(), Counts: int64(r.u64())}
 	case TypeButton:

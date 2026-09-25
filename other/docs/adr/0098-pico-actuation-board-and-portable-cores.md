@@ -184,6 +184,14 @@ packets for the host.
   interoperate: reflash the Pico with the host that runs it. The Pi Zero
   path does not use leases. Firmware 79,052 -> 79,292 B flash. Not run on
   a board.
+- 2026-09-25: protocol version 2 also carries link health in `Status`
+  (platform plan item 2.14): the longest gap between applied commands and
+  the least lease left on arrival since the previous Status, and running
+  totals of expired arrivals and lease expiries. `picolink` publishes them
+  in `MotorStatus.link` and caps the speed at `board.toml`'s
+  `[link_health]` `speed_cap_mps` for `hold_ms` after any sign of a
+  degraded link. Nav records `MotorStatus` into its MCAP. Firmware 79,292 ->
+  79,604 B flash. Not run on a board.
 
 ## Cross-references
 

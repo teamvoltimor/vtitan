@@ -121,8 +121,14 @@ type Loop struct {
 	lastAcceptAt time.Duration
 	// lease is the applied command's deadline, zero when it has none or
 	// when it has already been acted on; onExpiry is what to do then.
-	lease         time.Duration
-	onExpiry      boardlink.Expiry
+	lease    time.Duration
+	onExpiry boardlink.Expiry
+	// maxGap and minMargin are the link health of the commands applied
+	// since the last Status (boardlink.Status); haveMargin is false until
+	// a leased one is.
+	maxGap        time.Duration
+	minMargin     time.Duration
+	haveMargin    bool
 	duty          float64
 	servoDeg      float64
 	pulseUS       float64
@@ -317,6 +323,10 @@ func (l *Loop) applyCommand(now time.Duration, c boardlink.Command) {
 		return
 	}
 	l.lease, l.onExpiry = lease, c.OnExpiry
+	l.maxGap = max(l.maxGap, now-l.lastAcceptAt)
+	if c.DeadlineUS != 0 && (!l.haveMargin || lease-now < l.minMargin) {
+		l.minMargin, l.haveMargin = lease-now, true
+	}
 
 	l.counters.CommandsApplied++
 	l.watchdog.Accept(epoch(now))
@@ -480,7 +490,16 @@ func (l *Loop) sendStatus(now time.Duration) {
 		Duty:          float32(l.duty),
 		ServoAngleDeg: float32(l.servoDeg),
 		CommandAgeMS:  millis(now - l.lastAcceptAt),
+		MaxGapMS:      uint16(min(millis(l.maxGap), math.MaxUint16)),
+		// Running totals: truncated to the wire's 16 bits, they wrap.
+		CommandsExpired:  uint16(l.counters.CommandsExpired),
+		LeaseExpiries:    uint16(l.counters.LeaseExpiries),
+		MinLeaseMarginMS: boardlink.NoLeaseMargin,
 	}
+	if l.haveMargin {
+		l.tx.Status.MinLeaseMarginMS = int16(max(min(l.minMargin.Milliseconds(), math.MaxInt16-1), math.MinInt16))
+	}
+	l.maxGap, l.haveMargin = 0, false
 	l.send()
 }
 

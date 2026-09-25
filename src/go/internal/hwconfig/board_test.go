@@ -88,6 +88,9 @@ func TestActuationBoard_ShippedLease(t *testing.T) {
 	if l.BlindDistanceM <= 0 || l.Min <= 0 || l.Max < l.Min || l.OnExpiry != boardlink.ExpiryStop {
 		t.Errorf("Lease = %+v, want the shipped positive, ordered lease with on_expiry stop", l)
 	}
+	if h := board.LinkHealth; h.SpeedCapMPS <= 0 || h.Hold <= 0 || h.MarginFloor <= 0 {
+		t.Errorf("LinkHealth = %+v, want the shipped positive cap, hold and margin floor", h)
+	}
 }
 
 // Values the schema forbids are rejected, since the TOML decoder does not

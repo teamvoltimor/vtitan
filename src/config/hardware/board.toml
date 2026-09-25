@@ -17,3 +17,11 @@ blind_distance_m = 0.10
 min_ms = 150.0
 max_ms = 400.0
 on_expiry = "stop"
+
+# What the Pi 5 does when the Pico 2 reports a degraded command link (plan
+# 2.14): cap the speed for hold_ms after the last sign of it. A slower car
+# drives less far blind and gets a longer lease. ESTIMATES, like [lease].
+[link_health]
+margin_floor_ms = 50.0
+hold_ms = 2000.0
+speed_cap_mps = 0.25

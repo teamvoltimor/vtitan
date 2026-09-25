@@ -31,7 +31,12 @@ func samplePackets() []Packet {
 			Faults:        FaultActuator,
 			Duty:          -0.25,
 			ServoAngleDeg: 12.5,
-			CommandAgeMS:  17,
+			MaxGapMS:      75,
+			// Negative on purpose: the field is signed on the wire.
+			MinLeaseMarginMS: -12,
+			CommandsExpired:  3,
+			LeaseExpiries:    65535,
+			CommandAgeMS:     17,
 		}},
 		{Seq: 0xFFFF, Type: TypeOdometry, Odometry: Odometry{BoardTimeUS: 99, Counts: -123456}},
 		{Seq: 8, Type: TypeButton, Button: Button{BoardTimeUS: 7, Pressed: true}},

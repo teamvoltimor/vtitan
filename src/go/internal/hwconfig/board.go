@@ -21,6 +21,16 @@ type Board struct {
 	// Lease is board.toml's [lease]: how long each forwarded command
 	// holds. A zero BlindDistanceM is no lease.
 	Lease BoardLease
+	// LinkHealth is board.toml's [link_health]: the speed cap on a
+	// degraded link. A zero SpeedCapMPS never caps.
+	LinkHealth BoardLinkHealth
+}
+
+// BoardLinkHealth is board.toml's [link_health], in the units
+// picolink.HealthPolicy takes.
+type BoardLinkHealth struct {
+	MarginFloor, Hold time.Duration
+	SpeedCapMPS       float64
 }
 
 // BoardLease is board.toml's [lease], in the units picolink.LeasePolicy
@@ -58,7 +68,11 @@ func ActuationBoard(configRoot string) (Board, error) {
 		if leaseErr != nil {
 			return Board{}, leaseErr
 		}
-		return Board{Kind: loaded.Kind, SerialPort: loaded.SerialPort, Lease: lease}, nil
+		health, healthErr := boardLinkHealth(loaded.LinkHealth)
+		if healthErr != nil {
+			return Board{}, healthErr
+		}
+		return Board{Kind: loaded.Kind, SerialPort: loaded.SerialPort, Lease: lease, LinkHealth: health}, nil
 	default:
 		return Board{}, fmt.Errorf("board: board.toml kind %q is neither %q nor %q",
 			loaded.Kind, hardware.HardwareBoardKindZero, hardware.HardwareBoardKindPico2)
@@ -88,5 +102,21 @@ func boardLease(l hardware.HardwareBoardLease) (BoardLease, error) {
 		Min:            millis(l.MinMs),
 		Max:            millis(l.MaxMs),
 		OnExpiry:       onExpiry,
+	}, nil
+}
+
+// boardLinkHealth converts [link_health], rejecting what the schema
+// forbids. An omitted table never caps.
+func boardLinkHealth(h hardware.HardwareBoardLinkHealth) (BoardLinkHealth, error) {
+	if h.SpeedCapMps == 0 {
+		return BoardLinkHealth{}, nil
+	}
+	if h.SpeedCapMps < 0 || h.HoldMs <= 0 || h.MarginFloorMs < 0 {
+		return BoardLinkHealth{}, fmt.Errorf("board: link_health %+v needs a positive cap and hold", h)
+	}
+	return BoardLinkHealth{
+		MarginFloor: millis(h.MarginFloorMs),
+		Hold:        millis(h.HoldMs),
+		SpeedCapMPS: h.SpeedCapMps,
 	}, nil
 }

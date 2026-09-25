@@ -18,7 +18,7 @@ type Decoder struct {
 // Version is the protocol version every frame carries. Bump it on any
 // incompatible change to framing or to an existing message's body; adding a
 // new Type does not need a bump. Version 2 added the lease to Command
-// (DeadlineUS, OnExpiry).
+// (DeadlineUS, OnExpiry) and link health to Status.
 const Version uint8 = 2
 
 // Frame layout: version:u8 | type:u8 | seq:u16 | body | crc16:u16. The

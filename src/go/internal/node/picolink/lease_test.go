@@ -11,6 +11,7 @@ import (
 	"github.com/teamvoltimor/vtitan/src/go/internal/node/picolink"
 	actuationv1 "github.com/teamvoltimor/vtitan/src/go/internal/schema/pb/vtitan/actuation/v1"
 	"github.com/teamvoltimor/vtitan/src/go/pkg/boardsim"
+	"github.com/teamvoltimor/vtitan/src/go/pkg/portable/actuation"
 	"github.com/teamvoltimor/vtitan/src/go/pkg/portable/boardlink"
 )
 
@@ -68,10 +69,11 @@ func TestLeasePolicy_Validate(t *testing.T) {
 // command when it is sent, until stop is called; it returns once the
 // session has a clock estimate and the drive carries the command, so the
 // commands in flight carry leases.
-func startLeased(t *testing.T) (v *virtualHarness, stop func()) {
+func startLeased(t *testing.T, health picolink.HealthPolicy) (v *virtualHarness, stop func()) {
 	t.Helper()
 
-	v = startVirtual(t, picolink.SessionConfig{Board: sampleBoard, Lease: testLeasePolicy}, boardsim.Options{})
+	v = startVirtual(t, picolink.SessionConfig{Board: sampleBoard, Lease: testLeasePolicy, Health: health},
+		boardsim.Options{})
 	v.waitState(t, actuationv1.MotorStatus_STATE_IDLE)
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan struct{})
@@ -111,7 +113,7 @@ func startLeased(t *testing.T) (v *virtualHarness, stop func()) {
 func TestLease_StallStopsTheCarWithinTheLease(t *testing.T) {
 	t.Parallel()
 
-	v, _ := startLeased(t)
+	v, _ := startLeased(t, picolink.HealthPolicy{})
 	stalled := time.Now()
 	v.board.StallToBoard(1200 * time.Millisecond)
 	waitFor(t, "the lease to stop the drive", func() bool { return v.board.Drive.Duty() == 0 })
@@ -134,7 +136,7 @@ func TestLease_StallStopsTheCarWithinTheLease(t *testing.T) {
 func TestLease_StaleCommandAfterAStallIsRefused(t *testing.T) {
 	t.Parallel()
 
-	v, stop := startLeased(t)
+	v, stop := startLeased(t, picolink.HealthPolicy{})
 	v.board.StallToBoard(1 * time.Second)
 	time.Sleep(60 * time.Millisecond) // at least one command queues behind the stall
 	stop()
@@ -151,4 +153,38 @@ func TestLease_StaleCommandAfterAStallIsRefused(t *testing.T) {
 	if got := v.board.Counters().CommandsApplied; got != applied {
 		t.Errorf("CommandsApplied %d -> %d across the release, want no stale command applied", applied, got)
 	}
+}
+
+// A stall that runs a lease out makes the host cap the speed: the board
+// reports the expiry, the host publishes the link as degraded, and the
+// commands after the stall reach the drive at the cap, until Hold passes
+// with a healthy link.
+func TestHealth_DegradedLinkCapsTheSpeed(t *testing.T) {
+	t.Parallel()
+
+	const capMPS = 0.25
+	v, _ := startLeased(t, picolink.HealthPolicy{
+		MarginFloor: 20 * time.Millisecond, Hold: 800 * time.Millisecond, SpeedCapMPS: capMPS,
+	})
+	v.board.StallToBoard(300 * time.Millisecond)
+
+	capped := actuation.SpeedToNormalized(capMPS, float64(sampleBoard.SpeedScalePctPerMPS))
+	if sampleBoard.InvertDrive {
+		capped = -capped
+	}
+	waitFor(t, "the drive at the capped speed", func() bool {
+		return math.Abs(v.board.Drive.Duty()-capped) < 1e-9
+	})
+	deadline := time.After(waitTimeout)
+	for degraded := false; !degraded; {
+		select {
+		case st := <-v.status:
+			degraded = st.GetLink().GetDegraded() && st.GetLink().GetLeaseExpiries() > 0
+		case <-deadline:
+			t.Fatal("no MotorStatus reporting a degraded link")
+		}
+	}
+	waitFor(t, "the cap lifted after the hold", func() bool {
+		return math.Abs(v.board.Drive.Duty()-drivingDuty()) < 1e-9
+	})
 }

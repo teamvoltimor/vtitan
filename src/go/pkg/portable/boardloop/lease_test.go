@@ -151,3 +151,45 @@ func TestLease_NewCommandReplacesTheLease(t *testing.T) {
 			h.ev.list, h.loop.Counters().LeaseExpiries)
 	}
 }
+
+// Status reports the link health of the commands applied since the last
+// one: the longest gap between them, the least lease left on arrival, and
+// running totals of expired arrivals and lease expiries. The window resets
+// with every Status.
+func TestStatus_ReportsLinkHealth(t *testing.T) {
+	t.Parallel()
+
+	h := newHarness(t, 0, false)
+	h.configure()
+	// Two commands 30 ms apart: the second arrives with 70 ms of its
+	// 100 ms lease left, the first with all of it.
+	h.queueLeased(testLease, boardlink.ExpiryHold)
+	h.step()
+	h.run(29 * time.Millisecond)
+	h.queue(boardlink.Packet{Type: boardlink.TypeCommand, Command: boardlink.Command{
+		DeadlineUS:       uint64((h.now + stepTick + 70*time.Millisecond).Microseconds()),
+		SpeedMPS:         testSpeedMPS,
+		SteeringAngleRad: testSteerRad,
+		OnExpiry:         boardlink.ExpiryHold, // no expiry Status inside the window
+	}})
+	h.step()
+	// One that arrived already expired.
+	h.queue(boardlink.Packet{Type: boardlink.TypeCommand, Command: boardlink.Command{DeadlineUS: 1}})
+	h.step()
+	h.link.out = nil
+	h.run(testStatusMS * time.Millisecond)
+
+	st := h.lastStatus()
+	if st.MaxGapMS != 30 || st.MinLeaseMarginMS != 70 || st.CommandsExpired != 1 {
+		t.Errorf("Status health = gap %d ms, margin %d ms, expired %d; want 30, 70, 1",
+			st.MaxGapMS, st.MinLeaseMarginMS, st.CommandsExpired)
+	}
+
+	h.link.out = nil
+	h.run(testStatusMS * time.Millisecond)
+	st = h.lastStatus()
+	if st.MaxGapMS != 0 || st.MinLeaseMarginMS != boardlink.NoLeaseMargin || st.CommandsExpired != 1 {
+		t.Errorf("next Status health = gap %d, margin %d, expired %d; want a fresh window (0, none) and the total kept",
+			st.MaxGapMS, st.MinLeaseMarginMS, st.CommandsExpired)
+	}
+}

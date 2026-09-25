@@ -275,6 +275,7 @@ func runMain() int {
 				return cfgErr //nolint:wrapcheck // already wrapped with "picolink: ..." context
 			}
 			sessionCfg.Lease = picolink.LeasePolicyFor(board.Lease)
+			sessionCfg.Health = picolink.HealthPolicyFor(board.LinkHealth)
 			return picolink.Run(ctx, picolink.Config{
 				Port:    board.SerialPort,
 				NATS:    natsConfig(),

@@ -68,25 +68,9 @@ type SessionConfig struct {
 	Button *ButtonParams
 	// Lease sizes every command's lease; the zero value sends none.
 	Lease LeasePolicy
-}
-
-// ClockSync is the latest clock estimate from a Ping/Pong round trip.
-//
-// Host times are microseconds on the monotonic clock since Epoch, so a wall
-// clock step (NTP) cannot corrupt the estimate; HostTime converts back to a
-// time.Time. The residual error of OffsetUS is bounded by RTT/2 (the Pong
-// may have been stamped anywhere inside the round trip), which is the
-// number go-future.md section 4.6 asks to state rather than assume zero.
-type ClockSync struct {
-	// Epoch is the host instant host microsecond 0 refers to.
-	Epoch time.Time
-	// RTT is the round trip of the Ping this estimate came from.
-	RTT time.Duration
-	// OffsetUS is board clock minus host clock, in microseconds:
-	// boardTime - (hostSend+hostRecv)/2.
-	OffsetUS int64
-	// At is when the Pong arrived.
-	At time.Time
+	// Health caps speed while the board reports a degraded link; the zero
+	// value never caps.
+	Health HealthPolicy
 }
 
 // Session runs one host side of the link: the Hello/Config handshake,
@@ -140,10 +124,12 @@ type Session struct {
 	buttonHoldPub    ButtonHoldPublisher
 	buttonWasPressed bool
 
-	lease     LeasePolicy
-	clockMu   sync.Mutex
-	clock     ClockSync
-	haveClock bool
+	lease        LeasePolicy
+	healthPolicy HealthPolicy
+	health       linkHealth
+	clockMu      sync.Mutex
+	clock        ClockSync
+	haveClock    bool
 }
 
 // linkWriter serializes packets onto the link, owning the sequence number
@@ -209,6 +195,7 @@ func NewSession(
 		joints:       joints,
 		pingInterval: cfg.PingInterval,
 		lease:        cfg.Lease,
+		healthPolicy: cfg.Health,
 		linkTimeout:  cfg.LinkTimeout,
 		epoch:        time.Now(),
 	}
@@ -222,6 +209,9 @@ func NewSession(
 		s.invalid = err.Error()
 	}
 	if err := cfg.Lease.Validate(); err != nil {
+		return nil, err
+	}
+	if err := cfg.Health.Validate(); err != nil {
 		return nil, err
 	}
 	if cfg.Encoder != nil {
@@ -424,7 +414,7 @@ func (s *Session) handle(w *linkWriter, pkt *boardlink.Packet) error {
 	case boardlink.TypeHello:
 		return s.onHello(w, pkt.Hello, now)
 	case boardlink.TypeStatus:
-		s.onStatus(pkt.Status)
+		s.onStatus(pkt.Status, now)
 	case boardlink.TypeOdometry:
 		s.onOdometry(pkt.Odometry)
 	case boardlink.TypePong:
@@ -491,6 +481,7 @@ func (s *Session) onHello(w *linkWriter, h boardlink.Hello, now time.Time) error
 		s.clockMu.Lock()
 		s.haveClock = false
 		s.clockMu.Unlock()
+		s.resetHealth()
 		if h.ProtocolVersion != boardlink.Version {
 			s.logger.Warn("picolink: board reports a different protocol version",
 				"board_version", h.ProtocolVersion, "host_version", boardlink.Version)
@@ -518,7 +509,7 @@ func (s *Session) sendConfig(w *linkWriter) error {
 
 // onStatus republishes Status as MotorStatus and logs the fault bits that
 // MotorStatusFor does not turn into FAULT.
-func (s *Session) onStatus(st boardlink.Status) {
+func (s *Session) onStatus(st boardlink.Status, now time.Time) {
 	if s.configPending {
 		s.configPending = false
 		s.configuredOnce = true
@@ -534,7 +525,9 @@ func (s *Session) onStatus(st boardlink.Status) {
 	}
 	s.lastFaults = st.Faults
 
-	if err := s.status.Publish(MotorStatusFor(st)); err != nil {
+	msg := MotorStatusFor(st)
+	msg.Link = s.observeHealth(st, now)
+	if err := s.status.Publish(msg); err != nil {
 		s.logger.Error("picolink: publishing MotorStatus", "error", err)
 	}
 }
@@ -689,20 +682,6 @@ func (lw *linkWriter) send(p *boardlink.Packet) error {
 		return fmt.Errorf("picolink: writing %s: %w", p.Type, err)
 	}
 	return nil
-}
-
-// HostTime converts a board timestamp into host time with this estimate.
-func (c ClockSync) HostTime(boardUS uint64) time.Time {
-	return c.Epoch.Add(time.Duration(int64(boardUS)-c.OffsetUS) * time.Microsecond)
-}
-
-// clockFrom is the SNTP-style estimate from one round trip: the board
-// stamped its clock at some point between hostSend and hostRecv, taken as
-// the midpoint.
-func clockFrom(hostSendUS, hostRecvUS, boardUS uint64) (rtt time.Duration, offsetUS int64) {
-	rttUS := hostRecvUS - hostSendUS
-	mid := hostSendUS + rttUS/2
-	return time.Duration(rttUS) * time.Microsecond, int64(boardUS) - int64(mid)
 }
 
 // linkLostStatus is the MotorStatus published when the link goes silent.

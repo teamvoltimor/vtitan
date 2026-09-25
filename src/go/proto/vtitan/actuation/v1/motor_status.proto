@@ -33,4 +33,28 @@ message MotorStatus {
   // Milliseconds since the last accepted AckermannCmd — mirrors the
   // deadline watchdog in internal/node/motor (DefaultCommandTimeout).
   uint32 command_age_ms = 7;
+
+  // How the command link to the actuation board is holding up, from the
+  // board's own report. Set only by a board that reports it (the Pico 2);
+  // absent on the Zero.
+  LinkHealth link = 8;
+}
+
+// LinkHealth is the actuation board's view of the commands it received
+// since its previous status, and what the host did about it.
+message LinkHealth {
+  // Longest time between two applied commands in the window [ms].
+  uint32 max_command_gap_ms = 1;
+  // Least lease any applied command had left on arrival [ms]; meaningful
+  // only when has_lease_margin.
+  int32 min_lease_margin_ms = 2;
+  bool has_lease_margin = 3;
+  // Commands refused for arriving past their lease, this boot.
+  uint32 commands_expired = 4;
+  // Leases that ran out and ended their command, this boot.
+  uint32 lease_expiries = 5;
+  // Whether the host judges the link degraded and is capping speed.
+  bool degraded = 6;
+  // The speed cap in force while degraded [m/s].
+  float speed_cap_mps = 7;
 }

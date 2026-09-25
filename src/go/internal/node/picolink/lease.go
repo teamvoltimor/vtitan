@@ -75,7 +75,7 @@ func (p LeasePolicy) For(speedMPS float64) time.Duration {
 // there. The deadline is on the board's clock, through the latest Ping/Pong
 // offset, so no lease is set before the first Pong of a boot.
 func (s *Session) commandFor(cmd *actuationv1.AckermannCmd, now time.Time) boardlink.Command {
-	out := boardlink.Command{SpeedMPS: cmd.GetSpeed(), SteeringAngleRad: cmd.GetSteeringAngle()}
+	out := boardlink.Command{SpeedMPS: s.capSpeed(cmd.GetSpeed(), now), SteeringAngleRad: cmd.GetSteeringAngle()}
 	clock, ok := s.Clock()
 	if !s.lease.Enabled() || !ok {
 		return out
@@ -86,7 +86,7 @@ func (s *Session) commandFor(cmd *actuationv1.AckermannCmd, now time.Time) board
 			decided = t
 		}
 	}
-	expires := decided.Add(s.lease.For(float64(cmd.GetSpeed())))
+	expires := decided.Add(s.lease.For(float64(out.SpeedMPS)))
 	boardUS := int64(s.hostMicros(expires)) + clock.OffsetUS
 	// Deadline 0 means "no lease" on the wire: a deadline that falls at or
 	// before the board's boot is already expired, so send the earliest

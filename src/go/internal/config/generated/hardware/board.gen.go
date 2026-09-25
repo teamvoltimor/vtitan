@@ -15,6 +15,13 @@ type HardwareBoard struct {
 	// when kind is pico2.
 	Lease HardwareBoardLease `json:"lease" yaml:"lease" mapstructure:"lease"`
 
+	// How the Pi 5 reacts when the Pico 2 reports a degraded command link (platform
+	// plan item 2.14): a command that arrived past its lease, a lease that ran out,
+	// or a command that arrived with less than margin_floor_ms of lease left. From
+	// the last such report and for hold_ms, picolink caps every command's speed at
+	// speed_cap_mps. Read only when kind is pico2.
+	LinkHealth HardwareBoardLinkHealth `json:"link_health" yaml:"link_health" mapstructure:"link_health"`
+
 	// Serial device of the Pico 2 on the Pi 5 (its USB CDC port). Read only when kind
 	// is pico2.
 	SerialPort string `json:"serial_port" yaml:"serial_port" mapstructure:"serial_port"`
@@ -56,3 +63,21 @@ type HardwareBoardLeaseOnExpiry string
 const HardwareBoardLeaseOnExpiryHold HardwareBoardLeaseOnExpiry = "hold"
 const HardwareBoardLeaseOnExpiryStop HardwareBoardLeaseOnExpiry = "stop"
 const HardwareBoardLeaseOnExpiryStopCenter HardwareBoardLeaseOnExpiry = "stop_center"
+
+// How the Pi 5 reacts when the Pico 2 reports a degraded command link (platform
+// plan item 2.14): a command that arrived past its lease, a lease that ran out, or
+// a command that arrived with less than margin_floor_ms of lease left. From the
+// last such report and for hold_ms, picolink caps every command's speed at
+// speed_cap_mps. Read only when kind is pico2.
+type HardwareBoardLinkHealth struct {
+	// How long the speed cap stays after the last sign of a degraded link, in
+	// milliseconds.
+	HoldMs float64 `json:"hold_ms" yaml:"hold_ms" mapstructure:"hold_ms"`
+
+	// A command arriving with less lease left than this, in milliseconds, counts as a
+	// degraded link.
+	MarginFloorMs float64 `json:"margin_floor_ms" yaml:"margin_floor_ms" mapstructure:"margin_floor_ms"`
+
+	// Speed limit while the link is degraded, in m/s; 0 never caps.
+	SpeedCapMps float64 `json:"speed_cap_mps" yaml:"speed_cap_mps" mapstructure:"speed_cap_mps"`
+}
