@@ -162,6 +162,12 @@ packets for the host.
 - 2026-09-24: `boardsim` emulates the link (latency, jitter, byte
   corruption) and the loop tick from `board_sim.toml`. The shipped link
   values are USB full-speed estimates, not measurements.
+- 2026-09-24: `boardsim` gains bursty loss, stalls and reboots, and failsafe
+  tests run on it. They found that a session configured before any Hello
+  never learned the boot ID, so a mid-run reset logged as a first hello;
+  `picolink` now reports it as a reset. They also found that commands carry
+  no send time, so the board applies a stall's backlog as if fresh (open,
+  platform plan item 2.6).
 
 ## Cross-references
 

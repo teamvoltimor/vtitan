@@ -115,14 +115,19 @@ type Session struct {
 	// Status (the board reports at once on configuration) or Hello (it did
 	// not take it).
 	configPending bool
-	refusals      int
-	retryAfter    time.Time
-	lastFaults    boardlink.Faults
-	estimator     *quadrature.SpeedEstimator
-	lastOdoUS     uint64
-	haveOdo       bool
-	lastFrameAt   time.Time
-	linkLost      bool
+	// configuredOnce is set by the first Status after a Config. A board
+	// configured by the Config Run sends first may never Hello, so the
+	// session can be running without knowing the boot ID; a Hello after
+	// this is a reset even then.
+	configuredOnce bool
+	refusals       int
+	retryAfter     time.Time
+	lastFaults     boardlink.Faults
+	estimator      *quadrature.SpeedEstimator
+	lastOdoUS      uint64
+	haveOdo        bool
+	lastFrameAt    time.Time
+	linkLost       bool
 
 	// buttonEval runs on the host clock, exactly as the Zero's button
 	// driver does; buttonPressed is the last raw edge the board sent.
@@ -454,6 +459,12 @@ func (s *Session) onHello(w *linkWriter, h boardlink.Hello, now time.Time) error
 	}
 
 	switch {
+	case !s.haveBoot && s.configuredOnce:
+		// Configured before any Hello, so the previous boot ID is unknown:
+		// a Hello now can only mean the board restarted.
+		s.logger.Warn("picolink: board reset mid-run, reconfiguring",
+			"previous_boot_id", "unknown", "boot_id", h.BootID,
+			"faults", FaultString(h.Faults), "fault_bits", h.Faults)
 	case !s.haveBoot:
 		s.logger.Info("picolink: board hello",
 			"boot_id", h.BootID, "protocol_version", h.ProtocolVersion,
@@ -500,7 +511,9 @@ func (s *Session) sendConfig(w *linkWriter) error {
 func (s *Session) onStatus(st boardlink.Status) {
 	if s.configPending {
 		s.configPending = false
-		s.logger.Info("picolink: board configured", "boot_id", s.bootID, "state", st.State.String())
+		s.configuredOnce = true
+		s.logger.Info("picolink: board configured", "boot_id", s.bootID, "boot_id_known", s.haveBoot,
+			"state", st.State.String())
 	}
 	if st.Faults&boardlink.FaultRejectedCommand != 0 {
 		// WARN, like the Zero's loop on each rejected command.

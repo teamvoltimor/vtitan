@@ -78,10 +78,11 @@ old the data behind a steering command is.
 
 | # | Item | Done when |
 |---|---|---|
-| 2.1 | `boardsim` realistic link faults, config driven and seeded: **Gilbert-Elliott** chunk/frame loss (rate + mean burst length), **stall windows**, **disconnect/reconnect** (EIO, optional new device name), **reader starvation** (buffer overflow drops oldest), asymmetric delay. Keep bit flips for decoder tests | each mode unit-tested; values in `board_sim.toml` marked as estimates until phase 5 measures them |
-| 2.2 | Scripted failsafe tests asserting "drive at zero within X ms": link stall of 499 ms and 501 ms around the 500 ms board watchdog, host link timeout around 1 s, reconnect mid-command | tests in CI |
+| 2.1 | `boardsim` realistic link faults, config driven and seeded: **Gilbert-Elliott** chunk/frame loss (rate + mean burst length), **stall windows**, **disconnect/reconnect** (EIO, optional new device name), **reader starvation** (buffer overflow drops oldest), asymmetric delay. Keep bit flips for decoder tests | PARTLY DONE: bursty loss, random and scripted stalls, board reboot, per-direction stats, all in `board_sim.toml` (shipped OFF until measured). Disconnect with a renamed device and reader starvation move to phase 4, where the pty exists |
+| 2.2 | Scripted failsafe tests asserting "drive at zero within X ms": link stall of 499 ms and 501 ms around the 500 ms board watchdog, host link timeout around 1 s, reconnect mid-command | DONE: short stall keeps driving, long stall stops at the 500 ms timeout (measured 499 ms) and recovers, board silence reported as link lost, board reset reconfigured, bursty loss converges. Exact 499/501 ms edges need the sim clock (3.1) |
 | 2.3 | **Quick win before the virtual robot:** configurable command delay/drop and sensor staleness inside the in-process world sim (`harness`), then a corpus **delay sweep** | curve "corpus score vs added latency" for Open and Obstacles |
 | 2.4 | NATS fault shim: per subject drop / delay / freeze (repeat last) / reorder / noise, from TOML, seed logged into the MCAP | usable by tests and by the virtual robot |
+| 2.6 | **Stale command burst (found by 2.2):** `boardlink.Command` carries no send time, so after a stall the board applies the whole backlog as if fresh (24 queued commands after a 1.2 s stall). Add a host send time to Command and a board-side maximum command age, or have the host drop queued commands on a stall | stale commands rejected, tested with a scripted stall |
 | 2.5 | Host-side robustness from the research: udev symlink by serial number for the board; close the fd on error before reopening | reconnect test passes with a renamed device |
 
 ## 6. Phase 3: platform seams

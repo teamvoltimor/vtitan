@@ -6,6 +6,7 @@ import (
 	"math"
 	"net"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -17,6 +18,7 @@ import (
 	"github.com/teamvoltimor/vtitan/src/go/pkg/boardsim"
 	driverbutton "github.com/teamvoltimor/vtitan/src/go/pkg/driver/button"
 	"github.com/teamvoltimor/vtitan/src/go/pkg/portable/actuation"
+	"github.com/teamvoltimor/vtitan/src/go/pkg/portable/boardlink"
 )
 
 // These tests run the host Session against boardsim, the real
@@ -31,8 +33,12 @@ type virtualHarness struct {
 	board *boardsim.Board
 }
 
-// virtualCountsPerS is the virtual wheel's count rate at full duty.
-const virtualCountsPerS = 2000
+const (
+	// virtualCountsPerS is the virtual wheel's count rate at full duty.
+	virtualCountsPerS = 2000
+	// drivingSpeedMPS is the speed startDriving commands.
+	drivingSpeedMPS = 0.5
+)
 
 // startVirtual runs a Session and a boardsim.Board over a net.Pipe until
 // the test ends.
@@ -281,5 +287,136 @@ func TestVirtualBoard_SurvivesACorruptLink(t *testing.T) {
 	})
 	waitFor(t, "the commanded duty through a corrupting link", func() bool {
 		return math.Abs(v.board.Drive.Duty()-want) < 1e-9
+	})
+}
+
+// drivingDuty is the H-bridge duty sampleBoard produces for
+// drivingSpeedMPS.
+func drivingDuty() float64 {
+	d := actuation.SpeedToNormalized(drivingSpeedMPS, float64(sampleBoard.SpeedScalePctPerMPS))
+	if sampleBoard.InvertDrive {
+		d = -d
+	}
+	return d
+}
+
+// startDriving configures a virtual board and keeps commanding
+// drivingSpeedMPS until the drive carries it.
+func startDriving(t *testing.T, opts boardsim.Options) *virtualHarness {
+	t.Helper()
+
+	v := startVirtual(t, picolink.SessionConfig{Board: sampleBoard}, opts)
+	v.waitState(t, actuationv1.MotorStatus_STATE_IDLE)
+	v.keepCommanding(t, &actuationv1.AckermannCmd{Speed: drivingSpeedMPS})
+	want := drivingDuty()
+	waitFor(t, "the commanded duty", func() bool { return math.Abs(v.board.Drive.Duty()-want) < 1e-9 })
+	return v
+}
+
+// A host-to-board stall shorter than the board's command timeout, with
+// commands queued behind it, does not stop the car.
+func TestFailsafe_ShortStallKeepsDriving(t *testing.T) {
+	t.Parallel()
+
+	v := startDriving(t, boardsim.Options{})
+	// Commands every 50 ms: the longest gap is the stall plus one period,
+	// 300 ms against a 500 ms timeout.
+	v.board.StallToBoard(250 * time.Millisecond)
+	time.Sleep(450 * time.Millisecond)
+
+	if stops := v.board.Counters().WatchdogStops; stops != 0 {
+		t.Errorf("WatchdogStops = %d after a 250 ms stall, want 0", stops)
+	}
+	if d := v.board.Drive.Duty(); math.Abs(d-drivingDuty()) > 1e-9 {
+		t.Errorf("duty after a short stall = %v, want %v", d, drivingDuty())
+	}
+}
+
+// A stall longer than the board's command timeout stops the car on the
+// board's own authority, around CommandTimeoutMS after the last command
+// got through, and driving resumes when the link does. The backlog is then
+// applied as it arrives: commands carry no send time, so the board cannot
+// tell a stale command from a fresh one.
+func TestFailsafe_LongStallStopsThenRecovers(t *testing.T) {
+	t.Parallel()
+
+	v := startDriving(t, boardsim.Options{})
+	applied := v.board.Counters().CommandsApplied
+
+	stalled := time.Now()
+	v.board.StallToBoard(1200 * time.Millisecond)
+	waitFor(t, "the board's watchdog to stop the drive", func() bool {
+		return v.board.Drive.Duty() == 0
+	})
+	stoppedAfter := time.Since(stalled)
+	timeout := time.Duration(sampleBoard.CommandTimeoutMS) * time.Millisecond
+	// The last command crossed up to one 50 ms period before the stall.
+	if stoppedAfter < timeout-100*time.Millisecond || stoppedAfter > timeout+300*time.Millisecond {
+		t.Errorf("drive stopped %v after the stall began, want about the %v command timeout", stoppedAfter, timeout)
+	}
+
+	waitFor(t, "driving to resume after the stall", func() bool {
+		return math.Abs(v.board.Drive.Duty()-drivingDuty()) < 1e-9
+	})
+	t.Logf("stopped %v into the stall; commands applied during/after it: %d",
+		stoppedAfter.Round(time.Millisecond), v.board.Counters().CommandsApplied-applied)
+}
+
+// When the board goes silent past the host's link timeout, the host
+// publishes a FAULT status saying so, and reports again once frames return.
+func TestFailsafe_BoardSilenceIsReportedAsLinkLost(t *testing.T) {
+	t.Parallel()
+
+	v := startVirtual(t, picolink.SessionConfig{Board: sampleBoard}, boardsim.Options{})
+	v.waitState(t, actuationv1.MotorStatus_STATE_IDLE)
+	v.board.StallToHost(1600 * time.Millisecond)
+
+	deadline := time.After(waitTimeout)
+	for lost := false; !lost; {
+		select {
+		case st := <-v.status:
+			lost = st.GetState() == actuationv1.MotorStatus_STATE_FAULT &&
+				strings.Contains(st.GetDetail(), "link lost")
+		case <-deadline:
+			t.Fatal("no link-lost MotorStatus while the board was silent")
+		}
+	}
+	v.waitLog(t, "no frame from the board")
+	v.waitState(t, actuationv1.MotorStatus_STATE_IDLE)
+}
+
+// A board that resets mid-run (watchdog or brownout) is noticed by its new
+// boot ID, reconfigured by the host, and drives again on the next command.
+func TestFailsafe_BoardResetMidRunIsReconfigured(t *testing.T) {
+	t.Parallel()
+
+	v := startDriving(t, boardsim.Options{BootID: 1})
+
+	if err := v.board.Reboot(2, boardlink.FaultWatchdogReset); err != nil {
+		t.Fatalf("Reboot: %v", err)
+	}
+	v.waitLog(t, "board reset mid-run, reconfiguring")
+	waitFor(t, "the rebooted board to drive again", func() bool {
+		cfg, ok := v.board.Configured()
+		return ok && cfg == sampleBoard && math.Abs(v.board.Drive.Duty()-drivingDuty()) < 1e-9
+	})
+}
+
+// Bursty loss in both directions (a third of all chunks, three at a time)
+// still converges to a configured board carrying the command. The test
+// keeps driving until the emulation has provably lost traffic both ways,
+// then checks the drive still carries the command.
+func TestFailsafe_BurstyLossStillConverges(t *testing.T) {
+	t.Parallel()
+
+	lossy := boardsim.Direction{LossRate: 0.3, LossBurst: 3}
+	v := startDriving(t, boardsim.Options{Link: boardsim.LinkConfig{ToBoard: lossy, ToHost: lossy, Seed: 21}})
+
+	waitFor(t, "chunks lost in both directions", func() bool {
+		s := v.board.LinkStats()
+		return s.ToBoard.ChunksLost > 0 && s.ToHost.ChunksLost > 0
+	})
+	waitFor(t, "the commanded duty after losses", func() bool {
+		return math.Abs(v.board.Drive.Duty()-drivingDuty()) < 1e-9
 	})
 }
