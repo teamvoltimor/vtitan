@@ -32,6 +32,22 @@ type HardwareBoardSimToBoard struct {
 
 	// Fixed delay in milliseconds added to every chunk of bytes sent to the board.
 	LatencyMs float64 `json:"latency_ms" yaml:"latency_ms" mapstructure:"latency_ms"`
+
+	// Mean number of consecutive chunks lost once a loss starts; 1 gives independent
+	// losses. Read only when loss_rate is set.
+	LossBurst float64 `json:"loss_burst" yaml:"loss_burst" mapstructure:"loss_burst"`
+
+	// Long-run fraction of chunks lost whole, in bursts (Gilbert-Elliott); 0 disables
+	// loss.
+	LossRate float64 `json:"loss_rate" yaml:"loss_rate" mapstructure:"loss_rate"`
+
+	// How long each stall holds delivery, in milliseconds; what was sent meanwhile
+	// arrives together when it ends, as a stuck USB endpoint's backlog does.
+	StallMs float64 `json:"stall_ms" yaml:"stall_ms" mapstructure:"stall_ms"`
+
+	// Average number of stalls starting per second (Poisson); 0 disables random
+	// stalls.
+	StallRateHz float64 `json:"stall_rate_hz" yaml:"stall_rate_hz" mapstructure:"stall_rate_hz"`
 }
 
 // Emulation of the board-to-host direction of the link (Hello, Status, Odometry,
@@ -47,4 +63,20 @@ type HardwareBoardSimToHost struct {
 
 	// Fixed delay in milliseconds added to every frame the board sends.
 	LatencyMs float64 `json:"latency_ms" yaml:"latency_ms" mapstructure:"latency_ms"`
+
+	// Mean number of consecutive chunks lost once a loss starts; 1 gives independent
+	// losses. Read only when loss_rate is set.
+	LossBurst float64 `json:"loss_burst" yaml:"loss_burst" mapstructure:"loss_burst"`
+
+	// Long-run fraction of chunks lost whole, in bursts (Gilbert-Elliott); 0 disables
+	// loss.
+	LossRate float64 `json:"loss_rate" yaml:"loss_rate" mapstructure:"loss_rate"`
+
+	// How long each stall holds delivery, in milliseconds; what was sent meanwhile
+	// arrives together when it ends, as a stuck USB endpoint's backlog does.
+	StallMs float64 `json:"stall_ms" yaml:"stall_ms" mapstructure:"stall_ms"`
+
+	// Average number of stalls starting per second (Poisson); 0 disables random
+	// stalls.
+	StallRateHz float64 `json:"stall_rate_hz" yaml:"stall_rate_hz" mapstructure:"stall_rate_hz"`
 }

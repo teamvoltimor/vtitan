@@ -3,6 +3,7 @@ package boardsim
 import (
 	"bytes"
 	"context"
+	"math"
 	"math/bits"
 	"math/rand/v2"
 	"net"
@@ -185,19 +186,23 @@ func TestCorrupt(t *testing.T) {
 
 	orig := bytes.Repeat([]byte{0x00, 0xFF, 0x5A}, 100)
 
-	if got := corrupt(bytes.Clone(orig), 0, rand.New(rand.NewPCG(1, 1))); !bytes.Equal(got, orig) {
+	if got := bytes.Clone(orig); corrupt(got, 0, rand.New(rand.NewPCG(1, 1))) != 0 || !bytes.Equal(got, orig) {
 		t.Error("rate 0 changed the data")
 	}
 
-	got := corrupt(bytes.Clone(orig), 1, rand.New(rand.NewPCG(1, 1)))
+	got := bytes.Clone(orig)
+	if n := corrupt(got, 1, rand.New(rand.NewPCG(1, 1))); n != len(orig) {
+		t.Errorf("rate 1 reported %d flipped bytes, want %d", n, len(orig))
+	}
 	for i := range orig {
 		if d := bits.OnesCount8(got[i] ^ orig[i]); d != 1 {
 			t.Fatalf("rate 1: byte %d differs in %d bits, want 1", i, d)
 		}
 	}
 
-	a := corrupt(bytes.Clone(orig), 0.1, rand.New(rand.NewPCG(9, 1)))
-	b := corrupt(bytes.Clone(orig), 0.1, rand.New(rand.NewPCG(9, 1)))
+	a, b := bytes.Clone(orig), bytes.Clone(orig)
+	corrupt(a, 0.1, rand.New(rand.NewPCG(9, 1)))
+	corrupt(b, 0.1, rand.New(rand.NewPCG(9, 1)))
 	if !bytes.Equal(a, b) {
 		t.Error("the same seed corrupted differently")
 	}
@@ -219,10 +224,109 @@ func TestLinkConfig_Validate(t *testing.T) {
 		"negative jitter":  {LinkConfig{ToHost: Direction{Jitter: -time.Millisecond}}, false},
 		"rate above one":   {LinkConfig{ToHost: Direction{CorruptRate: 1.5}}, false},
 		"negative rate":    {LinkConfig{ToBoard: Direction{CorruptRate: -0.1}}, false},
+		"loss of one":      {LinkConfig{ToBoard: Direction{LossRate: 1, LossBurst: 2}}, false},
+		"burst below one":  {LinkConfig{ToHost: Direction{LossRate: 0.1, LossBurst: 0.5}}, false},
+		"negative stall":   {LinkConfig{ToHost: Direction{StallRate: -1}}, false},
+		"bursty loss":      {LinkConfig{ToHost: Direction{LossRate: 0.1, LossBurst: 3}}, true},
 	}
 	for name, tc := range cases {
 		if err := tc.cfg.Validate(); (err == nil) != tc.valid {
 			t.Errorf("%s: Validate = %v, want valid %v", name, err, tc.valid)
+		}
+	}
+}
+
+// The Gilbert-Elliott chain loses LossRate of chunks in the long run, in
+// bursts of LossBurst chunks on average.
+func TestPath_LossMatchesRateAndBurst(t *testing.T) {
+	t.Parallel()
+
+	const rate, burst, n = 0.2, 4.0, 200_000
+	p := path{cfg: Direction{LossRate: rate, LossBurst: burst}, rand: rand.New(rand.NewPCG(5, 1))}
+	now := time.Unix(0, 0)
+	lost, bursts := 0, 0
+	prevLost := false
+	for range n {
+		_, _, l := p.admit([]byte{0}, now)
+		if l {
+			lost++
+			if !prevLost {
+				bursts++
+			}
+		}
+		prevLost = l
+	}
+	if got := float64(lost) / n; math.Abs(got-rate) > 0.01 {
+		t.Errorf("loss fraction = %.4f, want %.2f +- 0.01", got, rate)
+	}
+	if got := float64(lost) / float64(bursts); math.Abs(got-burst) > 0.2 {
+		t.Errorf("mean burst = %.3f chunks, want %.1f +- 0.2", got, burst)
+	}
+	if p.stats.ChunksLost != uint64(lost) || p.stats.Chunks != n {
+		t.Errorf("stats = %+v, want %d lost of %d", p.stats, lost, n)
+	}
+}
+
+// Random stalls start at StallRate per second, and a chunk sent during one
+// is held until it ends.
+func TestPath_RandomStallsHoldDelivery(t *testing.T) {
+	t.Parallel()
+
+	const rate, dur = 10.0, 50 * time.Millisecond
+	p := path{cfg: Direction{StallRate: rate, StallDuration: dur}, rand: rand.New(rand.NewPCG(8, 1))}
+	start := time.Unix(0, 0)
+	held := 0
+	for ms := range 60_000 {
+		now := start.Add(time.Duration(ms) * time.Millisecond)
+		_, due, _ := p.admit([]byte{0}, now)
+		if due.After(now) {
+			held++
+			if !due.Equal(p.holdUntil) {
+				t.Fatalf("at %v a held chunk is due %v, want the stall's end %v", now, due, p.holdUntil)
+			}
+		}
+	}
+	// 60 s at 10/s with 50 ms of dead time each: about 60/(0.1+0.05) = 400.
+	if s := p.stats.Stalls; s < 330 || s > 470 {
+		t.Errorf("stalls in 60 s = %d, want about 400", s)
+	}
+	if held == 0 {
+		t.Error("no chunk was ever held")
+	}
+}
+
+// Reboot starts a new boot: a Hello with the new BootID and the reset
+// faults, from a board that is unconfigured again.
+func TestBoard_RebootAnnouncesANewBoot(t *testing.T) {
+	t.Parallel()
+
+	b, host := startBoard(t, Options{BootID: 1})
+	readUntil(t, host, boardlink.TypeHello)
+
+	if err := b.Reboot(2, boardlink.FaultWatchdogReset); err != nil {
+		t.Fatalf("Reboot: %v", err)
+	}
+	var (
+		dec boardlink.Decoder
+		pkt boardlink.Packet
+	)
+	buf := make([]byte, boardlink.MaxEncodedLen)
+	_ = host.SetReadDeadline(time.Now().Add(2 * time.Second))
+	for {
+		n, err := host.Read(buf)
+		if err != nil {
+			t.Fatalf("waiting for the new Hello: %v", err)
+		}
+		for _, c := range buf[:n] {
+			if ok, _ := dec.Feed(c, &pkt); ok && pkt.Type == boardlink.TypeHello && pkt.Hello.BootID == 2 {
+				if pkt.Hello.Faults&boardlink.FaultWatchdogReset == 0 {
+					t.Errorf("Hello faults = %v, want FaultWatchdogReset", pkt.Hello.Faults)
+				}
+				if _, configured := b.Configured(); configured {
+					t.Error("board configured right after a reboot")
+				}
+				return
+			}
 		}
 	}
 }

@@ -164,3 +164,25 @@ func (b *Button) SetPressed(pressed bool) {
 	defer b.mu.Unlock()
 	b.pressed = pressed
 }
+
+// powerOn returns the drive to its power-on state: disconnected, at zero.
+// An injected error survives, as a hardware fault would.
+func (d *Drive) powerOn() {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	d.connected, d.duty = false, 0
+}
+
+// powerOn returns the servo output to its power-on state: no pulses.
+func (s *Servo) powerOn() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.pulseUS, s.written = 0, false
+}
+
+// powerOn restarts the count at zero: Counts is since boot.
+func (e *Encoder) powerOn() {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	e.counts, e.frac = 0, 0
+}

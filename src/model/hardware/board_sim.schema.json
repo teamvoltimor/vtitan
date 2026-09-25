@@ -37,9 +37,38 @@
           "minimum": 0,
           "maximum": 1,
           "description": "Probability per byte that one random bit is flipped, to exercise the boardlink decoder's resynchronization."
+        },
+        "loss_rate": {
+          "type": "number",
+          "minimum": 0,
+          "exclusiveMaximum": 1,
+          "description": "Long-run fraction of chunks lost whole, in bursts (Gilbert-Elliott); 0 disables loss."
+        },
+        "loss_burst": {
+          "type": "number",
+          "minimum": 1,
+          "description": "Mean number of consecutive chunks lost once a loss starts; 1 gives independent losses. Read only when loss_rate is set."
+        },
+        "stall_rate_hz": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Average number of stalls starting per second (Poisson); 0 disables random stalls."
+        },
+        "stall_ms": {
+          "type": "number",
+          "minimum": 0,
+          "description": "How long each stall holds delivery, in milliseconds; what was sent meanwhile arrives together when it ends, as a stuck USB endpoint's backlog does."
         }
       },
-      "required": ["latency_ms", "jitter_ms", "corrupt_rate"]
+      "required": [
+        "latency_ms",
+        "jitter_ms",
+        "corrupt_rate",
+        "loss_rate",
+        "loss_burst",
+        "stall_rate_hz",
+        "stall_ms"
+      ]
     },
     "to_host": {
       "type": "object",
@@ -61,10 +90,44 @@
           "minimum": 0,
           "maximum": 1,
           "description": "Probability per byte that one random bit is flipped, to exercise the host's boardlink decoder."
+        },
+        "loss_rate": {
+          "type": "number",
+          "minimum": 0,
+          "exclusiveMaximum": 1,
+          "description": "Long-run fraction of chunks lost whole, in bursts (Gilbert-Elliott); 0 disables loss."
+        },
+        "loss_burst": {
+          "type": "number",
+          "minimum": 1,
+          "description": "Mean number of consecutive chunks lost once a loss starts; 1 gives independent losses. Read only when loss_rate is set."
+        },
+        "stall_rate_hz": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Average number of stalls starting per second (Poisson); 0 disables random stalls."
+        },
+        "stall_ms": {
+          "type": "number",
+          "minimum": 0,
+          "description": "How long each stall holds delivery, in milliseconds; what was sent meanwhile arrives together when it ends, as a stuck USB endpoint's backlog does."
         }
       },
-      "required": ["latency_ms", "jitter_ms", "corrupt_rate"]
+      "required": [
+        "latency_ms",
+        "jitter_ms",
+        "corrupt_rate",
+        "loss_rate",
+        "loss_burst",
+        "stall_rate_hz",
+        "stall_ms"
+      ]
     }
   },
-  "required": ["loop_tick_ms", "seed", "to_board", "to_host"]
+  "required": [
+    "loop_tick_ms",
+    "seed",
+    "to_board",
+    "to_host"
+  ]
 }

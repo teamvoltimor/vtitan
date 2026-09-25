@@ -44,9 +44,12 @@ type Board struct {
 	link *link
 	opts Options
 
-	// mu guards loop, which is not safe for concurrent use.
-	mu   sync.Mutex
-	loop *boardloop.Loop
+	// mu guards loop, which is not safe for concurrent use, and the boot
+	// clock, which Reboot restarts.
+	mu       sync.Mutex
+	loop     *boardloop.Loop
+	bootAt   time.Time
+	lastStep time.Duration
 }
 
 // DefaultTick is how often Run steps the Loop. The firmware steps in a
@@ -85,29 +88,21 @@ func New(rw io.ReadWriter, opts Options) (*Board, error) {
 		opts:    opts,
 	}
 	b.link = newLink(rw, opts.Link)
-	hw := boardloop.Hardware{Link: b.link, Drive: b.Drive, Servo: b.Servo}
-	if !opts.NoEncoder {
-		hw.Encoder = b.Encoder
-	}
-	if !opts.NoButton {
-		hw.Button = b.Button
-	}
-	loop, err := boardloop.New(hw, boardloop.Options{BootID: opts.BootID, BootFaults: opts.BootFaults})
+	loop, err := b.newLoop(opts.BootID, opts.BootFaults)
 	if err != nil {
-		return nil, fmt.Errorf("boardsim: %w", err)
+		return nil, err
 	}
 	b.loop = loop
+	b.bootAt = time.Now()
 	return b, nil
 }
 
-// Run steps the Loop every Tick, with the time since Run started as the
-// board's clock, until ctx ends (nil) or the link closes (ErrLinkClosed).
+// Run steps the Loop every Tick, with the time since boot as the board's
+// clock, until ctx ends (nil) or the link closes (ErrLinkClosed).
 func (b *Board) Run(ctx context.Context) error {
 	ticker := time.NewTicker(b.opts.Tick)
 	defer ticker.Stop()
 
-	boot := time.Now()
-	last := time.Duration(0)
 	for {
 		select {
 		case <-ctx.Done():
@@ -116,12 +111,43 @@ func (b *Board) Run(ctx context.Context) error {
 			return ErrLinkClosed
 		case <-ticker.C:
 		}
-		now := time.Since(boot)
 		// boardloop.Loop.Step takes no ctx: the firmware has none to give it.
-		b.step(now, now-last) //nolint:contextcheck // see above
-		last = now
+		b.step() //nolint:contextcheck // see above
 	}
 }
+
+// Reboot emulates a board reset, as a watchdog or a brownout causes: a new
+// boot reporting bootID and faults (boardlink.FaultWatchdogReset for a
+// watchdog), the board clock restarting at zero, the hardware back at
+// power-on (drive disconnected at zero duty, servo without pulses, encoder
+// at zero), and whatever sat unread in the receive buffer lost. The link
+// itself survives, so the host sees a new Hello rather than a closed port.
+func (b *Board) Reboot(bootID uint32, faults boardlink.Faults) error {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	b.Drive.powerOn()
+	b.Servo.powerOn()
+	b.Encoder.powerOn()
+	b.link.discardPending()
+	loop, err := b.newLoop(bootID, faults)
+	if err != nil {
+		return err
+	}
+	b.loop = loop
+	b.bootAt = time.Now()
+	b.lastStep = 0
+	return nil
+}
+
+// StallToBoard holds everything the host sends for d from now, as a stuck
+// endpoint does, and delivers it together afterwards.
+func (b *Board) StallToBoard(d time.Duration) { b.link.hold(true, d) }
+
+// StallToHost holds everything the board sends for d from now.
+func (b *Board) StallToHost(d time.Duration) { b.link.hold(false, d) }
+
+// LinkStats reports what the link emulation did to the traffic so far.
+func (b *Board) LinkStats() LinkStats { return b.link.stats() }
 
 // Configured returns the Config in force and whether the board is
 // configured.
@@ -138,13 +164,31 @@ func (b *Board) Counters() boardloop.Counters {
 	return b.loop.Counters()
 }
 
-// step advances the wheel model over dt at the duty in force, then runs
-// one Loop iteration at now.
-func (b *Board) step(now, dt time.Duration) {
-	if b.opts.CountsPerSecondAtFullDuty != 0 && !b.opts.NoEncoder {
-		b.Encoder.advance(b.Drive.Duty()*b.opts.CountsPerSecondAtFullDuty, dt.Seconds())
+// newLoop builds a Loop over the Board's hardware.
+func (b *Board) newLoop(bootID uint32, faults boardlink.Faults) (*boardloop.Loop, error) {
+	hw := boardloop.Hardware{Link: b.link, Drive: b.Drive, Servo: b.Servo}
+	if !b.opts.NoEncoder {
+		hw.Encoder = b.Encoder
 	}
+	if !b.opts.NoButton {
+		hw.Button = b.Button
+	}
+	loop, err := boardloop.New(hw, boardloop.Options{BootID: bootID, BootFaults: faults})
+	if err != nil {
+		return nil, fmt.Errorf("boardsim: %w", err)
+	}
+	return loop, nil
+}
+
+// step advances the wheel model since the previous step at the duty in
+// force, then runs one Loop iteration at the time since boot.
+func (b *Board) step() {
 	b.mu.Lock()
 	defer b.mu.Unlock()
+	now := time.Since(b.bootAt)
+	if b.opts.CountsPerSecondAtFullDuty != 0 && !b.opts.NoEncoder {
+		b.Encoder.advance(b.Drive.Duty()*b.opts.CountsPerSecondAtFullDuty, (now - b.lastStep).Seconds())
+	}
+	b.lastStep = now
 	b.loop.Step(now)
 }

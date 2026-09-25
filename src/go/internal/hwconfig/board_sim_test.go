@@ -53,10 +53,18 @@ seed = 7
 latency_ms = 3.0
 jitter_ms = 0.5
 corrupt_rate = 0.01
+loss_rate = 0.05
+loss_burst = 2.0
+stall_rate_hz = 0.5
+stall_ms = 200.0
 [to_host]
 latency_ms = 4.0
 jitter_ms = 1.5
 corrupt_rate = 0.02
+loss_rate = 0.0
+loss_burst = 1.0
+stall_rate_hz = 0.0
+stall_ms = 0.0
 `
 	t.Setenv(profile.EnvVar, "")
 
@@ -68,14 +76,19 @@ corrupt_rate = 0.02
 		Tick: 2500 * time.Microsecond,
 		Link: boardsim.LinkConfig{
 			ToBoard: boardsim.Direction{
-				Latency:     3 * time.Millisecond,
-				Jitter:      500 * time.Microsecond,
-				CorruptRate: 0.01,
+				Latency:       3 * time.Millisecond,
+				Jitter:        500 * time.Microsecond,
+				CorruptRate:   0.01,
+				LossRate:      0.05,
+				LossBurst:     2,
+				StallRate:     0.5,
+				StallDuration: 200 * time.Millisecond,
 			},
 			ToHost: boardsim.Direction{
 				Latency:     4 * time.Millisecond,
 				Jitter:      1500 * time.Microsecond,
 				CorruptRate: 0.02,
+				LossBurst:   1,
 			},
 			Seed: 7,
 		},
@@ -90,6 +103,9 @@ corrupt_rate = 0.02
 		"negative latency": {"latency_ms = 3.0", "latency_ms = -1.0"},
 		"negative jitter":  {"jitter_ms = 1.5", "jitter_ms = -1.5"},
 		"rate above one":   {"corrupt_rate = 0.02", "corrupt_rate = 1.5"},
+		"loss of one":      {"loss_rate = 0.05", "loss_rate = 1.0"},
+		"burst below one":  {"loss_burst = 2.0", "loss_burst = 0.5"},
+		"negative stall":   {"stall_rate_hz = 0.5", "stall_rate_hz = -0.5"},
 	} {
 		broken := strings.Replace(good, swap[0], swap[1], 1)
 		if broken == good {
