@@ -4,10 +4,12 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/teamvoltimor/vtitan/src/go/internal/config/generated/hardware"
 	"github.com/teamvoltimor/vtitan/src/go/internal/config/profile"
 	"github.com/teamvoltimor/vtitan/src/go/internal/hwconfig"
+	"github.com/teamvoltimor/vtitan/src/go/pkg/portable/boardlink"
 )
 
 // The shipped board.toml is the Zero; appending the pico2 profile to the
@@ -70,5 +72,60 @@ func TestActuationBoard_UnknownKindErrors(t *testing.T) {
 
 	if _, err := hwconfig.ActuationBoard(root); err == nil {
 		t.Fatal("ActuationBoard: want error for an unknown kind, got nil")
+	}
+}
+
+// The shipped [lease] loads with its units converted and is valid for
+// picolink.
+func TestActuationBoard_ShippedLease(t *testing.T) {
+	t.Setenv(profile.EnvVar, "")
+
+	board, err := hwconfig.ActuationBoard(shippedRoot)
+	if err != nil {
+		t.Fatalf("ActuationBoard: %v", err)
+	}
+	l := board.Lease
+	if l.BlindDistanceM <= 0 || l.Min <= 0 || l.Max < l.Min || l.OnExpiry != boardlink.ExpiryStop {
+		t.Errorf("Lease = %+v, want the shipped positive, ordered lease with on_expiry stop", l)
+	}
+}
+
+// Values the schema forbids are rejected, since the TOML decoder does not
+// apply it; an omitted table is no lease.
+func TestActuationBoard_LeaseValues(t *testing.T) {
+	t.Setenv(profile.EnvVar, "")
+
+	write := func(body string) string {
+		root := t.TempDir()
+		path := filepath.Join(root, filepath.FromSlash(profile.DefaultBoardTOMLPath))
+		if err := os.MkdirAll(filepath.Dir(path), 0o750); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(path, []byte("kind = \"pico2\"\nserial_port = \"/dev/x\"\n"+body), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		return root
+	}
+
+	board, err := hwconfig.ActuationBoard(write(""))
+	if err != nil || board.Lease != (hwconfig.BoardLease{}) {
+		t.Errorf("no [lease]: Lease = %+v, err %v, want no lease", board.Lease, err)
+	}
+	board, err = hwconfig.ActuationBoard(write(
+		"[lease]\nblind_distance_m = 0.2\nmin_ms = 100.0\nmax_ms = 300.0\non_expiry = \"hold\"\n"))
+	want := hwconfig.BoardLease{
+		BlindDistanceM: 0.2, Min: 100 * time.Millisecond, Max: 300 * time.Millisecond, OnExpiry: boardlink.ExpiryHold,
+	}
+	if err != nil || board.Lease != want {
+		t.Errorf("Lease = %+v, err %v, want %+v", board.Lease, err, want)
+	}
+	for name, body := range map[string]string{
+		"unknown action": "[lease]\nblind_distance_m = 0.2\nmin_ms = 100.0\nmax_ms = 300.0\non_expiry = \"brake\"\n",
+		"max below min":  "[lease]\nblind_distance_m = 0.2\nmin_ms = 300.0\nmax_ms = 100.0\non_expiry = \"stop\"\n",
+		"no min":         "[lease]\nblind_distance_m = 0.2\nmin_ms = 0.0\nmax_ms = 100.0\non_expiry = \"stop\"\n",
+	} {
+		if _, err = hwconfig.ActuationBoard(write(body)); err == nil {
+			t.Errorf("%s: ActuationBoard error = nil, want an error", name)
+		}
 	}
 }

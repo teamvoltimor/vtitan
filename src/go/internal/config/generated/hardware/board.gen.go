@@ -8,6 +8,13 @@ type HardwareBoard struct {
 	// picolink). Selected by the pico2 hardware profile, not edited here.
 	Kind HardwareBoardKind `json:"kind" yaml:"kind" mapstructure:"kind"`
 
+	// How long each command the Pi 5 forwards to the Pico 2 stays valid (its lease,
+	// boardlink protocol version 2). When it runs out before a newer command arrives,
+	// the board ends the command with on_expiry instead of driving on it until the
+	// 500 ms command watchdog. A lease only ever shortens that watchdog. Read only
+	// when kind is pico2.
+	Lease HardwareBoardLease `json:"lease" yaml:"lease" mapstructure:"lease"`
+
 	// Serial device of the Pico 2 on the Pi 5 (its USB CDC port). Read only when kind
 	// is pico2.
 	SerialPort string `json:"serial_port" yaml:"serial_port" mapstructure:"serial_port"`
@@ -17,3 +24,35 @@ type HardwareBoardKind string
 
 const HardwareBoardKindPico2 HardwareBoardKind = "pico2"
 const HardwareBoardKindZero HardwareBoardKind = "zero"
+
+// How long each command the Pi 5 forwards to the Pico 2 stays valid (its lease,
+// boardlink protocol version 2). When it runs out before a newer command arrives,
+// the board ends the command with on_expiry instead of driving on it until the 500
+// ms command watchdog. A lease only ever shortens that watchdog. Read only when
+// kind is pico2.
+type HardwareBoardLease struct {
+	// How far the car may drive on one command: the lease is this distance over the
+	// commanded speed, clamped to [min_ms, max_ms]. 0 sends no lease (protocol
+	// version 1 behaviour).
+	BlindDistanceM float64 `json:"blind_distance_m" yaml:"blind_distance_m" mapstructure:"blind_distance_m"`
+
+	// Longest lease, in milliseconds, for a slow or stopped car. At most the command
+	// watchdog, which bounds it anyway.
+	MaxMs float64 `json:"max_ms" yaml:"max_ms" mapstructure:"max_ms"`
+
+	// Shortest lease, in milliseconds, so link jitter cannot expire a lease between
+	// two on-time commands.
+	MinMs float64 `json:"min_ms" yaml:"min_ms" mapstructure:"min_ms"`
+
+	// What the board does when a lease runs out: stop_center stops the drive and
+	// centers the steering (the watchdog's own action), stop stops the drive and
+	// keeps the steering so a car stopping mid-turn does not swing its nose, hold
+	// leaves the command to the watchdog.
+	OnExpiry HardwareBoardLeaseOnExpiry `json:"on_expiry" yaml:"on_expiry" mapstructure:"on_expiry"`
+}
+
+type HardwareBoardLeaseOnExpiry string
+
+const HardwareBoardLeaseOnExpiryHold HardwareBoardLeaseOnExpiry = "hold"
+const HardwareBoardLeaseOnExpiryStop HardwareBoardLeaseOnExpiry = "stop"
+const HardwareBoardLeaseOnExpiryStopCenter HardwareBoardLeaseOnExpiry = "stop_center"

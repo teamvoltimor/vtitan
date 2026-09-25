@@ -61,10 +61,22 @@
 // not applied in its place. A Config ends the batch: a Command received
 // before it is applied first, as it would have been in an earlier Step.
 //
-// What this does not cover: a host that stopped sending during the stall.
-// Then the newest queued command is itself stale and is applied once, until
-// the watchdog stops the car again. Closing that needs a send time on
-// Command and a clock the board can compare it with.
+// A host that stopped sending during the stall leaves a stale newest
+// command. Leases close that when the host sets them (below): the stale
+// command arrives past its deadline and is refused.
+//
+// # Leases
+//
+// A Command with a DeadlineUS holds only until that board time. One that
+// arrives already past it is refused, counted in Counters.CommandsExpired,
+// and does not refresh the watchdog. When the deadline of the applied
+// command passes, OnExpiry ends it once, counted in Counters.LeaseExpiries,
+// and a Status goes out at once: ExpiryStopCenter stops and centers (the
+// watchdog's action, also used for a value this firmware does not know),
+// ExpiryStop stops and keeps the steering, ExpiryHold does nothing and
+// leaves the command to the watchdog. A lease only ever ends a command
+// early: the CommandTimeoutMS watchdog runs regardless. A Command with no
+// deadline behaves as in protocol version 1.
 //
 // # Status
 //

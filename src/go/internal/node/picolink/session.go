@@ -66,6 +66,8 @@ type SessionConfig struct {
 	// Button is the host-side button evaluator's tuning; nil publishes no
 	// ButtonEvent, for a board with no button.
 	Button *ButtonParams
+	// Lease sizes every command's lease; the zero value sends none.
+	Lease LeasePolicy
 }
 
 // ClockSync is the latest clock estimate from a Ping/Pong round trip.
@@ -138,6 +140,7 @@ type Session struct {
 	buttonHoldPub    ButtonHoldPublisher
 	buttonWasPressed bool
 
+	lease     LeasePolicy
 	clockMu   sync.Mutex
 	clock     ClockSync
 	haveClock bool
@@ -205,6 +208,7 @@ func NewSession(
 		status:       status,
 		joints:       joints,
 		pingInterval: cfg.PingInterval,
+		lease:        cfg.Lease,
 		linkTimeout:  cfg.LinkTimeout,
 		epoch:        time.Now(),
 	}
@@ -216,6 +220,9 @@ func NewSession(
 	}
 	if err := boardloop.ValidateConfig(cfg.Board); err != nil {
 		s.invalid = err.Error()
+	}
+	if err := cfg.Lease.Validate(); err != nil {
+		return nil, err
 	}
 	if cfg.Encoder != nil {
 		if joints == nil {
@@ -321,10 +328,8 @@ func (s *Session) Run(ctx context.Context, link io.ReadWriter, cmds CommandReade
 				return err
 			}
 		case cmd := <-cmdCh:
-			if err := w.send(&boardlink.Packet{Type: boardlink.TypeCommand, Command: boardlink.Command{
-				SpeedMPS:         cmd.GetSpeed(),
-				SteeringAngleRad: cmd.GetSteeringAngle(),
-			}}); err != nil {
+			pkt := boardlink.Packet{Type: boardlink.TypeCommand, Command: s.commandFor(cmd, time.Now())}
+			if err := w.send(&pkt); err != nil {
 				return err
 			}
 		case <-ping.C:
@@ -481,6 +486,11 @@ func (s *Session) onHello(w *linkWriter, h boardlink.Hello, now time.Time) error
 		s.refusals = 0
 		s.retryAfter = time.Time{}
 		s.resetOdometry()
+		// A new boot restarted the board's clock: the old offset would put
+		// every lease deadline in the wrong place until the next Pong.
+		s.clockMu.Lock()
+		s.haveClock = false
+		s.clockMu.Unlock()
 		if h.ProtocolVersion != boardlink.Version {
 			s.logger.Warn("picolink: board reports a different protocol version",
 				"board_version", h.ProtocolVersion, "host_version", boardlink.Version)

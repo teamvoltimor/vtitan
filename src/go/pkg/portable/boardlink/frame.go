@@ -17,8 +17,9 @@ type Decoder struct {
 
 // Version is the protocol version every frame carries. Bump it on any
 // incompatible change to framing or to an existing message's body; adding a
-// new Type does not need a bump.
-const Version uint8 = 1
+// new Type does not need a bump. Version 2 added the lease to Command
+// (DeadlineUS, OnExpiry).
+const Version uint8 = 2
 
 // Frame layout: version:u8 | type:u8 | seq:u16 | body | crc16:u16. The
 // header offsets are stated once here; decodeFrame reads through them, and

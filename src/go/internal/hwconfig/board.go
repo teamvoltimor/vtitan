@@ -3,9 +3,11 @@ package hwconfig
 import (
 	"fmt"
 	"path/filepath"
+	"time"
 
 	"github.com/teamvoltimor/vtitan/src/go/internal/config/generated/hardware"
 	"github.com/teamvoltimor/vtitan/src/go/internal/config/profile"
+	"github.com/teamvoltimor/vtitan/src/go/pkg/portable/boardlink"
 )
 
 // Board is the actuation board the active hardware profile selects
@@ -16,6 +18,17 @@ type Board struct {
 	// SerialPort is the Pico 2's serial device on the Pi 5. Meaningful only
 	// when Kind is hardware.HardwareBoardKindPico2.
 	SerialPort string
+	// Lease is board.toml's [lease]: how long each forwarded command
+	// holds. A zero BlindDistanceM is no lease.
+	Lease BoardLease
+}
+
+// BoardLease is board.toml's [lease], in the units picolink.LeasePolicy
+// takes.
+type BoardLease struct {
+	BlindDistanceM float64
+	Min, Max       time.Duration
+	OnExpiry       boardlink.Expiry
 }
 
 // ActuationBoard resolves configRoot's board.toml overlaid with the profiles
@@ -41,9 +54,39 @@ func ActuationBoard(configRoot string) (Board, error) {
 
 	switch loaded.Kind {
 	case hardware.HardwareBoardKindZero, hardware.HardwareBoardKindPico2:
-		return Board{Kind: loaded.Kind, SerialPort: loaded.SerialPort}, nil
+		lease, leaseErr := boardLease(loaded.Lease)
+		if leaseErr != nil {
+			return Board{}, leaseErr
+		}
+		return Board{Kind: loaded.Kind, SerialPort: loaded.SerialPort, Lease: lease}, nil
 	default:
 		return Board{}, fmt.Errorf("board: board.toml kind %q is neither %q nor %q",
 			loaded.Kind, hardware.HardwareBoardKindZero, hardware.HardwareBoardKindPico2)
 	}
+}
+
+// boardLease converts [lease], rejecting what the schema forbids, since the
+// TOML decoder does not apply it. An omitted table is no lease.
+func boardLease(l hardware.HardwareBoardLease) (BoardLease, error) {
+	if l.BlindDistanceM == 0 {
+		return BoardLease{}, nil
+	}
+	expiry := map[hardware.HardwareBoardLeaseOnExpiry]boardlink.Expiry{
+		hardware.HardwareBoardLeaseOnExpiryStopCenter: boardlink.ExpiryStopCenter,
+		hardware.HardwareBoardLeaseOnExpiryStop:       boardlink.ExpiryStop,
+		hardware.HardwareBoardLeaseOnExpiryHold:       boardlink.ExpiryHold,
+	}
+	onExpiry, ok := expiry[l.OnExpiry]
+	switch {
+	case !ok:
+		return BoardLease{}, fmt.Errorf("board: lease on_expiry %q is not stop_center, stop or hold", l.OnExpiry)
+	case l.BlindDistanceM < 0 || l.MinMs <= 0 || l.MaxMs < l.MinMs:
+		return BoardLease{}, fmt.Errorf("board: lease %+v needs a positive distance and 0 < min_ms <= max_ms", l)
+	}
+	return BoardLease{
+		BlindDistanceM: l.BlindDistanceM,
+		Min:            millis(l.MinMs),
+		Max:            millis(l.MaxMs),
+		OnExpiry:       onExpiry,
+	}, nil
 }

@@ -172,6 +172,18 @@ packets for the host.
   counts the rest in `CommandsSuperseded`, so a stall's released backlog is
   no longer replayed; the residual case is in the package doc. Firmware
   78,484 -> 79,052 B flash.
+- 2026-09-25: boardlink protocol version 2 (platform plan item 2.13). A
+  `Command` carries a lease: `DeadlineUS` on the board's clock and an
+  `OnExpiry` action (stop and center, stop keeping the steering, or hold).
+  `picolink` derives the deadline from the command's stamp and the
+  Ping/Pong clock offset, sizing it with `board.toml`'s `[lease]` (the time
+  to drive 10 cm at the commanded speed, in [150, 400] ms). The board refuses
+  a command that arrives past its lease, which closes the stale-command
+  residual, and ends one whose lease runs out. A lease only ever shortens
+  the `CommandTimeoutMS` watchdog. Version 1 and 2 boards and hosts do not
+  interoperate: reflash the Pico with the host that runs it. The Pi Zero
+  path does not use leases. Firmware 79,052 -> 79,292 B flash. Not run on
+  a board.
 
 ## Cross-references
 

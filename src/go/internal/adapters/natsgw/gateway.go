@@ -35,6 +35,7 @@ import (
 	"time"
 
 	"github.com/nats-io/nats.go"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/teamvoltimor/vtitan/src/go/internal/nav/controllers"
 	"github.com/teamvoltimor/vtitan/src/go/internal/nav/localization"
@@ -367,6 +368,9 @@ func (g *Gateway) Run(
 func (g *Gateway) driveCommand(command controllers.DriveCommand) *actuationv1.AckermannCmd {
 	steering := math.Max(-1.0, math.Min(1.0, command.SteeringNorm)) * maxSteeringWheelAngleRad
 	return &actuationv1.AckermannCmd{
+		// When the command was decided: picolink starts the command's lease
+		// here, so time spent in NATS or a stalled link counts against it.
+		Stamp:         timestamppb.Now(),
 		Speed:         float32(command.SpeedMPS),
 		SteeringAngle: float32(steering),
 	}

@@ -5,3 +5,15 @@
 
 kind = "zero"
 serial_port = "/dev/ttyACM0"
+
+# The lease of each command the Pi 5 forwards to the Pico 2 (boardlink v2):
+# the car may drive blind_distance_m on one command before the board stops
+# it, instead of the 500 ms watchdog, which at 0.5 m/s is 25 cm blind. The
+# bounds keep jitter from expiring a lease between two 20 Hz commands (three
+# ticks at min_ms). ESTIMATES: tune from the link health the board reports
+# once a board exists (platform plan 2.14). Read only with kind = "pico2".
+[lease]
+blind_distance_m = 0.10
+min_ms = 150.0
+max_ms = 400.0
+on_expiry = "stop"

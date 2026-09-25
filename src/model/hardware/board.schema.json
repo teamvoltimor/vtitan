@@ -7,16 +7,58 @@
   "properties": {
     "kind": {
       "type": "string",
-      "enum": ["zero", "pico2"],
+      "enum": [
+        "zero",
+        "pico2"
+      ],
       "description": "Which actuation board drives the steering servo and the drive motor: zero (the Pi Zero, cmd/pi-zero) or pico2 (a Pico 2 on a serial link, served by cmd/pi5's picolink). Selected by the pico2 hardware profile, not edited here."
     },
     "serial_port": {
       "type": "string",
       "description": "Serial device of the Pico 2 on the Pi 5 (its USB CDC port). Read only when kind is pico2."
+    },
+    "lease": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "How long each command the Pi 5 forwards to the Pico 2 stays valid (its lease, boardlink protocol version 2). When it runs out before a newer command arrives, the board ends the command with on_expiry instead of driving on it until the 500 ms command watchdog. A lease only ever shortens that watchdog. Read only when kind is pico2.",
+      "x-journal": "adr:0098-pico-actuation-board-and-portable-cores",
+      "properties": {
+        "blind_distance_m": {
+          "type": "number",
+          "minimum": 0,
+          "description": "How far the car may drive on one command: the lease is this distance over the commanded speed, clamped to [min_ms, max_ms]. 0 sends no lease (protocol version 1 behaviour)."
+        },
+        "min_ms": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "description": "Shortest lease, in milliseconds, so link jitter cannot expire a lease between two on-time commands."
+        },
+        "max_ms": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "description": "Longest lease, in milliseconds, for a slow or stopped car. At most the command watchdog, which bounds it anyway."
+        },
+        "on_expiry": {
+          "type": "string",
+          "enum": [
+            "stop_center",
+            "stop",
+            "hold"
+          ],
+          "description": "What the board does when a lease runs out: stop_center stops the drive and centers the steering (the watchdog's own action), stop stops the drive and keeps the steering so a car stopping mid-turn does not swing its nose, hold leaves the command to the watchdog."
+        }
+      },
+      "required": [
+        "blind_distance_m",
+        "min_ms",
+        "max_ms",
+        "on_expiry"
+      ]
     }
   },
   "required": [
     "kind",
-    "serial_port"
+    "serial_port",
+    "lease"
   ]
 }

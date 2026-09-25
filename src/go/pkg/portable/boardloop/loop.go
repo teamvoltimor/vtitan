@@ -92,7 +92,12 @@ type Counters struct {
 	// CommandsSuperseded counts commands dropped unapplied because a newer
 	// one arrived in the same Step (see the package doc's Commands).
 	CommandsSuperseded uint32
-	WatchdogStops      uint32
+	// CommandsExpired counts commands refused because they arrived
+	// already past their lease (see the package doc's Leases).
+	CommandsExpired uint32
+	WatchdogStops   uint32
+	// LeaseExpiries counts leases that ran out and ended their command.
+	LeaseExpiries uint32
 }
 
 // Loop is the board's control loop. Build it with New and call Step in a
@@ -112,8 +117,12 @@ type Loop struct {
 	configured     bool
 	driveConnected bool
 
-	watchdog      actuation.Watchdog
-	lastAcceptAt  time.Duration
+	watchdog     actuation.Watchdog
+	lastAcceptAt time.Duration
+	// lease is the applied command's deadline, zero when it has none or
+	// when it has already been acted on; onExpiry is what to do then.
+	lease         time.Duration
+	onExpiry      boardlink.Expiry
 	duty          float64
 	servoDeg      float64
 	pulseUS       float64
@@ -165,6 +174,7 @@ func (l *Loop) Step(now time.Duration) {
 	l.receive(now)
 	l.pollButton(now)
 	if l.configured {
+		l.checkLease(now)
 		l.checkWatchdog(now)
 	}
 	l.sendDue(now)
@@ -254,6 +264,7 @@ func (l *Loop) applyConfig(now time.Duration, c boardlink.Config) {
 	l.counters.ConfigsApplied++
 	l.watchdog = actuation.NewWatchdog(epoch(now))
 	l.lastAcceptAt = now
+	l.lease = 0
 	// The new calibration may map center to a different pulse: never skip
 	// the first write under it.
 	l.hasPulse = false
@@ -298,6 +309,14 @@ func (l *Loop) applyCommand(now time.Duration, c boardlink.Command) {
 		l.rejected = true
 		return
 	}
+	lease := time.Duration(c.DeadlineUS) * time.Microsecond
+	if c.DeadlineUS != 0 && now >= lease {
+		// Decided so long ago that its lease ran out on the way: a
+		// backlog released by a stalled link, not a command to act on.
+		l.counters.CommandsExpired++
+		return
+	}
+	l.lease, l.onExpiry = lease, c.OnExpiry
 
 	l.counters.CommandsApplied++
 	l.watchdog.Accept(epoch(now))
@@ -308,6 +327,29 @@ func (l *Loop) applyCommand(now time.Duration, c boardlink.Command) {
 	l.actuatorFault = steerErr != nil || driveErr != nil
 }
 
+// checkLease ends the applied command when its lease runs out, once, with
+// the action it asked for. The command watchdog still runs behind it: a
+// lease can end a command early, never keep it past CommandTimeoutMS.
+func (l *Loop) checkLease(now time.Duration) {
+	if l.lease == 0 || now < l.lease {
+		return
+	}
+	l.lease = 0
+	l.counters.LeaseExpiries++
+	switch l.onExpiry {
+	case boardlink.ExpiryHold:
+		return
+	case boardlink.ExpiryStop:
+		l.actuatorFault = l.drive(0) != nil
+	default:
+		// ExpiryStopCenter, and any value this firmware does not know:
+		// the watchdog's own action is the safe reading of an unknown one.
+		l.safeStop()
+	}
+	l.sendStatus(now)
+	l.nextStatus = now + l.cfg.statusEvery
+}
+
 // checkWatchdog stops the drive and centers the steering, once per
 // staleness episode, and reports it at once.
 func (l *Loop) checkWatchdog(now time.Duration) {
@@ -315,6 +357,7 @@ func (l *Loop) checkWatchdog(now time.Duration) {
 		return
 	}
 	l.counters.WatchdogStops++
+	l.lease = 0
 	l.safeStop()
 	l.sendStatus(now)
 	l.nextStatus = now + l.cfg.statusEvery

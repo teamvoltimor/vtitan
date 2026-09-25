@@ -20,7 +20,9 @@ func samplePackets() []Packet {
 			ServoCenterPulseUS: 1500, ServoRangeDeg: 270, ServoReversed: true,
 			HardwareWatchdogMS: 250, StatusIntervalMS: 100, OdometryIntervalMS: 20,
 		}},
-		{Seq: 3, Type: TypeCommand, Command: Command{SpeedMPS: 0.5, SteeringAngleRad: -0.3}},
+		{Seq: 3, Type: TypeCommand, Command: Command{
+			DeadlineUS: 1_234_567_890, SpeedMPS: 0.5, SteeringAngleRad: -0.3, OnExpiry: ExpiryStop,
+		}},
 		{Seq: 4, Type: TypePing, Ping: Ping{HostTimeUS: 1 << 40}},
 		{Seq: 5, Type: TypePong, Pong: Pong{HostTimeUS: 1 << 40, BoardTimeUS: 123456789}},
 		{Seq: 6, Type: TypeStatus, Status: Status{
