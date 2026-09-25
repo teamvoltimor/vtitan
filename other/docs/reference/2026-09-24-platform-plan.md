@@ -1,6 +1,6 @@
 # vTitan platform plan
 
-Date: 2026-09-24. Status: accepted 2026-09-24; phase 0 in progress; open decisions in section 10.
+Date: 2026-09-24. Status: accepted 2026-09-24; phase 0 done except 0.5 (deferred); open decisions in section 10.
 
 Context: the team is not competing again in WRO 2026 (did not win the national).
 The goal is to turn vTitan into a platform ready for whatever the next challenge
@@ -55,11 +55,15 @@ is: reusable, measurable, and testable without the car. This plan consolidates:
 | 0.2 | Regenerate the 5 stale DTOs in their own commit; add a CI step that runs `configgen generate-go` and fails on `git diff` | DONE `7f6bb744` |
 | 0.3 | Decide ADR 0068's parity target (recommendation: functional parity, Go corpus >= Python, then cut over and freeze Python) | DONE `7f21e65f` |
 | 0.4 | Move the reuse doc and this plan to a tracked location (`other/docs/reference/`) | DONE |
-| 0.5 | Record `motor_status` and a new system-health topic (CPU temperature, frequency, `vcgencmd get_throttled` live and sticky bits, load) in the MCAP | present in a new bag |
+| 0.5 | Record `motor_status` and a new system-health topic (CPU temperature, frequency, `vcgencmd get_throttled` live and sticky bits, load) in the MCAP | DEFERRED: build first, bags later. Needs a Go recorder node (subscribes to configured NATS subjects, state-gated) and a `SystemHealth` publisher; the Python recorder is left alone |
+
+Build order (decided 2026-09-24: build first, calibrate from bags later):
+2.1 + 2.2, then 2.3, then the 4.11 spike, then phase 3 and the rest of phase 4.
+Phase 1 and item 0.5 follow once there is something to calibrate.
 
 ## 4. Phase 1: measure time (observability)
 
-Why first: every later emulation needs real numbers, and today nobody can say how
+Why it matters: every later emulation needs real numbers, and today nobody can say how
 old the data behind a steering command is.
 
 | # | Item | Done when |
