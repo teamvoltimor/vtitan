@@ -94,7 +94,7 @@ old the data behind a steering command is.
 | 2.2 | Scripted failsafe tests asserting "drive at zero within X ms": link stall of 499 ms and 501 ms around the 500 ms board watchdog, host link timeout around 1 s, reconnect mid-command | DONE: short stall keeps driving, long stall stops at the 500 ms timeout (measured 499 ms) and recovers, board silence reported as link lost, board reset reconfigured, bursty loss converges. Exact 499/501 ms edges need the sim clock (3.1) |
 | 2.3 | **Quick win before the virtual robot:** configurable command delay/drop and sensor staleness inside the in-process world sim (`harness`), then a corpus **delay sweep** | DONE: `harness.TransportConfig` (command delay, drop, emulated board watchdog, scan delay; zero is the old behaviour, verified identical), sim-runner flags, `scripts/transport-sweep.sh`. Results in section 13 |
 | 2.4 | NATS fault shim: per subject drop / delay / freeze (repeat last) / reorder / noise, from TOML, seed logged into the MCAP | DONE: `nats.Faults` on `nats.Config`, applied on the receiving side of every `Subscriber` (bursty loss, delay + order-keeping jitter, Poisson freezes that repeat the last message, reorder, Gaussian noise on float fields), seeded per subject. Config `src/config/hardware/nats_faults.toml` (ships with no subjects; enable per experiment from a profile), loader `hwconfig.NATSFaults`. Wired into `cmd/pi5` (every subsystem) and nav, which writes the plan as the `nats_faults` MCAP metadata record. Not wired yet: the standalone `cmd/*-node` binaries and `cmd/pi-zero` (do it with the virtual robot, phase 4) |
-| 2.5 | Host-side robustness from the research: udev symlink by serial number for the board; close the fd on error before reopening | reconnect test passes with a renamed device |
+| 2.5 | Host-side robustness from the research: udev symlink by serial number for the board; close the fd on error before reopening | DONE: the close-and-reopen path already held (go.bug.st/serial turns a vanished tty into `PortClosed`, `Run` closes the port, `pkg/supervise` reopens the configured path). Added the udev rule `/dev/vtitan-actuation-board` (by USB descriptor 2e8a:000a "Pico2": TinyGo sends no serial number, so by serial needs `usb.Serial` set in the firmware first) and made it the pico2 profile's `serial_port`. Tests run `picolink.Run` under `pkg/supervise` against `boardsim` on a pseudo-terminal: a board unplugged and back under a new pts name is reconfigured, and an absent device is retried until it appears. Not verified on hardware: the rule has never matched a real board |
 | 2.6 | **Stale command burst (found by 2.2):** `boardlink.Command` carries no send time, so after a stall the board applies the whole backlog as if fresh (24 queued commands after a 1.2 s stall). Add a host send time to Command and a board-side maximum command age, or have the host drop queued commands on a stall | MOSTLY DONE: the board applies only the newest command of each Step (1 applied, 23 superseded after a 1.2 s stall, was 24 applied). Residual: a host that stopped sending during the stall leaves a stale newest command, applied once until the watchdog stops the car again; closing it needs a send time on Command plus a board-side clock reference |
 | 2.7 | **Vision latency in the sim (found by 2.3):** the measured 0.85 s from camera to detection is the largest latency in the robot | DONE: `DetectionDelayS` (seen from the old pose, placed through the current one) and `DetectionDropRate`, sim-runner flags; results in section 13. Also fixed a one-tick boundary error in all latency emulation |
 | 2.8 | **Decision needed (found by 2.3):** the corpus baseline assumes a command acts in the tick it is computed. Once phase 1 measures the real command delay, decide whether to re-baseline the corpus at it (every existing number moves) | decision recorded in ADR 0087 |
@@ -213,21 +213,22 @@ vision emulator rate/latency/colour errors).
    tuning keys in sim only, or mark broadly and restrict on hardware.
 6. Whether to re-baseline the corpus at the measured command delay once
    phase 1 has it (2.8): the zero-delay baseline is optimistic by one tick.
-7. Where 2.11 (solid walls) goes in the build order. It moves every Go
-   baseline, so the recommendation is before any further sweep and before
-   re-running section 13, and together with decision 6, so the corpus is
-   re-baselined once rather than twice.
+7. ~~Where 2.11 (solid walls) goes in the build order.~~ Decided
+   2026-09-25: before any further sweep and before re-running section 13,
+   so the Go baselines move once for walls. The corpus delta is recorded
+   with 2.11. Decision 6 (latency re-baseline) stays open until phase 1
+   measures the command delay.
 8. Whether to run F.1 (MuJoCo spike) at all, and when. It needs the pillar
    mass and mat friction measured on the bench first.
-9. Context-aware board (section 16).
-   - The recommendation is to build 2.13 and 2.14 now: they are small, and
-     2.13 closes a known defect.
+9. ~~Context-aware board (section 16).~~ Decided 2026-09-25:
+   - Build 2.13 and 2.14 now: they are small, and 2.13 closes a known
+     defect.
    - Gate 2.15 on phase 1 data showing link jitter matters next to the
      rest of the pipeline.
    - Gate 2.16 on what the hardware can sense.
-   - Decide also whether the lease fields go into `boardlink.Command`
-     (protocol version bump, ADR 0098 amended) or into a separate
-     message.
+   - Still open, settled in 2.13's design: whether the lease fields go
+     into `boardlink.Command` (protocol version bump, ADR 0098 amended) or
+     into a separate message.
 
 ## 11. Not adopting (and why)
 

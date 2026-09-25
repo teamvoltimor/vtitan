@@ -16,3 +16,13 @@ SUBSYSTEM=="i2c-dev", MODE="0666"
 
 # LiDAR serial — Pi 5 only.
 KERNEL=="ttyUSB[0-9]*", MODE="0660", GROUP="dialout"
+
+# Actuation board over USB CDC -- Pi 5 only, pico2 profile. A stable name for
+# board.toml's serial_port: the kernel's ttyACM number can change when the
+# board re-enumerates (a reset, a replug, another CDC device first), and
+# picolink reopens the configured path on every supervised restart.
+# Matches TinyGo's Pico 2 descriptor (2e8a:000a, product "Pico2"). TinyGo
+# sends no USB serial number, so this cannot tell two Pico 2 boards apart;
+# set usb.Serial in the firmware and add ATTRS{serial} if there are ever two.
+SUBSYSTEM=="tty", ATTRS{idVendor}=="2e8a", ATTRS{idProduct}=="000a", ATTRS{product}=="Pico2", \
+    SYMLINK+="vtitan-actuation-board", MODE="0660", GROUP="dialout"

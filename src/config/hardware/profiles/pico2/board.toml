@@ -3,3 +3,6 @@
 # Rationale: adr:0070-hardware-profiles-and-challenge-overlays, adr:0098-pico-actuation-board-and-portable-cores
 
 kind = "pico2"
+# The udev rule in src/python/udev/99-vtitan-gpio.rules names the board by
+# its USB descriptor, so a re-enumerated board keeps this path.
+serial_port = "/dev/vtitan-actuation-board"
