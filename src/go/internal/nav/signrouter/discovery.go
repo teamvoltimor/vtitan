@@ -65,7 +65,7 @@ type signTrack struct {
 	bestRange      float64
 	corridor       trackmodel.Section
 	hits           int
-	votes          map[SignColor]float64
+	votes          colorVotes
 	publishedIndex *int
 }
 
@@ -214,15 +214,7 @@ func (c Config) DetectionToObservation(
 
 // color returns the confidence-weighted majority colour vote.
 func (t *signTrack) color() SignColor {
-	best := SignColorRed
-	bestV := -1.0
-	for c, v := range t.votes {
-		if v > bestV {
-			bestV = v
-			best = c
-		}
-	}
-	return best
+	return t.votes.argmax(SignColorRed)
 }
 
 // asSpec materialises the track as a SignSpec.
@@ -377,12 +369,11 @@ func (m *ObservedSignMap) fold(
 		track = &signTrack{
 			x: world.X, y: world.Y, bestRange: observedRange,
 			corridor: robotCorridor, hits: 0,
-			votes: map[SignColor]float64{},
 		}
 		m.tracks = append(m.tracks, track)
 	}
 	track.hits++
-	track.votes[obs.Color] += obs.Confidence
+	track.votes.add(obs.Color, obs.Confidence)
 
 	// Closest observation wins outright: pinhole range error is monotone in
 	// range, so a nearer reading is strictly better evidence.

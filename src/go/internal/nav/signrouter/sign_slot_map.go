@@ -37,7 +37,7 @@ type cellEvidence struct {
 	weight float64
 	// hits is observations that claimed this cell (for the discovery log).
 	hits  int
-	votes map[SignColor]float64
+	votes colorVotes
 }
 
 // SignSlot is one published sign, as a STABLE index pointing at a cell that may
@@ -111,15 +111,7 @@ const (
 // round -- NOT pooled with neighbouring cells; pooling relocates flips rather
 // than removing them. See adr:0058-sign-discovery-range-and-barrier-belief.
 func (e *cellEvidence) colour() SignColor {
-	best := SignColorUnknown
-	bestV := math.Inf(-1)
-	for color, v := range e.votes {
-		if v > bestV {
-			bestV = v
-			best = color
-		}
-	}
-	return best
+	return e.votes.argmax(SignColorUnknown)
 }
 
 // asSpec materialises the slot as the router sees it. The position IS a legal
@@ -264,13 +256,13 @@ func (m *SlotSignMap) claim(obs TrafficSignObservation) {
 	}
 	evidence, ok := m.cells[best]
 	if !ok {
-		evidence = &cellEvidence{votes: map[SignColor]float64{}}
+		evidence = &cellEvidence{}
 		m.cells[best] = evidence
 		m.cellOrder = append(m.cellOrder, best)
 	}
 	evidence.weight += obs.Confidence
 	evidence.hits++
-	evidence.votes[obs.Color] += obs.Confidence
+	evidence.votes.add(obs.Color, obs.Confidence)
 }
 
 // reassign recomputes the top-two-per-section assignment and applies it to the
