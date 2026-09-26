@@ -99,9 +99,9 @@ old the data behind a steering command is.
 | 2.7 | **Vision latency in the sim (found by 2.3):** the measured 0.85 s from camera to detection is the largest latency in the robot | DONE: `DetectionDelayS` (seen from the old pose, placed through the current one) and `DetectionDropRate`, sim-runner flags; results in section 13. Also fixed a one-tick boundary error in all latency emulation |
 | 2.8 | **Decision needed (found by 2.3):** the corpus baseline assumes a command acts in the tick it is computed. Once phase 1 measures the real command delay, decide whether to re-baseline the corpus at it (every existing number moves) | decision recorded in ADR 0087 |
 | 2.9 | **Blind laps (found by 2.7):** in `--blind` Obstacles completes 0 laps in 256/256 scenarios while driving and discovering signs | DIAGNOSED, NOT FIXED (section 14). Two confirmed defects in how the sim meets the blind stack; a naive fix made blind worse and was reverted. Needs a frame-contract decision (2.10) |
-| 2.10 | **Frame contract for blind rounds:** decide which frame every blind consumer works in (pose, lap detector, path, sign discovery, parking, pass-side scorer), how the real `natsgw` + localizer produce it, and make the sim present exactly that. Compare against the Python oracle, which reportedly rotates the believed pose into the canonical frame | ADR; blind Open and Obstacles count laps without regressing collisions or wrong-side passes |
+| 2.10 | **Frame contract for blind rounds:** decide which frame every blind consumer works in (pose, lap detector, path, sign discovery, parking, pass-side scorer), how the real `natsgw` + localizer produce it, and make the sim present exactly that. Compare against the Python oracle, which reportedly rotates the believed pose into the canonical frame | ADR; blind Open and Obstacles count laps without regressing collisions or wrong-side passes | ADR 0099 drafted (proposed, 2026-09-25): one believed frame built by one component shared by natsgw and the sim harness; lap origin at the assumed start, +-pi settle correction only on a flip, position re-seed at settle. Awaiting the owner's decision |
 | 2.11 | **Solid walls in the Go sim (found by the section 15 study):** call `collision.AllowedStep` from `SimHardwareGateway.Advance` behind `contact_slides_along_surfaces` (same key as Python); add per-tick **physics invariants** (teleport: displacement and rotation within the kinematic limits for `dt`; penetration: depth above a tolerance outside a declared exemption) that fail the run as "invalid sim". Run before re-running any sweep, since it moves every Go baseline | Go and Python agree on blocked steps on the fixtures; invariants pass with the key on and fail with it off; corpus delta recorded; reuse doc section 1.4 corrected (it says Go slides) | DONE: `collision.AllowedStep` now carries Python's sliding branch and the gateway applies it. The solid set is Python's: every non-terminal surface plus the parking fins (`collision.SolidSurfacesFor`), and sliding is read from `contact_slides_along_surfaces`. A refused step scores the surface it would have entered. Checked against 1,616 golden steps from the Python oracle (`testdata/allowed_step_python.json`, generator `scripts/sim/gen_allowed_step_golden.py`). Per-tick invariants (teleport against `kinematics.StepBounds`, invented motion, penetration) void a run as `invalid_sim`. `--no-solid-walls` restores pass-through and is byte-identical to the old results until the invariant voids a run. Corpus delta in section 13.1 |
-| 2.12 | **Port Python's measured sensor models to the Go harness:** LIDAR chassis occlusion and self-returns (model the chassis in the raycast, exclude it, add the measured returns explicitly), vision colour flips / bearing scatter / range falloff / confidence quantiles, IMU budget on by default, tick jitter, reverse-run rule 9.21 | ADR 0068 parity runs on equally realistic worlds |
+| 2.12 | **Port Python's measured sensor models to the Go harness:** LIDAR chassis occlusion and self-returns (model the chassis in the raycast, exclude it, add the measured returns explicitly), vision colour flips / bearing scatter / range falloff / confidence quantiles, IMU budget on by default, tick jitter, reverse-run rule 9.21 | ADR 0068 parity runs on equally realistic worlds | BUILT, OFF (`72a9bd0d`): `--sensor-models` (lidar, vision, imu, tick-jitter, reverse-run, or all), values from `simulation.toml`, one RNG stream each; off is byte-identical to before. The IMU model also turns on the localizer and natsgw's wall-heading correction. Measured per model in section 17. Not ported: the parking barrier detections and the pinhole vision path (both off or corpus-neutral in Python). Switching them on waits for the combined re-baseline |
 | 2.13 | **Command lease** (section 16): each Command carries its host send time (synced clock, 1.5), a validity window chosen by the host from its situation (short near a wall or pillar, longer on a clear straight) and an expiry action (hold, ramp to stop, straighten and stop). The board executes a command only while it is valid and runs the expiry action after. Leases can only **tighten** the board's hard limits, never relax them. Closes the 2.6 residual | `boardsim` tests: a stall near an obstacle stops within the short lease, the same stall on a straight coasts to a controlled stop; a lease longer than the board maximum is clamped; stale commands after a stall are never applied | DONE: boardlink protocol v2. `Command` carries `DeadlineUS` (board clock) and `OnExpiry` (stop and center, stop keeping the steering, hold). `picolink` sets the deadline from the command's stamp (nav's gateway now stamps commands) and the Ping/Pong offset, sized by `board.toml` `[lease]`: 10 cm at the commanded speed, in [150, 400] ms, on_expiry stop (estimates). Tests on `boardsim`: a stall now stops the car 101 ms in (the watchdog took 500 ms), and a stale command after a stall is refused, not applied. The lease is policy-sized by speed for now; a nav-chosen lease from clearance (a `lease_ms` on `AckermannCmd`) waits for a clearance-aware policy. Not run on a board; the Pi Zero path does not use leases |
 | 2.14 | **Link health report** board → host: command age at apply (p50/p99), gaps, lease expiries, in Status. The host adapts (speed cap and larger margins when the link is degraded) | visible in MCAP; a netem/`boardsim` degradation lowers the host speed cap | DONE: `Status` (protocol v2) carries the longest command gap and least lease margin since the previous Status, plus running totals of expired arrivals and lease expiries. `MotorStatus.link` publishes them. `picolink` caps speed at `[link_health]` `speed_cap_mps` (0.25 m/s, estimate) for `hold_ms` after any sign of degradation; on `boardsim` a stall that runs a lease out engages the cap and it lifts after the hold. Nav now records `motor_status` into its MCAP (closes 0.5's missing topic for Go runs). Not run on a board |
 | 2.15 | **Setpoint horizon** (after 2.13, only if 1.3 shows link jitter matters): the host sends the next ~200-500 ms of timed speed/steering setpoints instead of one; the board plays the one due at its clock, so jitter does not reach the actuators and a stall follows the plan and then the expiry action | jitter sweep in `boardsim`: actuator timing error bounded by the board loop period, not by link jitter |
@@ -662,3 +662,57 @@ first):
 - PX4 offboard-mode timeouts and failsafe actions
 - ArduPilot GCS and throttle failsafe actions
 - AUTOSAR E2E protection (counter plus timeout on each message)
+
+## 17. Results: the 2.12 sensor models, one at a time (2026-09-25)
+
+Commit `72a9bd0d`, native runner, shipped config and profiles, seed 0, 256
+scenarios per cell. "none" is today's baseline. The latency arm is the
+existing `--detection-delay-s 0.85`, kept outside `--sensor-models` so it
+stays a separate decision. Successes, then wrong-side passes (w) and 9.21
+violations (r) where they occur:
+
+| Arm | Obstacles sighted | Obstacles blind | Open sighted | Open blind |
+|---|---|---|---|---|
+| none | 173 (w 13) | 0 (w 6) | 256 | 29 |
+| lidar | 175 (w 11) | 0 (w 3) | 256 | 32 |
+| vision | 173 (w 11) | 0 (w 11) | 256, identical | 29, identical |
+| imu | 146 (w 19) | 0 (w 6) | 256 | 33 |
+| tick-jitter | 152 (w 28) | 0 (w 15) | 256 | 25 |
+| reverse-run | 149 (w 12, r 33) | 0 (r 15) | 256, identical | 26 (r 6) |
+| all | 127 (w 20, r 22) | 0 (w 18, r 17) | 256 | 27 (r 7) |
+| localize only | 136 (w 19) | 0 (w 6) | 256 | 31 |
+| latency 0.85 s only | 173, identical | 0 (w 44) | 256, identical | 29, identical |
+| all + latency | 126 (w 21, r 23) | 0 (w 66, r 3) | 256 | 27 (r 7) |
+
+Reading it:
+
+- **Every switch is live.** The only arms byte-identical to the baseline
+  are those that cannot act: vision and latency where there are no signs
+  (Open) or where the sighted stack does not consume detections, and
+  reverse-run where the robot never reverses (Open sighted).
+- **Rule 9.21 is the largest single effect on sighted Obstacles**: 33
+  runs drive against the round beyond the two allowed sections, mostly
+  escapes and K-turns. Python found 14 of 256 when it added the rule.
+- **The IMU model costs less than the localizer it switches on**: 146
+  against 136 for `--localize` alone. The wall-heading correction it adds
+  apparently helps the localizer more than the error budget hurts.
+- **Tick jitter doubles sighted wrong-side passes** (13 -> 28). Treat it
+  as an upper bound: the period distribution was measured on the Python
+  stack (mean 53.4 ms), and a Go `time.Ticker` holds its schedule unless a
+  step overruns. Phase 1 should measure Go's own ticks before this is
+  trusted.
+- **Blind Obstacles stays at 0 laps in every arm**: that is 2.9/2.10, not
+  a sensor question, and the blind columns are only relative until ADR
+  0099 lands.
+- The combined arm is not the sum of the parts (127, where the parts
+  alone lose 2 + 0 + 27 + 21 + 24), as expected for models that share
+  the localizer and the same failure modes. Per-scenario attribution is
+  unstable (see the 09-16 knife-edge finding); only the totals are
+  meaningful.
+
+Found on the way and fixed (`a4fee79b`): sign-colour votes with an exact
+red/green tie were decided by Go's map iteration order, so some
+configurations were not reproducible (8 of 60 solo runs of one scenario
+diverged with `--blind --detection-delay-s 0.85 --yaw-bias-deg 2`). Ties
+now go to the colour voted first, as in Python; the shipped baselines did
+not move.
