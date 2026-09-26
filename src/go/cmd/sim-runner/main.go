@@ -70,6 +70,7 @@ type cliConfig struct {
 	runner         string
 	blind          bool
 	noSolidWalls   bool
+	sensorModels   string
 }
 
 // Runner backend names accepted by --runner.
@@ -213,6 +214,7 @@ func newRootCmd(cfg *cliConfig, logger *slog.Logger, stdout io.Writer) *cobra.Co
 			"solid one is voided (invalid_sim)",
 	)
 
+	registerSensorModelFlag(flags, cfg)
 	flags.StringVar(
 		&cfg.configRoot,
 		"config-root",
@@ -339,6 +341,9 @@ func validate(cfg cliConfig) error {
 		if err := transportFor(cfg).Validate(); err != nil {
 			return fmt.Errorf("sim-runner: %w", err)
 		}
+		if _, err := sensorModelsFor(cfg); err != nil {
+			return err
+		}
 	case runnerPython, "":
 		if cfg.scriptPath == "" || cfg.workDir == "" {
 			return errors.New("sim-runner: --runner python needs --script and --workdir")
@@ -455,6 +460,10 @@ func run(ctx context.Context, logger *slog.Logger, cfg cliConfig, stdout io.Writ
 	var runner scenario.Runner
 	switch cfg.runner {
 	case runnerNative:
+		models, modelsErr := sensorModelsFor(cfg)
+		if modelsErr != nil {
+			return modelsErr
+		}
 		recordRoot := ""
 		if cfg.record {
 			root, rootErr := scenario.SimRunsRootFor(cfg.recordDir, time.Now())
@@ -473,6 +482,7 @@ func run(ctx context.Context, logger *slog.Logger, cfg cliConfig, stdout io.Writ
 			HardwareProfiles: splitCSV(cfg.hwProfiles),
 			SensorErrors:     sensorErrorsFor(cfg),
 			Transport:        transportFor(cfg),
+			SensorModels:     models,
 		})
 	case runnerPython, "":
 		r, rerr := scenario.NewSubprocessRunner(scenario.Config{

@@ -17,6 +17,7 @@ import (
 	"github.com/teamvoltimor/vtitan/src/go/internal/nav/waypoints"
 	"github.com/teamvoltimor/vtitan/src/go/internal/sim/collision"
 	"github.com/teamvoltimor/vtitan/src/go/internal/sim/kinematics"
+	"github.com/teamvoltimor/vtitan/src/go/internal/sim/sensormodel"
 	"github.com/teamvoltimor/vtitan/src/go/internal/sim/visionsim"
 	"github.com/teamvoltimor/vtitan/src/go/internal/simgen/generate"
 )
@@ -38,6 +39,13 @@ type simVisionGateway struct {
 	// camera is nil unless detection latency or drops are configured, so
 	// the default run takes exactly the old path.
 	camera *simCamera
+	// model is nil unless the vision sensor model is on; with it, frames
+	// are drawn once per tick (nowS) and cached in frame.
+	model     *sensormodel.Camera
+	nowS      func() float64
+	frameAtS  float64
+	haveFrame bool
+	frame     []signrouter.TrafficSignObservation
 }
 
 // signNudgeState accumulates each sign's push-displacement across ticks,
@@ -50,8 +58,11 @@ type signNudgeState struct {
 
 func (v *simVisionGateway) GetVisionDetections() ([]signrouter.TrafficSignObservation, bool) {
 	st := v.gw.State()
+	if v.model != nil {
+		return v.modelFrame(st)
+	}
 	if v.camera != nil {
-		return v.camera.detections(v.signs, st, v.cfg)
+		return v.camera.detections(st, &visionsim.BelievedPose{X: st.X, Y: st.Y, Yaw: st.Yaw}, v.observe)
 	}
 	obs := visionsim.EmulateSignObservations(v.signs, st.X, st.Y, st.Yaw, v.cfg, nil)
 	return obs, len(obs) > 0
@@ -151,11 +162,11 @@ func resTimedOut(steps, maxSteps, laps, target int) bool {
 	return steps >= maxSteps && laps < target
 }
 
-func avgSpeed(distanceM float64, steps int, dt float64) float64 {
-	if steps <= 0 || dt <= 0 {
+func avgSpeed(distanceM, simTimeS float64) float64 {
+	if simTimeS <= 0 {
 		return 0
 	}
-	return distanceM / (float64(steps) * dt)
+	return distanceM / simTimeS
 }
 
 func orZero(v float64) float64 {

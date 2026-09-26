@@ -2,8 +2,10 @@ package harness
 
 import (
 	"github.com/teamvoltimor/vtitan/src/go/internal/nav/localization"
+	"github.com/teamvoltimor/vtitan/src/go/internal/nav/wallheading"
 	"github.com/teamvoltimor/vtitan/src/go/internal/sim/collision"
 	"github.com/teamvoltimor/vtitan/src/go/internal/sim/sensorerrors"
+	"github.com/teamvoltimor/vtitan/src/go/internal/sim/sensormodel"
 )
 
 // Config configures a SimHardwareGateway, the Go-native replacement for the
@@ -87,6 +89,16 @@ type Config struct {
 	// and sensors. The zero value is none, every existing number's
 	// condition.
 	Transport TransportConfig
+	// LidarBands switches on the measured chassis bands (sensormodel.Lidar):
+	// the rays the chassis blocks drop out or return off the chassis below
+	// the filter floor, noise is clipped at zero instead of at the sensor
+	// floor, and InvalidRayRate spares the band rays. Nil is the old model.
+	LidarBands *sensormodel.LidarParams
+	// HeadingCorrection folds the wall-derived heading error into the
+	// reported yaw on every scan, the complementary filter the real
+	// gateway (natsgw) runs; it is what bounds the IMU error budget on the
+	// robot. Nil corrects nothing.
+	HeadingCorrection *HeadingCorrection
 
 	// DetectionConfidence is the fixed confidence internal/sim/visionsim
 	// reports for every emulated sign detection. Mirrors simulation.toml's
@@ -122,6 +134,14 @@ type Config struct {
 	// collision.
 	StartCollisionWindowS float64
 	StartCollisionGraceS  float64
+}
+
+// HeadingCorrection is the real gateway's wall-heading filter: Gain of the
+// error between the wall heading and the reported one is folded into the
+// heading offset per scan (state_estimator.toml's yaw_correction_gain).
+type HeadingCorrection struct {
+	Gain  float64
+	Walls wallheading.Config
 }
 
 // defaultControlHz is the control rate a Config falls back to when ControlHz

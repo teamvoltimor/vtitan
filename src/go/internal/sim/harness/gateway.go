@@ -8,9 +8,11 @@ import (
 	"github.com/teamvoltimor/vtitan/src/go/internal/nav/controllers"
 	"github.com/teamvoltimor/vtitan/src/go/internal/nav/localization"
 	"github.com/teamvoltimor/vtitan/src/go/internal/nav/trackmodel"
+	"github.com/teamvoltimor/vtitan/src/go/internal/nav/wallheading"
 	"github.com/teamvoltimor/vtitan/src/go/internal/sim/collision"
 	"github.com/teamvoltimor/vtitan/src/go/internal/sim/kinematics"
 	"github.com/teamvoltimor/vtitan/src/go/internal/sim/sensorerrors"
+	"github.com/teamvoltimor/vtitan/src/go/internal/sim/sensormodel"
 	"github.com/teamvoltimor/vtitan/src/go/pkg/geom"
 )
 
@@ -79,6 +81,11 @@ type SimHardwareGateway struct {
 	// transport is nil unless cfg.Transport switches something on, so the
 	// default run takes exactly the paths it always took.
 	transport *transport
+	// bands is nil unless cfg.LidarBands, for the same reason.
+	bands *sensormodel.Bands
+	// headingOffsetRad is what cfg.HeadingCorrection has folded into the
+	// reported yaw so far, as natsgw's own heading offset.
+	headingOffsetRad float64
 }
 
 // sensorErrorStreamSalt separates the sensor-error RNG stream from the LIDAR
@@ -118,6 +125,9 @@ func NewSimHardwareGateway(
 		g.transport = newTransport(cfg.Transport, seed)
 	}
 	g.buildAngles()
+	if cfg.LidarBands != nil {
+		g.bands = sensormodel.NewBands(*cfg.LidarBands, g.angles, seed)
+	}
 	if cfg.Localize {
 		locCfg := localization.DefaultConfig()
 		if cfg.LocalizationConfig != nil {
@@ -417,10 +427,30 @@ func (g *SimHardwareGateway) buildAngles() {
 // drifted answer. The localizer takes yaw as accurate and does not search
 // over it, so it must be given the same value the navigator steers on.
 func (g *SimHardwareGateway) reportedYaw() float64 {
-	if g.imu == nil {
-		return g.state.Yaw
+	yaw := g.state.Yaw
+	if g.imu != nil {
+		yaw = g.imu.Yaw(g.state.Yaw, g.elapsedS, g.rotationRad)
 	}
-	return g.imu.Yaw(g.state.Yaw, g.elapsedS, g.rotationRad)
+	if g.cfg.HeadingCorrection == nil {
+		return yaw
+	}
+	return geom.WrapAngle(yaw + g.headingOffsetRad)
+}
+
+// correctHeading folds a fraction of the wall-derived heading error into
+// the heading offset, as natsgw's correctHeadingLocked: the IMU supplies
+// the smooth heading, the walls the bounded one.
+func (g *SimHardwareGateway) correctHeading() {
+	hc := g.cfg.HeadingCorrection
+	if hc == nil || hc.Gain <= 0 {
+		return
+	}
+	yaw := g.reportedYaw()
+	measured, ok := wallheading.EstimateYawFromWalls(g.scan.RangesM, g.scan.AnglesRad, yaw, hc.Walls)
+	if !ok {
+		return
+	}
+	g.headingOffsetRad = geom.WrapAngle(g.headingOffsetRad + hc.Gain*wallheading.HeadingError(measured, yaw))
 }
 
 // updateBelievedPose scan-matches the freshest sweep against the track walls
@@ -460,11 +490,18 @@ func (g *SimHardwareGateway) refreshSensors() {
 		g.angles, g.cfg.LidarMinRangeM, g.cfg.LidarMaxRangeM,
 	)
 
+	// With the chassis bands the noise floor is zero, as Python's: clipping
+	// at the sensor floor put chassis returns just above the filter floor,
+	// where they survived as obstacles 4.5 cm away.
+	floorM := g.cfg.LidarMinRangeM
+	if g.bands != nil {
+		floorM = 0
+	}
 	if g.cfg.LidarNoiseStd > 0 {
 		for i, r := range ranges {
 			ranges[i] = r + g.rng.NormFloat64()*g.cfg.LidarNoiseStd
-			if ranges[i] < g.cfg.LidarMinRangeM {
-				ranges[i] = g.cfg.LidarMinRangeM
+			if ranges[i] < floorM {
+				ranges[i] = floorM
 			}
 			if ranges[i] > g.cfg.LidarMaxRangeM {
 				ranges[i] = g.cfg.LidarMaxRangeM
@@ -474,10 +511,13 @@ func (g *SimHardwareGateway) refreshSensors() {
 
 	if g.cfg.InvalidRayRate > 0 {
 		for i := range ranges {
-			if g.rng.Float64() < g.cfg.InvalidRayRate {
+			if g.rng.Float64() < g.cfg.InvalidRayRate && !g.bands.Occluded(i) {
 				ranges[i] = math.Inf(1)
 			}
 		}
+	}
+	if g.bands != nil {
+		g.bands.Apply(ranges)
 	}
 
 	ranges = controllers.SanitizeLidarRanges(ranges, g.cfg.LidarMaxRangeM)
@@ -487,5 +527,6 @@ func (g *SimHardwareGateway) refreshSensors() {
 		g.transport.recordScan(g.scan, g.elapsedS)
 	}
 
+	g.correctHeading()
 	g.updateBelievedPose()
 }

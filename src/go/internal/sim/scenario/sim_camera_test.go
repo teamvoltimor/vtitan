@@ -18,6 +18,20 @@ func drivingAt(t float64) kinematics.AckermannState {
 	return kinematics.AckermannState{X: t, Y: 0, Yaw: 0}
 }
 
+// observeSigns renders signs as the camera without the vision model does.
+func observeSigns(
+	signs []signrouter.SignSpec, cfg visionsim.Config,
+) func(kinematics.AckermannState, *visionsim.BelievedPose) []signrouter.TrafficSignObservation {
+	return func(seen kinematics.AckermannState, believed *visionsim.BelievedPose) []signrouter.TrafficSignObservation {
+		return visionsim.EmulateSignObservations(signs, seen.X, seen.Y, seen.Yaw, cfg, believed)
+	}
+}
+
+// believedAt is the chassis believing itself exactly where it is.
+func believedAt(st kinematics.AckermannState) *visionsim.BelievedPose {
+	return &visionsim.BelievedPose{X: st.X, Y: st.Y, Yaw: st.Yaw}
+}
+
 func TestNewSimCamera_OffIsNil(t *testing.T) {
 	t.Parallel()
 
@@ -39,7 +53,7 @@ func TestSimCamera_DelayPlacesThroughTheCurrentPose(t *testing.T) {
 
 	var got []signrouter.TrafficSignObservation
 	for ; now <= 0.4+1e-9; now += 0.05 {
-		obs, ok := cam.detections(aheadSign, drivingAt(now), cfg)
+		obs, ok := cam.detections(drivingAt(now), believedAt(drivingAt(now)), observeSigns(aheadSign, cfg))
 		if now < delay-1e-9 && ok {
 			t.Fatalf("detection at %.2f s, before the %.2f s delay had passed", now, delay)
 		}
@@ -69,8 +83,8 @@ func TestSimCamera_DropsWholeFramesPerTick(t *testing.T) {
 	dropped := 0
 	for i := range ticks {
 		now = float64(i) * 0.05
-		_, first := cam.detections(aheadSign, st, cfg)
-		if _, second := cam.detections(aheadSign, st, cfg); second != first {
+		_, first := cam.detections(st, believedAt(st), observeSigns(aheadSign, cfg))
+		if _, second := cam.detections(st, believedAt(st), observeSigns(aheadSign, cfg)); second != first {
 			t.Fatalf("tick %d: two asks in one tick disagreed (%v, %v)", i, first, second)
 		}
 		if !first {

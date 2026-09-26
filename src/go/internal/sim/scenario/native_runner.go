@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"math"
-	"slices"
 	"strings"
 
 	"github.com/teamvoltimor/vtitan/src/go/internal/nav/bayexit"
@@ -24,6 +23,7 @@ import (
 	"github.com/teamvoltimor/vtitan/src/go/internal/sim/harness"
 	"github.com/teamvoltimor/vtitan/src/go/internal/sim/kinematics"
 	"github.com/teamvoltimor/vtitan/src/go/internal/sim/sensorerrors"
+	"github.com/teamvoltimor/vtitan/src/go/internal/sim/sensormodel"
 	"github.com/teamvoltimor/vtitan/src/go/internal/simgen/generate"
 )
 
@@ -87,6 +87,10 @@ type NativeRunner struct {
 	maxSteps        int
 	blind           bool
 	noSolidWalls    bool
+	// models are the measured sensor models this runner switches on, and
+	// modelParams their values (sensormodel.ParamsFor).
+	models      sensormodel.Set
+	modelParams sensormodel.Params
 }
 
 // NativeRunnerConfig configures a NativeRunner.
@@ -146,6 +150,10 @@ type NativeRunnerConfig struct {
 	// ground truth -- ScenarioSimulator's own default, and the harder
 	// condition, so a cross-stack comparison needs it set.
 	Localize bool
+	// SensorModels switches on the measured sensor models ported from the
+	// Python oracle (platform plan 2.12). None by default, every existing
+	// number's condition; see package sensormodel.
+	SensorModels sensormodel.Set
 }
 
 // simMotion is the physics half of the simulation-only hardware surface:
@@ -181,26 +189,6 @@ type simGateway interface {
 	widthbelief.Sensors
 	simMotion
 	simContact
-}
-
-// scoreInput groups score's inputs, replacing a fourteen-argument signature
-// whose adjacent float64s and ints were easy to transpose silently.
-type scoreInput struct {
-	sc            corpus.Scenario
-	gw            simGateway
-	nav           *navigator.Navigator
-	steps         int
-	dt            float64
-	distanceM     float64
-	maxSpeedMPS   float64
-	minRangeM     float64
-	contactCount  int
-	targetLaps    int
-	surface       collision.ContactSurface
-	stuck         bool
-	passSideWrong []int
-	trueSigns     int
-	lapSteps      []int
 }
 
 // scenarioStart bundles the parsed spawn pose + travel direction + starting
@@ -332,6 +320,8 @@ func NewNativeRunner(cfg NativeRunnerConfig) *NativeRunner {
 		hc.Localize = true
 	}
 	hc = harness.ApplyRobotProfile(logger, hc, cfg.ConfigRoot, cfg.HardwareProfiles)
+	modelParams := sensormodel.ParamsFor(logger, cfg.ConfigRoot)
+	applySensorModels(logger, &hc, cfg.SensorModels, modelParams, cfg.SensorErrors.Any(), cfg.ConfigRoot)
 
 	// The scan-matcher reads the same shipped localization.toml and robot.toml
 	// [lidar] geometry the real navigator's does, so a localized sim run is
@@ -369,6 +359,8 @@ func NewNativeRunner(cfg NativeRunnerConfig) *NativeRunner {
 		maxSteps:        maxSteps,
 		blind:           cfg.Blind,
 		noSolidWalls:    cfg.NoSolidWalls,
+		models:          cfg.SensorModels,
+		modelParams:     modelParams,
 	}
 }
 
@@ -531,6 +523,8 @@ func (r *NativeRunner) loop(
 	passSide *passSideScorer,
 ) (Result, error) {
 	dt := r.cfg.ControlDt()
+	clock := r.newRunClock(dt)
+	reverseRun := r.newReverseRunScorer(passSide)
 	acc := &loopState{
 		prevX: gw.State().X, prevY: gw.State().Y,
 		minRangeM: math.Inf(1),
@@ -554,12 +548,11 @@ func (r *NativeRunner) loop(
 	// scoreRun fills scoreInput's run-level fields from the loop's live
 	// accumulators, leaving each call site to name only the terminal cause.
 	scoreRun := func(surface collision.ContactSurface, stuck bool, passSideWrong []int) Result {
-		return r.score(scoreInput{
+		res := r.score(scoreInput{
 			sc:            sc,
 			gw:            gw,
 			nav:           nav,
 			steps:         acc.steps,
-			dt:            dt,
 			distanceM:     acc.distanceM,
 			maxSpeedMPS:   acc.maxSpeedMPS,
 			minRangeM:     acc.minRangeM,
@@ -570,7 +563,10 @@ func (r *NativeRunner) loop(
 			passSideWrong: passSideWrong,
 			trueSigns:     len(passSide.signs),
 			lapSteps:      acc.lapSteps,
+			simTimeS:      clock.simTimeS(acc.steps),
 		})
+		reverseRun.fill(&res)
+		return res
 	}
 	for acc.steps < r.maxSteps {
 		nav.Step()
@@ -579,10 +575,13 @@ func (r *NativeRunner) loop(
 		// applies it is usually one with no new reading at all. A nil layout
 		// (sighted) is a no-op.
 		layout.Update(nav, gw, nav.Direction())
-		if err := r.recordStep(rec, gw, nav, dt); err != nil {
+		// With tick jitter only the body and the sensors see the drawn
+		// period; the navigator still assumes the nominal one, as on the Pi.
+		tickDt := clock.next()
+		if err := r.recordStep(rec, gw, nav, tickDt); err != nil {
 			return Result{}, err
 		}
-		gw.Advance(dt)
+		gw.Advance(tickDt)
 		acc.steps++
 
 		if res, void := voided(gw, scoreRun, passSide); void {
@@ -630,6 +629,9 @@ func (r *NativeRunner) loop(
 		surface = nudge.score(track, surface, st.X, st.Y, st.Yaw, r.cfg.ChassisLengthM, r.cfg.ChassisWidthM)
 		if contacts.update(acc.steps, surface) {
 			return scoreRun(contacts.surface, false, passSide.violations()), nil
+		}
+		if reverseRun.check(st, acc.steps) {
+			return scoreRun(collision.SurfaceNone, false, passSide.violations()), nil
 		}
 
 		// Lap completion alone isn't terminal when a ParkController is
@@ -694,84 +696,6 @@ func (s *loopState) stalled(st kinematics.AckermannState, window int, displaceme
 		return false
 	}
 	return (s.steps - s.anchorStep) >= window
-}
-
-func (r *NativeRunner) score(in scoreInput) Result {
-	// collided is derived from the surface rather than passed alongside it,
-	// so the two can never disagree about whether the run ended in contact.
-	collided := in.surface != collision.SurfaceNone
-	laps := in.nav.LapsCompleted()
-	st := in.gw.State()
-	cx, cy := in.gw.CollisionXY()
-
-	// PassSideViolationSigns/PassSideViolation are only ever populated by an
-	// Obstacles Challenge run (nav.SignRouter() nil for Open), matching
-	// SimResult's own fields -- an empty sign-router-less run reports zero
-	// violations, not "unknown."
-	// The VERDICT is passSideWrong, scored by passSideScorer from the true
-	// layout against the true pose, and it is what ended the run. The
-	// router's own set is reported alongside as a measure of DISCOVERY
-	// quality only -- it is computed in the believed frame and is cleared
-	// every lap, so it can neither end a round nor be counted as one.
-	var routerWrongSide []int
-	var passRecords []signrouter.PassRecord
-	var discoveredSigns int
-	if sr := in.nav.SignRouter(); sr != nil {
-		for index := range sr.WrongSideViolations() {
-			routerWrongSide = append(routerWrongSide, index)
-		}
-		slices.Sort(routerWrongSide)
-		passRecords = sr.PassRecords()
-		discoveredSigns = len(sr.Signs())
-	}
-	passSideViolation := len(in.passSideWrong) > 0
-
-	success := !collided && !in.stuck && !passSideViolation && !resTimedOut(in.steps, r.maxSteps, laps, in.targetLaps)
-
-	// Parked is nil for a scenario with no parking lot, matching
-	// SimResult.parked's None. ParkPoints additionally scores the final
-	// pose against the WRO 15/7/0 tiers (parking.ScorePark) -- an addition
-	// beyond Python's plain boolean, since that scorer was ported standalone
-	// and never wired into SimResult either.
-	var parked *bool
-	var parkPoints *int
-	if pc := in.nav.ParkController(); pc != nil {
-		p := pc.IsDone() && !pc.IsTimedOut()
-		parked = &p
-		score := parking.ScorePark(st.X, st.Y, st.Yaw, pc.Zone(), r.parkCfg)
-		points := score.Points
-		parkPoints = &points
-	}
-
-	return Result{
-		TerminalSurface:        in.surface.String(),
-		Scenario:               in.sc.ID,
-		PassSideViolationSigns: in.passSideWrong,
-		RouterWrongSideSigns:   routerWrongSide,
-		DiscoveredSigns:        discoveredSigns,
-		TrueSigns:              in.trueSigns,
-		PassRecords:            passRecords,
-		LapStepIndices:         in.lapSteps,
-		CollisionXY:            []float64{cx, cy},
-		FinalPose:              []float64{st.X, st.Y, st.Yaw},
-		Parked:                 parked,
-		ParkPoints:             parkPoints,
-		SimTimeS:               float64(in.steps) * in.dt,
-		DistanceM:              in.distanceM,
-		MaxSpeedMPS:            in.maxSpeedMPS,
-		AvgSpeedMPS:            avgSpeed(in.distanceM, in.steps, in.dt),
-		MinLidarRangeM:         orZero(in.minRangeM),
-		TargetLaps:             in.targetLaps,
-		LapsCompleted:          laps,
-		Steps:                  in.steps,
-		ContactCount:           in.contactCount,
-		Collided:               collided,
-		PassSideViolation:      passSideViolation,
-		TimedOut:               resTimedOut(in.steps, r.maxSteps, laps, in.targetLaps),
-		Stuck:                  in.stuck,
-		Success:                success,
-		OverTime:               float64(in.steps)*in.dt > r.roundTimeLimitS,
-	}
 }
 
 // buildScenario derives the track geometry, spawn pose, and the planned path

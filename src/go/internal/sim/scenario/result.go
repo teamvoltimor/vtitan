@@ -70,8 +70,17 @@ type Result struct {
 	// scored says nothing about the robot. Empty for a valid run; Go only.
 	InvalidSim        string `json:"invalid_sim,omitempty"`
 	PassSideViolation bool   `json:"pass_side_violation"`
-	Success           bool   `json:"success"`
-	OverTime          bool   `json:"over_time"`
+	// ReverseRunViolation is WRO rule 9.21 broken: the chassis traveled
+	// against the round direction until its footprint left both the
+	// section it turned back in (ReverseRunOriginSection, at step
+	// ReverseRunOriginStep) and the one behind it. Scored only with the
+	// reverse-run sensor model on; omitted otherwise, since run_scenario.py's
+	// payload does not carry SimResult's fields of the same name.
+	ReverseRunViolation     bool   `json:"reverse_run_violation,omitempty"`
+	ReverseRunOriginStep    *int   `json:"reverse_run_origin_step,omitempty"`
+	ReverseRunOriginSection string `json:"reverse_run_origin_section,omitempty"`
+	Success                 bool   `json:"success"`
+	OverTime                bool   `json:"over_time"`
 }
 
 // parseResult decodes one line of JSON produced by

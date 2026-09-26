@@ -7,6 +7,7 @@ import (
 	"github.com/teamvoltimor/vtitan/src/go/internal/nav/signrouter"
 	"github.com/teamvoltimor/vtitan/src/go/internal/sim/harness"
 	"github.com/teamvoltimor/vtitan/src/go/internal/sim/kinematics"
+	"github.com/teamvoltimor/vtitan/src/go/internal/sim/sensormodel"
 	"github.com/teamvoltimor/vtitan/src/go/internal/sim/visionsim"
 )
 
@@ -67,18 +68,26 @@ func (r *NativeRunner) newVisionGateway(gw *harness.SimHardwareGateway, signs []
 		odo, _ := gw.GetWheelOdometry()
 		return odo.StampS
 	}
-	return &simVisionGateway{
+	v := &simVisionGateway{
 		gw:     gw,
 		signs:  signs,
 		cfg:    visionsim.ConfigFrom(r.srCfg, r.cfg.DetectionConfidence),
 		camera: newSimCamera(r.cfg.Transport, simTimeS, r.seed),
+		nowS:   simTimeS,
 	}
+	if r.models.Has(sensormodel.Vision) {
+		v.model = sensormodel.NewCamera(r.modelParams.Vision, r.seed)
+	}
+	return v
 }
 
 // detections emulates the frame the navigator receives now, with the
-// chassis currently at st.
+// chassis currently at st and believing itself at believed: observe
+// renders what the camera saw from the delayed pose.
 func (c *simCamera) detections(
-	signs []signrouter.SignSpec, st kinematics.AckermannState, cfg visionsim.Config,
+	st kinematics.AckermannState,
+	believed *visionsim.BelievedPose,
+	observe func(kinematics.AckermannState, *visionsim.BelievedPose) []signrouter.TrafficSignObservation,
 ) ([]signrouter.TrafficSignObservation, bool) {
 	now := c.nowS()
 	if n := len(c.history); n == 0 || c.history[n-1].atS < now {
@@ -97,8 +106,7 @@ func (c *simCamera) detections(
 	if !ok {
 		return nil, false
 	}
-	obs := visionsim.EmulateSignObservations(signs, seen.X, seen.Y, seen.Yaw, cfg,
-		&visionsim.BelievedPose{X: st.X, Y: st.Y, Yaw: st.Yaw})
+	obs := observe(seen, believed)
 	return obs, len(obs) > 0
 }
 
