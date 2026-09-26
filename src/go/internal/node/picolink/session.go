@@ -420,7 +420,10 @@ func (s *Session) handle(w *linkWriter, pkt *boardlink.Packet) error {
 	case boardlink.TypePong:
 		s.onPong(pkt.Pong, now)
 	case boardlink.TypeButton:
+		// Sampled at arrival so the debounce starts at the edge, not up to
+		// a poll later, which let a quick press release before debouncing.
 		s.buttonPressed = pkt.Button.Pressed
+		s.pollButton(now)
 	default:
 		s.logger.Debug("picolink: ignoring a host-to-board message from the board", "type", pkt.Type.String())
 	}
