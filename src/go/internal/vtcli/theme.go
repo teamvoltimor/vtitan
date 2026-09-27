@@ -1,6 +1,10 @@
 package vtcli
 
-import "github.com/charmbracelet/lipgloss"
+import (
+	"github.com/charmbracelet/lipgloss"
+
+	"github.com/ralvarezdev/termkit"
+)
 
 // This file is every presentation knob vt has: the palette, the wordmark, and
 // the layout sizes. Nothing outside it names a colour or a magic width.
@@ -104,13 +108,36 @@ var (
 	colorMuted = lipgloss.AdaptiveColor{Light: "#52525b", Dark: "#a1a1aa"}
 )
 
-// paletteTokens maps each palette colour to the docs token it mirrors, for the
+// vtitanPalette adapts vt's own docs-token colors onto termkit.Palette, so
+// vt's banner/picker styling runs through termkit's Capability mechanism
+// while every color still comes from the docs site's tokens rather than
+// termkit's own Tokyo Night default. Info is deliberately --color-accent-note,
+// not another copy of colorAccent: termkit's Info role wants a hue distinct
+// from Accent, and vt's own "info" token is already claimed by Accent.
+// setVtitanPalette (called from NewUI, not an init func, per gochecknoinits)
+// switches termkit's global palette to these colors, so every
+// termkit.Capability built afterward (Accent/Muted/Banner/Header) resolves
+// against vt's colors instead of termkit's Tokyo Night default.
+var vtitanPalette = termkit.Palette{
+	Accent:  colorAccent,
+	Danger:  colorDanger,
+	Warning: colorWarning,
+	Success: lipgloss.AdaptiveColor{Light: "#059669", Dark: "#34d399"}, // --color-accent-success
+	Info:    lipgloss.AdaptiveColor{Light: "#4f46e5", Dark: "#818cf8"}, // --color-accent-note
+	Brand:   lipgloss.AdaptiveColor{Light: "#7c3aed", Dark: "#a78bfa"}, // --color-accent-important
+	Muted:   colorMuted,
+}
+
+// paletteTokens maps each palette color to the docs token it mirrors, for the
 // drift test.
 var paletteTokens = map[string]lipgloss.AdaptiveColor{
-	"info":    colorAccent,
-	"danger":  colorDanger,
-	"warning": colorWarning,
-	"default": colorMuted,
+	"info":      colorAccent,
+	"danger":    colorDanger,
+	"warning":   colorWarning,
+	"default":   colorMuted,
+	"success":   vtitanPalette.Success,
+	"note":      vtitanPalette.Info,
+	"important": vtitanPalette.Brand,
 }
 
 // wordmarkGradient shades the wordmark one row at a time along the info hue,
@@ -123,4 +150,11 @@ var wordmarkGradient = []lipgloss.AdaptiveColor{
 	{Light: "#075985", Dark: "#0284c7"},
 	{Light: "#0c4a6e", Dark: "#0369a1"},
 	{Light: "#082f49", Dark: "#075985"},
+}
+
+// setVtitanPalette switches termkit's global palette to vtitanPalette. Called
+// from NewUI rather than an init func (gochecknoinits), so it still runs
+// before any termkit.Capability method is used.
+func setVtitanPalette() {
+	termkit.SetPalette(vtitanPalette)
 }

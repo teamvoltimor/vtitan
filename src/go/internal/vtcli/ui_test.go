@@ -6,6 +6,8 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+
+	"github.com/ralvarezdev/termkit"
 )
 
 // TestBannerFollowsTheTerminal checks the three renderings: a pipe gets one
@@ -19,7 +21,7 @@ func TestBannerFollowsTheTerminal(t *testing.T) {
 		t.Errorf("piped banner has art or escapes: %q", piped)
 	}
 
-	noColor := UI{art: true}.Banner()
+	noColor := UI{cap: termkit.Capability{Art: true}}.Banner()
 	if !strings.Contains(noColor, "██") || strings.Contains(noColor, "\x1b") {
 		t.Errorf("NO_COLOR banner should keep the art and drop escapes: %q", noColor)
 	}
@@ -30,13 +32,14 @@ func TestBannerFollowsTheTerminal(t *testing.T) {
 		}
 	}
 
-	if header := (UI{art: true}).Header(minArtWidth, minArtHeight); !strings.Contains(header, "██") {
+	bigUI := UI{cap: termkit.Capability{Art: true}}
+	if header := bigUI.Header(minArtWidth, minArtHeight); !strings.Contains(header, "██") {
 		t.Error("header dropped the art in a terminal big enough for it")
 	}
 
 	compactRows := 1 + headerMarginTop + headerMarginBottom
 	for _, size := range [][2]int{{minArtWidth - 1, minArtHeight}, {minArtWidth, minArtHeight - 1}} {
-		header := (UI{art: true}).Header(size[0], size[1])
+		header := (UI{cap: termkit.Capability{Art: true}}).Header(size[0], size[1])
 		if strings.Contains(header, "██") || lipgloss.Height(header) != compactRows {
 			t.Errorf("header at %dx%d should be one line plus margins, got %q", size[0], size[1], header)
 		}
@@ -49,7 +52,7 @@ func TestBannerFollowsTheTerminal(t *testing.T) {
 func TestPickerKeepsTerminalSizeAcrossLevels(t *testing.T) {
 	t.Parallel()
 
-	ui := UI{art: true}
+	ui := UI{cap: termkit.Capability{Art: true}}
 	root := []pickItem{{title: "go", segment: "go"}}
 	child := func([]string) []pickItem { return []pickItem{backRow(), {title: "test"}} }
 

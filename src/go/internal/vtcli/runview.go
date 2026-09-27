@@ -53,7 +53,7 @@ func newRunModel(ui UI, line string, run *taskRun, note string, width, height in
 	m.view = viewport.New(width, max(height-runChromeLines, minRunViewLines))
 	m.view.MouseWheelEnabled = true
 	m.resize(width, height)
-	m.buf = newTermBuf(m.view.Width, m.view.Height, runScrollback, ui.color)
+	m.buf = newTermBuf(m.view.Width, m.view.Height, runScrollback, ui.cap.Color)
 	m.buf.light = !ui.dark
 
 	return m

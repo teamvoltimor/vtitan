@@ -597,7 +597,7 @@ func (d pickerRowsDelegate) Render(w io.Writer, m list.Model, index int, item li
 // pickerDelegate builds the row delegate in the palette.
 func pickerDelegate(ui UI) list.ItemDelegate {
 	delegate := list.NewDefaultDelegate()
-	if ui.color {
+	if ui.cap.Color {
 		delegate.Styles.SelectedTitle = delegate.Styles.SelectedTitle.
 			Foreground(colorAccent).BorderLeftForeground(colorAccent)
 		delegate.Styles.SelectedDesc = delegate.Styles.SelectedDesc.
@@ -610,7 +610,7 @@ func pickerDelegate(ui UI) list.ItemDelegate {
 
 // styleList puts the list chrome (title, filter prompt) in the palette.
 func styleList(model *list.Model, ui UI) {
-	if !ui.color {
+	if !ui.cap.Color {
 		return
 	}
 

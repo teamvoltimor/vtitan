@@ -10,7 +10,8 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
-	"github.com/charmbracelet/x/term"
+
+	"github.com/ralvarezdev/termkit"
 )
 
 // UI renders the human-facing text vt emits: the banner, the menu, the form
@@ -18,15 +19,12 @@ import (
 // is not wanted, so CI logs and piped output stay plain. The wordmark follows
 // the TTY, not NO_COLOR: NO_COLOR asks for no colour, not for no art.
 type UI struct {
-	color bool
-	art   bool
+	// cap is termkit's own resolved colour/art/width capability, shared with
+	// every other termkit consumer.
+	cap termkit.Capability
 	// dark is the terminal's detected background, for the palette and for
 	// answering a task that asks the terminal for it.
 	dark bool
-	// width is the terminal width at start-up, 0 when it is not a terminal
-	// or will not say. It only centers the static banner; the picker gets
-	// live sizes from bubbletea.
-	width int
 }
 
 // MenuEntry is one row of the home menu: a first-level command and its
@@ -42,16 +40,33 @@ type MenuSection struct {
 	Entries []MenuEntry
 }
 
+// vtitanBannerSpec is vt's BannerSpec: the wordmark art, its gradient, copy,
+// and layout thresholds, built from theme.go's constants. termkit owns the
+// mechanism (tier selection, centering, margins); this spec owns everything
+// the banner says and looks like.
+var vtitanBannerSpec = termkit.BannerSpec{
+	Wordmark:         wordmark,
+	WordmarkWidth:    wordmarkWidth,
+	WordmarkGradient: wordmarkGradient,
+	BrandGlyph:       brandGlyph,
+	Tagline:          tagline,
+	CompactHeadline:  compactHeadline,
+	PlainHeadline:    plainHeadline,
+	MinArtWidth:      minArtWidth,
+	MinArtHeight:     minArtHeight,
+	MarginTop:        headerMarginTop,
+	MarginBottom:     headerMarginBottom,
+	FallbackWidth:    fallbackTermWidth,
+}
+
 // NewUI returns a UI bound to the capabilities of standard output.
 func NewUI() UI {
-	ui := UI{color: useColor(os.Stdout), art: isTerminal(os.Stdout) && os.Getenv("TERM") != "dumb", dark: true}
-	if ui.color {
+	setVtitanPalette()
+
+	ui := UI{cap: termkit.NewCapability(useColor(os.Stdout)), dark: true}
+	if ui.cap.Color {
 		// The same detection AdaptiveColor uses; only worth asking a terminal.
 		ui.dark = lipgloss.HasDarkBackground()
-	}
-
-	if width, _, err := term.GetSize(os.Stdout.Fd()); err == nil {
-		ui.width = width
 	}
 
 	return ui
@@ -82,49 +97,45 @@ func isTerminal(f *os.File) bool {
 }
 
 // Banner is the header shown by a bare `vt`: the centered wordmark on a
-// terminal, one plain line in a pipe or a CI log.
+// terminal, one plain line in a pipe or a CI log. It composes termkit's
+// Header directly rather than calling Capability.Banner(spec): vt's plain
+// fallback is two lines (plainHeadline + escapeHint, not just PlainHeadline),
+// and the line under the wordmark is escapeHint, not spec.Tagline (which
+// wordmarkBlock already renders bold next to the brand glyph).
 func (u UI) Banner() string {
-	if !u.art {
+	if !u.cap.Art {
 		return plainHeadline + "\n" + escapeHint
 	}
 
-	width := u.width
+	width := u.cap.Width
 	if width <= 0 {
 		width = fallbackTermWidth
 	}
 
-	return u.Header(width, minArtHeight) + "\n" + u.center(u.Muted(escapeHint), width)
+	return u.Header(width, minArtHeight) + "\n" + u.cap.Center(u.Muted(escapeHint), width)
 }
 
 // Header is the picker's top: the wordmark centered in the terminal with a
 // margin row above and below when there is room for it and the list, otherwise
-// one line. Its height is what the picker subtracts from the list.
+// one line. Its height is what the picker subtracts from the list. It
+// delegates entirely to termkit's tier-selection mechanism.
 func (u UI) Header(width, height int) string {
-	top := strings.Repeat("\n", headerMarginTop)
-	bottom := strings.Repeat("\n", headerMarginBottom)
-
-	if width < minArtWidth || height < minArtHeight {
-		line := u.Accent(brandGlyph+" "+compactHeadline, true)
-
-		return top + u.center(line, width) + bottom
-	}
-
-	return top + u.center(u.wordmarkBlock(), width) + bottom
+	return u.cap.Header(vtitanBannerSpec, width, height)
 }
 
 // Accent paints text in the accent colour, bold when asked.
 func (u UI) Accent(text string, bold bool) string {
-	return u.paint(text, lipgloss.NewStyle().Bold(bold).Foreground(colorAccent))
+	return u.cap.Accent(text, bold)
 }
 
 // Muted paints secondary text: hints, descriptions, key help.
 func (u UI) Muted(text string) string {
-	return u.paint(text, lipgloss.NewStyle().Foreground(colorMuted))
+	return u.cap.Muted(text)
 }
 
 // Warning paints a caution the user should read before confirming.
 func (u UI) Warning(text string) string {
-	return u.paint(text, lipgloss.NewStyle().Bold(true).Foreground(colorWarning))
+	return u.cap.Paint(text, lipgloss.NewStyle().Bold(true).Foreground(termkit.ColorWarning))
 }
 
 // Menu renders the first-level command list, names in the accent colour. The
@@ -168,41 +179,12 @@ func (u UI) MenuSections(sections []MenuSection) string {
 
 // Danger paints a failure the user has to act on.
 func (u UI) Danger(text string) string {
-	return u.paint(text, lipgloss.NewStyle().Foreground(colorDanger))
+	return u.cap.Paint(text, lipgloss.NewStyle().Foreground(termkit.ColorDanger))
 }
 
 // Error renders a failure message for standard error.
 func (u UI) Error(err error) string {
 	return u.Danger("vt: " + err.Error())
-}
-
-// wordmarkBlock renders the wordmark down the gradient with the tagline under
-// it, as one block whose rows share a left edge.
-func (u UI) wordmarkBlock() string {
-	rows := strings.Split(wordmark, "\n")
-	for i, row := range rows {
-		padded := fmt.Sprintf("%-*s", wordmarkWidth, row)
-		rows[i] = u.paint(padded, lipgloss.NewStyle().Foreground(wordmarkGradient[i%len(wordmarkGradient)]))
-	}
-
-	line := u.Accent(brandGlyph+" ", false) + u.paint(tagline, lipgloss.NewStyle().Bold(true))
-
-	return lipgloss.JoinVertical(lipgloss.Center, strings.Join(rows, "\n"), line)
-}
-
-// center places a block in the middle of width columns, as a unit, so a
-// multi-row block keeps its own alignment.
-func (u UI) center(block string, width int) string {
-	return lipgloss.PlaceHorizontal(width, lipgloss.Center, block)
-}
-
-// paint applies style only when colour is wanted.
-func (u UI) paint(text string, style lipgloss.Style) string {
-	if !u.color {
-		return text
-	}
-
-	return style.Render(text)
 }
 
 // nameColumnWidth fits the longest name, never narrower than menuColumnWidth.

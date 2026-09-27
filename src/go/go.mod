@@ -8,7 +8,6 @@ require (
 	github.com/charmbracelet/bubbles v1.0.0
 	github.com/charmbracelet/bubbletea v1.3.10
 	github.com/charmbracelet/lipgloss v1.1.0
-	github.com/charmbracelet/x/term v0.2.2
 	github.com/charmbracelet/x/xpty v0.1.4
 	github.com/coder/websocket v1.8.15
 	github.com/creack/pty v1.1.24
@@ -16,6 +15,7 @@ require (
 	github.com/go-playground/validator/v10 v10.30.5
 	github.com/nats-io/nats-server/v2 v2.15.0
 	github.com/nats-io/nats.go v1.54.0
+	github.com/ralvarezdev/termkit v0.5.1
 	github.com/shopspring/decimal v1.4.0
 	github.com/spf13/cobra v1.10.2
 	github.com/spf13/pflag v1.0.10
@@ -42,6 +42,7 @@ require (
 	github.com/charmbracelet/x/ansi v0.11.8 // indirect
 	github.com/charmbracelet/x/cellbuf v0.0.15 // indirect
 	github.com/charmbracelet/x/conpty v0.2.0 // indirect
+	github.com/charmbracelet/x/term v0.2.2 // indirect
 	github.com/charmbracelet/x/termios v0.1.1 // indirect
 	github.com/clipperhouse/displaywidth v0.11.0 // indirect
 	github.com/clipperhouse/uax29/v2 v2.7.0 // indirect
@@ -54,6 +55,7 @@ require (
 	github.com/google/cel-go v0.30.0 // indirect
 	github.com/google/go-tpm v0.9.8 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
+	github.com/jedib0t/go-pretty/v6 v6.8.3 // indirect
 	github.com/klauspost/compress v1.20.0 // indirect
 	github.com/leodido/go-urn v1.5.0 // indirect
 	github.com/lucasb-eyer/go-colorful v1.4.1 // indirect
