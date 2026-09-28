@@ -123,8 +123,8 @@ github.com/pierrec/lz4/v4 v4.1.30 h1:cchX8N2DVP668WkElI9QMwVyoNabLkq1LofDHFeIrdg
 github.com/pierrec/lz4/v4 v4.1.30/go.mod h1:EoQMVJgeeEOMsCqCzqFm2O0cJvljX2nGZjcRIPL34O4=
 github.com/pkg/errors v0.9.1 h1:FEBLx1zS214owpjy7qsBeixbURkuhQAwrK5UwLGTwt4=
 github.com/pkg/errors v0.9.1/go.mod h1:bwawxfHBFNV+L2hUp1rHADufV3IMtnDRdf1r5NINEl0=
-github.com/ralvarezdev/termkit v0.5.1 h1:nSBHYZlvs4aBXLoonmd096+bO35ZFgppYIZoqyy3m6I=
-github.com/ralvarezdev/termkit v0.5.1/go.mod h1:mQyctnDo1FSWSWoSF9EJREeQ3D5HfTAES1c2NT9P9Gc=
+github.com/ralvarezdev/termkit v0.7.3 h1:x9cx4hSk2LBAk/BCfAXUg513HC0enRLL8Ra+HuyCLIw=
+github.com/ralvarezdev/termkit v0.7.3/go.mod h1:SvxzQJoUjuHP1nz9cTEvIqbtk/00E6sCoa12o6AmcTw=
 github.com/rivo/uniseg v0.4.7 h1:WUdvkW8uEhrYfLC4ZzdpI2ztxP1I582+49Oc5Mq64VQ=
 github.com/rivo/uniseg v0.4.7/go.mod h1:FN3SvrM+Zdj16jyLfmOkMNblXMcoc8DfTHruCPUcx88=
 github.com/rodaine/protogofakeit v0.1.1 h1:ZKouljuRM3A+TArppfBqnH8tGZHOwM/pjvtXe9DaXH8=
