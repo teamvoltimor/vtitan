@@ -7,7 +7,7 @@ require (
 	buf.build/go/protovalidate v1.3.0
 	github.com/charmbracelet/bubbles v1.0.0
 	github.com/charmbracelet/bubbletea v1.3.10
-	github.com/charmbracelet/lipgloss v1.1.0
+	github.com/charmbracelet/lipgloss v1.1.1-0.20250404203927-76690c660834
 	github.com/charmbracelet/x/xpty v0.1.4
 	github.com/coder/websocket v1.8.15
 	github.com/creack/pty v1.1.24
@@ -15,7 +15,7 @@ require (
 	github.com/go-playground/validator/v10 v10.30.5
 	github.com/nats-io/nats-server/v2 v2.15.0
 	github.com/nats-io/nats.go v1.54.0
-	github.com/ralvarezdev/termkit v0.7.3
+	github.com/ralvarezdev/termkit v0.46.0
 	github.com/shopspring/decimal v1.4.0
 	github.com/spf13/cobra v1.10.2
 	github.com/spf13/pflag v1.0.10
