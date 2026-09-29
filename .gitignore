@@ -266,3 +266,6 @@ schemes/flowcharts/common/svg-editorial/
 /src/go/pi-zero
 # A stray pytest log left at src/python.
 /src/python/u.txt
+
+# GitHub token for private Go modules (local Docker builds)
+.github_token
