@@ -15,7 +15,7 @@ require (
 	github.com/go-playground/validator/v10 v10.30.5
 	github.com/nats-io/nats-server/v2 v2.15.0
 	github.com/nats-io/nats.go v1.54.0
-	github.com/ralvarezdev/termkit v0.49.0
+	github.com/ralvarezdev/termkit v0.50.0
 	github.com/shopspring/decimal v1.4.0
 	github.com/spf13/cobra v1.10.2
 	github.com/spf13/pflag v1.0.10
