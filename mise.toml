@@ -22,6 +22,10 @@ tinygo = "0.42.0"
 "ubi:dkorunic/betteralign" = "0.13.0"
 "aqua:pressly/goose" = "3.27.2"
 
+[env]
+# Private modules: skip the public proxy and checksum DB (implies GONOPROXY and GONOSUMDB).
+GOPRIVATE = "github.com/ralvarezdev/*"
+
 [tasks.launch-pi-zero]
 description = "Launch merged Pi Zero node (motors + button + OLED) in one process"
 run = "pixi run -e dev launch-rpi-zero"

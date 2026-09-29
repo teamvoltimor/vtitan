@@ -57,6 +57,19 @@ tasks:
     cmds:
       - go test ./...
 
+  # Downloads into a throwaway module cache so a missing GOPRIVATE or git auth
+  # fails here instead of on a clean machine or CI. -modcacherw keeps the
+  # cache deletable; `go clean -modcache` empties it before and after.
+  go:deps:check:
+    desc: "Verify every Go module resolves from an empty module cache."
+    env:
+      GOMODCACHE: '{{.ROOT_DIR}}/.task/modcheck'
+      GOFLAGS: -modcacherw
+    cmds:
+      - defer: go clean -modcache
+      - go clean -modcache
+      - go mod download
+
   go:tinygo-check:
     desc: "Build every pkg/portable package (and any firmware/) for the Pico 2 and run their tests under TinyGo (ADR 0098)."
     cmds:
