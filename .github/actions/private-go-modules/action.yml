@@ -1,0 +1,23 @@
+name: Private Go modules
+description: >-
+  Let Go fetch github.com/ralvarezdev/* modules. Without a token the fetch is
+  anonymous, so nothing changes once those repos are public; while they are
+  private, a build that needs one fails with a permission error.
+
+inputs:
+  token:
+    description: GitHub token with read access to the private modules (optional)
+    required: false
+    default: ""
+
+runs:
+  using: composite
+  steps:
+    - shell: bash
+      env:
+        GH_PRIVATE_MODULES_TOKEN: ${{ inputs.token }}
+      run: |
+        echo "GOPRIVATE=github.com/ralvarezdev/*" >> "$GITHUB_ENV"
+        if [ -n "$GH_PRIVATE_MODULES_TOKEN" ]; then
+          git config --global url."https://x-access-token:${GH_PRIVATE_MODULES_TOKEN}@github.com/".insteadOf "https://github.com/"
+        fi

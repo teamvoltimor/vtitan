@@ -64,6 +64,10 @@ jobs:
           go-version-file: src/go/go.mod
           cache-dependency-path: src/go/go.sum
 
+      - uses: ./.github/actions/private-go-modules
+        with:
+          token: ${{ secrets.GH_PRIVATE_MODULES_TOKEN }}
+
       - name: Build
         run: go build ./...
 
@@ -100,6 +104,10 @@ jobs:
         with:
           go-version-file: src/go/go.mod
           cache-dependency-path: src/go/go.sum
+
+      - uses: ./.github/actions/private-go-modules
+        with:
+          token: ${{ secrets.GH_PRIVATE_MODULES_TOKEN }}
 
       - uses: acifani/setup-tinygo@v2
         with:
@@ -166,6 +174,10 @@ jobs:
           go-version-file: src/go/go.mod
           cache-dependency-path: src/go/go.sum
 
+      - uses: ./.github/actions/private-go-modules
+        with:
+          token: ${{ secrets.GH_PRIVATE_MODULES_TOKEN }}
+
       - name: Generated DTOs are current
         run: |
           python src/tools/configgen.py generate-go
@@ -205,6 +217,10 @@ jobs:
           go-version-file: other/apps/backend/go.mod
           cache-dependency-path: other/apps/backend/go.sum
 
+      - uses: ./.github/actions/private-go-modules
+        with:
+          token: ${{ secrets.GH_PRIVATE_MODULES_TOKEN }}
+
       - name: Build
         run: go build ./...
 
@@ -224,6 +240,10 @@ jobs:
         with:
           go-version-file: other/apps/auto-annotator/api/go.mod
           cache-dependency-path: other/apps/auto-annotator/api/go.sum
+
+      - uses: ./.github/actions/private-go-modules
+        with:
+          token: ${{ secrets.GH_PRIVATE_MODULES_TOKEN }}
 
       - name: Build
         run: go build ./...
