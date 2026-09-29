@@ -85,4 +85,5 @@ var goSpec = []Command{
 var goExclusions = map[string]string{
 	"go:todo":          "informational dump of the migration punch list; not a flow",
 	"go:hw:stop-notes": "internal helper for go:hw:stop, not a user command",
+	"go:deps:check":    "dev tooling that proves private modules resolve from an empty cache; not a flow",
 }
