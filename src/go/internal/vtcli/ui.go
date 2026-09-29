@@ -61,9 +61,8 @@ var vtitanBannerSpec = termkit.BannerSpec{
 
 // NewUI returns a UI bound to the capabilities of standard output.
 func NewUI() UI {
-	setVtitanPalette()
-
 	ui := UI{cap: termkit.NewCapability(useColor(os.Stdout)), dark: true}
+	ui.cap.Theme = vtitanTheme
 	if ui.cap.Color {
 		// The same detection AdaptiveColor uses; only worth asking a terminal.
 		ui.dark = lipgloss.HasDarkBackground()
@@ -135,7 +134,7 @@ func (u UI) Muted(text string) string {
 
 // Warning paints a caution the user should read before confirming.
 func (u UI) Warning(text string) string {
-	return u.cap.Paint(text, lipgloss.NewStyle().Bold(true).Foreground(termkit.ColorWarning))
+	return u.cap.Paint(text, u.cap.ActiveTheme().WarningStyle().Bold(true))
 }
 
 // Menu renders the first-level command list, names in the accent colour. The
@@ -179,7 +178,7 @@ func (u UI) MenuSections(sections []MenuSection) string {
 
 // Danger paints a failure the user has to act on.
 func (u UI) Danger(text string) string {
-	return u.cap.Paint(text, lipgloss.NewStyle().Foreground(termkit.ColorDanger))
+	return u.cap.Danger(text)
 }
 
 // Error renders a failure message for standard error.

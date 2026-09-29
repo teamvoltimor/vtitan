@@ -108,17 +108,14 @@ var (
 	colorMuted = lipgloss.AdaptiveColor{Light: "#52525b", Dark: "#a1a1aa"}
 )
 
-// vtitanPalette adapts vt's own docs-token colors onto termkit.Palette, so
-// vt's banner/picker styling runs through termkit's Capability mechanism
-// while every color still comes from the docs site's tokens rather than
-// termkit's own Tokyo Night default. Info is deliberately --color-accent-note,
-// not another copy of colorAccent: termkit's Info role wants a hue distinct
-// from Accent, and vt's own "info" token is already claimed by Accent.
-// setVtitanPalette (called from NewUI, not an init func, per gochecknoinits)
-// switches termkit's global palette to these colors, so every
-// termkit.Capability built afterward (Accent/Muted/Banner/Header) resolves
-// against vt's colors instead of termkit's Tokyo Night default.
-var vtitanPalette = termkit.Palette{
+// vtitanTheme is vt's own docs-token colors as a termkit.Theme, so vt's
+// banner/picker styling runs through termkit's Capability mechanism while
+// every color still comes from the docs site's tokens rather than termkit's
+// own Tokyo Night default. Info is deliberately --color-accent-note, not
+// another copy of colorAccent: termkit's Info role wants a hue distinct from
+// Accent, and vt's own "info" token is already claimed by Accent. NewUI hands
+// it to termkit.Capability.Theme; there is no global state to switch.
+var vtitanTheme = termkit.Theme{
 	Accent:  colorAccent,
 	Danger:  colorDanger,
 	Warning: colorWarning,
@@ -135,9 +132,9 @@ var paletteTokens = map[string]lipgloss.AdaptiveColor{
 	"danger":    colorDanger,
 	"warning":   colorWarning,
 	"default":   colorMuted,
-	"success":   vtitanPalette.Success,
-	"note":      vtitanPalette.Info,
-	"important": vtitanPalette.Brand,
+	"success":   vtitanTheme.Success,
+	"note":      vtitanTheme.Info,
+	"important": vtitanTheme.Brand,
 }
 
 // wordmarkGradient shades the wordmark one row at a time along the info hue,
@@ -150,11 +147,4 @@ var wordmarkGradient = []lipgloss.AdaptiveColor{
 	{Light: "#075985", Dark: "#0284c7"},
 	{Light: "#0c4a6e", Dark: "#0369a1"},
 	{Light: "#082f49", Dark: "#075985"},
-}
-
-// setVtitanPalette switches termkit's global palette to vtitanPalette. Called
-// from NewUI rather than an init func (gochecknoinits), so it still runs
-// before any termkit.Capability method is used.
-func setVtitanPalette() {
-	termkit.SetPalette(vtitanPalette)
 }
