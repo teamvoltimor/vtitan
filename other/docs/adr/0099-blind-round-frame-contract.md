@@ -1,6 +1,6 @@
 # 0099. A blind round runs in one believed frame, built by one component on the robot and in the sim
 
-- Status: proposed
+- Status: accepted (2026-09-30)
 - Date: 2026-09-25
 
 ## Context
@@ -75,7 +75,12 @@ counted 4.
 
 ## Decision
 
-Proposed: (a).
+Accepted: (a).
+
+Blind means the robot never knows which section it started in. It can only
+infer the travel direction, and it makes its start relative: the canonical
+South start is a private label for the robot's own frame, not a claim about
+the mat. "Assumed start" below always means that relative origin.
 
 Only (a) makes the sim's blind numbers mean what the robot does: the frame
 logic that runs on the car is the frame logic the sim tests, and there is
@@ -97,12 +102,13 @@ file:
    was made under the wrong direction assumption (Python ROS node,
    `track_navigator_node.py` settle path).
 
-Still open for the owner:
+Settled by the owner on 2026-09-30:
 
-- Whether the parking controller is wired on the Go robot as part of this,
-  or left nil as today.
-- Whether this lands before or together with the 2.12 sensor-model
-  re-baseline. Blind numbers move either way.
+- The parking controller is NOT wired on the Go robot as part of this. It
+  stays nil and is a separate change, so a parking regression cannot hide a
+  frame-fix result.
+- The frame fix lands BEFORE the 2.12 sensor-model combined re-baseline, so
+  each effect is attributable.
 
 ## Consequences
 
