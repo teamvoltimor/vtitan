@@ -21,8 +21,10 @@ import (
 )
 
 const (
-	sessionIDFormat    = "session_%d"
-	sqliteDSNOptions   = "?_journal_mode=WAL&_busy_timeout=5000"
+	sessionIDFormat = "session_%d"
+	// modernc.org/sqlite only honors _pragma=name(value); the mattn-style
+	// _journal_mode= and _busy_timeout= spellings are silently ignored.
+	sqliteDSNOptions   = "?_pragma=journal_mode(WAL)&_pragma=busy_timeout(5000)"
 	sqliteMaxOpenConns = 1
 	writerBufSize      = 64 * 1024
 	scannerBufSize     = 1 << 20
