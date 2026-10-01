@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/ralvarezdev/tick"
 	"golang.org/x/sync/errgroup"
 	"google.golang.org/protobuf/proto"
 
@@ -103,18 +104,16 @@ func publishLoop(
 	pub *nats.Publisher[*uiv1.TelemetrySummary],
 	rateHz float64,
 ) error {
-	ticker := time.NewTicker(time.Duration(float64(time.Second) / rateHz))
-	defer ticker.Stop()
-
-	for {
-		select {
-		case <-ctx.Done():
-			return nil
-		case <-ticker.C:
+	return tick.Every( //nolint:wrapcheck // tick.Every returns nil on cancellation and only validation errors otherwise
+		ctx, time.Duration(float64(time.Second)/rateHz), tick.Config{
+			Name:           "telemetry-publish",
+			Logger:         logger,
+			DisableRecover: true,
+		}, func(ctx context.Context) error {
 			summary := aggregator.Summarize(ctx)
 			if pubErr := pub.Publish(MessageFor(summary)); pubErr != nil {
 				logger.Error("telemetry: publishing TelemetrySummary", "error", pubErr)
 			}
-		}
-	}
+			return nil
+		})
 }

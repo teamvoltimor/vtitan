@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/ralvarezdev/tick"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	actuationv1 "github.com/teamvoltimor/vtitan/src/go/internal/schema/pb/vtitan/actuation/v1"
@@ -91,17 +92,15 @@ func JointStatesFor(odometry encoder.Odometry) *actuationv1.JointStates {
 // read would trade a missing odometry sample for a robot that keeps
 // driving its last command.
 func (f *Feedback) Run(ctx context.Context) error {
-	ticker := time.NewTicker(f.interval)
-	defer ticker.Stop()
-
-	for {
-		select {
-		case <-ctx.Done():
-			return nil
-		case <-ticker.C:
+	return tick.Every( //nolint:wrapcheck // tick.Every returns nil on cancellation and only validation errors otherwise
+		ctx, f.interval, tick.Config{
+			Name:           "motor-feedback",
+			Logger:         f.logger,
+			DisableRecover: true,
+		}, func(context.Context) error {
 			f.publishOnce()
-		}
-	}
+			return nil
+		})
 }
 
 // publishOnce samples the encoder once and publishes the result. RPM is

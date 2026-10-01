@@ -4,12 +4,11 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
-	"time"
 
 	"github.com/go-playground/validator/v10"
+	rbackoff "github.com/ralvarezdev/resilience/backoff"
+	resilience "github.com/ralvarezdev/resilience/supervise"
 	"golang.org/x/sync/errgroup"
-
-	"github.com/teamvoltimor/vtitan/src/go/pkg/backoff"
 )
 
 // Target names one goroutine handed to Supervisor.RunAll: Name identifies
@@ -47,47 +46,15 @@ func New(cfg Config, logger *slog.Logger) (*Supervisor, error) {
 // s.cfg.Backoff, which is reset to Backoff.Initial once fn has run for at
 // least s.cfg.HealthyDuration before its next failure.
 func (s *Supervisor) Run(ctx context.Context, name string, fn func(ctx context.Context) error) error {
-	restartDelay := backoff.New(s.cfg.Backoff)
-
-	for {
-		select {
-		case <-ctx.Done():
-			return nil
-		default:
-		}
-
-		startedAt := time.Now()
-		runErr := runRecovered(ctx, fn)
-
-		select {
-		case <-ctx.Done():
-			// A cancellation racing with fn's own return is shutdown, not
-			// a failure to restart from -- don't backoff-sleep or log an
-			// error for it even if fn happened to return one on its way
-			// out.
-			return nil
-		default:
-		}
-		if runErr == nil {
-			return nil
-		}
-
-		if time.Since(startedAt) >= s.cfg.HealthyDuration {
-			restartDelay.Reset()
-		}
-
-		delay := restartDelay.Next()
-		s.logger.Error(
-			"supervise: goroutine failed, restarting",
-			"name", name,
-			"error", runErr,
-			"delay", delay,
-		)
-
-		if !sleep(ctx, delay) {
-			return nil
-		}
-	}
+	return resilience.Run( //nolint:wrapcheck // no restart budget is configured, so Run only ever returns nil
+		ctx, name, fn, resilience.Config{
+			Backoff: rbackoff.Exponential{
+				Initial: s.cfg.Backoff.Initial,
+				Max:     s.cfg.Backoff.Max,
+			},
+			HealthyAfter: s.cfg.HealthyDuration,
+			Logger:       s.logger,
+		})
 }
 
 // RunAll runs every target concurrently via Run and waits for all of them
@@ -106,31 +73,4 @@ func (s *Supervisor) RunAll(ctx context.Context, targets ...Target) error {
 		})
 	}
 	return group.Wait() //nolint:wrapcheck // Run never returns a non-nil error by contract; nothing here to wrap
-}
-
-// runRecovered calls fn and converts a panic into an error, so Run's
-// restart loop has exactly one failure shape to handle regardless of
-// whether fn returned an error or panicked.
-func runRecovered(ctx context.Context, fn func(ctx context.Context) error) (err error) {
-	defer func() {
-		if r := recover(); r != nil {
-			err = fmt.Errorf("supervise: recovered panic: %v", r)
-		}
-	}()
-	return fn(ctx)
-}
-
-// sleep waits for delay or ctx cancellation, whichever comes first,
-// reporting which one happened -- so Run never blocks shutdown on a long
-// backoff delay.
-func sleep(ctx context.Context, delay time.Duration) bool {
-	timer := time.NewTimer(delay)
-	defer timer.Stop()
-
-	select {
-	case <-ctx.Done():
-		return false
-	case <-timer.C:
-		return true
-	}
 }

@@ -19,6 +19,7 @@ import (
 	"time"
 
 	natsio "github.com/nats-io/nats.go"
+	"github.com/ralvarezdev/svckit"
 	"github.com/spf13/cobra"
 	"golang.org/x/sync/errgroup"
 	"google.golang.org/protobuf/proto"
@@ -103,17 +104,12 @@ func run(ctx context.Context, logger *slog.Logger, cfg cliConfig) error {
 
 	group.Go(func() error {
 		logger.Info("foxglove-bridge: serving", "addr", cfg.httpAddr, "nats_url", cfg.NATSURL)
-		if serveErr := httpServer.ListenAndServe(); serveErr != nil && !errors.Is(serveErr, http.ErrServerClosed) {
+		if serveErr := svckit.Serve(gctx, httpServer, svckit.Config{
+			Name:            "foxglove-bridge",
+			Logger:          logger,
+			ShutdownTimeout: shutdownTimeout,
+		}); serveErr != nil {
 			return fmt.Errorf("foxglove-bridge: http server: %w", serveErr)
-		}
-		return nil
-	})
-	group.Go(func() error {
-		<-gctx.Done()
-		shutdownCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), shutdownTimeout)
-		defer cancel()
-		if shutdownErr := httpServer.Shutdown(shutdownCtx); shutdownErr != nil {
-			return fmt.Errorf("foxglove-bridge: shutting down http server: %w", shutdownErr)
 		}
 		return nil
 	})
