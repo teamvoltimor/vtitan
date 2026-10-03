@@ -1,2 +1,10 @@
 allowBuilds:
   esbuild: true
+
+# Forced by the Dependabot security pass of 2026-10-03: fixed versions of
+# transitive dev-toolchain deps, all within their existing major range.
+overrides:
+  brace-expansion: 2.1.2
+  browserslist: 4.28.7
+  js-yaml: 4.3.2
+  postcss: 8.5.18
