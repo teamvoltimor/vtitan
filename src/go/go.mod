@@ -15,6 +15,7 @@ require (
 	github.com/go-playground/validator/v10 v10.30.5
 	github.com/nats-io/nats-server/v2 v2.15.0
 	github.com/nats-io/nats.go v1.54.0
+	github.com/ralvarezdev/grpckit v0.1.0
 	github.com/ralvarezdev/resilience v0.1.0
 	github.com/ralvarezdev/svckit v0.1.0
 	github.com/ralvarezdev/termkit v0.64.0

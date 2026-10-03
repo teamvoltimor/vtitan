@@ -123,6 +123,8 @@ github.com/pierrec/lz4/v4 v4.1.30 h1:cchX8N2DVP668WkElI9QMwVyoNabLkq1LofDHFeIrdg
 github.com/pierrec/lz4/v4 v4.1.30/go.mod h1:EoQMVJgeeEOMsCqCzqFm2O0cJvljX2nGZjcRIPL34O4=
 github.com/pkg/errors v0.9.1 h1:FEBLx1zS214owpjy7qsBeixbURkuhQAwrK5UwLGTwt4=
 github.com/pkg/errors v0.9.1/go.mod h1:bwawxfHBFNV+L2hUp1rHADufV3IMtnDRdf1r5NINEl0=
+github.com/ralvarezdev/grpckit v0.1.0 h1:Zzvih2sNnPTkggKamxkkCeuvGYzZfCnjTtuLDZZFHEE=
+github.com/ralvarezdev/grpckit v0.1.0/go.mod h1:fjbsLdTs8ZDmBLOCXYJA9tj5PSxxd1/92L/dqPO0tiQ=
 github.com/ralvarezdev/resilience v0.1.0 h1:cidPBPsplFRiTL9xE8yRs4n5TXLebj2QJi4NyyHk8b0=
 github.com/ralvarezdev/resilience v0.1.0/go.mod h1:87ZwA/gmDfcIkMJ1cfmPVcjrbZlWByJIAFkg7OLhOBQ=
 github.com/ralvarezdev/svckit v0.1.0 h1:m+UJMOM2CK1O5fc2IrJM9Q0/gCGEBtx1ousBy173Dts=

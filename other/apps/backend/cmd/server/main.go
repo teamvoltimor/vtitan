@@ -14,10 +14,7 @@ import (
 	"time"
 
 	"github.com/bufbuild/protovalidate-go"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/reflection"
-	"google.golang.org/grpc/status"
+	"github.com/ralvarezdev/grpckit"
 	"google.golang.org/protobuf/proto"
 
 	navigationdomain "github.com/teamvoltimor/vtitan/apps/backend/domain/navigation"
@@ -91,23 +88,14 @@ func run(simMode bool) error {
 		return fmt.Errorf("init protovalidate: %w", err)
 	}
 
-	grpcSrv := grpc.NewServer(
-		grpc.ChainStreamInterceptor(
-			streamRecoveryInterceptor(),
-			streamValidationInterceptor(validator),
-			streamLoggingInterceptor(),
-		),
-		grpc.ChainUnaryInterceptor(
-			unaryRecoveryInterceptor(),
-			unaryValidationInterceptor(validator),
-			unaryLoggingInterceptor(),
-		),
-	)
+	grpcSrv := grpckit.NewServer(grpckit.ServerConfig{
+		Validate: func(m proto.Message) error {
+			return validator.Validate(m)
+		},
+		EnableReflection: cfg.Dev,
+	})
 	telemetryv1.RegisterTelemetryIngestServiceServer(grpcSrv, ingest.New(telSvc, sessSvc))
 	telemetryv1.RegisterRobotCommandServiceServer(grpcSrv, robotCmdSrv)
-	if cfg.Dev {
-		reflection.Register(grpcSrv)
-	}
 
 	lc := &net.ListenConfig{}
 	lis, err := lc.Listen(ctx, "tcp", cfg.GRPCAddr)
@@ -160,94 +148,4 @@ func run(simMode bool) error {
 	defer shutCancel()
 	_ = httpSrv.Shutdown(shutCtx)
 	return nil
-}
-
-// streamRecoveryInterceptor catches panics in streaming handlers and returns INTERNAL.
-func streamRecoveryInterceptor() grpc.StreamServerInterceptor {
-	return func(srv any, ss grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) (err error) {
-		defer func() {
-			if r := recover(); r != nil {
-				slog.Error("gRPC stream panic", "panic", r, "method", info.FullMethod)
-				err = status.Errorf(codes.Internal, "internal server error")
-			}
-		}()
-		return handler(srv, ss)
-	}
-}
-
-// streamValidationInterceptor validates the first message of a client-stream via protovalidate.
-// Per-message validation is done inside each streaming handler (interceptors run once per RPC).
-func streamValidationInterceptor(v protovalidate.Validator) grpc.StreamServerInterceptor {
-	return func(srv any, ss grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
-		return handler(srv, &validatingStream{ServerStream: ss, v: v})
-	}
-}
-
-type validatingStream struct {
-	grpc.ServerStream
-	v protovalidate.Validator
-}
-
-func (s *validatingStream) RecvMsg(m any) error {
-	if err := s.ServerStream.RecvMsg(m); err != nil {
-		return err
-	}
-	if msg, ok := m.(proto.Message); ok {
-		if err := s.v.Validate(msg); err != nil {
-			return status.Errorf(codes.InvalidArgument, "validation: %v", err)
-		}
-	}
-	return nil
-}
-
-// unaryRecoveryInterceptor catches panics in unary handlers and returns INTERNAL.
-func unaryRecoveryInterceptor() grpc.UnaryServerInterceptor {
-	return func(ctx context.Context, req any, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (resp any, err error) {
-		defer func() {
-			if r := recover(); r != nil {
-				slog.Error("gRPC unary panic", "panic", r, "method", info.FullMethod)
-				err = status.Errorf(codes.Internal, "internal server error")
-			}
-		}()
-		return handler(ctx, req)
-	}
-}
-
-// unaryValidationInterceptor validates the request message via protovalidate.
-func unaryValidationInterceptor(v protovalidate.Validator) grpc.UnaryServerInterceptor {
-	return func(ctx context.Context, req any, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (any, error) {
-		if msg, ok := req.(proto.Message); ok {
-			if err := v.Validate(msg); err != nil {
-				return nil, status.Errorf(codes.InvalidArgument, "validation: %v", err)
-			}
-		}
-		return handler(ctx, req)
-	}
-}
-
-// unaryLoggingInterceptor logs each unary RPC with method and outcome.
-func unaryLoggingInterceptor() grpc.UnaryServerInterceptor {
-	return func(ctx context.Context, req any, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (any, error) {
-		resp, err := handler(ctx, req)
-		if err != nil {
-			slog.Warn("gRPC unary error", "method", info.FullMethod, "error", err)
-		} else {
-			slog.Info("gRPC unary completed", "method", info.FullMethod)
-		}
-		return resp, err
-	}
-}
-
-// streamLoggingInterceptor logs each streaming RPC with method and outcome.
-func streamLoggingInterceptor() grpc.StreamServerInterceptor {
-	return func(srv any, ss grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
-		slog.Info("gRPC stream started", "method", info.FullMethod)
-		err := handler(srv, ss)
-		if err != nil {
-			slog.Warn("gRPC stream error", "method", info.FullMethod, "error", err)
-		} else {
-			slog.Info("gRPC stream completed", "method", info.FullMethod)
-		}
-		return err
-	}
 }

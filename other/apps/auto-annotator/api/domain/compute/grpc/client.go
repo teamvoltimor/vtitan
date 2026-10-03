@@ -8,10 +8,10 @@ import (
 	"io"
 
 	"buf.build/go/protovalidate"
+	"github.com/ralvarezdev/grpckit"
 	"google.golang.org/protobuf/proto"
 
 	xgrpc "google.golang.org/grpc"
-	"google.golang.org/grpc/credentials/insecure"
 
 	"github.com/teamvoltimor/vtitan/auto-annotator/api/domain/compute"
 	computev1 "github.com/teamvoltimor/vtitan/auto-annotator/api/domain/compute/grpc/pb/autoannotator/v1"
@@ -61,7 +61,7 @@ func NewGRPC(segAddr, augAddr, trainAddr string) (compute.Clients, error) {
 }
 
 func dial(addr string) (*xgrpc.ClientConn, error) {
-	return xgrpc.NewClient(addr, xgrpc.WithTransportCredentials(insecure.NewCredentials()))
+	return grpckit.NewClient(addr, grpckit.ClientConfig{Insecure: true, AllowInsecureRemote: true})
 }
 
 func (g *grpcClients) Close() error {

@@ -7,8 +7,8 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/ralvarezdev/grpckit"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials/insecure"
 
 	"github.com/teamvoltimor/vtitan/src/go/internal/statemachine/command"
 	"github.com/teamvoltimor/vtitan/src/go/pkg/backoff"
@@ -51,7 +51,7 @@ func New(cfg Config, logger *slog.Logger) (*Client, error) {
 		cfg.Backoff = backoff.DefaultConfig()
 	}
 
-	conn, err := grpc.NewClient(cfg.Addr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	conn, err := grpckit.NewClient(cfg.Addr, grpckit.ClientConfig{Insecure: true, AllowInsecureRemote: true})
 	if err != nil {
 		return nil, fmt.Errorf("robotcmd: dialing %s: %w", cfg.Addr, err)
 	}

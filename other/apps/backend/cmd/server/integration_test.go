@@ -15,11 +15,13 @@ import (
 
 	"github.com/bufbuild/protovalidate-go"
 	"github.com/coder/websocket"
+	"github.com/ralvarezdev/grpckit"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/encoding/protojson"
+	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	navigationdomain "github.com/teamvoltimor/vtitan/apps/backend/domain/navigation"
@@ -93,18 +95,11 @@ func newTestServer(t *testing.T) *testServer {
 		t.Fatalf("protovalidate.New: %v", err)
 	}
 
-	grpcSrv := grpc.NewServer(
-		grpc.ChainStreamInterceptor(
-			streamRecoveryInterceptor(),
-			streamValidationInterceptor(validator),
-			streamLoggingInterceptor(),
-		),
-		grpc.ChainUnaryInterceptor(
-			unaryRecoveryInterceptor(),
-			unaryValidationInterceptor(validator),
-			unaryLoggingInterceptor(),
-		),
-	)
+	grpcSrv := grpckit.NewServer(grpckit.ServerConfig{
+		Validate: func(m proto.Message) error {
+			return validator.Validate(m)
+		},
+	})
 	telemetryv1.RegisterTelemetryIngestServiceServer(grpcSrv, ingest.New(telSvc, sessSvc))
 
 	lc := &net.ListenConfig{}
