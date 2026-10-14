@@ -81,24 +81,27 @@ tasks:
 
   # Database (sqlc + goose migrations)
 
-  auto-annotator:sqlc:gen:
+  auto-annotator:sqlc:generate:
+    aliases: [auto-annotator:sqlc:gen]
     desc: Regenerate Go DB access code from db/migrations via sqlc
     dir: api
     cmds:
       - sqlc generate
 
-  auto-annotator:db:migrate:new:
-    desc: 'Create a new goose migration under db/migrations. Usage: task auto-annotator:db:migrate:new NAME=add_foo_column'
+  auto-annotator:migrate:new:
+    aliases: [auto-annotator:db:migrate:new]
+    desc: 'Create a new goose migration under db/migrations. Usage: task auto-annotator:migrate:new NAME=add_foo_column'
     dir: api
     requires:
       vars: [NAME]
     cmds:
       - goose -dir db/migrations create {{.NAME}} sql
 
-  auto-annotator:db:migrate:status:
+  auto-annotator:migrate:status:
+    aliases: [auto-annotator:db:migrate:status]
     desc: >-
       Show which migrations in db/migrations are applied/pending against a
-      SQLite file. Usage: task auto-annotator:db:migrate:status [DB_PATH=data/manifest.db]
+      SQLite file. Usage: task auto-annotator:migrate:status [DB_PATH=data/manifest.db]
     dir: api
     vars:
       DB_PATH: '{{.DB_PATH | default "data/manifest.db"}}'
@@ -138,13 +141,15 @@ tasks:
 
   # Shared gRPC contract (proto/)
 
-  auto-annotator:proto:gen:
+  auto-annotator:proto:generate:
+    aliases: [auto-annotator:proto:gen]
     desc: Regenerate Go + Python gRPC stubs from the shared proto contract
     cmds:
-      - task: auto-annotator:proto:gen:go
-      - task: auto-annotator:proto:gen:py
+      - task: auto-annotator:proto:generate:go
+      - task: auto-annotator:proto:generate:py
 
-  auto-annotator:proto:gen:go:
+  auto-annotator:proto:generate:go:
+    aliases: [auto-annotator:proto:gen:go]
     desc: Regenerate Go gRPC stubs (buf) into api/internal/compute/pb
     dir: proto
     cmds:
@@ -167,7 +172,8 @@ tasks:
     cmds:
       - buf breaking --against "../../.git#branch={{.BASE}},subdir=auto-annotator/proto"
 
-  auto-annotator:proto:gen:py:
+  auto-annotator:proto:generate:py:
+    aliases: [auto-annotator:proto:gen:py]
     desc: >-
       Regenerate Python gRPC stubs (+ .pyi type stubs for mypy) into
       ml-service/src/grpc_server/pb, and the buf.validate runtime stub the
@@ -243,7 +249,8 @@ tasks:
     cmds:
       - golangci-lint run ./...
 
-  auto-annotator:align:api:
+  auto-annotator:align:check:api:
+    aliases: [auto-annotator:align:api]
     desc: Check Go struct field alignment (betteralign)
     dir: api
     cmds:
@@ -263,39 +270,43 @@ tasks:
       - task: auto-annotator:lint:frontend
       - task: auto-annotator:lint:api
 
-  auto-annotator:format:ml-service:
+  auto-annotator:fmt:ml-service:
+    aliases: [auto-annotator:format:ml-service]
     desc: Fix and format ML service code with ruff
     dir: ml-service
     cmds:
       - uv run ruff check --fix .
       - uv run ruff format .
 
-  auto-annotator:format:frontend:
+  auto-annotator:fmt:frontend:
+    aliases: [auto-annotator:format:frontend]
     desc: Fix and format frontend code with Biome
     dir: frontend
     cmds:
       - npm run format
 
-  auto-annotator:format:api:
+  auto-annotator:fmt:api:
+    aliases: [auto-annotator:format:api]
     desc: Format Go API code with golangci-lint fmt
     dir: api
     cmds:
       - golangci-lint fmt ./...
 
-  auto-annotator:format:proto:
+  auto-annotator:fmt:proto:
+    aliases: [auto-annotator:format:proto]
     desc: Format the shared proto contract with buf format
     dir: proto
     cmds:
       - buf format -w
 
-  auto-annotator:format:all:
+  auto-annotator:fmt:all:
+    aliases: [auto-annotator:fmt, auto-annotator:format:all]
     desc: Fix and format ml-service, frontend, Go API, and proto code
-    aliases: [auto-annotator:fmt]
     cmds:
-      - task: auto-annotator:format:ml-service
-      - task: auto-annotator:format:frontend
-      - task: auto-annotator:format:api
-      - task: auto-annotator:format:proto
+      - task: auto-annotator:fmt:ml-service
+      - task: auto-annotator:fmt:frontend
+      - task: auto-annotator:fmt:api
+      - task: auto-annotator:fmt:proto
 
   # Docker
 

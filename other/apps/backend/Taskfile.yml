@@ -59,7 +59,8 @@ tasks:
     cmds:
       - golangci-lint run --fix ./...
 
-  backend:align:
+  backend:align:check:
+    aliases: [backend:align]
     desc: Check Go struct field alignment (betteralign)
     cmds:
       - betteralign ./...

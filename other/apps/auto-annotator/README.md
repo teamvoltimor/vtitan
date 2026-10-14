@@ -57,9 +57,9 @@ All commands are available via `task <name>` (see `Taskfile.yml`):
 
 | Task | Description |
 |---|---|
-| `proto:gen` | Regenerate Go + Python gRPC stubs |
-| `proto:gen:go` | Go stubs via `buf` into `api/internal/compute/pb` |
-| `proto:gen:py` | Python stubs via `grpc_tools` into `ml-service/src/grpc_server/pb` |
+| `proto:generate` | Regenerate Go + Python gRPC stubs |
+| `proto:generate:go` | Go stubs via `buf` into `api/internal/compute/pb` |
+| `proto:generate:py` | Python stubs via `grpc_tools` into `ml-service/src/grpc_server/pb` |
 
 ### Frontend
 

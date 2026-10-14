@@ -322,7 +322,8 @@ tasks:
     cmds:
       - golangci-lint run --fix ./cmd/simgen/... ./internal/simgen/...
 
-  simgen:align:
+  simgen:align:check:
+    aliases: [simgen:align]
     desc: Check Go struct field alignment (betteralign)
     cmds:
       - betteralign ./cmd/simgen/... ./internal/simgen/...
@@ -337,7 +338,8 @@ tasks:
     cmds:
       - golangci-lint fmt ./cmd/simgen/... ./internal/simgen/...
 
-  gen:robot-command-client:
+  generate:robot-command-client:
+    aliases: [gen:robot-command-client]
     desc: "Regenerate src/go's local Go+gRPC client stubs for other/contracts/proto/telemetry/v1/commands.proto (internal/schema/pb/telemetry/v1) -- backend's own generated copy (other/apps/backend/gen/telemetry/v1) is untouched. Moved here from other/tasks/platform.yml -- it only ever touched this module's own internal/schema/pb."
     cmds:
       - buf generate ../../other/contracts/proto --template buf.gen.commands.yaml --path ../../other/contracts/proto/telemetry/v1/commands.proto
