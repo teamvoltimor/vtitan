@@ -6,4 +6,4 @@ allowBuilds:
 overrides:
   browserslist: 4.28.7
   js-yaml: 4.3.2
-  postcss: 8.5.18
+  postcss: 8.5.23
