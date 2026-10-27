@@ -1,4 +1,4 @@
-# vtitan — agent guide
+# vtitan - agent guide
 
 Team Voltimor's robot for WRO 2026, Future Engineers: the ROS 2/Python stack that
 runs on the Pi 5, a Go reimplementation and simulator of the same navigation, one
@@ -29,7 +29,7 @@ src/python/   competition stack: src/ (real logic), ros2_ws/src/ (thin node wrap
               shared/ (pydantic config loaders), tests/{unit,ros2,hardware}
 src/go/       Go port, sim runner, Pico firmware, systemd units, the vt CLI
 src/config/   the TOML the robot reads (robot.toml, track.toml, hardware/, navigation/,
-              profiles/) — the single source for both stacks
+              profiles/), the single source for both stacks
 src/model/    JSON Schemas validating that TOML
 other/        apps/ (telemetry backend + frontend, gazebo, auto-annotator, hugo-docs),
               contracts/ (proto, openapi), ml/ (hailo training, tracked weights),
