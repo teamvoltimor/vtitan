@@ -152,7 +152,6 @@ dmypy.json
 
 # Claude Code
 .claude/
-CLAUDE.md
 
 # OpenCode
 opencode.json
