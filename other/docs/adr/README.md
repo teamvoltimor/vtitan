@@ -143,3 +143,4 @@ story in its `## History` section rather than spawning a micro-ADR per attempt.
 | [0097](0097-doc-ownership-and-drift-checks.md) | Tracked prose owns only the present it can be checked against, and a docs check enforces it | accepted |
 | [0098](0098-pico-actuation-board-and-portable-cores.md) | A Pico 2 is an alternative actuation board, and the logic both boards share lives in `pkg/portable` | accepted |
 | [0099](0099-blind-round-frame-contract.md) | A blind round runs in one believed frame, built by one component on the robot and in the sim | proposed |
+| [0100](0100-the-backlog-is-a-tracked-queue.md) | The backlog is a tracked queue, and it is the one place a list of open work lives | accepted |
