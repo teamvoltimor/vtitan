@@ -158,7 +158,6 @@ CLAUDE.local.md
 opencode.json
 
 # Internal programs configuration
-.rsk/
 
 # Shared data tree, split by provenance (live = pulled off the robot,
 # sim = sim-runner output), each with runs/videos/photos siblings. Both the
