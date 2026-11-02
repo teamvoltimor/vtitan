@@ -11,6 +11,12 @@ para no perder su historia.
 
 ---
 
+## [Unreleased]
+
+### Changed
+
+- El backlog es ahora un archivo por item: `docs/backlog/project.md` más un archivo por item en `pending/`, `active/`, `done/` y `archive/`, con el id en el nombre. `docs-architect` 1.1.0 documenta los dos layouts (este y el de lista). Solo documentación: sin cambio en tiempo de ejecución.
+
 ## v1.2 (13 de septiembre de 2026)
 
 **216 commits desde v1.1.** La versión más grande de la temporada, y la que
