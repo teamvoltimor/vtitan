@@ -8,4 +8,4 @@ topics:
 
 Platform queue R153 decides the host; afterwards this is one sweep of `go.mod` and imports
 
-plan: [platform queue](../../../../../ralvarez/identity-service/docs/backlog/platform.md)
+plan: [platform queue](../../../../../ralvarez/identity-service/docs/backlog/project.md)
