@@ -1,0 +1,32 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "instructions": [
+    ".claude/skills/docs-architect/SKILL.md",
+    ".claude/skills/rsk-guide/SKILL.md"
+  ],
+  "mcp": {
+    "rdk": {
+      "command": [
+        "rdk",
+        "mcp",
+        "--read-only"
+      ],
+      "enabled": true,
+      "type": "local"
+    },
+    "rsk": {
+      "command": [
+        "rsk",
+        "mcp"
+      ],
+      "enabled": true,
+      "type": "local"
+    }
+  },
+  "permission": {
+    "external_directory": {
+      "~/.claude/projects/*/memory/**": "allow",
+      "~/AppData/Local/Temp/**": "allow"
+    }
+  }
+}

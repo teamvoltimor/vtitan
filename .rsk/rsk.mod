@@ -1,6 +1,6 @@
 version = 1
 tools = ["claude-code", "opencode"]
-pinned = ["docs-architect"]
+pinned = ["docs-architect", "rsk-guide"]
 
 [skills]
   ci-cd-architect = "*"
@@ -22,5 +22,6 @@ pinned = ["docs-architect"]
   repo-tooling-architect = "*"
   rest-api-architect = "*"
   ros2-architect = "*"
+  rsk-guide = "*"
   secrets-architect = "*"
   tdd = "*"
