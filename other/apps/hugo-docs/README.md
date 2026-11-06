@@ -56,8 +56,9 @@ Build for Cloudflare Pages. Output goes to `public/`; connect the repo in the Cl
 
 ## Deployment
 
-Deployment is handled automatically by GitHub Actions on every push to `master`
-that touches `hugo-docs/`. See `.github/workflows/hugo-docs.yml`.
+Deployment is manual: `.github/workflows/hugo-docs.yml` is `workflow_dispatch`
+only, so nothing deploys on push. Start it from the Actions tab (or run it
+locally with `act -W .github/workflows/hugo-docs.yml`).
 
 Required repository secrets:
 

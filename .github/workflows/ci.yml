@@ -1,9 +1,11 @@
 name: CI
 
+# Manual-dispatch only, deliberately: push/PR/tag triggers are off so nothing
+# runs on a billed GitHub-hosted runner. The same workflow runs locally instead
+# (`task ci:local`), and workflow_dispatch stays so it can still be run by hand
+# from the Actions tab when needed.
 on:
-  push:
-    branches: [master, platform]
-  pull_request:
+  workflow_dispatch:
 
 # Cancel superseded runs on the same ref.
 concurrency:

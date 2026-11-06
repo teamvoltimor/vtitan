@@ -267,3 +267,6 @@ schemes/flowcharts/common/svg-editorial/
 
 # GitHub token for private Go modules (local Docker builds)
 .github_token
+
+# Secrets rendered by `task ci:secrets` for the local act run (.gitignore)
+.secrets

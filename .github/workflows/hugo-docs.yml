@@ -1,15 +1,11 @@
 name: Build and Deploy Docs
 
+# Manual-dispatch only, deliberately: push/PR/tag triggers are off so nothing
+# runs on a billed GitHub-hosted runner. The same workflow runs locally instead
+# (`task ci:local`), and workflow_dispatch stays so it can still be run by hand
+# from the Actions tab when needed.
 on:
-  push:
-    branches: [master]
-    paths:
-      - "other/apps/hugo-docs/**"
-      - ".github/workflows/hugo-docs.yml"
-  pull_request:
-    branches: [master]
-    paths:
-      - "other/apps/hugo-docs/**"
+  workflow_dispatch:
 
 jobs:
   build:

@@ -264,3 +264,19 @@ tasks:
       - cp other/assets/voltimor-logo-rounded-square.webp other/assets/voltimor-logo-banner.webp other/apps/auto-annotator/frontend/public/
       - cp other/assets/voltimor-logo-rounded-square.webp other/assets/voltimor-logo-banner.webp other/apps/frontend/public/
       - echo "[OK] Synced logo assets to other/apps/auto-annotator/frontend/public and other/apps/frontend/public"
+  ci:secrets:
+    desc: Render .secrets (gitignored) from the secrets store for `task ci:local`
+    cmds:
+      - |
+        S="${SECRETS_DIR:-$HOME/Secrets}"
+        [ -r "$S/github/ci-modules" ] || { echo "missing $S/github/ci-modules" >&2; exit 1; }
+        printf 'GH_PRIVATE_MODULES_TOKEN=%s\n' "$(cat "$S/github/ci-modules")" > .secrets
+        chmod 600 .secrets
+
+  # ci.yml is workflow_dispatch only, so nothing runs on a billed GitHub-hosted
+  # runner. `act` runs that same file locally; the token is the same one CI uses.
+  ci:local:
+    desc: Run ci.yml locally with act (the workflow is workflow_dispatch only)
+    cmds:
+      - task: ci:secrets
+      - act workflow_dispatch -W .github/workflows/ci.yml --action-offline-mode --pull=false --secret-file .secrets --env-file /dev/null
