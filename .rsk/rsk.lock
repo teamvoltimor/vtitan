@@ -27,7 +27,7 @@ version = 1
 
 [[skills]]
   name = "go-architect"
-  version = "1.14.0"
+  version = "1.20.0"
   source = "registry"
 
 [[skills]]
