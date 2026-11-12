@@ -2,7 +2,7 @@ version = 1
 
 [[skills]]
   name = "cli-tool-architect"
-  version = "1.1.0"
+  version = "1.1.1"
   source = "registry"
 
 [[skills]]
@@ -22,12 +22,12 @@ version = 1
 
 [[skills]]
   name = "event-driven-architect"
-  version = "1.1.0"
+  version = "1.1.1"
   source = "registry"
 
 [[skills]]
   name = "go-architect"
-  version = "1.20.0"
+  version = "1.20.1"
   source = "registry"
 
 [[skills]]
@@ -42,7 +42,7 @@ version = 1
 
 [[skills]]
   name = "hugo-architect"
-  version = "1.1.0"
+  version = "1.1.1"
   source = "registry"
 
 [[skills]]
@@ -62,12 +62,12 @@ version = 1
 
 [[skills]]
   name = "repo-tooling-architect"
-  version = "1.6.0"
+  version = "1.6.1"
   source = "registry"
 
 [[skills]]
   name = "rest-api-architect"
-  version = "1.2.0"
+  version = "1.2.1"
   source = "registry"
 
 [[skills]]
@@ -97,7 +97,7 @@ version = 1
 
 [[skills]]
   name = "docs-architect"
-  version = "1.2.0"
+  version = "1.2.1"
   source = "registry"
 
 [[skills]]
@@ -107,20 +107,20 @@ version = 1
 
 [[skills]]
   name = "rsk-guide"
-  version = "0.5.1"
+  version = "0.5.2"
   source = "registry"
 
 [[skills]]
   name = "commit-author"
-  version = "1.12.0"
+  version = "1.12.1"
   source = "registry"
 
 [[skills]]
   name = "token-economy"
-  version = "1.1.0"
+  version = "1.1.1"
   source = "registry"
 
 [[skills]]
   name = "adhd-mode"
-  version = "1.0.0"
+  version = "1.0.1"
   source = "registry"
