@@ -36,8 +36,8 @@ version = 1
   source = "registry"
 
 [[skills]]
-  name = "hexagonal-arch"
-  version = "1.2.1"
+  name = "hexagonal-architecture"
+  version = "2.0.0"
   source = "registry"
 
 [[skills]]
