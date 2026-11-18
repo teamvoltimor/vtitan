@@ -270,3 +270,6 @@ schemes/flowcharts/common/svg-editorial/
 
 # Secrets rendered by `task ci:secrets` for the local act run (.gitignore)
 .secrets
+
+# CodeGraph index (local; rebuild with `codegraph init`)
+.codegraph/
