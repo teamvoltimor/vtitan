@@ -273,3 +273,4 @@ schemes/flowcharts/common/svg-editorial/
 
 # CodeGraph index (local; rebuild with `codegraph init`)
 .codegraph/
+.opencode/skills/

@@ -1,6 +1,6 @@
 version = 1
 tools = ["claude-code", "opencode"]
-pinned = ["docs-architect", "rsk-guide", "commit-author", "token-economy", "repo-tooling-architect", "adhd-mode"]
+pinned = ["docs-architect", "rsk-guide", "commit-author", "token-economy", "repo-tooling-architect", "adhd-mode", "test-designer"]
 
 [skills]
   adhd-mode = "*"
@@ -27,4 +27,5 @@ pinned = ["docs-architect", "rsk-guide", "commit-author", "token-economy", "repo
   rsk-guide = "*"
   secrets-architect = "*"
   tdd = "*"
+  test-designer = "*"
   token-economy = "*"
