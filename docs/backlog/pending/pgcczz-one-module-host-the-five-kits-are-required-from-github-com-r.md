@@ -1,5 +1,5 @@
 ---
-title: 'One module host: the five kits are required from `github.com/ralvarezdev/*` while the `go.ralvarez.dev` vanity exists.'
+title: 'One module host: the five kits are required from `github.com/ralvarezdev/*` while the `go.ralva.dev` vanity exists.'
 priority: p3
 section: vtitan
 topics:
